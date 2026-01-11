@@ -1,0 +1,17 @@
+export * from "./class-definition.js";
+export * from "./registry.js";
+
+export * from "./barbarian.js";
+export * from "./bard.js";
+export { Cleric } from "./cleric.js";
+export * as cleric from "./cleric.js";
+export * from "./druid.js";
+export * from "./fighter.js";
+export * from "./monk.js";
+export { Paladin } from "./paladin.js";
+export * as paladin from "./paladin.js";
+export * from "./ranger.js";
+export * from "./rogue.js";
+export * from "./sorcerer.js";
+export * from "./warlock.js";
+export * from "./wizard.js";

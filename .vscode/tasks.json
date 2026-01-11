@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "game-server: test (faction full transcript)",
+      "type": "shell",
+      "command": "pnpm",
+      "args": [
+        "-C",
+        "packages/game-server",
+        "exec",
+        "vitest",
+        "run",
+        "src/infrastructure/api/combat-flow-tabletop.integration.test.ts",
+        "--testNamePattern",
+        "faction test: full",
+        "--no-file-parallelism",
+        "--reporter=verbose",
+        "--no-color"
+      ],
+      "options": {
+        "env": {
+          "DM_TEST_TRANSCRIPT": "1",
+          "DM_DEBUG_LOGS": "0",
+          "DM_AI_DEBUG": "0",
+          "CI": "1"
+        }
+      },
+      "problemMatcher": [],
+      "group": "test"
+    }
+  ]
+}

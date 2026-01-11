@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Static rules data (seeded, read-only at runtime)
+model SpellDefinition {
+  id        String  @id
+  name      String  @unique
+  level     Int
+  school    String
+  ritual    Boolean @default(false)
+  data      Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ClassFeatureDefinition {
+  id        String @id
+  className String
+  level     Int
+  name      String
+  data      Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([className, level])
+}
+
+model ItemDefinition {
+  id       String @id
+  name     String @unique
+  category String
+  data     Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ConditionDefinition {
+  id   String @id
+  name String @unique
+  data Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MonsterDefinition {
+  id       String @id
+  name     String @unique
+  size     String
+  kind     String
+  cr       Float?
+  data     Json
+
+  sessionMonsters SessionMonster[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Runtime game state
+model GameSession {
+  id String @id
+
+  /// LLM-generated story structure (opening/arc/ending/checkpoints)
+  storyFramework Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  characters       SessionCharacter[]
+  monsters         SessionMonster[]
+  npcs             SessionNPC[]
+  combatEncounters CombatEncounter[]
+  events           GameEvent[]
+}
+
+model SessionCharacter {
+  id        String @id
+  sessionId String
+
+  name         String
+  level        Int
+  className    String?
+  sheet        Json
+  
+  /// Faction determines allies/enemies in combat (default: "party")
+  faction      String @default("party")
+  /// Whether this character is AI-controlled (false = player-controlled)
+  aiControlled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session         GameSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  combatantStates CombatantState[]
+
+  @@index([sessionId])
+}
+
+model SessionMonster {
+  id        String @id
+  sessionId String
+
+  name               String
+  monsterDefinitionId String?
+  statBlock          Json
+  
+  /// Faction determines allies/enemies in combat (default: "enemy")
+  faction      String @default("enemy")
+  /// Whether this monster is AI-controlled (default: true)
+  aiControlled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session         GameSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  combatantStates CombatantState[]
+
+  monsterDefinition MonsterDefinition? @relation(fields: [monsterDefinitionId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([monsterDefinitionId])
+}
+
+model SessionNPC {
+  id        String @id
+  sessionId String
+
+  name      String
+  /// Class-based stat block (similar to SessionCharacter.sheet structure)
+  statBlock Json
+  
+  /// Faction determines allies/enemies in combat
+  faction      String @default("party")
+  /// Whether this NPC is AI-controlled (default: true)
+  aiControlled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session         GameSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  combatantStates CombatantState[]
+
+  @@index([sessionId])
+}
+
+model CombatEncounter {
+  id        String @id
+  sessionId String
+
+  status String
+  round  Int    @default(1)
+  turn   Int    @default(0)
+
+  // Tabletop combat flow - pending player action
+  pendingAction   Json?
+  pendingActionAt DateTime?
+
+  // Combat map data (terrain, entities, cover, etc.)
+  mapData Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   GameSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  combatants CombatantState[]
+
+  @@index([sessionId])
+}
+
+enum CombatantType {
+  Character
+  Monster
+  NPC
+}
+
+model CombatantState {
+  id              String @id
+  encounterId     String
+  combatantType   CombatantType
+
+  characterId String?
+  monsterId   String?
+  npcId       String?
+
+  initiative Int?
+  hpCurrent  Int
+  hpMax      Int
+
+  conditions Json
+  resources  Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounter  CombatEncounter   @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  character  SessionCharacter? @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  monster    SessionMonster?   @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  npc        SessionNPC?       @relation(fields: [npcId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId])
+  @@index([characterId])
+  @@index([monsterId])
+  @@index([npcId])
+}
+
+model GameEvent {
+  id        String @id
+  sessionId String
+
+  /// e.g. "AttackResolved", "DamageApplied", "Narration"
+  type String
+
+  /// Structured payload for replay + narration
+  payload Json
+
+  createdAt DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}

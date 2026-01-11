@@ -1,0 +1,103 @@
+/**
+ * Domain: Ability Execution Interface
+ * 
+ * Defines the contract for executing class features, monster abilities, and bonus actions.
+ * Executors are registered in the application layer and handle the full lifecycle of ability execution.
+ */
+
+import type { Combat } from "../combat/combat.js";
+import type { Creature } from "../entities/creatures/creature.js";
+
+/**
+ * Context provided to ability executors containing all information needed for execution.
+ */
+export interface AbilityExecutionContext {
+  /** Session ID for event/persistence operations */
+  sessionId: string;
+  
+  /** Encounter ID */
+  encounterId: string;
+  
+  /** The creature using the ability */
+  actor: Creature;
+  
+  /** Combat instance (for action economy, positioning, etc.) */
+  combat: Combat;
+  
+  /** Ability ID being executed (e.g., "monster:bonus:nimble-escape") */
+  abilityId: string;
+  
+  /** Optional target creature (for targeted abilities) */
+  target?: Creature;
+  
+  /** Optional parameters from LLM decision (e.g., choice selection) */
+  params?: Record<string, unknown>;
+  
+  /** Services available for delegation */
+  services: {
+    attack?: (params: any) => Promise<any>;
+    move?: (params: any) => Promise<any>;
+    disengage?: (params: any) => Promise<any>;
+    dash?: (params: any) => Promise<any>;
+    dodge?: (params: any) => Promise<any>;
+    hide?: (params: any) => Promise<any>;
+    help?: (params: any) => Promise<any>;
+    castSpell?: (params: any) => Promise<any>;
+    [key: string]: ((params: any) => Promise<any>) | undefined;
+  };
+}
+
+/**
+ * Result of ability execution.
+ */
+export interface AbilityExecutionResult {
+  /** Whether execution succeeded */
+  success: boolean;
+  
+  /** Human-readable summary of what happened */
+  summary: string;
+  
+  /** Structured data about the execution (for events/logging) */
+  data?: Record<string, unknown>;
+  
+  /** Error message if execution failed */
+  error?: string;
+}
+
+/**
+ * Ability executor interface.
+ * 
+ * Each executor handles one or more related abilities (e.g., all Cunning Action variants).
+ * Executors are responsible for:
+ * - Validating prerequisites (resources, action economy, conditions)
+ * - Spending costs (ki points, spell slots, etc.)
+ * - Delegating to core action services
+ * - Returning structured results
+ */
+export interface AbilityExecutor {
+  /**
+   * Check if this executor can handle the given ability ID.
+   * 
+   * @param abilityId - Structured ability ID (e.g., "monster:bonus:nimble-escape")
+   * @returns True if this executor handles this ability
+   */
+  canExecute(abilityId: string): boolean;
+  
+  /**
+   * Execute the ability.
+   * 
+   * @param context - Full execution context
+   * @returns Result of execution
+   */
+  execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult>;
+}
+
+/**
+ * Helper to check if ability ID matches a pattern.
+ */
+export function matchesAbilityPattern(abilityId: string, pattern: string | RegExp): boolean {
+  if (typeof pattern === 'string') {
+    return abilityId === pattern;
+  }
+  return pattern.test(abilityId);
+}

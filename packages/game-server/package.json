@@ -1,0 +1,43 @@
+{
+  "name": "@dungeonmaster/game-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:validate": "prisma validate",
+    "prisma:seed": "prisma db seed",
+    "import:rulebook": "tsx scripts/import-rulebook.ts",
+    "import:monsters": "tsx scripts/import-monsters.ts",
+    "test": "vitest run",
+    "test:e2e:combat:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
+    "test:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts src/infrastructure/llm/character-generator.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "type-check": "pnpm typecheck"
+  },
+  "dependencies": {
+    "@dungeonmaster/shared": "workspace:*",
+    "fastify": "^5.2.1",
+    "prisma": "^6.1.0",
+    "@prisma/client": "^6.1.0",
+    "pino": "^9.6.0",
+    "nanoid": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

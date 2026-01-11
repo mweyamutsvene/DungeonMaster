@@ -1,0 +1,115 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+function loadEnvFile(filePath: string, opts?: { override: boolean }): void {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, "utf8");
+  const lines = content.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+    if (line.startsWith("#")) continue;
+
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+
+    if (!key) continue;
+
+    // Strip optional surrounding quotes.
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (opts?.override || process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+// Load environment variables from packages/game-server/.env (and .env.local if present)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadEnvFile(path.resolve(__dirname, "../.env"), { override: false });
+loadEnvFile(path.resolve(__dirname, "../.env.local"), { override: true });
+
+import { buildApp } from "./infrastructure/api/app.js";
+import {
+  PrismaCharacterRepository,
+  PrismaCombatRepository,
+  PrismaEventRepository,
+  PrismaGameSessionRepository,
+  PrismaMonsterRepository,
+  PrismaNPCRepository,
+  PrismaSpellRepository,
+  PublishingEventRepository,
+  PrismaUnitOfWork,
+  createPrismaClient,
+} from "./infrastructure/db/index.js";
+
+import {
+  createLlmProviderFromEnv,
+  getDefaultModelFromEnv,
+  IntentParser,
+  NarrativeGenerator,
+  StoryGenerator,
+  CharacterGenerator,
+} from "./infrastructure/llm/index.js";
+
+const port = Number(process.env.PORT ?? 3001);
+const host = process.env.HOST ?? "0.0.0.0";
+
+const prisma = createPrismaClient();
+const unitOfWork = new PrismaUnitOfWork(prisma);
+
+const sessionsRepo = new PrismaGameSessionRepository(prisma);
+const charactersRepo = new PrismaCharacterRepository(prisma);
+const monstersRepo = new PrismaMonsterRepository(prisma);
+const npcsRepo = new PrismaNPCRepository(prisma);
+const combatRepo = new PrismaCombatRepository(prisma);
+const eventsRepo = new PublishingEventRepository(new PrismaEventRepository(prisma));
+const spellsRepo = new PrismaSpellRepository(prisma);
+
+const llmProvider = createLlmProviderFromEnv();
+const llmModel = getDefaultModelFromEnv();
+const llmConfig = llmProvider && llmModel ? { model: llmModel, temperature: 0.7, timeoutMs: 180000 } : undefined;
+const storyGenerator = llmProvider && llmModel ? new StoryGenerator(llmProvider, { model: llmModel }) : undefined;
+const intentParser = llmProvider && llmModel ? new IntentParser(llmProvider, { model: llmModel }) : undefined;
+const narrativeGenerator =
+  llmProvider && llmModel ? new NarrativeGenerator(llmProvider, { model: llmModel }) : undefined;
+const characterGenerator =
+  llmProvider && llmModel ? new CharacterGenerator(llmProvider, { model: llmModel }) : undefined;
+
+const app = buildApp({
+  sessionsRepo,
+  charactersRepo,
+  monstersRepo,
+  npcsRepo,
+  combatRepo,
+  eventsRepo,
+  spellsRepo,
+  unitOfWork,
+  storyGenerator,
+  intentParser,
+  narrativeGenerator,
+  characterGenerator,
+  llmProvider,
+  llmConfig,
+});
+
+try {
+  await app.listen({ port, host });
+  app.log.info({ port, host }, "game-server listening");
+} catch (error) {
+  app.log.error({ error }, "failed to start game-server");
+  process.exit(1);
+} finally {
+  // fastify handles shutdown hooks; keep prisma open while server is running
+}

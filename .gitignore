@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+packages/*/dist/
+dist/
+
+# Turbo cache
+.turbo/
+
+# Local env / venv
+.env
+.venv/
+
+# Prisma local dev DB
+packages/game-server/prisma/dev.db
+
+# Local test artifacts
+packages/game-server/test-debug.txt
+packages/game-server/test-output.txt
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/*.log
