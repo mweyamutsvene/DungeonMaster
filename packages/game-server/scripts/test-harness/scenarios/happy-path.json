@@ -1,0 +1,128 @@
+{
+  "name": "Happy Path: Fighter vs Goblin",
+  "description": "A level 5 Fighter defeats a single Goblin Warrior through the 2-phase tabletop combat flow. Includes a move action to close distance before attacking.",
+  "setup": {
+    "character": {
+      "name": "Thorin Ironfist",
+      "className": "Fighter",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Warrior",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "bonusActions": [
+            {
+              "name": "Nimble Escape",
+              "description": "Disengage or Hide as a bonus action"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "Fighter starts at (10,10), goblin at (40,10). Move to (35,10) puts us 5ft away.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Warrior with my sword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

@@ -115,7 +115,13 @@ export interface ReactionResponse {
   respondedAt: Date;
   
   /** Result of executing the reaction (if used) */
-  result?: unknown;
+  result?: {
+    attackRoll?: number;     // d20 result from player
+    attackTotal?: number;    // Roll + modifiers
+    hit?: boolean;           // Whether attack hit
+    damageRoll?: number;     // Damage die result from player
+    damageTotal?: number;    // Total damage applied
+  };
 }
 
 /**

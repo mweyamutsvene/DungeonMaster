@@ -5,13 +5,28 @@ import {
   CharacterService,
   CombatService,
   GameSessionService,
+  TacticalViewService,
+  TabletopCombatService,
 } from "../../application/services/index.js";
-import { MonsterAIService } from "../../application/services/combat/ai/monster-ai-service.js";
+import { AiTurnOrchestrator } from "../../application/services/combat/ai/index.js";
 import { FactionService } from "../../application/services/combat/helpers/faction-service.js";
 import { CombatantResolver } from "../../application/services/combat/helpers/combatant-resolver.js";
 import { BasicCombatVictoryPolicy } from "../../application/services/combat/combat-victory-policy.js";
 import { AbilityRegistry } from "../../application/services/combat/abilities/ability-registry.js";
-import { NimbleEscapeExecutor, CunningActionExecutor } from "../../application/services/combat/abilities/executors/index.js";
+import { 
+  NimbleEscapeExecutor, 
+  CunningActionExecutor, 
+  OffhandAttackExecutor, 
+  FlurryOfBlowsExecutor, 
+  PatientDefenseExecutor, 
+  StepOfTheWindExecutor, 
+  MartialArtsExecutor,
+  StunningStrikeExecutor,
+  WholenessOfBodyExecutor,
+  UncannyMetabolismExecutor,
+  DeflectAttacksExecutor,
+  OpenHandTechniqueExecutor
+} from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../../application/repositories/pending-action-repository.js";
 import type {
@@ -25,7 +40,7 @@ import type {
 } from "../../application/repositories/index.js";
 
 import { registerHealthRoutes } from "./routes/health.js";
-import { registerSessionRoutes } from "./routes/sessions.js";
+import { registerSessionRoutes } from "./routes/sessions/index.js";
 import { registerReactionRoutes } from "./routes/reactions.js";
 import { sseBroker } from "./realtime/sse-broker.js";
 import { NotFoundError, ValidationError } from "../../application/errors.js";
@@ -34,6 +49,7 @@ import type { IStoryGenerator } from "../llm/story-generator.js";
 import type { IIntentParser } from "../llm/intent-parser.js";
 import type { INarrativeGenerator } from "../llm/narrative-generator.js";
 import type { ICharacterGenerator } from "../llm/character-generator.js";
+import type { IAiDecisionMaker } from "../../application/services/combat/ai/ai-types.js";
 import { LlmAiDecisionMaker } from "../llm/ai-decision-maker.js";
 import type { LlmProvider } from "../llm/types.js";
 import type { DiceRoller } from "../../domain/rules/dice-roller.js";
@@ -51,6 +67,7 @@ export type AppDeps = {
   intentParser?: IIntentParser;
   narrativeGenerator?: INarrativeGenerator;
   characterGenerator?: ICharacterGenerator;
+  aiDecisionMaker?: IAiDecisionMaker;
   llmProvider?: LlmProvider;
   llmConfig?: { model: string; temperature?: number; timeoutMs?: number };
   diceRoller?: DiceRoller;
@@ -124,7 +141,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
           }),
       }
     : undefined;
-  const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo, narrator);
+  // Note: narrator adapter is prepared for future use but ActionService no longer takes it
+  void narrator; // Suppress unused warning for now
+  const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo);
   
   // Two-phase action service for reactions
   const pendingActionsRepo = new InMemoryPendingActionRepository();
@@ -136,16 +155,27 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     deps.eventsRepo,
   );
   
-  const aiDecisionMaker = deps.llmProvider && deps.llmConfig
-    ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)
-    : undefined;
+  const aiDecisionMaker = deps.aiDecisionMaker
+    ?? (deps.llmProvider && deps.llmConfig
+      ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)
+      : undefined);
   
   // Configure ability registry with executors
   const abilityRegistry = new AbilityRegistry();
   abilityRegistry.register(new NimbleEscapeExecutor());
   abilityRegistry.register(new CunningActionExecutor());
+  abilityRegistry.register(new OffhandAttackExecutor());
+  abilityRegistry.register(new FlurryOfBlowsExecutor());
+  abilityRegistry.register(new PatientDefenseExecutor());
+  abilityRegistry.register(new StepOfTheWindExecutor());
+  abilityRegistry.register(new MartialArtsExecutor());
+  abilityRegistry.register(new StunningStrikeExecutor());
+  abilityRegistry.register(new WholenessOfBodyExecutor());
+  abilityRegistry.register(new UncannyMetabolismExecutor());
+  abilityRegistry.register(new DeflectAttacksExecutor());
+  abilityRegistry.register(new OpenHandTechniqueExecutor());
   
-  const monsterAI = new MonsterAIService(
+  const aiOrchestrator = new AiTurnOrchestrator(
     deps.combatRepo,
     deps.charactersRepo,
     deps.monstersRepo,
@@ -155,9 +185,38 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     combat,
     combatants,
     abilityRegistry,
+    twoPhaseActions,
+    pendingActionsRepo,
     aiDecisionMaker,
     deps.eventsRepo,
   );
+  
+  // New services for refactored route modules
+  const tacticalView = new TacticalViewService({
+    combat,
+    characters: deps.charactersRepo,
+    monsters: deps.monstersRepo,
+    npcs: deps.npcsRepo,
+    combatRepo: deps.combatRepo,
+  });
+  
+  const tabletopCombat = new TabletopCombatService({
+    characters: deps.charactersRepo,
+    monsters: deps.monstersRepo,
+    npcs: deps.npcsRepo,
+    combatRepo: deps.combatRepo,
+    combat,
+    actions,
+    twoPhaseActions,
+    combatants,
+    pendingActions: pendingActionsRepo,
+    events: deps.eventsRepo,
+    aiOrchestrator,
+    intentParser: deps.intentParser,
+    narrativeGenerator: deps.narrativeGenerator,
+    victoryPolicy,
+    abilityRegistry,
+  });
 
   registerHealthRoutes(app);
   registerReactionRoutes(app, {
@@ -170,16 +229,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     characters,
     combat,
     actions,
-    monsterAI,
+    twoPhaseActions,
+    pendingActions: pendingActionsRepo,
+    aiOrchestrator,
+    tacticalView,
+    tabletopCombat,
     events: deps.eventsRepo,
     combatRepo: deps.combatRepo,
+    combatants,
     monsters: deps.monstersRepo,
     npcs: deps.npcsRepo,
+    charactersRepo: deps.charactersRepo,
     unitOfWork: deps.unitOfWork,
     storyGenerator: deps.storyGenerator,
     intentParser: deps.intentParser,
     narrativeGenerator: deps.narrativeGenerator,
     characterGenerator: deps.characterGenerator,
+    diceRoller: deps.diceRoller,
     createServicesForRepos: (repos) => {
       const sessionsService = new GameSessionService(repos.sessionsRepo, repos.eventsRepo);
       const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo);
@@ -216,12 +282,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
               }),
           }
         : undefined;
+      void narratorInner; // Suppress unused warning for now
       const actionsService = new ActionService(
         repos.sessionsRepo,
         repos.combatRepo,
         combatantsInner,
         repos.eventsRepo,
-        narratorInner,
       );
       const aiDecisionMakerInner = deps.llmProvider && deps.llmConfig
         ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)
@@ -232,7 +298,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       abilityRegistryInner.register(new NimbleEscapeExecutor());
       abilityRegistryInner.register(new CunningActionExecutor());
       
-      const monsterAIService = new MonsterAIService(
+      // Two-phase action service
+      const pendingActionsRepoInner = new InMemoryPendingActionRepository();
+      const twoPhaseService = new TwoPhaseActionService(
+        repos.sessionsRepo,
+        repos.combatRepo,
+        combatantsInner,
+        pendingActionsRepoInner,
+        repos.eventsRepo,
+      );
+      
+      const aiOrchestratorInner = new AiTurnOrchestrator(
         repos.combatRepo,
         repos.charactersRepo,
         repos.monstersRepo,
@@ -242,6 +318,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         combatService,
         combatantsInner,
         abilityRegistryInner,
+        twoPhaseService,
+        pendingActionsRepoInner,
         aiDecisionMakerInner,
         repos.eventsRepo,
       );
@@ -250,7 +328,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         characters: charactersService,
         combat: combatService,
         actions: actionsService,
-        monsterAI: monsterAIService,
+        aiOrchestrator: aiOrchestratorInner,
       };
     },
   });

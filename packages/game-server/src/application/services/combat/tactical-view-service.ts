@@ -1,0 +1,480 @@
+/**
+ * TacticalViewService - Builds tactical combat views and LLM context for combat queries.
+ *
+ * This service extracts the tactical view computation and combat query context building
+ * that was previously embedded in route handlers.
+ */
+
+import type { ICharacterRepository } from "../../repositories/character-repository.js";
+import type { IMonsterRepository } from "../../repositories/monster-repository.js";
+import type { INPCRepository } from "../../repositories/npc-repository.js";
+import type { ICombatRepository } from "../../repositories/combat-repository.js";
+import type { CombatService } from "./combat-service.js";
+import { calculateDistance, crossesThroughReach } from "../../../domain/rules/movement.js";
+import {
+  getPosition,
+  getResourcePools,
+  normalizeResources,
+  readBoolean,
+} from "./helpers/resource-utils.js";
+import { ClassFeatureResolver } from "../../../domain/entities/classes/class-feature-resolver.js";
+
+export interface TacticalCombatant {
+  id: string;
+  name: string;
+  combatantType: "Character" | "Monster" | "NPC";
+  hp: { current: number; max: number };
+  position: { x: number; y: number } | null;
+  distanceFromActive: number | null;
+  actionEconomy: {
+    actionAvailable: boolean;
+    bonusActionAvailable: boolean;
+    reactionAvailable: boolean;
+    movementRemainingFeet: number;
+  };
+  resourcePools: Array<{ name: string; current: number; max: number }>;
+  movement: {
+    speed: number;
+    dashed: boolean;
+    movementSpent: boolean;
+  };
+  turnFlags: {
+    actionSpent: boolean;
+    bonusActionUsed: boolean;
+    reactionUsed: boolean;
+    disengaged: boolean;
+  };
+}
+
+export interface TacticalView {
+  encounterId: string;
+  activeCombatantId: string;
+  combatants: TacticalCombatant[];
+  map: unknown | null;
+}
+
+export interface CombatQueryContext {
+  actor: {
+    id: string;
+    name: string;
+    character: { id: string; name: string; className: string | null; level: number } | null;
+    capabilities: { classFeatures: Array<{ name: string; economy: string; cost?: string; requires?: string; effect: string }> };
+    attackOptions: Array<{ name: string; kind: string; reachFeet: number; attackBonus: number; damageFormula: string }>;
+    position: { x: number; y: number };
+    speed: number;
+    movementRemainingFeet: number;
+    resources: { resourcePools: Array<{ name: string; current: number; max: number }> };
+    sheet: unknown | null;
+  };
+  encounter: {
+    id: string;
+    round: number;
+    turn: number;
+    activeCombatantId: string | null;
+  };
+  distances: Array<{ targetId: string; targetName: string; distance: number; position: { x: number; y: number } | null; combatantType: string }>;
+  oaPrediction: {
+    destination: { x: number; y: number } | null;
+    movementRequiredFeet: number | null;
+    oaRisks: Array<{ combatantId: string; combatantName: string; reach: number; hasReaction: boolean; wouldProvoke: boolean }>;
+  };
+}
+
+export interface TacticalViewServiceDeps {
+  combat: CombatService;
+  characters: ICharacterRepository;
+  monsters: IMonsterRepository;
+  npcs: INPCRepository;
+  combatRepo: ICombatRepository;
+}
+
+export class TacticalViewService {
+  constructor(private readonly deps: TacticalViewServiceDeps) {}
+
+  /**
+   * Build tactical view for an encounter.
+   */
+  async getTacticalView(sessionId: string, encounterId: string): Promise<TacticalView> {
+    const { encounter, combatants, activeCombatant } = await this.deps.combat.getEncounterState(sessionId, {
+      encounterId,
+    });
+
+    const characters = await this.deps.characters.listBySession(sessionId);
+    const monsters = await this.deps.monsters.listBySession(sessionId);
+    const npcs = await this.deps.npcs.listBySession(sessionId);
+
+    const characterById = new Map(characters.map((c) => [c.id, c] as const));
+
+    const activeResourcesRaw = (activeCombatant as any)?.resources ?? {};
+    const activePos = getPosition(activeResourcesRaw);
+
+    const nameFor = (c: any): string => {
+      if (c.combatantType === "Character" && c.characterId) {
+        return characters.find((x) => x.id === c.characterId)?.name ?? c.characterId;
+      }
+      if (c.combatantType === "Monster" && c.monsterId) {
+        return monsters.find((x) => x.id === c.monsterId)?.name ?? c.monsterId;
+      }
+      if (c.combatantType === "NPC" && c.npcId) {
+        return npcs.find((x) => x.id === c.npcId)?.name ?? c.npcId;
+      }
+      return c.id;
+    };
+
+    const tacticalCombatants: TacticalCombatant[] = (combatants as any[]).map((c) => {
+      const resourcesRaw = c.resources ?? {};
+      const resources = normalizeResources(resourcesRaw);
+      const pos = getPosition(resourcesRaw);
+      const distanceFromActive = activePos && pos ? calculateDistance(activePos, pos) : null;
+
+      const sheetPools =
+        c.combatantType === "Character" && c.characterId
+          ? this.deriveResourcePoolsFromSheet(characterById.get(c.characterId)?.sheet)
+          : [];
+      const storedPools = getResourcePools(resourcesRaw);
+      const resourcePools = this.mergePools(sheetPools, storedPools);
+
+      const actionEconomy = this.parseActionEconomy(resourcesRaw);
+
+      return {
+        id: c.id,
+        name: nameFor(c),
+        combatantType: c.combatantType,
+        hp: { current: c.hpCurrent, max: c.hpMax },
+        position: pos ?? null,
+        distanceFromActive,
+        actionEconomy,
+        resourcePools,
+        movement: {
+          speed: typeof resources.speed === "number" ? resources.speed : 30,
+          dashed: readBoolean(resources, "dashed") ?? false,
+          movementSpent: readBoolean(resources, "movementSpent") ?? false,
+        },
+        turnFlags: {
+          actionSpent: readBoolean(resources, "actionSpent") ?? false,
+          bonusActionUsed:
+            (readBoolean(resources, "bonusActionUsed") ?? false) ||
+            (readBoolean(resources, "bonusActionSpent") ?? false),
+          reactionUsed:
+            (readBoolean(resources, "reactionUsed") ?? false) ||
+            (readBoolean(resources, "reactionSpent") ?? false),
+          disengaged: readBoolean(resources, "disengaged") ?? false,
+        },
+      };
+    });
+
+    return {
+      encounterId: encounter.id,
+      activeCombatantId: (activeCombatant as any)?.id ?? "",
+      combatants: tacticalCombatants,
+      map: (encounter as any).mapData ?? null,
+    };
+  }
+
+  /**
+   * Build context for LLM combat queries.
+   */
+  async buildCombatQueryContext(
+    sessionId: string,
+    encounterId: string,
+    actorCharacterId: string,
+    query: string,
+  ): Promise<CombatQueryContext> {
+    const { encounter, combatants, activeCombatant } = await this.deps.combat.getEncounterState(sessionId, {
+      encounterId,
+    });
+
+    const characters = await this.deps.characters.listBySession(sessionId);
+    const monsters = await this.deps.monsters.listBySession(sessionId);
+    const npcs = await this.deps.npcs.listBySession(sessionId);
+
+    const characterById = new Map(characters.map((c) => [c.id, c] as const));
+    const monsterById = new Map(monsters.map((m) => [m.id, m] as const));
+    const npcById = new Map(npcs.map((n) => [n.id, n] as const));
+
+    const nameFor = (c: any): string => {
+      if (c.combatantType === "Character" && c.characterId) {
+        return characterById.get(c.characterId)?.name ?? c.characterId;
+      }
+      if (c.combatantType === "Monster" && c.monsterId) {
+        return monsterById.get(c.monsterId)?.name ?? c.monsterId;
+      }
+      if (c.combatantType === "NPC" && c.npcId) {
+        return npcById.get(c.npcId)?.name ?? c.npcId;
+      }
+      return c.id;
+    };
+
+    const actorCombatant = (combatants as any[]).find(
+      (c) => c.combatantType === "Character" && c.characterId === actorCharacterId,
+    );
+    if (!actorCombatant) {
+      throw new Error("actorId not found in encounter");
+    }
+
+    const actorResourcesRaw = actorCombatant.resources ?? {};
+    const actorResources = normalizeResources(actorResourcesRaw);
+    const actorPos = getPosition(actorResourcesRaw);
+    if (!actorPos) {
+      throw new Error("actor does not have a position set");
+    }
+
+    const actorSpeed = typeof actorResources.speed === "number" ? actorResources.speed : 30;
+    const actorDashed = readBoolean(actorResources, "dashed") ?? false;
+    const actorMovementSpent = readBoolean(actorResources, "movementSpent") ?? false;
+    const actorMovementRemainingRaw = (actorResources as any).movementRemaining;
+    const actorMovementRemainingFeet =
+      typeof actorMovementRemainingRaw === "number"
+        ? actorMovementRemainingRaw
+        : actorMovementSpent
+          ? 0
+          : actorDashed
+            ? actorSpeed * 2
+            : actorSpeed;
+
+    // Calculate distances to all other combatants
+    const distances = (combatants as any[])
+      .filter((c) => c.id !== actorCombatant.id)
+      .map((c) => {
+        const pos = getPosition(c.resources ?? {});
+        const distance = pos ? calculateDistance(actorPos, pos) : null;
+        return {
+          targetId: c.id,
+          targetName: nameFor(c),
+          combatantType: c.combatantType,
+          position: pos,
+          distance,
+        };
+      })
+      .filter((d) => d.distance !== null)
+      .sort((a, b) => (a.distance as number) - (b.distance as number))
+      .map((d) => ({
+        targetId: d.targetId,
+        targetName: d.targetName,
+        distance: d.distance as number,
+        position: d.position,
+        combatantType: d.combatantType,
+      }));
+
+    // OA prediction based on query
+    const { destination, movementRequiredFeet, oaRisks } = this.predictOpportunityAttacks(
+      query,
+      actorPos,
+      actorCombatant,
+      combatants as any[],
+      nameFor,
+    );
+
+    // Build actor info
+    const actorChar = characterById.get(actorCharacterId);
+    const actorSheet = (actorChar?.sheet ?? {}) as any;
+    const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
+    const actorClassName = typeof actorChar?.className === "string" ? actorChar.className : null;
+
+    const unarmedStats = ClassFeatureResolver.getUnarmedStrikeStats(actorSheet, actorClassName, actorLevel);
+    const monkCapabilities = ClassFeatureResolver.getMonkCapabilities(actorSheet, actorClassName, actorLevel);
+
+    return {
+      actor: {
+        id: actorCombatant.id,
+        name: nameFor(actorCombatant),
+        character: actorChar
+          ? {
+              id: actorCharacterId,
+              name: actorChar.name,
+              className: actorChar.className ?? null,
+              level: actorChar.level,
+            }
+          : null,
+        capabilities: {
+          classFeatures: monkCapabilities,
+        },
+        attackOptions: [
+          {
+            name: "Unarmed Strike",
+            kind: "melee",
+            reachFeet: 5,
+            attackBonus: unarmedStats.attackBonus,
+            damageFormula: unarmedStats.damageFormula,
+          },
+        ],
+        position: actorPos,
+        speed: actorSpeed,
+        movementRemainingFeet: actorMovementRemainingFeet,
+        resources: {
+          resourcePools: getResourcePools(actorResourcesRaw),
+        },
+        sheet: actorChar?.sheet ?? null,
+      },
+      encounter: {
+        id: encounter.id,
+        round: encounter.round,
+        turn: encounter.turn,
+        activeCombatantId: (activeCombatant as any)?.id ?? null,
+      },
+      distances,
+      oaPrediction: {
+        destination,
+        movementRequiredFeet,
+        oaRisks,
+      },
+    };
+  }
+
+  // ----- Private helpers -----
+
+  private isRecord(x: unknown): x is Record<string, unknown> {
+    return typeof x === "object" && x !== null;
+  }
+
+  private deriveResourcePoolsFromSheet(sheet: unknown): Array<{ name: string; current: number; max: number }> {
+    if (!this.isRecord(sheet)) return [];
+
+    const out: Array<{ name: string; current: number; max: number }> = [];
+
+    const kiPoints = (sheet as any).kiPoints;
+    if (typeof kiPoints === "number" && Number.isFinite(kiPoints)) {
+      out.push({ name: "Ki", current: kiPoints, max: kiPoints });
+    }
+
+    const spellSlots = (sheet as any).spellSlots;
+    if (this.isRecord(spellSlots)) {
+      for (const [levelKey, raw] of Object.entries(spellSlots)) {
+        const poolName = `spellSlots${levelKey}`;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+          out.push({ name: poolName, current: raw, max: raw });
+          continue;
+        }
+        if (this.isRecord(raw) && typeof (raw as any).current === "number" && typeof (raw as any).max === "number") {
+          out.push({ name: poolName, current: (raw as any).current, max: (raw as any).max });
+        }
+      }
+    }
+
+    return out;
+  }
+
+  private mergePools(
+    fromSheet: Array<{ name: string; current: number; max: number }>,
+    fromResources: Array<{ name: string; current: number; max: number }>,
+  ): Array<{ name: string; current: number; max: number }> {
+    const byName = new Map<string, { name: string; current: number; max: number }>();
+    for (const p of fromSheet) byName.set(p.name, p);
+    for (const p of fromResources) byName.set(p.name, p);
+    return Array.from(byName.values());
+  }
+
+  private parseActionEconomy(resourcesRaw: unknown): {
+    actionAvailable: boolean;
+    bonusActionAvailable: boolean;
+    reactionAvailable: boolean;
+    movementRemainingFeet: number;
+  } {
+    const resources = normalizeResources(resourcesRaw);
+
+    const actionSpent = readBoolean(resources, "actionSpent") ?? false;
+    const bonusActionUsed =
+      (readBoolean(resources, "bonusActionUsed") ?? false) ||
+      (readBoolean(resources, "bonusActionSpent") ?? false);
+    const reactionUsed =
+      (readBoolean(resources, "reactionUsed") ?? false) ||
+      (readBoolean(resources, "reactionSpent") ?? false);
+
+    const movementSpent = readBoolean(resources, "movementSpent") ?? false;
+    const dashed = readBoolean(resources, "dashed") ?? false;
+
+    const speed = typeof resources.speed === "number" ? resources.speed : 30;
+    const effectiveSpeed = dashed ? speed * 2 : speed;
+    const movementRemainingRaw = (resources as any).movementRemaining;
+    const movementRemainingFeet =
+      typeof movementRemainingRaw === "number"
+        ? movementRemainingRaw
+        : movementSpent
+          ? 0
+          : effectiveSpeed;
+
+    return {
+      actionAvailable: !actionSpent,
+      bonusActionAvailable: !bonusActionUsed,
+      reactionAvailable: !reactionUsed,
+      movementRemainingFeet,
+    };
+  }
+
+  private predictOpportunityAttacks(
+    query: string,
+    actorPos: { x: number; y: number },
+    actorCombatant: any,
+    combatants: any[],
+    nameFor: (c: any) => string,
+  ): {
+    destination: { x: number; y: number } | null;
+    movementRequiredFeet: number | null;
+    oaRisks: Array<{ combatantId: string; combatantName: string; reach: number; hasReaction: boolean; wouldProvoke: boolean }>;
+  } {
+    // Parse destination from query
+    const coordMatch = query.match(/\((\s*-?\d+(?:\.\d+)?\s*),\s*(-?\d+(?:\.\d+)?\s*)\)/);
+    const destinationFromQuery = coordMatch
+      ? { x: Number(coordMatch[1]), y: Number(coordMatch[2]) }
+      : null;
+
+    const findTargetByName = (q: string): any | null => {
+      const qLower = q.toLowerCase();
+      for (const c of combatants) {
+        if (c.id === actorCombatant.id) continue;
+        const n = nameFor(c).toLowerCase();
+        if (n && qLower.includes(n)) return c;
+      }
+      return null;
+    };
+
+    const targetCombatant = destinationFromQuery ? null : findTargetByName(query);
+    const destination = destinationFromQuery
+      ? destinationFromQuery
+      : targetCombatant
+        ? getPosition(targetCombatant.resources ?? {})
+        : null;
+
+    const oaRisks: Array<{
+      combatantId: string;
+      combatantName: string;
+      reach: number;
+      hasReaction: boolean;
+      wouldProvoke: boolean;
+    }> = [];
+
+    let movementRequiredFeet: number | null = null;
+    if (destination) {
+      movementRequiredFeet = calculateDistance(actorPos, destination);
+
+      for (const other of combatants) {
+        if (other.id === actorCombatant.id) continue;
+        if (other.hpCurrent <= 0) continue;
+
+        const otherResources = normalizeResources(other.resources ?? {});
+        const otherPos = getPosition(other.resources ?? {});
+        if (!otherPos) continue;
+
+        const reachValue = otherResources.reach;
+        const reach = typeof reachValue === "number" ? reachValue : 5;
+
+        const wouldProvoke = crossesThroughReach({ from: actorPos, to: destination }, otherPos, reach);
+
+        const reactionUsed =
+          (readBoolean(otherResources, "reactionUsed") ?? false) ||
+          (readBoolean(otherResources, "reactionSpent") ?? false);
+        const hasReaction = !reactionUsed;
+
+        oaRisks.push({
+          combatantId: other.id,
+          combatantName: nameFor(other),
+          reach,
+          hasReaction,
+          wouldProvoke,
+        });
+      }
+    }
+
+    return { destination, movementRequiredFeet, oaRisks };
+  }
+}

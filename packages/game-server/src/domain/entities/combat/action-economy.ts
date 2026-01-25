@@ -1,10 +1,12 @@
 export type ActionType = "Action" | "BonusAction" | "Reaction" | "Movement";
+export type SpecificActionType = "Attack" | "Dash" | "Dodge" | "Help" | "Hide" | "Ready" | "Search" | "UseObject" | "CastSpell";
 
 export interface ActionEconomy {
   actionAvailable: boolean;
   bonusActionAvailable: boolean;
   reactionAvailable: boolean;
   movementRemainingFeet: number;
+  actionsUsed: SpecificActionType[]; // Track which specific actions were taken
 }
 
 export function freshActionEconomy(movementFeet: number): ActionEconomy {
@@ -13,6 +15,7 @@ export function freshActionEconomy(movementFeet: number): ActionEconomy {
     bonusActionAvailable: true,
     reactionAvailable: true,
     movementRemainingFeet: movementFeet,
+    actionsUsed: [],
   };
 }
 
@@ -32,11 +35,14 @@ export function canSpendMovement(economy: ActionEconomy, feet: number): boolean 
   return economy.movementRemainingFeet >= feet;
 }
 
-export function spendAction(economy: ActionEconomy): void {
+export function spendAction(economy: ActionEconomy, specificAction?: SpecificActionType): void {
   if (!economy.actionAvailable) {
     throw new Error("Action already spent this turn");
   }
   economy.actionAvailable = false;
+  if (specificAction) {
+    economy.actionsUsed.push(specificAction);
+  }
 }
 
 export function spendBonusAction(economy: ActionEconomy): void {

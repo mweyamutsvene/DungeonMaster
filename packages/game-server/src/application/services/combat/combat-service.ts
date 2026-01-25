@@ -192,9 +192,13 @@ export class CombatService {
             const y = 10 + (friendlyIndex * 10);
             position = { x: 10, y: Math.min(y, mapHeight - 10) };
           } else {
-            // Place hostiles on the right side in a vertical line
+            // Place hostiles within ~30ft of friendlies by default.
+            // (The previous far-right placement made small skirmishes feel non-interactive.)
             const y = 10 + (hostileIndex * 10);
-            position = { x: mapWidth - 10, y: Math.min(y, mapHeight - 10) };
+            const friendlyX = 10;
+            const desiredSeparationFeet = 30;
+            const hostileX = Math.min(mapWidth - 10, friendlyX + desiredSeparationFeet);
+            position = { x: hostileX, y: Math.min(y, mapHeight - 10) };
           }
           resources.position = position;
         }
@@ -252,6 +256,73 @@ export class CombatService {
       throw new ValidationError("Must provide at least one combatant");
     }
 
+    const existingEncounter = await this.combat.getEncounterById(encounterId);
+    if (!existingEncounter) throw new NotFoundError(`Encounter not found: ${encounterId}`);
+
+    // Ensure encounter has a map for positioning.
+    let mapWidth = 100;
+    let mapHeight = 100;
+    let gridSize = 5;
+
+    const mapDataRaw = existingEncounter.mapData;
+    if (mapDataRaw && typeof mapDataRaw === "object" && mapDataRaw !== null) {
+      const md = mapDataRaw as any;
+      if (typeof md.width === "number") mapWidth = md.width;
+      if (typeof md.height === "number") mapHeight = md.height;
+      if (typeof md.gridSize === "number") gridSize = md.gridSize;
+    } else {
+      const map = createCombatMap({
+        id: `${encounterId}-map`,
+        name: "Combat Arena",
+        width: mapWidth,
+        height: mapHeight,
+        gridSize,
+      });
+      await this.combat.updateEncounter(encounterId, { mapData: map as unknown as JsonValue });
+    }
+
+    // Determine factions for positioning (if repos available).
+    const factionsMap = new Map<string, string>();
+    if (this.characters && this.monsters && this.npcs) {
+      for (const c of combatants) {
+        const cid = c.combatantType === "Character" ? c.characterId : undefined;
+        const mid = c.combatantType === "Monster" ? c.monsterId : undefined;
+        const nid = c.combatantType === "NPC" ? c.npcId : undefined;
+
+        if (cid) {
+          const ch = await this.characters.getById(cid);
+          if (ch) factionsMap.set(cid, ch.faction);
+        }
+        if (mid) {
+          const mo = await this.monsters.getById(mid);
+          if (mo) factionsMap.set(mid, mo.faction);
+        }
+        if (nid) {
+          const npc = await this.npcs.getById(nid);
+          if (npc) factionsMap.set(nid, npc.faction);
+        }
+      }
+    }
+
+    // Auto-assign positions similar to startEncounter.
+    const friendlies: Array<{ index: number; ref: string }> = [];
+    const hostiles: Array<{ index: number; ref: string }> = [];
+
+    const firstRef =
+      combatants[0]?.characterId || combatants[0]?.monsterId || combatants[0]?.npcId || "";
+    const firstFaction = factionsMap.get(firstRef);
+
+    combatants.forEach((c, i) => {
+      const ref = c.characterId || c.monsterId || c.npcId || "";
+      const faction = factionsMap.get(ref) || "unknown";
+
+      if (i === 0 || (firstFaction !== undefined && faction === firstFaction)) {
+        friendlies.push({ index: i, ref });
+      } else {
+        hostiles.push({ index: i, ref });
+      }
+    });
+
     await this.combat.createCombatants(
       encounterId,
       combatants.map((c) => {
@@ -270,6 +341,34 @@ export class CombatService {
           throw new ValidationError("NPC combatant requires npcId");
         }
 
+        // Default resources, speed, and starting position.
+        const resources = c.resources && typeof c.resources === "object" && c.resources !== null
+          ? { ...(c.resources as any) }
+          : {};
+
+        if (resources.speed === undefined) {
+          resources.speed = 30;
+        }
+
+        if (!resources.position) {
+          const combatantIndex = combatants.indexOf(c);
+          const friendlyIndex = friendlies.findIndex((f) => f.index === combatantIndex);
+          const hostileIndex = hostiles.findIndex((h) => h.index === combatantIndex);
+
+          let position: Position;
+          if (friendlyIndex !== -1) {
+            const y = 10 + friendlyIndex * 10;
+            position = { x: 10, y: Math.min(y, mapHeight - 10) };
+          } else {
+            const y = 10 + hostileIndex * 10;
+            const friendlyX = 10;
+            const desiredSeparationFeet = 30;
+            const hostileX = Math.min(mapWidth - 10, friendlyX + desiredSeparationFeet);
+            position = { x: hostileX, y: Math.min(y, mapHeight - 10) };
+          }
+          resources.position = position;
+        }
+
         return {
           id,
           combatantType: c.combatantType,
@@ -280,13 +379,13 @@ export class CombatService {
           hpCurrent: c.hpCurrent,
           hpMax: c.hpMax,
           conditions: c.conditions ?? [],
-          resources: c.resources ?? {},
+          resources: resources as JsonValue,
         };
       }),
     );
 
-    // Update encounter status to Active
-    await this.combat.updateEncounter(encounterId, { status: "Active" });
+    // Update encounter status to Active and align round/turn defaults.
+    await this.combat.updateEncounter(encounterId, { status: "Active", round: 1, turn: 0 });
   }
 
   async nextTurn(
@@ -516,6 +615,23 @@ export class CombatService {
     // Advance turn via domain logic
     combat.endTurn();
 
+    // Skip over defeated non-characters (monsters typically don't act at 0 HP).
+    // Characters at 0 HP are handled via death saves.
+    for (let i = 0; i < combatantRecords.length; i++) {
+      const activeId = combat.getActiveCreature().getId();
+      const activeRecord = combatantRecords.find((c) => c.id === activeId) ?? null;
+      if (!activeRecord) break;
+
+      const isDefeated = activeRecord.hpCurrent <= 0;
+      const isCharacter = Boolean(activeRecord.characterId);
+
+      if (isDefeated && !isCharacter) {
+        combat.endTurn();
+        continue;
+      }
+      break;
+    }
+
     // Extract dirty state for persistence
     const { round, turn } = extractCombatState(combat);
     const updated = await this.combat.updateEncounter(encounter.id, { round, turn });
@@ -543,9 +659,10 @@ export class CombatService {
       });
     }
 
-    // Check if the newly active combatant needs a death saving throw
+    // Check if the newly active combatant needs a death saving throw.
+    // By default, only Characters make death saves (monsters typically die at 0 HP).
     const activeCombatant = combatantRecords[turn];
-    if (activeCombatant) {
+    if (activeCombatant && activeCombatant.characterId) {
       const resources = (activeCombatant.resources as any) || {};
       const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
       const isStabilized = resources.stabilized === true;

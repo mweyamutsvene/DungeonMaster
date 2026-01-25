@@ -20,6 +20,7 @@
     "import:monsters": "tsx scripts/import-monsters.ts",
     "test": "vitest run",
     "test:e2e:combat:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
+    "test:e2e:combat:mock": "tsx scripts/test-harness/combat-e2e.ts",
     "test:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts src/infrastructure/llm/character-generator.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

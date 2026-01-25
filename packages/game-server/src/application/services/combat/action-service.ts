@@ -26,7 +26,6 @@ import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
 import type { CombatEncounterRecord, CombatantStateRecord, JsonValue } from "../../types.js";
 import type { ICombatantResolver } from "./helpers/combatant-resolver.js";
-import type { ICombatNarrator } from "./ai/combat-narrator.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantStateByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
@@ -234,7 +233,8 @@ export class ActionService {
     private readonly combat: ICombatRepository,
     private readonly combatants: ICombatantResolver,
     private readonly events?: IEventRepository,
-    private readonly narrator?: ICombatNarrator,
+    // TODO: Add narrative generator injection when ActionService narration is implemented
+    // See INarrativeGenerator in infrastructure/llm for the active narration interface
   ) {}
 
   private async resolveActiveActorOrThrow(
@@ -326,40 +326,8 @@ export class ActionService {
         } satisfies JsonValue,
       });
 
-      if (this.narrator) {
-        try {
-          const session = await this.sessions.getById(sessionId);
-          const actorName = await this.combatants.getName(input.actor, actorState);
-          const targetName =
-            targetState && extra?.target ? await this.combatants.getName(extra.target, targetState) : undefined;
-
-          const outcomeEvent = {
-            type: "ActionOutcome",
-            action,
-            actor: actorName,
-            target: targetName,
-            spellName: extra?.spellName,
-          };
-
-          const narrative = await this.narrator.narrate({
-            storyFramework: session?.storyFramework || {},
-            events: [outcomeEvent],
-            seed,
-          });
-
-          await this.events.append(sessionId, {
-            id: nanoid(),
-            type: "NarrativeText",
-            payload: {
-              encounterId: encounter.id,
-              actor: input.actor,
-              text: narrative.trim(),
-            } satisfies JsonValue,
-          });
-        } catch (error) {
-          console.error("Failed to generate action narrative:", error);
-        }
-      }
+      // TODO: Re-enable action narration when INarrativeGenerator is wired to ActionService
+      // See infrastructure/llm/narrative-generator.ts for the active implementation
     }
 
     return { actor: updatedActor };
@@ -417,17 +385,25 @@ export class ActionService {
     if (input.attacker.type === "Monster" && !spec) {
       // Preserve existing behavior: allow selecting a monster attack from statBlock by name.
       const attacks = await this.combatants.getMonsterAttacks(input.attacker.monsterId);
+      console.log('[ActionService] Monster attacks retrieved:', JSON.stringify(attacks, null, 2));
       const desiredName = (input.monsterAttackName ?? "").trim().toLowerCase();
+      console.log('[ActionService] Looking for attack named:', desiredName);
       const picked = attacks.find(
         (a: unknown) => isRecord(a) && typeof a.name === "string" && a.name.trim().toLowerCase() === desiredName,
       );
+      console.log('[ActionService] Found attack:', picked ? JSON.stringify(picked) : 'NOT FOUND');
 
       if (picked && isRecord(picked)) {
         const attackBonus = readNumber(picked, "attackBonus");
+        console.log('[ActionService] attackBonus:', attackBonus, '(isInteger:', attackBonus !== null && Number.isInteger(attackBonus), ')');
         const dmg = isRecord((picked as any).damage) ? ((picked as any).damage as Record<string, unknown>) : null;
+        console.log('[ActionService] damage object:', dmg);
         const diceCount = dmg ? readNumber(dmg, "diceCount") : null;
+        console.log('[ActionService] diceCount:', diceCount, '(isInteger:', diceCount !== null && Number.isInteger(diceCount), ')');
         const diceSides = dmg ? readNumber(dmg, "diceSides") : null;
+        console.log('[ActionService] diceSides:', diceSides, '(isInteger:', diceSides !== null && Number.isInteger(diceSides), ')');
         const modifierVal = dmg ? (dmg.modifier as unknown) : undefined;
+        console.log('[ActionService] modifierVal (raw):', modifierVal);
 
         if (
           attackBonus !== null &&
@@ -438,6 +414,7 @@ export class ActionService {
           Number.isInteger(diceSides)
         ) {
           const modN = modifierVal === undefined ? 0 : typeof modifierVal === "number" ? modifierVal : null;
+          console.log('[ActionService] modN:', modN, '(isInteger:', modN !== null && Number.isInteger(modN), ')');
           if (modN !== null && Number.isInteger(modN)) {
             spec = {
               name: typeof (picked as any).name === "string" ? (picked as any).name : undefined,
@@ -445,8 +422,15 @@ export class ActionService {
               attackBonus,
               damage: { diceCount, diceSides, modifier: modN },
             };
+            console.log('[ActionService] Built spec successfully:', spec);
+          } else {
+            console.log('[ActionService] FAILED: modN validation failed');
           }
+        } else {
+          console.log('[ActionService] FAILED: Initial validation failed');
         }
+      } else {
+        console.log('[ActionService] FAILED: Attack not found or not a record');
       }
     }
 
@@ -494,6 +478,15 @@ export class ActionService {
           attacker: { ...input.attacker, weapon: attackerEquippedWeapon, armor: attackerEquippedArmor },
           target: { ...input.target, ac: targetAC, weapon: targetEquippedWeapon, armor: targetEquippedArmor },
           attackName: spec.name || attackerEquippedWeapon,
+          // Flattened fields for easier consumption
+          attackRoll: result.attack.d20,
+          attackBonus: spec.attackBonus,
+          attackTotal: result.attack.total,
+          targetAC: targetAC,
+          hit: result.hit,
+          critical: result.critical,
+          damageApplied: result.damage.applied,
+          // Full result for backward compatibility
           result,
         } satisfies JsonValue,
       });
@@ -563,50 +556,8 @@ export class ActionService {
         }
       }
 
-      if (this.narrator) {
-        try {
-          const session = await this.sessions.getById(sessionId);
-
-          const attackerName = await this.combatants.getName(input.attacker, attackerState);
-          const targetName = await this.combatants.getName(input.target, targetState);
-
-          const outcomeEvent = {
-            type: "AttackOutcome",
-            attacker: attackerName,
-            attackerAC,
-            attackerWeapon: attackerEquippedWeapon || (spec as any).name,
-            attackerArmor: attackerEquippedArmor,
-            target: targetName,
-            targetAC,
-            targetWeapon: targetEquippedWeapon,
-            targetArmor: targetEquippedArmor,
-            weaponName: (spec as any).name || attackerEquippedWeapon,
-            hit: Boolean((result as any).hit),
-            critical: Boolean((result as any).critical),
-            damage: (result as any).hit ? (result as any).damage?.applied ?? 0 : 0,
-            targetHP: newHp,
-            attackRoll: (result as any).attack?.total,
-          };
-
-          const narrative = await this.narrator.narrate({
-            storyFramework: (session as any)?.storyFramework || {},
-            events: [outcomeEvent],
-            seed,
-          });
-
-          await this.events.append(sessionId, {
-            id: nanoid(),
-            type: "NarrativeText",
-            payload: {
-              encounterId: encounter.id,
-              actor: input.attacker,
-              text: narrative.trim(),
-            } satisfies JsonValue,
-          });
-        } catch (error) {
-          console.error("Failed to generate attack outcome narrative:", error);
-        }
-      }
+      // TODO: Re-enable attack narration when INarrativeGenerator is wired to ActionService
+      // See infrastructure/llm/narrative-generator.ts for the active implementation
     }
 
     return { result, target: updatedTarget };

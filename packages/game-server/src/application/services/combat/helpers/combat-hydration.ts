@@ -120,12 +120,18 @@ export function extractActionEconomy(
     ? { ...existingResources as Record<string, unknown> }
     : {};
 
+  // Determine if this is a fresh economy (new turn)
+  // A fresh economy has full actions available - if action is available, movement should be reset too
+  const isFreshEconomy = economy.actionAvailable && economy.bonusActionAvailable && economy.reactionAvailable;
+  
   return {
     ...resources,
     actionSpent: !economy.actionAvailable,
     bonusActionSpent: !economy.bonusActionAvailable,
     reactionSpent: !economy.reactionAvailable,
     movementRemaining: economy.movementRemainingFeet,
+    // Reset movementSpent when economy is fresh (new turn)
+    movementSpent: isFreshEconomy ? false : (resources as any).movementSpent ?? false,
   };
 }
 
@@ -151,5 +157,6 @@ function parseActionEconomy(resources: unknown, speed: number): ActionEconomy {
     bonusActionAvailable: !bonusActionSpent,
     reactionAvailable: !reactionSpent,
     movementRemainingFeet: movementRemaining,
+    actionsUsed: [], // Initialize empty - actions are tracked per-turn in Combat domain
   };
 }

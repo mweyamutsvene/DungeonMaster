@@ -1,5 +1,6 @@
 export * from "./class-definition.js";
 export * from "./registry.js";
+export * from "./class-feature-resolver.js";
 
 export * from "./barbarian.js";
 export * from "./bard.js";

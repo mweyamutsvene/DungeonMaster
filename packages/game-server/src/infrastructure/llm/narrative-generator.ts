@@ -25,7 +25,16 @@ export class NarrativeGenerator implements INarrativeGenerator {
         {
           role: "system",
           content:
-            "You are the narrator for a D&D session. Write concise, vivid prose. Do not invent rule outcomes; only narrate provided events.",
+            [
+              "You are the narrator for a D&D session.",
+              "Write 1-2 concise, vivid sentences describing ONLY what is explicitly present in the events.",
+              "CRITICAL: Do not invent rule outcomes. If a roll has not happened yet, do not claim success/failure.",
+              "CRITICAL: Do not invent weapons (no blades/swords/daggers unless explicitly specified). If an attack is unarmed or uses fists, say 'fists' or 'strike'\u2014never 'blade' or 'weapon'.",
+              "CRITICAL: Do not invent spells, NPCs, locations, scenery (forests/tunnels/shadows/dust), or backstory beyond the event payload.",
+              "CRITICAL: Use pronouns that match established character gender consistently (no swapping he/she).",
+              "CRITICAL: Never refer to yourself as 'the narrator' or say lines like 'the narrator intones'.",
+              "If the payload includes constraints, follow them.",
+            ].join(" "),
         },
         {
           role: "user",

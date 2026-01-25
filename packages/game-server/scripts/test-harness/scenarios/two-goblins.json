@@ -1,0 +1,195 @@
+{
+  "name": "Two Goblins: Fighter vs Goblin Pair",
+  "description": "A level 5 Fighter defeats two Goblins over two turns. Tests multi-monster combat, AI turns, and victory when all enemies are defeated. Goblins start at (40,10) and (40,20).",
+  "setup": {
+    "character": {
+      "name": "Valeria Steelheart",
+      "className": "Fighter",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greatsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scrapper",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Brawler",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 8,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Club",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblins!" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "Move adjacent to Goblin Scrapper at (40,10) - 25ft, leaves 5ft for later adjustment",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Scrapper with my greatsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 7 = 22 vs AC 15 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "10 + 4 = 14 damage - overkills the 7 HP goblin",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - Goblin Brawler will act (should move toward player and attack)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for remaining monster turn (Goblin Brawler should act)",
+      "timeout": 5000
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 20)" },
+      "comment": "Move 10ft south (from 35,10) to be adjacent to Brawler at (40, 20). Distance from player to Brawler = 5ft",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Brawler with my greatsword" },
+      "comment": "Now at (35,20), Brawler at (40,20) - 5ft away, in reach!",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "comment": "12 + 7 = 19 vs AC 14 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "8 + 4 = 12 damage - kills the 7 HP brawler",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

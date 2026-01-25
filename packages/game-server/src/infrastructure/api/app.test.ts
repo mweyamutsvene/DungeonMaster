@@ -810,6 +810,595 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("GET /sessions/:id/combat/:encounterId/tactical returns positions in feet and distances", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Mover", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin", statBlock: { hp: 7 } },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          { combatantType: "Character", characterId, initiative: 20, hpCurrent: 10, hpMax: 10 },
+          { combatantType: "Monster", monsterId, initiative: 10, hpCurrent: 7, hpMax: 7 },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${encounterId}/tactical`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.encounterId).toBe(encounterId);
+    expect(typeof body.activeCombatantId).toBe("string");
+    expect(body.combatants).toHaveLength(2);
+    for (const c of body.combatants) {
+      expect(c.position).not.toBeNull();
+      expect(typeof c.position.x).toBe("number");
+      expect(typeof c.position.y).toBe("number");
+      // distanceFromActive is number or null if positions missing
+      if (c.distanceFromActive !== null) expect(typeof c.distanceFromActive).toBe("number");
+
+      expect(c.actionEconomy).toBeTruthy();
+      expect(typeof c.actionEconomy.actionAvailable).toBe("boolean");
+      expect(typeof c.actionEconomy.bonusActionAvailable).toBe("boolean");
+      expect(typeof c.actionEconomy.reactionAvailable).toBe("boolean");
+      expect(typeof c.actionEconomy.movementRemainingFeet).toBe("number");
+
+      expect(Array.isArray(c.resourcePools)).toBe(true);
+    }
+
+    await app.close();
+  });
+
+  it("tabletop initiative flow assigns positions (tactical has positions)", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent() {
+        // Empty intent is fine; initiate flow falls back to raw text matching.
+        return {} as any;
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin Warrior", statBlock: { hp: 7 } },
+    });
+
+    const init = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/initiate`,
+      payload: { text: "I attack the Goblin Warrior", actorId: characterId },
+    });
+    expect(init.statusCode).toBe(200);
+
+    const roll = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 18", actorId: characterId },
+    });
+    expect(roll.statusCode).toBe(200);
+    const rollBody = roll.json() as any;
+    expect(typeof rollBody.encounterId).toBe("string");
+
+    const tactical = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${rollBody.encounterId}/tactical`,
+    });
+    expect(tactical.statusCode).toBe(200);
+    const tacticalBody = tactical.json() as any;
+
+    expect(Array.isArray(tacticalBody.combatants)).toBe(true);
+    expect(tacticalBody.combatants.length).toBeGreaterThanOrEqual(2);
+    for (const c of tacticalBody.combatants) {
+      expect(c.position).not.toBeNull();
+      expect(typeof c.position.x).toBe("number");
+      expect(typeof c.position.y).toBe("number");
+    }
+
+    await app.close();
+  });
+
+  it("tabletop initiative flow includes all session monsters", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent() {
+        return {} as any;
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon1 = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin Warrior", statBlock: { hp: 7 } },
+    });
+    const monster1Id = (mon1.json() as any).id as string;
+
+    await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin Archer", statBlock: { hp: 7 } },
+    });
+
+    const init = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/initiate`,
+      payload: { text: "I attack the Goblin Warrior", actorId: characterId },
+    });
+    expect(init.statusCode).toBe(200);
+
+    const roll = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 18", actorId: characterId },
+    });
+    expect(roll.statusCode).toBe(200);
+    const rollBody = roll.json() as any;
+    expect(typeof rollBody.encounterId).toBe("string");
+
+    const tactical = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${rollBody.encounterId}/tactical`,
+    });
+    expect(tactical.statusCode).toBe(200);
+    const tacticalBody = tactical.json() as any;
+
+    const monsterNames = (tacticalBody.combatants as any[])
+      .filter((c) => c.combatantType === "Monster")
+      .map((c) => c.name);
+    expect(monsterNames).toEqual(expect.arrayContaining(["Goblin Warrior", "Goblin Archer"]));
+
+    await app.close();
+  });
+
+  it("combat start default placement starts hostiles within 30ft", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin", statBlock: { hp: 7 } },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    const started = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          { combatantType: "Character", characterId, hpCurrent: 10, hpMax: 10 },
+          { combatantType: "Monster", monsterId, hpCurrent: 7, hpMax: 7 },
+        ],
+      },
+    });
+    expect(started.statusCode).toBe(200);
+    const encounterId = (started.json() as any).id as string;
+
+    const tactical = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${encounterId}/tactical`,
+    });
+    expect(tactical.statusCode).toBe(200);
+    const tacticalBody = tactical.json() as any;
+
+    const active = (tacticalBody.combatants as any[]).find((c) => c.id === tacticalBody.activeCombatantId);
+    expect(active?.combatantType).toBe("Character");
+
+    const goblin = (tacticalBody.combatants as any[]).find((c) => c.combatantType === "Monster");
+    expect(goblin).toBeTruthy();
+    expect(goblin.distanceFromActive).toBe(30);
+
+    await app.close();
+  });
+
+  it("tabletop attack roll flow uses spec and does not auto-end the player's turn", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent({ text, schemaHint }: any) {
+        // Pull the roster out of the schema hint so we can return valid IDs.
+        const rosterJson =
+          typeof schemaHint === "string" && schemaHint.includes("Roster (valid IDs):")
+            ? schemaHint.split("Roster (valid IDs):").pop()?.trim()
+            : null;
+        const roster = rosterJson ? (JSON.parse(rosterJson) as any) : null;
+        const characterId = roster?.characters?.[0]?.id as string | undefined;
+        const monsterId = roster?.monsters?.[0]?.id as string | undefined;
+
+        if (typeof text === "string" && text.toLowerCase().includes("attack") && characterId && monsterId) {
+          // Return a deterministic attack command matching the schema.
+          // Simulate: "unarmed strike" (1d6+4) with +7 to hit.
+          return {
+            kind: "attack",
+            attacker: { type: "Character", characterId },
+            target: { type: "Monster", monsterId },
+            spec: {
+              kind: "melee",
+              attackBonus: 7,
+              damage: { diceCount: 1, diceSides: 6, modifier: 4 },
+            },
+          } as any;
+        }
+
+        return {} as any;
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 5, className: "monk", sheet: { abilityScores: { dexterity: 18 }, maxHp: 45 } },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin Warrior", statBlock: { hp: 7, armorClass: 15 } },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    // Start an encounter with adjacent positions so melee attacks are in reach.
+    const started = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId,
+            initiative: 20,
+            hpCurrent: 45,
+            hpMax: 45,
+            resources: { position: { x: 10, y: 10 }, speed: 30 },
+          },
+          {
+            combatantType: "Monster",
+            monsterId,
+            initiative: 10,
+            hpCurrent: 7,
+            hpMax: 7,
+            resources: { position: { x: 15, y: 10 }, speed: 30 },
+          },
+        ],
+      },
+    });
+    expect(started.statusCode).toBe(200);
+    const encounterId = (started.json() as any).id as string;
+
+    // Attack action should create a pending ATTACK roll request.
+    const act = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: { text: "attack with unarmed strike", actorId: characterId, encounterId },
+    });
+    expect(act.statusCode).toBe(200);
+    const actBody = act.json() as any;
+    expect(actBody.requiresPlayerInput).toBe(true);
+    expect(actBody.rollType).toBe("attack");
+
+    // Resolve attack roll -> should request damage with dice from spec.
+    const rollAtk = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 20", actorId: characterId },
+    });
+    expect(rollAtk.statusCode).toBe(200);
+    const atkBody = rollAtk.json() as any;
+    expect(atkBody.requiresPlayerInput).toBe(true);
+    expect(atkBody.rollType).toBe("damage");
+    expect(atkBody.diceNeeded).toBe("1d8+4");
+
+    // Resolve damage roll.
+    const rollDmg = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 3", actorId: characterId },
+    });
+    expect(rollDmg.statusCode).toBe(200);
+
+    // Verify it's still the character's turn (no auto-advance).
+    const state = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat?encounterId=${encounterId}`,
+    });
+    expect(state.statusCode).toBe(200);
+    const stateBody = state.json() as any;
+    expect(stateBody.activeCombatant?.combatantType).toBe("Character");
+    expect(stateBody.activeCombatant?.characterId).toBe(characterId);
+
+    // Verify the goblin exists and is the same one.
+    const goblin = (stateBody.combatants as any[]).find((c) => c.monsterId === monsterId);
+    expect(goblin).toBeTruthy();
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/combat/action supports direct move text without LLM", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Mover", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          { combatantType: "Character", characterId, initiative: 20, hpCurrent: 10, hpMax: 10 },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const moveRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: { text: "move to (20, 10)", actorId: characterId, encounterId },
+    });
+
+    expect(moveRes.statusCode).toBe(200);
+    const moveBody = moveRes.json() as any;
+    expect(moveBody.type).toBe("MOVE_COMPLETE");
+    expect(moveBody.actionComplete).toBe(true);
+    expect(moveBody.movedTo).toEqual({ x: 20, y: 10 });
+
+    const tactical = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${encounterId}/tactical`,
+    });
+    const tBody = tactical.json() as any;
+    const mover = tBody.combatants.find((c: any) => c.combatantType === "Character");
+    expect(mover.position).toEqual({ x: 20, y: 10 });
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/combat/action move can return REACTION_CHECK and completes after reaction responses", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Mover", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin", statBlock: { hp: 7 } },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId,
+            initiative: 20,
+            hpCurrent: 10,
+            hpMax: 10,
+            resources: { position: { x: 0, y: 0 }, speed: 30 },
+          },
+          {
+            combatantType: "Monster",
+            monsterId,
+            initiative: 10,
+            hpCurrent: 7,
+            hpMax: 7,
+            resources: { position: { x: 5, y: 0 }, speed: 30, reach: 5 },
+          },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const moveRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: { text: "move to 20 0", actorId: characterId, encounterId },
+    });
+
+    expect(moveRes.statusCode).toBe(200);
+    const moveBody = moveRes.json() as any;
+    expect(moveBody.type).toBe("REACTION_CHECK");
+    expect(typeof moveBody.pendingActionId).toBe("string");
+    expect(Array.isArray(moveBody.opportunityAttacks)).toBe(true);
+
+    const oa = moveBody.opportunityAttacks.find((x: any) => x.canAttack === true);
+    expect(oa).toBeTruthy();
+    expect(typeof oa.opportunityId).toBe("string");
+
+    // Decline the OA to keep the test deterministic
+    const respond = await app.inject({
+      method: "POST",
+      url: `/encounters/${encounterId}/reactions/${moveBody.pendingActionId}/respond`,
+      payload: {
+        combatantId: oa.combatantId,
+        opportunityId: oa.opportunityId,
+        choice: "decline",
+      },
+    });
+    expect(respond.statusCode).toBe(200);
+
+    const complete = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/move/complete`,
+      payload: { pendingActionId: moveBody.pendingActionId },
+    });
+    expect(complete.statusCode).toBe(200);
+    const completeBody = complete.json() as any;
+    expect(completeBody.success).toBe(true);
+    expect(completeBody.to).toEqual({ x: 20, y: 0 });
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/combat/query returns LLM answer with distance context", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent() {
+        return {
+          answer: "The nearest enemy is Goblin Warrior at 5 feet.",
+        };
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const char = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Mover", level: 1, className: "fighter", sheet: {} },
+    });
+    const characterId = (char.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Goblin Warrior", statBlock: { hp: 7 } },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          { combatantType: "Character", characterId, initiative: 20, hpCurrent: 10, hpMax: 10 },
+          { combatantType: "Monster", monsterId, initiative: 10, hpCurrent: 7, hpMax: 7 },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/query`,
+      payload: {
+        query: "Which goblin is closest to me and how far away?",
+        actorId: characterId,
+        encounterId,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(typeof body.answer).toBe("string");
+    expect(body.answer.length).toBeGreaterThan(0);
+    expect(body.context).toBeTruthy();
+    expect(Array.isArray(body.context.distances)).toBe(true);
+    expect(body.context.distances.length).toBeGreaterThan(0);
+    expect(typeof body.context.distances[0].targetId).toBe("string");
+    expect(typeof body.context.distances[0].distance).toBe("number");
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/actions endTurn advances turn", async () => {
     const { app } = buildTestApp();
 
@@ -1564,6 +2153,200 @@ describe("game-server api", () => {
     expect(rogue.sheet.species).toBe("Halfling");
     expect(rogue.sheet.background).toBe("Criminal");
     expect(rogue.sheet.abilityScores.dexterity).toBe(16);
+
+    await app.close();
+  });
+
+  it("Flurry of Blows deterministic parsing uses correct monk martial arts die", async () => {
+    const { app } = buildTestApp();
+
+    const sessionResp = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: { theme: "Test Flurry combat" } },
+    });
+    const sessionId = sessionResp.json().id as string;
+
+    // Create level 5 monk (martial arts die = 1d8)
+    const charResp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Li Wei",
+        className: "Monk",
+        level: 5,
+        sheet: {
+          maxHp: 38,
+          armorClass: 16,
+          speed: 45,
+          proficiencyBonus: 3,
+          abilityScores: {
+            strength: 10,
+            dexterity: 16,
+            constitution: 14,
+            intelligence: 11,
+            wisdom: 16,
+            charisma: 8,
+          },
+        },
+      },
+    });
+    const characterId = charResp.json().id as string;
+
+    // Create goblin target
+    const monsterResp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: {
+        name: "Goblin Warrior",
+        statBlock: {
+          hp: 20,  // Survives first hit
+          ac: 15,
+          attacks: [
+            {
+              name: "Scimitar",
+              attackBonus: 4,
+              damageFormula: "1d6+2",
+              damageType: "slashing",
+            },
+          ],
+        },
+      },
+    });
+    const monsterId = monsterResp.json().id as string;
+
+    // Start combat
+    const combatResp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          { combatantType: "Character", characterId, hpCurrent: 38, hpMax: 38, initiative: 18 },
+          { combatantType: "Monster", monsterId, hpCurrent: 20, hpMax: 20, initiative: 8 },
+        ],
+      },
+    });
+    const encounterId = combatResp.json().id as string;
+
+    // Move to melee range
+    const tactical = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat/${encounterId}/tactical`,
+    });
+    const goblinPos = tactical.json().combatants.find((c: any) => c.combatantType === "Monster")?.position;
+
+    await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: {
+        text: `move to (${goblinPos.x}, ${goblinPos.y})`,
+        actorId: characterId,
+        encounterId,
+      },
+    });
+
+    // Use Flurry of Blows (should parse deterministically and use 1d8 dice)
+    const flurryResp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: {
+        text: "use flurry of blows",
+        actorId: characterId,
+        encounterId,
+      },
+    });
+
+    if (flurryResp.statusCode !== 200) {
+      const body = flurryResp.json();
+      console.error("Flurry request failed with status", flurryResp.statusCode);
+      console.error("Response body:", JSON.stringify(body, null, 2));
+      throw new Error(`Flurry request failed: ${JSON.stringify(body)}`);
+    }
+
+    expect(flurryResp.statusCode).toBe(200);
+    const flurryResult = flurryResp.json();
+
+    // Should request attack roll for first strike
+    expect(flurryResult.type).toBe("REQUEST_ROLL");
+    expect(flurryResult.rollType).toBe("attack");
+
+    // Should include target name in message
+    expect(flurryResult.message).toContain("Goblin Warrior");
+
+    // Roll first attack (15 + 6 = 21 vs AC 15 → hit)
+    const attack1Resp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: {
+        text: "I rolled 15",
+        actorId: characterId,
+      },
+    });
+
+    expect(attack1Resp.statusCode).toBe(200);
+    const attack1Result = attack1Resp.json();
+    expect(attack1Result.hit).toBe(true);
+    expect(attack1Result.rollType).toBe("damage");
+
+    // CRITICAL: Damage dice should be 1d8+3 (not 1d4+3 or 1d6+3)
+    expect(attack1Result.diceNeeded).toMatch(/1d8[+-]/);
+
+    // Roll first damage (6 + 3 = 9 damage, 20 - 9 = 11 HP remaining)
+    const damage1Resp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: {
+        text: "I rolled 6",
+        actorId: characterId,
+      },
+    });
+
+    expect(damage1Resp.statusCode).toBe(200);
+    const damage1Result = damage1Resp.json();
+    expect(damage1Result.totalDamage).toBe(9);
+    expect(damage1Result.targetHpRemaining).toBe(11);
+
+    // Should request SECOND strike automatically
+    expect(damage1Result.requiresPlayerInput).toBe(true);
+    expect(damage1Result.type).toBe("REQUEST_ROLL");
+    expect(damage1Result.rollType).toBe("attack");
+    expect(damage1Result.message).toContain("Second strike");
+
+    // Roll second attack (12 + 6 = 18 vs AC 15 → hit)
+    const attack2Resp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: {
+        text: "I rolled 12",
+        actorId: characterId,
+      },
+    });
+
+    expect(attack2Resp.statusCode).toBe(200);
+    const attack2Result = attack2Resp.json();
+    expect(attack2Result.hit).toBe(true);
+
+    // Second strike should ALSO use 1d8+3
+    expect(attack2Result.diceNeeded).toMatch(/1d8[+-]/);
+
+    // Roll second damage (5 + 3 = 8 damage, 11 - 8 = 3 HP remaining)
+    const damage2Resp = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: {
+        text: "I rolled 5",
+        actorId: characterId,
+      },
+    });
+
+    expect(damage2Resp.statusCode).toBe(200);
+    const damage2Result = damage2Resp.json();
+    expect(damage2Result.totalDamage).toBe(8);
+    expect(damage2Result.targetHpRemaining).toBe(3);
+
+    // After second strike completes, action should be complete
+    expect(damage2Result.actionComplete).toBe(true);
+    expect(damage2Result.requiresPlayerInput).toBe(false);
 
     await app.close();
   });

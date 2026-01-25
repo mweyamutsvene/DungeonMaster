@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
             size: monster.size,
             kind: monster.kind,
             cr: monster.challengeRating ?? null,
-            data: monster as unknown,
+            data: monster as unknown as Prisma.InputJsonValue,
           },
           create: {
             id,
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
             size: monster.size,
             kind: monster.kind,
             cr: monster.challengeRating ?? null,
-            data: monster as unknown,
+            data: monster as unknown as Prisma.InputJsonValue,
           },
         }),
       );

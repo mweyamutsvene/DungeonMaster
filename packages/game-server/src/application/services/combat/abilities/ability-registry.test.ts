@@ -4,8 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AbilityRegistry } from "./ability-registry.js";
-import { NimbleEscapeExecutor } from "./executors/nimble-escape-executor.js";
-import { CunningActionExecutor } from "./executors/cunning-action-executor.js";
+import { NimbleEscapeExecutor, CunningActionExecutor } from "./executors/index.js";
 
 describe("AbilityRegistry", () => {
   let registry: AbilityRegistry;

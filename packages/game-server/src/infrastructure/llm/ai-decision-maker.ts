@@ -1,5 +1,5 @@
 import type { LlmProvider } from './types.js';
-import type { IAiDecisionMaker, AiDecision } from '../../application/services/combat/ai/ai-decision-maker.js';
+import type { IAiDecisionMaker, AiDecision } from '../../application/services/combat/ai/ai-types.js';
 import { extractFirstJsonObject } from './json.js';
 import { llmDebugLog } from './debug.js';
 
@@ -232,8 +232,14 @@ IMPORTANT: This system may ask you for MULTIPLE DECISIONS within a single turn.
 - Treat each response as the NEXT STEP of your turn.
 - A typical turn can be: (Action) then (Move), or (Move) then (Action), plus an optional (Bonus Action).
 - "move" represents movement and does NOT consume your Action.
-- Use endTurn: false when you intend to take additional steps this turn (e.g., after "shove" then you still want to "move").
+- Use endTurn: false when you intend to take additional steps this turn (e.g., after "dash" you MUST still use "move" to relocate).
 - Use endTurn: true only when you are fully done with your turn.
+
+CRITICAL - DASH ACTION MECHANICS:
+- "dash" is an ACTION that DOUBLES your available movement speed for this turn
+- After using "dash", you MUST choose "move" (with endTurn: false) to actually relocate
+- Example: Dash (action) → gives 60ft total movement → then "move" to new position
+- DO NOT set endTurn: true after "dash" unless you want to waste the extra movement
 
 ACTION ECONOMY ENFORCEMENT (read the context):
 - The input context may include context.combatant.economy.actionSpent / bonusActionSpent / reactionSpent.
@@ -249,28 +255,36 @@ AVAILABLE ACTIONS:
 1. ATTACK - Use weapon or natural attack from "actions" array
    - "Scimitar", "Shortbow", "Bite", etc.
    - "Multiattack" - if available, use this to make multiple attacks as one action
+   - ONLY use attacks listed in context.combatant.actions array
 
-2. MOVEMENT - Change position on the battlefield
+2. MOVEMENT (always available, does NOT cost an action):
    - "move" - move to a new position (provide destination coordinates)
-   - Leaving enemy reach triggers opportunity attacks unless you Disengage first
-   - Use Dash action to double movement speed
+   - Movement is FREE and does NOT consume your action
+   - You can move before, after, or between actions
+   - Leaving enemy reach (5ft in D&D) triggers opportunity attacks unless you used Disengage
+   - IMPORTANT: After using "dash" action, you MUST use "move" to actually relocate with the doubled speed
 
-3. DEFENSIVE ACTIONS:
-   - "dodge" - increase defense (enemies have disadvantage against you)
-   - "disengage" - move without provoking opportunity attacks
-   - "help" - give ally advantage on next attack
+3. BASIC COMBAT ACTIONS (always available to ALL creatures):
+   - "dash" - doubles your movement speed for this turn (then use "move" to relocate)
+   - "disengage" - prevents opportunity attacks when you move away from enemies this turn
+   - "disengage" - move without provoking opportunity attacks this turn
+   - "dodge" - increase defense (enemies have disadvantage against you until your next turn)
+   - "help" - give ally advantage on next attack or ability check
    - "hide" - attempt to hide (requires cover or obscurement)
-
-4. SPECIAL ACTIONS:
-   - "grapple" - grab an enemy (contested Athletics check)
-   - "shove" - push enemy back or knock prone
    - "search" - look for hidden creatures or objects
    - "useObject" - interact with objects (open doors, pull levers, drink potions)
-   - "castSpell" - cast a spell (if you have spells)
+   
+4. ADVANCED ACTIONS (always available to ALL creatures):
+   - "grapple" - grab an enemy (contested Athletics check)
+   - "shove" - push enemy back 5ft or knock prone
 
-5. WAIT:
-   - "dash" - move quickly (double movement speed)
-   - "endTurn" - skip your turn if no good options
+5. SPECIAL ABILITIES:
+   - "castSpell" - cast a spell (ONLY if context.combatant.spells array has spells)
+   - Check context.combatant.bonusActions for bonus action abilities
+   - Check context.combatant.reactions for reaction abilities
+
+6. END TURN:
+   - "endTurn" - finish your turn if no better options available
 
 TACTICAL POSITIONING:
 - Use context.combatant.position and enemies[].position if available

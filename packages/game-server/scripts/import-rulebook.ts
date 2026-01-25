@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -53,13 +53,13 @@ async function main(): Promise<void> {
           update: {
             name: weapon.name,
             category: "weapon",
-            data: weapon as unknown,
+            data: weapon as unknown as Prisma.InputJsonValue,
           },
           create: {
             id,
             name: weapon.name,
             category: "weapon",
-            data: weapon as unknown,
+            data: weapon as unknown as Prisma.InputJsonValue,
           },
         }),
       );
@@ -73,13 +73,13 @@ async function main(): Promise<void> {
           update: {
             name: armor.name,
             category: "armor",
-            data: armor as unknown,
+            data: armor as unknown as Prisma.InputJsonValue,
           },
           create: {
             id,
             name: armor.name,
             category: "armor",
-            data: armor as unknown,
+            data: armor as unknown as Prisma.InputJsonValue,
           },
         }),
       );
@@ -93,13 +93,13 @@ async function main(): Promise<void> {
           update: {
             name: feat.name,
             category: "feat",
-            data: feat as unknown,
+            data: feat as unknown as Prisma.InputJsonValue,
           },
           create: {
             id,
             name: feat.name,
             category: "feat",
-            data: feat as unknown,
+            data: feat as unknown as Prisma.InputJsonValue,
           },
         }),
       );

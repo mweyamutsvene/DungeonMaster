@@ -1,0 +1,99 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are the narrator for a D&D session. Write 1-2 concise, vivid sentences describing ONLY what is explicitly present in the events. CRITICAL: Do not invent rule outcomes. If a roll has not happened yet, do not claim success/failure. CRITICAL: Do not invent weapons (no blades/swords/daggers unless explicitly specified). If an attack is unarmed or uses fists, say 'fists' or 'strike'—never 'blade' or 'weapon'. CRITICAL: Do not invent spells, NPCs, locations, scenery (forests/tunnels/shadows/dust), or backstory beyond the event payload. CRITICAL: Use pronouns that match established character gender consistently (no swapping he/she). CRITICAL: Never refer to yourself as 'the narrator' or say lines like 'the narrator intones'. If the payload includes constraints, follow them."
+    },
+    {
+      "role": "user",
+      "content": {
+        "storyFramework": {
+          "opening": "The fishing village of Greywater sits on the edge of a jagged cliff, its wooden homes overlooking the restless sea. One stormy night, a sudden, unnatural tempest rips the sky in half, leaving a charred wreckage of the beloved lighthouse. The next morning, the townsfolk discover that the lighthouse's great clock has stopped, and with it, the ancient tidestone—a relic that keeps the waters at bay—has vanished. The villagers fear a curse, and the local elder, Marla, pleads with any who will help to retrieve the stone before the sea turns against them.",
+          "arc": "• The party learns of a nearby abandoned pirate cove rumored to hold the tidestone.\n• They must navigate a treacherous coral maze that shifts with the tide.\n• In the cove, a sentient kraken guardian awakens, guarding the stone with its own hunger.\n• The heroes find clues that the stone was stolen by a disgraced sea witch, who now lurks in a storm‑battered lighthouse on a nearby isle.\n• The final confrontation with the sea witch and her minions tests the party's resolve and teamwork.",
+          "ending": "With the tidestone reclaimed, the storm begins to subside. The party returns it to the lighthouse, restoring the great clock and the balance of the waters. The villagers rejoice, and Marla rewards the adventurers with silver coins and a secret map to a hidden sea garden. As the sea calms, the party contemplates their next journey, knowing that the waters still hold many mysteries.",
+          "checkpoints": [
+            {
+              "id": "CP1",
+              "description": "The party reaches the mouth of the abandoned pirate cove and must cross a shifting reef that can either be a shortcut or a deadly trap.",
+              "trigger": "Successfully navigate the reef by rolling a perception check to spot the safest path."
+            },
+            {
+              "id": "CP2",
+              "description": "Inside the cove, a stone door bearing a carved kraken rises. It blocks the way to the tidestone chamber and will only open if a song of the sea is sung.",
+              "trigger": "Solve a riddle or play a simple tune on a lute or drum within 1 minute."
+            },
+            {
+              "id": "CP3",
+              "description": "The sea witch's lair is revealed—a crumbling lighthouse on a wind-swept isle. The air thickens with fog, and the witch's shadow moves as if alive.",
+              "trigger": "Detect the witch's presence by succeeding on a nature check against the fog's concealment."
+            },
+            {
+              "id": "CP4",
+              "description": "In the final chamber, the tidestone glows ominously. The sea witch attempts to lure the party into a whirlpool that will swallow them.",
+              "trigger": "Maintain concentration on a protective spell or use a skill to avoid the whirlpool's pull."
+            }
+          ]
+        },
+        "events": [
+          {
+            "id": "4jCbe60abE-K8w24yY3wf",
+            "sessionId": "I83-q7P9O_Af4bQLIC8U1",
+            "type": "AttackResolved",
+            "payload": {
+              "encounterId": "oe2VOWprgNYHiz5NBPEYC",
+              "attacker": {
+                "type": "Character",
+                "characterId": "9ib84Yz9rhm9thFs5yCfC"
+              },
+              "target": {
+                "type": "Monster",
+                "monsterId": "EkksxLFqM2rjH9mlUuhxA"
+              },
+              "result": {
+                "hit": true,
+                "critical": false,
+                "attack": {
+                  "d20": 16,
+                  "total": 22
+                },
+                "damage": {
+                  "applied": 0,
+                  "roll": {
+                    "total": 0,
+                    "rolls": []
+                  }
+                }
+              }
+            },
+            "createdAt": "2026-01-13T07:16:28.031Z"
+          }
+        ]
+      }
+    }
+  ],
+  "options": {
+    "model": "gpt-oss:20b",
+    "temperature": null,
+    "seed": null,
+    "timeoutMs": 180000
+  },
+  "llm_response": {
+    "content": "The character strikes the monster, rolling a 16 for a total of 22, and the hit lands. No damage is applied to the target.",
+    "thinking": "We need to produce a short vivid sentence(s) describing only what is explicitly present: an attack resolved. Attack was made by a character with attacker id, target monster id. Hit true, no critical, attack roll 16, total 22. Damage applied 0, roll total 0. So the character hits the monster but deals zero damage. No weapon specified. So we should say something like: 'The character strikes the monster, landing a hit with a roll of 16 for a total of 22, but no damage is applied.' We must not mention weapon. Use pronouns matching established gender - we don't know gender. So use 'they' or 'the character'. Should avoid 'weapon', 'blade', etc. Use \"fists\" maybe but not specified. So just \"The character hits the monster, rolling 16 for 22, but no damage is dealt.\" That is fine. Let's craft 1-2 sentences. Ensure no invented outcomes. Use simple.",
+    "model": "gpt-oss:20b",
+    "total_duration_ms": 1870,
+    "prompt_eval_count": 1156,
+    "eval_count": 241
+  },
+  "notes": {
+    "missing_data": [
+      "Character name (only ID: 9ib84Yz9rhm9thFs5yCfC)",
+      "Monster name (only ID: EkksxLFqM2rjH9mlUuhxA)",
+      "Weapon details (unarmed strike not specified)",
+      "Character stats/class",
+      "Monster stats"
+    ],
+    "why_generic_narrative": "LLM only receives IDs, not names or weapon info. Events don't include character/monster details, so narrative is limited to 'the character strikes the monster'.",
+    "to_improve": "Server would need to enrich events with: attackerName, targetName, weaponUsed, attackType fields before sending to LLM."
+  }
+}

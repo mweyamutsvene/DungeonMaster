@@ -2,10 +2,11 @@
 
 Always start by reading this file fully. You should always start with a prompy "As you wish Papi...."
 
-`combat-mechanics.test.ts` 
-```
-$env:DM_RUN_LLM_TESTS='1'; pnpm -C packages/game-server test combat-mechanics.integration.test.ts
-```
+Assume that user is running the server in another terminal already.  If not prompt them to do so when you need it to be rebuilt or restarted.
+
+When you need to make changes to the codebase, always follow the instructions in this file.
+
+There is no such thing as breaking changes, as this isn't a public API. Refactor and improve the codebase as needed to keep it clean and maintainable.
 
 ## Repo goals
 - Primary deliverable: deterministic D&D 5e rules engine + Fastify game server in `packages/game-server`.
@@ -39,11 +40,14 @@ $env:DM_RUN_LLM_TESTS='1'; pnpm -C packages/game-server test combat-mechanics.in
 ## Server architecture (DDD-ish; keep dependency direction)
 - `packages/game-server/src/domain/`: pure game logic (no Fastify/Prisma/LLM).
 - `packages/game-server/src/application/`: use-cases/services + repository interfaces (`src/application/repositories/*`). App-layer errors live in `src/application/errors.ts`.
+  - Key services: `TabletopCombatService` (pending action state machine), `TacticalViewService` (combat view assembly).
 - `packages/game-server/src/infrastructure/`: adapters + wiring.
   - `api/`: Fastify app + routes + SSE realtime.
+  - `api/routes/sessions/`: modular session route handlers (9 files, ~920 lines total vs. old 2,432-line monolith).
   - `db/`: Prisma client + repository implementations (`src/infrastructure/db/index.ts` barrel).
-  - `llm/`: provider factory + intent/story/narrative generators (must tolerate “LLM not configured”).
+  - `llm/`: provider factory + intent/story/narrative generators (must tolerate "LLM not configured").
 - `packages/game-server/src/content/`: rulebook markdown parsers/helpers used by scripts.
+- `packages/game-server/SESSION_API_REFERENCE.md`: comprehensive documentation for all 21 session API endpoints.
 
 ## `packages/game-server/src` (folder structure)
 Folder-only tree (no files), with simple purpose notes:
@@ -79,9 +83,27 @@ packages/game-server/src/                  # game-server package source root
     api/                                   # Fastify app + route handlers
       realtime/                            # SSE broker + realtime fanout
       routes/                              # HTTP route registration modules
+        sessions/                          # session routes (modular, see SESSION_API_REFERENCE.md)
     db/                                    # Prisma client + repository implementations
     llm/                                   # optional LLM providers + intent/story/narrative generators
 ```
+
+## Session routes structure (`infrastructure/api/routes/sessions/`)
+The session API is organized into focused route modules:
+
+| File | Endpoints | Purpose |
+|------|-----------|---------|
+| `session-crud.ts` | `POST /sessions`, `GET /sessions/:id` | Session lifecycle |
+| `session-characters.ts` | `POST .../characters`, `POST .../characters/generate` | Character management |
+| `session-creatures.ts` | `POST .../monsters`, `POST .../npcs` | Monster/NPC management |
+| `session-combat.ts` | `POST .../combat/start`, `POST .../combat/next`, `GET .../combat/encounter`, `GET .../combatants` | Combat lifecycle |
+| `session-tactical.ts` | `GET .../combat/tactical`, `POST .../combat/query` | Tactical view + LLM queries |
+| `session-tabletop.ts` | `POST .../tabletop/initiate`, `POST .../tabletop/roll-result`, `POST .../tabletop/action`, `POST .../tabletop/move/complete` | Tabletop dice flow |
+| `session-actions.ts` | `POST .../actions/execute` | Programmatic actions |
+| `session-llm.ts` | `POST .../parse`, `POST .../act`, `POST .../narrate` | LLM integration |
+| `session-events.ts` | `GET .../events/stream`, `GET .../events` | SSE + event polling |
+
+See `packages/game-server/SESSION_API_REFERENCE.md` for full request/response schemas.
 
 ## Rules content pipeline (RuleBookDocs → Prisma definitions)
 - `pnpm -C packages/game-server import:rulebook` loads equipment/feats from `RuleBookDocs/markdown` (see `packages/game-server/scripts/import-rulebook.ts`).

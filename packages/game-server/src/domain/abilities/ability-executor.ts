@@ -62,6 +62,47 @@ export interface AbilityExecutionResult {
   
   /** Error message if execution failed */
   error?: string;
+
+  /** 
+   * Whether the ability requires player input (e.g., dice roll) before completing.
+   * When true, the caller should prompt for input and continue execution.
+   */
+  requiresPlayerInput?: boolean;
+
+  /**
+   * Pending action state for tabletop flow.
+   * Contains attack/damage/initiative details for multi-step dice resolution.
+   */
+  pendingAction?: {
+    type: string;
+    timestamp: Date;
+    actorId: string;
+    targetId?: string;
+    weaponSpec?: Record<string, unknown>;
+    bonusAction?: string;
+    flurryStrike?: number;
+    [key: string]: unknown;
+  };
+
+  /**
+   * Roll type needed for player input (e.g., "attack", "damage", "d20").
+   */
+  rollType?: string;
+
+  /**
+   * Dice formula needed (e.g., "d20", "1d6+3").
+   */
+  diceNeeded?: string;
+
+  /**
+   * Resources consumed by the ability (e.g., ki points, spell slots).
+   */
+  resourcesSpent?: {
+    kiPoints?: number;
+    spellSlot?: number;
+    hitDice?: number;
+    [key: string]: number | undefined;
+  };
 }
 
 /**

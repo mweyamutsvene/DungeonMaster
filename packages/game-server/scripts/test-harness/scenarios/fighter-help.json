@@ -1,0 +1,177 @@
+{
+  "name": "Fighter Help: Assisting an Ally",
+  "description": "A Fighter uses the Help action to assist an NPC ally, giving them advantage on their next attack. Tests the Help action parsing and execution.",
+  "setup": {
+    "character": {
+      "name": "Aldric the Bold",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 30, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "npcs": [
+      {
+        "name": "Lyra the Ranger",
+        "position": { "x": 35, "y": 10 },
+        "faction": "party",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 16,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 14,
+            "charisma": 10
+          },
+          "maxHp": 38,
+          "hp": 38,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Orc Warrior",
+        "position": { "x": 60, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready myself for combat" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Move close to ally Lyra for Help action",
+      "input": { "text": "move to 35, 10" },
+      "expect": {
+        "type": "MOVE_COMPLETE"
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "help Lyra the Ranger" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "type": "action",
+      "comment": "Disengage to avoid OA, then move to attack range",
+      "input": { "text": "disengage" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "Disengage"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Move closer to orc for attack next turn",
+      "input": { "text": "move to 55, 10" },
+      "expect": {
+        "type": "MOVE_COMPLETE"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Orc Warrior" },
+      "expect": {
+        "rollType": "attack"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "hit": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" }
+    }
+  ]
+}

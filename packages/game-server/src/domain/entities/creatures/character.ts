@@ -48,6 +48,18 @@ export interface CharacterData extends CreatureData {
    * If omitted, we will try to infer it from `characterClass`.
    */
   classId?: CharacterClassId;
+  
+  /**
+   * Character subclass (e.g., "Open Hand" for Monk, "Champion" for Fighter).
+   * Typically chosen at level 3 for most classes.
+   */
+  subclass?: string;
+  
+  /**
+   * Level at which subclass was chosen (usually 3).
+   */
+  subclassLevel?: number;
+  
   experiencePoints: number;
 
   /**
@@ -65,6 +77,8 @@ export class Character extends Creature {
   private level: number;
   private characterClass: string;
   private classId?: CharacterClassId;
+  private subclass?: string;
+  private subclassLevel?: number;
   private experiencePoints: number;
   private resourcePools: ResourcePool[];
   private featIds: string[];
@@ -74,6 +88,8 @@ export class Character extends Creature {
     this.level = data.level;
     this.characterClass = data.characterClass;
     this.classId = data.classId;
+    this.subclass = data.subclass;
+    this.subclassLevel = data.subclassLevel;
     if (!this.classId) {
       const normalized = data.characterClass.trim().toLowerCase();
       if (isCharacterClassId(normalized)) {
@@ -108,6 +124,14 @@ export class Character extends Creature {
 
   getClassId(): CharacterClassId | undefined {
     return this.classId;
+  }
+
+  getSubclass(): string | undefined {
+    return this.subclass;
+  }
+
+  getSubclassLevel(): number | undefined {
+    return this.subclassLevel;
   }
 
   getExperiencePoints(): number {

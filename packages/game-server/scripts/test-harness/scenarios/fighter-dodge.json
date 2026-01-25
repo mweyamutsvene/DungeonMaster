@@ -1,0 +1,143 @@
+{
+  "name": "Fighter Dodge: Defensive Stance",
+  "description": "A Fighter uses the Dodge action to make themselves harder to hit, then survives an enemy attack with disadvantage. Tests the Dodge action and its defensive benefits.",
+  "setup": {
+    "character": {
+      "name": "Ironhide",
+      "className": "Fighter",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for combat" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative: 18 + 1 (DEX) = 19, goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "Move 25ft toward Ogre at (40,10) to be in melee range",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "dodge" },
+      "comment": "Use Dodge action - attacks against me have disadvantage until my next turn",
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - Ogre attacks with disadvantage"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Ogre's turn (AI will attack, should have disadvantage from Dodge)",
+      "timeout": 5000
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Ogre with my longsword" },
+      "comment": "Turn 2: Now attack the Ogre",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "10 + 6 = 16 vs AC 11 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "6 + 3 = 9 slashing damage. Ogre: 59 - 9 = 50 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat continues",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

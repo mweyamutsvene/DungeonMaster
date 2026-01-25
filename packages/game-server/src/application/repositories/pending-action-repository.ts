@@ -48,6 +48,11 @@ export interface PendingActionRepository {
   delete(actionId: string): Promise<void>;
   
   /**
+   * Update a pending action (for storing roll results).
+   */
+  update(action: PendingAction): Promise<PendingAction>;
+  
+  /**
    * Clean up expired pending actions.
    */
   cleanupExpired(): Promise<void>;
@@ -121,6 +126,11 @@ export class InMemoryPendingActionRepository implements PendingActionRepository 
   async delete(actionId: string): Promise<void> {
     this.actions.delete(actionId);
     this.statuses.delete(actionId);
+  }
+
+  async update(action: PendingAction): Promise<PendingAction> {
+    this.actions.set(action.id, action);
+    return action;
   }
 
   async cleanupExpired(): Promise<void> {

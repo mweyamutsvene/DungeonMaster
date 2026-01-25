@@ -1,0 +1,173 @@
+{
+  "name": "Rogue Tactics: Dash, Disengage & Hit-and-Run",
+  "description": "A Rogue demonstrates tactical combat using Dash to close distance quickly, attacks, then uses Disengage on subsequent turns to safely retreat. Tests Dash (doubles movement), Disengage (prevents opportunity attacks), and the action economy.",
+  "setup": {
+    "character": {
+      "name": "Shadow",
+      "className": "Rogue",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Orc Brute",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the orc" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 16" },
+      "comment": "High initiative: 16 + 4 (DEX) = 20, goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "dash" },
+      "comment": "Use action to Dash - doubles available movement from 30ft to 60ft this turn",
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "With Dash active, can move 60ft total. Move 25ft to close distance to Orc at (40,10). Now adjacent but used Action for Dash, so no attack this turn.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - positioned for attack next turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Orc's turn (AI will attack)",
+      "timeout": 5000
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Orc Brute with my shortsword" },
+      "comment": "Turn 2: Now attack with our action (35,10) is 5ft from Orc at (40,10)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "14 + 7 = 21 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 4 (DEX) = 9 piercing damage. Orc: 30 - 9 = 21 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn 2 - Orc will attack again"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Orc's second turn",
+      "timeout": 5000
+    },
+    {
+      "type": "action",
+      "input": { "text": "disengage" },
+      "comment": "Turn 3: Use Disengage action - can now move away without provoking opportunity attacks",
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (10, 10)" },
+      "comment": "Safely retreat 25ft back to starting position. Orc cannot opportunity attack because we Disengaged!",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn 3 - safely out of Orc's reach"
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify combat continues and we took no opportunity attack damage",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

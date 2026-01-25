@@ -1,0 +1,110 @@
+{
+  "name": "Wizard Cast Spell: Magic Missile",
+  "description": "A Wizard uses the Cast Spell action to cast Magic Missile at an enemy. Tests the spell casting action parsing.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 32,
+        "currentHp": 32,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 26,
+          "hp": 26,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my spells" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Skeleton Warrior" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "CastSpell"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Fire Bolt" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "CastSpell"
+      }
+    }
+  ]
+}

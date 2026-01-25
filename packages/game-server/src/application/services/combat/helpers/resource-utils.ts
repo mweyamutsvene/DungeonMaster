@@ -171,3 +171,71 @@ export function setPosition(resources: JsonValue, position: { x: number; y: numb
 export function hasPosition(resources: JsonValue): boolean {
   return getPosition(resources) !== null;
 }
+
+/**
+ * Get resource pools from resources (e.g., ki, rage, spell slots).
+ */
+export function getResourcePools(resources: JsonValue): Array<{ name: string; current: number; max: number }> {
+  const normalized = normalizeResources(resources);
+  const pools = normalized.resourcePools;
+  
+  if (!Array.isArray(pools)) return [];
+  
+  return pools.filter((p): p is { name: string; current: number; max: number } => {
+    return (
+      isRecord(p) &&
+      typeof p.name === 'string' &&
+      typeof p.current === 'number' &&
+      typeof p.max === 'number'
+    );
+  });
+}
+
+/**
+ * Update a specific resource pool by name.
+ */
+export function updateResourcePool(
+  resources: JsonValue,
+  poolName: string,
+  updater: (pool: { name: string; current: number; max: number }) => { name: string; current: number; max: number }
+): JsonValue {
+  const normalized = normalizeResources(resources);
+  const pools = getResourcePools(resources);
+  
+  const updatedPools = pools.map(pool => 
+    pool.name === poolName ? updater(pool) : pool
+  );
+  
+  return { ...normalized, resourcePools: updatedPools } as JsonValue;
+}
+
+/**
+ * Check if a resource pool has at least the specified amount available.
+ */
+export function hasResourceAvailable(resources: JsonValue, poolName: string, amount: number): boolean {
+  const pools = getResourcePools(resources);
+  const pool = pools.find(p => p.name === poolName);
+  return pool ? pool.current >= amount : false;
+}
+
+/**
+ * Spend from a resource pool, returning updated resources.
+ * Throws if insufficient resources.
+ */
+export function spendResourceFromPool(
+  resources: JsonValue,
+  poolName: string,
+  amount: number
+): JsonValue {
+  if (!hasResourceAvailable(resources, poolName, amount)) {
+    const pools = getResourcePools(resources);
+    const pool = pools.find(p => p.name === poolName);
+    const current = pool?.current ?? 0;
+    throw new Error(`Insufficient ${poolName}: has ${current}, needs ${amount}`);
+  }
+  
+  return updateResourcePool(resources, poolName, (pool) => ({
+    ...pool,
+    current: pool.current - amount,
+  }));
+}

@@ -15,14 +15,16 @@ import { nanoid } from "nanoid";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { MonsterAIService } from "./monster-ai-service.js";
+import { AiTurnOrchestrator } from "./index.js";
 import { ActionService } from "../action-service.js";
 import { CombatService } from "../combat-service.js";
 import { BasicCombatVictoryPolicy } from "../combat-victory-policy.js";
 import { FactionService } from "../helpers/faction-service.js";
 import { CombatantResolver } from "../helpers/combatant-resolver.js";
 import { AbilityRegistry } from "../abilities/ability-registry.js";
-import { NimbleEscapeExecutor, CunningActionExecutor } from "../abilities/executors/index.js";
+import { NimbleEscapeExecutor, CunningActionExecutor, OffhandAttackExecutor, FlurryOfBlowsExecutor, PatientDefenseExecutor, StepOfTheWindExecutor, MartialArtsExecutor } from "../abilities/executors/index.js";
+import { TwoPhaseActionService } from "../two-phase-action-service.js";
+import { InMemoryPendingActionRepository } from "../../../repositories/pending-action-repository.js";
 import { resolveShove } from "../../../../domain/rules/grapple-shove.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { LlmAiDecisionMaker } from "../../../../infrastructure/llm/ai-decision-maker.js";
@@ -93,7 +95,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
   let actionService: ActionService;
   let combatService: CombatService;
   let aiDecisionMaker: LlmAiDecisionMaker;
-  let monsterAIService: MonsterAIService;
+  let aiOrchestrator: AiTurnOrchestrator;
 
   // Test data (unique per test)
   let sessionId: string;
@@ -143,8 +145,17 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       sessionRepo,
       combatRepo,
       combatantResolver,
-      eventRepo,
-      undefined // No narration generator for these tests
+      eventRepo
+    );
+    
+    // Two-phase action service for reactions
+    const pendingActionsRepo = new InMemoryPendingActionRepository();
+    const twoPhaseService = new TwoPhaseActionService(
+      sessionRepo,
+      combatRepo,
+      combatantResolver,
+      pendingActionsRepo,
+      eventRepo
     );
     const victoryPolicy = new BasicCombatVictoryPolicy(factionService);
     combatService = new CombatService(
@@ -166,8 +177,13 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
     const abilityRegistry = new AbilityRegistry();
     abilityRegistry.register(new NimbleEscapeExecutor());
     abilityRegistry.register(new CunningActionExecutor());
+    abilityRegistry.register(new OffhandAttackExecutor());
+    abilityRegistry.register(new FlurryOfBlowsExecutor());
+    abilityRegistry.register(new PatientDefenseExecutor());
+    abilityRegistry.register(new StepOfTheWindExecutor());
+    abilityRegistry.register(new MartialArtsExecutor());
     
-    monsterAIService = new MonsterAIService(
+    aiOrchestrator = new AiTurnOrchestrator(
       combatRepo,
       characterRepo,
       monsterRepo,
@@ -177,6 +193,8 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       combatService,
       combatantResolver,
       abilityRegistry,
+      twoPhaseService,
+      pendingActionsRepo,
       aiDecisionMaker,
       eventRepo
     );
@@ -314,7 +332,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       await combatService.nextTurn(sessionId, { encounterId });
       
       // Process goblin's turn
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(
         sessionId,
         encounterId
       );
@@ -352,7 +370,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       await combatService.nextTurn(sessionId, { encounterId });
 
       // Process turn
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(
         sessionId,
         encounterId
       );
@@ -386,7 +404,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       await combatService.nextTurn(sessionId, { encounterId });
 
       // Process turn
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(
         sessionId,
         encounterId
       );
@@ -434,7 +452,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -457,7 +475,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -480,7 +498,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -503,7 +521,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -527,7 +545,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -551,7 +569,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       });
 
       await combatService.nextTurn(sessionId, { encounterId });
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const decisions = await getGoblinDecisionEvents();
@@ -577,7 +595,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
           await combatService.nextTurn(sessionId, { encounterId });
         }
 
-        const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+        const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
         expect(processed).toBe(true);
 
         const events = await eventRepo.listBySession(sessionId);
@@ -679,7 +697,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       await combatService.nextTurn(sessionId, { encounterId });
 
       // Process goblin's turn (should contain multiple LLM iterations)
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const events = await eventRepo.listBySession(sessionId);
@@ -755,7 +773,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       await combatService.nextTurn(sessionId, { encounterId });
 
       // Process turn
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(
         sessionId,
         encounterId
       );
@@ -788,7 +806,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       // Advance to goblin's turn
       await combatService.nextTurn(sessionId, { encounterId });
 
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const events = await eventRepo.listBySession(sessionId);
@@ -824,7 +842,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       // Advance to goblin's turn
       await combatService.nextTurn(sessionId, { encounterId });
 
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const events = await eventRepo.listBySession(sessionId);
@@ -859,7 +877,7 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
       // Advance to goblin's turn
       await combatService.nextTurn(sessionId, { encounterId });
 
-      const processed = await monsterAIService.processMonsterTurnIfNeeded(sessionId, encounterId);
+      const processed = await aiOrchestrator.processMonsterTurnIfNeeded(sessionId, encounterId);
       expect(processed).toBe(true);
 
       const events = await eventRepo.listBySession(sessionId);

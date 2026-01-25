@@ -10,7 +10,12 @@ import {
   spendMovement,
   spendReaction,
   type ActionEconomy,
+  type SpecificActionType,
 } from "../entities/combat/action-economy.js";
+import type { ActiveEffect } from "../entities/combat/effects.js";
+import { shouldRemoveAtEndOfTurn, shouldRemoveAtStartOfTurn } from "../entities/combat/effects.js";
+import type { Position, MovementState } from "./movement.js";
+import { createMovementState } from "./movement.js";
 import type { DiceRoller } from "../rules/dice-roller.js";
 import { rollInitiative, type InitiativeEntry } from "./initiative.js";
 
@@ -29,6 +34,9 @@ export class Combat {
   private readonly diceRoller: DiceRoller;
   private state: CombatState;
   private combatants: Map<string, Combatant>;
+  private activeEffects: Map<string, ActiveEffect[]>; // creatureId -> effects
+  private positions: Map<string, Position>; // creatureId -> position
+  private movementStates: Map<string, MovementState>; // creatureId -> movement state
 
   public constructor(diceRoller: DiceRoller, creatures: readonly Creature[]) {
     if (creatures.length === 0) {
@@ -53,6 +61,11 @@ export class Combat {
         },
       ]),
     );
+
+    // Initialize effect and position tracking
+    this.activeEffects = new Map();
+    this.positions = new Map();
+    this.movementStates = new Map();
   }
 
   public getRound(): number {
@@ -93,8 +106,8 @@ export class Combat {
     return canSpendMovement(this.getActionEconomy(creatureId), feet);
   }
 
-  public spendAction(creatureId: string): void {
-    spendAction(this.getActionEconomy(creatureId));
+  public spendAction(creatureId: string, specificAction?: SpecificActionType): void {
+    spendAction(this.getActionEconomy(creatureId), specificAction);
   }
 
   public spendBonusAction(creatureId: string): void {
@@ -109,7 +122,18 @@ export class Combat {
     spendMovement(this.getActionEconomy(creatureId), feet);
   }
 
+  public hasUsedAction(creatureId: string, actionType: SpecificActionType): boolean {
+    const economy = this.getActionEconomy(creatureId);
+    return economy.actionsUsed.includes(actionType);
+  }
+
   public endTurn(): void {
+    const activeCreature = this.getActiveCreature();
+    const activeId = activeCreature.getId();
+
+    // Clean up effects that expire at end of this creature's turn
+    this.cleanupExpiredEffects(activeId, 'end');
+
     const nextIndex = this.state.turnIndex + 1;
 
     if (nextIndex >= this.state.order.length) {
@@ -120,9 +144,19 @@ export class Combat {
         turnIndex: 0,
       };
 
-      // Reset action economy for all combatants
+      // Reset action economy and movement for all combatants
       for (const combatant of this.combatants.values()) {
         combatant.actionEconomy = freshActionEconomy(combatant.creature.getSpeed());
+        // Reset jump multiplier at end of round
+        const creatureId = combatant.creature.getId();
+        const movState = this.movementStates.get(creatureId);
+        if (movState) {
+          // Create new state with reset multiplier (immutable)
+          this.movementStates.set(creatureId, {
+            ...movState,
+            jumpDistanceMultiplier: 1,
+          });
+        }
       }
 
       return;
@@ -135,6 +169,87 @@ export class Combat {
     const combatant = this.combatants.get(active.getId());
     if (combatant) {
       combatant.actionEconomy = freshActionEconomy(active.getSpeed());
+    }
+
+    // Clean up effects that expire at start of new active creature's turn
+    this.cleanupExpiredEffects(active.getId(), 'start');
+  }
+
+  // === Active Effects ===
+
+  public addEffect(creatureId: string, effect: ActiveEffect): void {
+    const effects = this.activeEffects.get(creatureId) || [];
+    effects.push(effect);
+    this.activeEffects.set(creatureId, effects);
+  }
+
+  public getEffects(creatureId: string): readonly ActiveEffect[] {
+    return this.activeEffects.get(creatureId) || [];
+  }
+
+  public removeEffect(creatureId: string, effectId: string): boolean {
+    const effects = this.activeEffects.get(creatureId);
+    if (!effects) return false;
+
+    const index = effects.findIndex(e => e.id === effectId);
+    if (index === -1) return false;
+
+    effects.splice(index, 1);
+    if (effects.length === 0) {
+      this.activeEffects.delete(creatureId);
+    }
+    return true;
+  }
+
+  private cleanupExpiredEffects(creatureId: string, timing: 'start' | 'end'): void {
+    const effects = this.activeEffects.get(creatureId);
+    if (!effects) return;
+
+    const currentRound = this.state.round;
+    const currentTurnIndex = this.state.turnIndex;
+    const isThisCreatureTurn = this.getActiveCreature().getId() === creatureId;
+
+    const remaining = effects.filter(effect => {
+      if (timing === 'end') {
+        return !shouldRemoveAtEndOfTurn(effect, currentRound, currentTurnIndex, isThisCreatureTurn);
+      } else {
+        // For start timing, remove effects that should expire at start of turn
+        return !shouldRemoveAtStartOfTurn(effect, currentRound, currentTurnIndex, isThisCreatureTurn);
+      }
+    });
+
+    if (remaining.length === 0) {
+      this.activeEffects.delete(creatureId);
+    } else {
+      this.activeEffects.set(creatureId, remaining);
+    }
+  }
+
+  // === Position & Movement ===
+
+  public setPosition(creatureId: string, position: Position): void {
+    this.positions.set(creatureId, position);
+  }
+
+  public getPosition(creatureId: string): Position | undefined {
+    return this.positions.get(creatureId);
+  }
+
+  public getMovementState(creatureId: string): MovementState | undefined {
+    return this.movementStates.get(creatureId);
+  }
+
+  public initializeMovementState(creatureId: string, position: Position, speed: number): void {
+    this.movementStates.set(creatureId, createMovementState(position, speed));
+  }
+
+  public setJumpMultiplier(creatureId: string, multiplier: number): void {
+    const state = this.movementStates.get(creatureId);
+    if (state) {
+      this.movementStates.set(creatureId, {
+        ...state,
+        jumpDistanceMultiplier: multiplier,
+      });
     }
   }
 }

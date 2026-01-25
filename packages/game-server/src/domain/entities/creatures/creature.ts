@@ -201,6 +201,35 @@ export abstract class Creature {
     this.currentHP = Math.min(this.maxHP, this.currentHP + amount);
   }
 
+  /**
+   * Modify creature HP (positive for healing, negative for damage).
+   * @param amount - Positive for healing, negative for damage
+   * @returns Object with actual change and overflow/overkill
+   */
+  modifyHP(amount: number): { actualChange: number; overflow: number } {
+    if (amount > 0) {
+      // Healing
+      const hpBefore = this.currentHP;
+      this.heal(amount);
+      const actualHealing = this.currentHP - hpBefore;
+      return {
+        actualChange: actualHealing,
+        overflow: amount - actualHealing, // overflow healing
+      };
+    } else if (amount < 0) {
+      // Damage
+      const damageAmount = Math.abs(amount);
+      const hpBefore = this.currentHP;
+      this.takeDamage(damageAmount);
+      const actualDamage = hpBefore - this.currentHP;
+      return {
+        actualChange: -actualDamage,
+        overflow: -(damageAmount - actualDamage), // overkill damage
+      };
+    }
+    return { actualChange: 0, overflow: 0 };
+  }
+
   isAlive(): boolean {
     return this.currentHP > 0;
   }

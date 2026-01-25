@@ -35,6 +35,13 @@ export type EndTurnCommand = {
   actor: CombatantRef;
 };
 
+export type MoveCommand = {
+  kind: "move";
+  encounterId?: string;
+  actor: CombatantRef;
+  destination: { x: number; y: number };
+};
+
 export type AttackCommand = {
   kind: "attack";
   encounterId?: string;
@@ -53,7 +60,7 @@ export type RollResultCommand = {
   context?: string;      // Optional player description
 };
 
-export type GameCommand = EndTurnCommand | AttackCommand | RollResultCommand;
+export type GameCommand = EndTurnCommand | MoveCommand | AttackCommand | RollResultCommand;
 
 export type LlmRoster = {
   characters: Array<{ id: string; name: string }>;
@@ -80,12 +87,15 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "", 
     "type GameCommand =",
     "  | { kind: 'endTurn'; encounterId?: string; actor: CombatantRef }",
+    "  | { kind: 'move'; encounterId?: string; actor: CombatantRef; destination: { x: number; y: number } }",
     "  | { kind: 'attack'; encounterId?: string; attacker: CombatantRef; target: CombatantRef; seed?: number; spec?: AttackSpec; monsterAttackName?: string }",
     "  | { kind: 'rollResult'; rollType: 'initiative'|'attack'|'damage'|'savingThrow'|'abilityCheck'; value?: number; values?: number[]; context?: string };",
     "", 
     "Rules:",
     "- Use ONLY ids from the roster below.",
     "- If combat is not mentioned, omit encounterId.",
+    "- For kind='move':",
+    "  - destination.x and destination.y are coordinates in FEET.",
     "- For kind='attack':",
     "  - If attacker.type='Character', you MUST include spec.",
     "  - If attacker.type='Monster', include either spec OR monsterAttackName.",
@@ -101,6 +111,13 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "  'attacker': { 'type': 'Character', 'characterId': '<from roster>' },",
     "  'target': { 'type': 'Monster', 'monsterId': '<from roster>' },",
     "  'spec': { 'kind': 'melee', 'attackBonus': 5, 'damage': { 'diceCount': 1, 'diceSides': 8, 'modifier': 3 } }",
+    "}",
+    "",
+    "Example (move):",
+    "{",
+    "  'kind': 'move',",
+    "  'actor': { 'type': 'Character', 'characterId': '<from roster>' },",
+    "  'destination': { 'x': 35, 'y': 25 }",
     "}",
     "",
     "Example (roll result - single):",
@@ -136,8 +153,8 @@ export function parseGameCommand(input: unknown): GameCommand {
   if (!isRecord(input)) throw new ValidationError("command must be an object");
 
   const kind = input.kind;
-  if (kind !== "attack" && kind !== "endTurn" && kind !== "rollResult") {
-    throw new ValidationError("command.kind must be 'attack', 'endTurn', or 'rollResult'");
+  if (kind !== "attack" && kind !== "move" && kind !== "endTurn" && kind !== "rollResult") {
+    throw new ValidationError("command.kind must be 'attack', 'move', 'endTurn', or 'rollResult'");
   }
 
   const encounterId = readOptionalString(input, "encounterId");
@@ -145,6 +162,18 @@ export function parseGameCommand(input: unknown): GameCommand {
   if (kind === "endTurn") {
     const actor = parseCombatantRef(input.actor, "actor");
     return { kind, encounterId, actor };
+  }
+
+  if (kind === "move") {
+    const actor = parseCombatantRef(input.actor, "actor");
+    const destRaw = input.destination;
+    if (!isRecord(destRaw)) throw new ValidationError("destination must be an object");
+    const x = readOptionalInteger(destRaw, "x");
+    const y = readOptionalInteger(destRaw, "y");
+    if (x === undefined || y === undefined) {
+      throw new ValidationError("destination.x and destination.y are required integers (feet)");
+    }
+    return { kind, encounterId, actor, destination: { x, y } };
   }
 
   if (kind === "rollResult") {
