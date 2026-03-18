@@ -1,0 +1,121 @@
+{
+  "name": "Bless: Attack and Save Bonus Effect",
+  "description": "A Cleric casts Bless on self with +1d4 on attack rolls and saving throws. Then attacks a monster to verify the effect is applied through the tabletop attack flow. Tests buff spell with dice-based bonuses.",
+  "setup": {
+    "character": {
+      "name": "Sister Miriel",
+      "className": "Cleric",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 10, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 12
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4 },
+        "preparedSpells": [
+          {
+            "name": "Bless",
+            "level": 1,
+            "concentration": true,
+            "effects": [
+              {
+                "type": "bonus",
+                "target": "attack_rolls",
+                "diceValue": { "count": 1, "sides": 4 },
+                "duration": "concentration",
+                "appliesTo": "self"
+              },
+              {
+                "type": "bonus",
+                "target": "saving_throws",
+                "diceValue": { "count": 1, "sides": 4 },
+                "duration": "concentration",
+                "appliesTo": "self"
+              }
+            ]
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Mace", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Zombie",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13, "dexterity": 6, "constitution": 16,
+            "intelligence": 3, "wisdom": 6, "charisma": 5
+          },
+          "maxHp": 22, "hp": 22, "armorClass": 8, "speed": 20,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Slam", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I call upon divine blessing" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Bless on self — applies +1d4 attack rolls and +1d4 saving throws effects",
+      "type": "action",
+      "input": { "text": "cast Bless" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn, Zombie attacks",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Attack Zombie — Bless effect should add +1d4 to attack bonus in resolution",
+      "type": "action",
+      "input": { "text": "I attack the Zombie with my mace" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true },
+      "comment": "12 + 4 (attack bonus) + 1d4 (Bless) should hit AC 8"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Damage: 5 + 2 = 7 bludgeoning"
+    },
+    {
+      "comment": "Zombie should have taken damage",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Zombie", "max": 21 } }
+    }
+  ]
+}

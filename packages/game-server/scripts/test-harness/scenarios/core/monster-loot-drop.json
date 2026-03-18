@@ -1,0 +1,144 @@
+{
+  "name": "Monster drops loot on defeat",
+  "setup": {
+    "character": {
+      "name": "Looter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Loot Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "name": "Loot Goblin",
+          "armorClass": 10,
+          "maxHp": 1,
+          "hp": 1,
+          "speed": 30,
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "loot": [
+            {
+              "name": "Scimitar",
+              "weaponStats": {
+                "name": "Scimitar",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "slashing",
+                "properties": ["Light", "Finesse"]
+              }
+            },
+            {
+              "name": "Potion of Healing",
+              "inventoryItem": {
+                "magicItemId": "potion-of-healing",
+                "name": "Potion of Healing",
+                "equipped": false,
+                "attuned": false,
+                "quantity": 1
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Attack the goblin!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack the Loot Goblin" },
+      "expect": { "rollType": "attack" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "rollType": "damage", "hit": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true, "combatEnded": true },
+      "comment": "Goblin dies (1 HP), loot should drop at goblin's position"
+    },
+    {
+      "type": "assertState",
+      "comment": "Scimitar and Potion of Healing should be on the ground at goblin's position",
+      "expect": {
+        "groundItemsHas": ["Scimitar", "Potion of Healing"]
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "pick up the Potion of Healing" },
+      "expect": { "actionComplete": true },
+      "comment": "Pick up the potion (adds to inventory as CharacterItemInstance)"
+    },
+    {
+      "type": "assertState",
+      "comment": "Potion should now be in character inventory",
+      "expect": {
+        "characterInventory": {
+          "has": [
+            { "name": "Potion of Healing", "quantity": 1 }
+          ]
+        }
+      }
+    }
+  ]
+}

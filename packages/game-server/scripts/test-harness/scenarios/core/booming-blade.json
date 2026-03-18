@@ -1,0 +1,115 @@
+{
+  "name": "Booming Blade: on_voluntary_move Trigger Damage",
+  "description": "Tests the on_voluntary_move trigger mechanic. A spell applies a 'if you move voluntarily, take thunder damage' effect to a target. When the target moves on its turn, the movement-trigger-resolver fires, dealing damage and removing the effect. This validates the generalized movement-triggered effect system used by spells like Booming Blade.",
+  "setup": {
+    "character": {
+      "name": "Kael the Spellsword",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 32, "currentHp": 32, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          {
+            "name": "Thunderous Ward",
+            "level": 1,
+            "effects": [
+              {
+                "type": "ongoing_damage",
+                "target": "hit_points",
+                "diceValue": { "count": 2, "sides": 8 },
+                "damageType": "thunder",
+                "duration": "until_end_of_next_turn",
+                "triggerAt": "on_voluntary_move",
+                "appliesTo": "target"
+              }
+            ]
+          },
+          {
+            "name": "Fire Bolt",
+            "level": 0,
+            "attackType": "ranged_spell",
+            "damageType": "fire",
+            "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 },
+            "isRanged": true,
+            "range": 120
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "approach"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my blade with thunder energy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Thunderous Ward on the Goblin — applies an on_voluntary_move effect via buff/debuff handler. The goblin now has an ActiveEffect: if it moves voluntarily, it takes 2d8 thunder damage.",
+      "type": "action",
+      "input": { "text": "cast Thunderous Ward at Goblin Scout" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End PC turn — Goblin Scout's turn starts. AI 'approach' behavior makes goblin try to move toward Kael. Moving voluntarily fires the on_voluntary_move trigger from Thunderous Ward: 2d8 thunder damage (avg 9, min 2, max 16). If goblin survives, it continues moving.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Goblin should have taken thunder damage from moving voluntarily (2d8 = 2-16). With 30 HP max, HP should be less than 30. (Using average damage: ~30-9=21 expected HP.)",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Scout", "min": 0, "max": 29 } }
+    },
+    {
+      "comment": "Verify combat is still active",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

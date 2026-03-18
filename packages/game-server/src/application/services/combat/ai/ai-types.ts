@@ -12,6 +12,8 @@ export type AiDecision = {
   action:
     | "attack"
     | "move"
+    | "moveToward"
+    | "moveAwayFrom"
     | "dash"
     | "dodge"
     | "disengage"
@@ -26,11 +28,13 @@ export type AiDecision = {
   target?: string;
   attackName?: string;
   destination?: { x: number; y: number };
+  desiredRange?: number;
   bonusAction?: string;
   endTurn?: boolean;
   intentNarration?: string; // Brief description of what the AI plans to do (before action execution)
   reasoning?: string;
   spellName?: string;
+  spellLevel?: number;
   seed?: number;
 };
 
@@ -61,6 +65,7 @@ export type TurnStepResult = {
     destination?: { x: number; y: number };
     bonusAction?: string;
     spellName?: string;
+    spellLevel?: number;
     seed?: number;
     endTurn?: boolean;
   };
@@ -85,13 +90,39 @@ export interface AiCombatContext {
       max: number;
       percentage: number;
     };
+    conditions?: string[];
     position?: { x: number; y: number };
     economy?: {
       actionSpent: boolean;
       bonusActionSpent: boolean;
       reactionSpent: boolean;
+      movementSpent: boolean;
       movementRemaining?: number;
     };
+    ac?: number;
+    speed?: number;
+    size?: string;
+    abilityScores?: {
+      strength: number;
+      dexterity: number;
+      constitution: number;
+      intelligence: number;
+      wisdom: number;
+      charisma: number;
+    };
+    spellSaveDC?: number;
+    spellAttackBonus?: number;
+    initiative?: number | null;
+    resourcePools?: Array<{
+      name: string;
+      current: number;
+      max: number;
+    }>;
+    concentrationSpell?: string;
+    damageResistances?: string[];
+    damageImmunities?: string[];
+    damageVulnerabilities?: string[];
+    activeBuffs?: string[];
     traits?: unknown[];
     attacks?: unknown[];
     actions?: unknown[];
@@ -99,6 +130,13 @@ export interface AiCombatContext {
     reactions?: unknown[];
     spells?: unknown[];
     abilities?: unknown[];
+    features?: unknown[];
+    classAbilities?: Array<{
+      name: string;
+      economy: string;
+      resourceCost?: string;
+      effect?: string;
+    }>;
   };
   combat: {
     round: number;
@@ -112,8 +150,21 @@ export interface AiCombatContext {
       max: number;
       percentage: number;
     };
+    conditions?: string[];
     position?: { x: number; y: number };
+    distanceFeet?: number;
+    ac?: number;
+    speed?: number;
+    size?: string;
+    class?: string;
+    level?: number;
     initiative: number | null;
+    knownAbilities?: string[];
+    damageResistances?: string[];
+    damageImmunities?: string[];
+    damageVulnerabilities?: string[];
+    deathSaves?: { successes: number; failures: number };
+    concentrationSpell?: string;
   }>;
   enemies: Array<{
     name: string;
@@ -124,20 +175,52 @@ export interface AiCombatContext {
       max: number;
       percentage: number;
     };
+    conditions?: string[];
     position?: { x: number; y: number };
+    distanceFeet?: number;
     ac?: number;
+    speed?: number;
+    size?: string;
+    spellSaveDC?: number;
     initiative: number | null;
     knownAbilities?: string[];
+    damageResistances?: string[];
+    damageImmunities?: string[];
+    damageVulnerabilities?: string[];
+    concentrationSpell?: string;
+    deathSaves?: { successes: number; failures: number };
   }>;
   battlefield?: {
     grid: string;
     legend: string;
     size: { width: number; height: number };
   };
+  zones?: Array<{
+    id: string;
+    center: { x: number; y: number };
+    radiusFeet: number;
+    shape: string;
+    source: string;
+    type: string;
+    effects: Array<{
+      trigger: string;
+      damageType?: string;
+      damage?: string;
+      saveAbility?: string;
+      saveDC?: number;
+    }>;
+  }>;
   recentNarrative: string[];
   actionHistory: string[];
   turnResults: TurnStepResult[];
   lastActionResult: TurnStepResult | null;
+  battlePlan?: {
+    priority: string;
+    focusTarget?: string;
+    yourRole?: string;
+    tacticalNotes: string;
+    retreatCondition?: string;
+  };
 }
 
 /**

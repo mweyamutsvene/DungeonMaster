@@ -1,0 +1,39 @@
+{
+  "name": "Intent: Ranged Attack",
+  "description": "LLM parses ranged weapon attack commands correctly",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'shoot the goblin with my longbow'",
+      "input": {
+        "text": "shoot the goblin with my longbow",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Elara Windwalker" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Archer" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin",
+        "targetType": "Monster",
+        "promptSnapshot": "ranged-attack"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'fire an arrow at the orc'",
+      "input": {
+        "text": "fire an arrow at the orc",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Elara Windwalker" }],
+          "monsters": [{ "id": "mon-001", "name": "Orc Brute" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Orc"
+      }
+    }
+  ]
+}

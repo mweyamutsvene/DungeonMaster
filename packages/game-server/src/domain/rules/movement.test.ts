@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   attemptMovement,
   calculateDistance,
+  calculateHighJumpDistance,
+  calculateLongJumpDistance,
   calculateManhattanDistance,
+  computeJumpLandingPosition,
   crossesThroughReach,
   getPositionsInRadius,
   isWithinMeleeReach,
@@ -235,6 +238,157 @@ describe("Movement and Positioning", () => {
 
       expect(positions.length).toBeGreaterThanOrEqual(1);
       expect(positions).toContainEqual({ x: 10, y: 10 });
+    });
+  });
+
+  // ——————————————————————————————————————————————
+  // Jump mechanics (D&D 5e 2024)
+  // ——————————————————————————————————————————————
+
+  describe("calculateLongJumpDistance", () => {
+    it("should equal Strength score with running start", () => {
+      // STR 16 → 16ft long jump
+      const result = calculateLongJumpDistance(16, true);
+      expect(result.maxDistanceFeet).toBe(16);
+      expect(result.movementCostFeet).toBe(16);
+      expect(result.hadRunningStart).toBe(true);
+      expect(result.jumpType).toBe("long");
+    });
+
+    it("should halve distance without running start (standing jump)", () => {
+      // STR 16, standing → 8ft
+      const result = calculateLongJumpDistance(16, false);
+      expect(result.maxDistanceFeet).toBe(8);
+      expect(result.movementCostFeet).toBe(8);
+      expect(result.hadRunningStart).toBe(false);
+    });
+
+    it("should apply multiplier (Step of the Wind doubles)", () => {
+      // STR 14, running start, ×2 → 28ft
+      const result = calculateLongJumpDistance(14, true, 2);
+      expect(result.maxDistanceFeet).toBe(28);
+      expect(result.movementCostFeet).toBe(28);
+    });
+
+    it("should apply multiplier to standing jump", () => {
+      // STR 14, standing, ×2 → floor(28/2) = 14ft
+      const result = calculateLongJumpDistance(14, false, 2);
+      expect(result.maxDistanceFeet).toBe(14);
+    });
+
+    it("should floor odd values for standing jump", () => {
+      // STR 15, standing → floor(15/2) = 7ft
+      const result = calculateLongJumpDistance(15, false);
+      expect(result.maxDistanceFeet).toBe(7);
+    });
+
+    it("should handle STR 10 (average)", () => {
+      const result = calculateLongJumpDistance(10, true);
+      expect(result.maxDistanceFeet).toBe(10);
+    });
+
+    it("should handle very low STR (minimum 0ft)", () => {
+      const result = calculateLongJumpDistance(-1, true);
+      expect(result.maxDistanceFeet).toBe(0);
+    });
+  });
+
+  describe("calculateHighJumpDistance", () => {
+    it("should equal 3 + STR modifier with running start", () => {
+      // STR mod +3 → 6ft high jump
+      const result = calculateHighJumpDistance(3, true);
+      expect(result.maxDistanceFeet).toBe(6);
+      expect(result.movementCostFeet).toBe(6);
+      expect(result.hadRunningStart).toBe(true);
+      expect(result.jumpType).toBe("high");
+    });
+
+    it("should halve distance without running start", () => {
+      // STR mod +3, standing → floor(6/2) = 3ft
+      const result = calculateHighJumpDistance(3, false);
+      expect(result.maxDistanceFeet).toBe(3);
+      expect(result.hadRunningStart).toBe(false);
+    });
+
+    it("should apply multiplier (Step of the Wind)", () => {
+      // STR mod +2, running, ×2 → (3+2)*2 = 10ft
+      const result = calculateHighJumpDistance(2, true, 2);
+      expect(result.maxDistanceFeet).toBe(10);
+    });
+
+    it("should have minimum 0ft for negative modifiers", () => {
+      // STR mod -4 → max(0, 3 + (-4)) = max(0, -1) = 0
+      const result = calculateHighJumpDistance(-4, true);
+      expect(result.maxDistanceFeet).toBe(0);
+    });
+
+    it("should handle STR mod 0 (average)", () => {
+      // 3 + 0 = 3ft
+      const result = calculateHighJumpDistance(0, true);
+      expect(result.maxDistanceFeet).toBe(3);
+    });
+
+    it("should floor standing jump with odd base", () => {
+      // STR mod +2 → base 5, standing → floor(5/2) = 2ft
+      const result = calculateHighJumpDistance(2, false);
+      expect(result.maxDistanceFeet).toBe(2);
+    });
+  });
+
+  describe("computeJumpLandingPosition", () => {
+    it("should move along positive X axis by default (no direction target)", () => {
+      const origin: Position = { x: 10, y: 10 };
+      const result = computeJumpLandingPosition(origin, 15, "long");
+      expect(result).toEqual({ x: 25, y: 10 });
+    });
+
+    it("should move toward a direction target", () => {
+      const origin: Position = { x: 0, y: 0 };
+      const target: Position = { x: 50, y: 0 };
+      const result = computeJumpLandingPosition(origin, 16, "long", target);
+      expect(result).toEqual({ x: 15, y: 0 }); // snapped to grid
+    });
+
+    it("should move diagonally toward target and snap to grid", () => {
+      const origin: Position = { x: 0, y: 0 };
+      const target: Position = { x: 50, y: 50 }; // 45-degree angle
+      const result = computeJumpLandingPosition(origin, 10, "long", target);
+      // 10ft at 45° ≈ (7.07, 7.07) → snapped to (5, 5) or (10, 10) depending on rounding
+      // 7.07 / 5 = 1.414 → Math.round → 1 → 5
+      expect(result).toEqual({ x: 5, y: 5 });
+    });
+
+    it("should not move horizontally for high jump", () => {
+      const origin: Position = { x: 10, y: 10 };
+      const target: Position = { x: 50, y: 10 };
+      const result = computeJumpLandingPosition(origin, 5, "high", target);
+      expect(result).toEqual({ x: 10, y: 10 }); // same position — high jump is vertical
+    });
+
+    it("should return origin for 0 distance", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const result = computeJumpLandingPosition(origin, 0, "long", { x: 50, y: 20 });
+      expect(result).toEqual({ x: 20, y: 20 });
+    });
+
+    it("should default to positive X when direction target equals origin", () => {
+      const origin: Position = { x: 10, y: 10 };
+      const result = computeJumpLandingPosition(origin, 10, "long", { x: 10, y: 10 });
+      expect(result).toEqual({ x: 20, y: 10 }); // default X axis
+    });
+
+    it("should jump along negative X axis", () => {
+      const origin: Position = { x: 30, y: 10 };
+      const target: Position = { x: 0, y: 10 };
+      const result = computeJumpLandingPosition(origin, 16, "long", target);
+      expect(result).toEqual({ x: 15, y: 10 });
+    });
+
+    it("should jump along Y axis", () => {
+      const origin: Position = { x: 10, y: 0 };
+      const target: Position = { x: 10, y: 50 };
+      const result = computeJumpLandingPosition(origin, 20, "long", target);
+      expect(result).toEqual({ x: 10, y: 20 });
     });
   });
 });

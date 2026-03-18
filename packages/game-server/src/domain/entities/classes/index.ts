@@ -1,4 +1,6 @@
 export * from "./class-definition.js";
+export * from "./combat-resource-builder.js";
+export * from "./combat-text-profile.js";
 export * from "./registry.js";
 export * from "./class-feature-resolver.js";
 

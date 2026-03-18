@@ -1,0 +1,37 @@
+{
+  "name": "Intent: Roll Result Parsing",
+  "description": "LLM extracts dice roll values from natural language",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'I rolled 18' into rollResult",
+      "input": {
+        "text": "I rolled 18",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "rollResult",
+        "value": 18
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I got a 7' into rollResult",
+      "input": {
+        "text": "I got a 7",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "rollResult",
+        "value": 7
+      }
+    }
+  ]
+}

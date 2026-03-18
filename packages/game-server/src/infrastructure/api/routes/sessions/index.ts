@@ -14,6 +14,7 @@
  * - session-actions.ts: Programmatic action execution
  * - session-llm.ts: LLM intent parsing and narrative
  * - session-events.ts: Event streaming (SSE)
+ * - session-inventory.ts: Character inventory management
  */
 
 import type { FastifyInstance } from "fastify";
@@ -28,6 +29,7 @@ import { registerSessionTabletopRoutes } from "./session-tabletop.js";
 import { registerSessionActionsRoutes } from "./session-actions.js";
 import { registerSessionLlmRoutes } from "./session-llm.js";
 import { registerSessionEventsRoutes } from "./session-events.js";
+import { registerSessionInventoryRoutes } from "./session-inventory.js";
 
 // Re-export types for external use
 export type { SessionRouteDeps } from "./types.js";
@@ -48,4 +50,5 @@ export function registerSessionRoutes(app: FastifyInstance, deps: SessionRouteDe
   registerSessionActionsRoutes(app, deps);
   registerSessionLlmRoutes(app, deps);
   registerSessionEventsRoutes(app, deps);
+  registerSessionInventoryRoutes(app, deps);
 }

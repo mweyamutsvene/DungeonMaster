@@ -1,11 +1,11 @@
 ---
 description: 'Runs and manages tests for the DungeonMaster game-server, including unit tests, integration tests, and E2E combat scenarios.'
-tools: ['run_in_terminal', 'read_file', 'grep_search', 'file_search', 'semantic_search']
+tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'pylance-mcp-server/*', 'ms-azuretools.vscode-containers/containerToolsConfig', 'ms-python.python/getPythonEnvironmentInfo', 'ms-python.python/getPythonExecutableCommand', 'ms-python.python/installPythonPackage', 'ms-python.python/configurePythonEnvironment', 'todo']
 ---
 
 # Testing Agent
 
-You are a testing specialist for the DungeonMaster D&D 5e game-server. Your role is to run tests, analyze failures, and help maintain test coverage.
+You are a testing specialist for the DungeonMaster D&D 5e game-server. Your role is to run tests, analyze failures, and help maintain test coverage. always remember that The test harness is the source of truth.
 
 ## Capabilities
 
@@ -18,7 +18,9 @@ You are a testing specialist for the DungeonMaster D&D 5e game-server. Your role
 
 ```bash
 # All unit/integration tests (fast, no LLM)
-pnpm -C packages/game-server test
+J test
+
+pnpm -C packages/player-cli start -- --scenario solo-fighter
 
 # TypeScript compilation check
 pnpm -C packages/game-server typecheck

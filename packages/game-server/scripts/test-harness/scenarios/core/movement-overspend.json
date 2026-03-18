@@ -1,0 +1,112 @@
+{
+  "name": "Movement Over-Spend: Second move should be capped by remaining budget",
+  "description": "Tests that a character with 30ft speed who moves 25ft cannot then move another 7ft (total 32ft). The second move should be rejected because it exceeds the remaining 5ft of movement. D&D 5e: movement is a shared budget per turn, not per-move.",
+  "setup": {
+    "character": {
+      "name": "Budget Tester",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Move 25ft — uses 25 of 30ft budget, leaving 5ft remaining",
+      "input": { "text": "move to (35, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attempt to move 7ft MORE — should FAIL because only 5ft remaining (25+7=32 > 30)",
+      "input": { "text": "move to (42, 10)" },
+      "expect": {
+        "error": true,
+        "errorContains": "move"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Move exactly 5ft — this should succeed (uses remaining 5ft budget)",
+      "input": { "text": "move to (40, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Any further movement should be rejected — budget fully spent",
+      "input": { "text": "move to (45, 10)" },
+      "expect": {
+        "error": true,
+        "errorContains": "moved"
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

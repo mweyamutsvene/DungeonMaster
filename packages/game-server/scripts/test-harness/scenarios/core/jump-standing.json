@@ -1,0 +1,110 @@
+{
+  "name": "Standing Jump: Jump without running start",
+  "description": "Tests that a character with STR 16 can only long jump 8ft (half of 16) without a running start. Position updates to landing spot (10,10). Then tests a jump when insufficient movement remains.",
+  "setup": {
+    "character": {
+      "name": "Jump Tester",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Standing long jump (no prior movement) — STR 16, standing = floor(16/2) = 8ft. Lands at snap(8)=10 → (10, 10)",
+      "input": { "text": "jump" },
+      "expect": {
+        "type": "JUMP_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify character position updated to (10, 10) after the standing jump",
+      "expect": {
+        "characterPosition": { "x": 10, "y": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Move 15ft from (10,10) to (25,10) — leaves 7ft remaining (30 - 8 jump - 15 move = 7ft)",
+      "input": { "text": "move to (25, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attempt another jump — only 7ft remaining but would need at least 8ft for standing. Should fail.",
+      "input": { "text": "jump" },
+      "expect": {
+        "error": true,
+        "errorContains": "movement"
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

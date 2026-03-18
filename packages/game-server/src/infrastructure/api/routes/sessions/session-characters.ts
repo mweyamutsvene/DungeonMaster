@@ -6,6 +6,7 @@
  * Endpoints:
  * - POST /sessions/:id/characters - Add a character to a session
  * - POST /sessions/:id/characters/generate - Generate a character via LLM
+ * - POST /sessions/:id/rest - Take a short or long rest (refreshes resources)
  */
 
 import type { FastifyInstance } from "fastify";
@@ -92,5 +93,31 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
     }
 
     return deps.characters.addCharacter(sessionId, input);
+  });
+
+  /**
+   * POST /sessions/:id/rest
+   * Take a short or long rest for all characters in the session.
+   * Refreshes class resource pools; long rest also restores HP.
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { type: "short" | "long" };
+  }>("/sessions/:id/rest", async (req) => {
+    const sessionId = req.params.id;
+    const { type: restType } = req.body;
+
+    if (!restType || (restType !== "short" && restType !== "long")) {
+      throw new ValidationError("Rest type must be 'short' or 'long'");
+    }
+
+    if (deps.unitOfWork) {
+      return deps.unitOfWork.run(async (repos) => {
+        const services = deps.createServicesForRepos(repos);
+        return services.characters.takeSessionRest(sessionId, restType);
+      });
+    }
+
+    return deps.characters.takeSessionRest(sessionId, restType);
   });
 }

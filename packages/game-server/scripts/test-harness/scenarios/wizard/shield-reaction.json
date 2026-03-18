@@ -1,0 +1,100 @@
+{
+  "name": "Wizard Shield Reaction: Block Monster Attack",
+  "description": "A Wizard with Shield prepared faces a monster attack. When the monster attacks, the server detects Shield eligibility and pauses for player reaction. Player casts Shield (+5 AC) via reaction. Tests Shield reaction detection, two-phase attack flow, spell slot consumption, and AC modification. AC is kept low to ensure the attack always 'would hit' (triggering Shield) regardless of dice state.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 30, "currentHp": 30, "armorClass": 5, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 3 },
+        "preparedSpells": [
+          { "name": "Shield", "level": 1 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Guard",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my spells against the skeleton" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative to ensure Wizard goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "End turn without acting - monster will attack on its turn",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster to attack and trigger Shield reaction prompt",
+      "type": "waitForShieldReaction",
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Shield reaction - casts Shield spell (+5 AC until next turn, uses reaction + spell slot)",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for monster turn to finish and control to return to player",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "Verify wizard survived - with Shield (AC 10 = 5+5), the attack may or may not hit depending on dice. HP may be reduced.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 1, "max": 30 }
+      }
+    }
+  ]
+}

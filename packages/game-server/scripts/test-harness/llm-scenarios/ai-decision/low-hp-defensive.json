@@ -1,0 +1,75 @@
+{
+  "name": "AI Decision: Low HP Defensive",
+  "description": "Monster at critically low HP with escape options should consider defensive action or retreat",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Goblin at 1 HP with Nimble Escape should dodge, disengage, or flee",
+      "input": {
+        "combatantName": "Goblin Warrior",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Goblin Warrior",
+            "type": "Goblin",
+            "cr": 0.25,
+            "hp": { "current": 1, "max": 7, "percentage": 14 },
+            "conditions": [],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 15,
+            "speed": 30,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Scimitar",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "slashing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": [
+              { "name": "Nimble Escape", "description": "Disengage or Hide as bonus action" }
+            ]
+          },
+          "combat": { "round": 3, "turn": 6, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 38, "max": 42, "percentage": 90 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge"]
+            }
+          ],
+          "recentNarrative": [
+            "Thorin slashes the goblin with his longsword, drawing blood.",
+            "The goblin staggers, barely standing."
+          ],
+          "actionHistory": ["attack Thorin (miss)", "attack Thorin (hit, 5 damage)"],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "dodge",
+        "actionOneOf": ["dodge", "disengage", "dash", "hide", "move", "endTurn"]
+      }
+    }
+  ]
+}

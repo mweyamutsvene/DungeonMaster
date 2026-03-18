@@ -1,0 +1,144 @@
+{
+  "name": "Condition Immunity: Heroism Blocks Frightened",
+  "description": "A Cleric casts Heroism granting Frightened immunity. Then the character attacks a monster that has a fear-based retaliation (Stunning Strike stand-in applying Frightened). Tests that isConditionImmuneByEffects blocks condition application at all guard sites.",
+  "setup": {
+    "character": {
+      "name": "Brave Paladin",
+      "className": "Cleric",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16, "dexterity": 10, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 12
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          {
+            "name": "Heroism",
+            "level": 1,
+            "concentration": true,
+            "effects": [
+              {
+                "type": "recurring_temp_hp",
+                "target": "hit_points",
+                "value": 4,
+                "duration": "concentration",
+                "triggerAt": "start_of_turn",
+                "appliesTo": "self"
+              },
+              {
+                "type": "condition_immunity",
+                "target": "conditions",
+                "conditionName": "Frightened",
+                "duration": "concentration",
+                "appliesTo": "self"
+              }
+            ]
+          },
+          {
+            "name": "Cause Fear",
+            "level": 1,
+            "saveAbility": "wisdom",
+            "damage": { "diceCount": 0, "diceSides": 0, "modifier": 0 },
+            "damageType": "psychic",
+            "halfDamageOnSave": false,
+            "conditions": { "onFailure": ["Frightened"] }
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Mace", "kind": "melee", "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "saveProficiencies": [],
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ],
+          "preparedSpells": [
+            {
+              "name": "Cause Fear",
+              "level": 1,
+              "saveAbility": "wisdom",
+              "damage": { "diceCount": 0, "diceSides": 0, "modifier": 0 },
+              "damageType": "psychic",
+              "halfDamageOnSave": false,
+              "conditions": { "onFailure": ["Frightened"] }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I channel divine courage" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Heroism on self — grants recurring temp HP + Frightened immunity via condition_immunity ActiveEffect",
+      "type": "action",
+      "input": { "text": "cast Heroism" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn — Skeleton attacks on its turn",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Verify character is NOT Frightened — Heroism's condition_immunity blocks any fear effects",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "characterConditions": { "doesNotHaveConditions": ["Frightened"] }
+      }
+    },
+    {
+      "comment": "Attack the Skeleton on our second turn",
+      "type": "action",
+      "input": { "text": "I attack the Skeleton with my mace" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" }
+    }
+  ]
+}

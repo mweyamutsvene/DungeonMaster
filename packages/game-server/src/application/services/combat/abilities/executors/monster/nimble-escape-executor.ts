@@ -107,24 +107,4 @@ export class NimbleEscapeExecutor implements AbilityExecutor {
       data: { choice: 'hide', abilityName: 'Nimble Escape' },
     };
   }
-
-  private buildActorRef(context: AbilityExecutionContext): any {
-    const actor = context.actor;
-    const id = actor.getId();
-
-    // Try to determine actor type from creature
-    const creature = actor as any;
-    if (creature.monsterId || (creature as any).__type === 'Monster') {
-      return { type: 'Monster', monsterId: id };
-    }
-    if (creature.characterId || (creature as any).__type === 'Character') {
-      return { type: 'Character', characterId: id };
-    }
-    if (creature.npcId || (creature as any).__type === 'NPC') {
-      return { type: 'NPC', npcId: id };
-    }
-
-    // Fallback: assume Monster
-    return { type: 'Monster', monsterId: id };
-  }
 }

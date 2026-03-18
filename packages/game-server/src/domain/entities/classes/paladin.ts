@@ -1,6 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface ChannelDivinityState {
   pool: ResourcePool;
@@ -63,6 +64,43 @@ export function resetChannelDivinityOnShortRest(
   const max = channelDivinityUsesForLevel(level);
   return { pool: { name: state.pool.name, current: max, max } };
 }
+
+/**
+ * Calculate Divine Smite dice count for a given spell slot level.
+ * D&D 5e 2024: 2d8 for 1st-level slot, +1d8 per slot level above 1st.
+ */
+export function divineSmiteDice(slotLevel: number): number {
+  return Math.min(1 + slotLevel, 6); // 2d8 at 1st, 3d8 at 2nd, ... 6d8 at 5th
+}
+
+/**
+ * Paladin combat text profile.
+ * - Divine Smite: hit-rider enhancement that adds radiant bonus dice on melee hit (costs spell slot + bonus action)
+ * - Lay on Hands: bonus action healing from HP pool
+ */
+export const PALADIN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "paladin",
+  actionMappings: [
+    {
+      keyword: "lay-on-hands",
+      abilityId: "class:paladin:lay-on-hands",
+      category: "bonusAction" as const,
+      normalizedPatterns: [/layonhands/, /layinghands/, /layhands/],
+    },
+  ],
+  attackEnhancements: [
+    {
+      keyword: "divine-smite",
+      displayName: "Divine Smite",
+      patterns: [/\bdivine\s*smite\b/],
+      minLevel: 2,
+      // No resourceCost here — spell slot validation is done in the roll-state-machine
+      // because Divine Smite can use ANY available spell slot level (1-5).
+      requiresMelee: true,
+      trigger: "onHit",
+    },
+  ],
+};
 
 export const Paladin: CharacterClassDefinition = {
   id: "paladin",

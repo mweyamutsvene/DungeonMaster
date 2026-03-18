@@ -1,0 +1,49 @@
+{
+  "name": "Intent: End Turn",
+  "description": "LLM recognizes various end-turn phrasings",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'end my turn'",
+      "input": {
+        "text": "end my turn",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "endTurn"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I'm done'",
+      "input": {
+        "text": "I'm done",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "endTurn"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'pass'",
+      "input": {
+        "text": "pass",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "endTurn"
+      }
+    }
+  ]
+}

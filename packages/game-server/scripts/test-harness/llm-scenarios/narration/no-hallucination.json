@@ -1,0 +1,29 @@
+{
+  "name": "Narration: No Hallucination",
+  "description": "Given a minimal combat event, narration does not invent weapons, NPCs, locations, or backstory",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Minimal turn start event — narration should not invent details",
+      "input": {
+        "events": [
+          {
+            "type": "turnStarted",
+            "payload": {
+              "combatantName": "Thorin Ironfist",
+              "round": 1,
+              "turn": 1
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["Thorin", "turn", "ready", "prepar", "step"],
+        "doesNotContain": ["forest", "shadow", "ancient", "mysterious", "narrator", "dungeon", "torch"],
+        "maxLength": 300
+      }
+    }
+  ]
+}

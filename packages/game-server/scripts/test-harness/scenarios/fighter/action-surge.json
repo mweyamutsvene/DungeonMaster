@@ -1,0 +1,192 @@
+{
+  "name": "Fighter Action Surge: Additional Action",
+  "description": "A level 5 Fighter uses Action Surge to take an additional action, allowing 4 total attacks (2 from Extra Attack + 2 more from Action Surge). Tests the Action Surge resource spending and action economy reset.",
+  "setup": {
+    "character": {
+      "name": "Sir Marcus",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Action Surge", "description": "Take an additional action (1/short rest)" }
+        ],
+        "resourcePools": [
+          { "name": "actionSurge", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 8,
+            "constitution": 18,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 200,
+          "hp": 200,
+          "armorClass": 10,
+          "speed": 0,
+          "challengeRating": 0,
+          "experienceValue": 0,
+          "attacks": [
+            {
+              "name": "None",
+              "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "First attack (Extra Attack 1/2)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Second attack (Extra Attack 2/2)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Normal action complete - 2 attacks used",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "use action surge" },
+      "comment": "ACTION SURGE - grants additional action this turn",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Third attack (Action Surge Extra Attack 1/2)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Fourth attack (Action Surge Extra Attack 2/2)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "All 4 attacks complete (2 normal + 2 from Action Surge)",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Fifth attack - SHOULD FAIL (no more actions available)",
+      "expect": {
+        "error": true,
+        "errorContains": "already spent"
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn after epic 4-attack turn"
+    }
+  ]
+}

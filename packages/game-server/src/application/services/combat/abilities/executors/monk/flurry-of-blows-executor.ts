@@ -125,6 +125,9 @@ export class FlurryOfBlowsExecutor implements AbilityExecutor {
     const sheet = params?.sheet || {};
     const unarmedStats = ClassFeatureResolver.getUnarmedStrikeStats(sheet as any, className as string, level);
 
+    // Note: Open Hand Technique is now resolved as an on-hit enhancement in damage text,
+    // not upfront in the action declaration (2024 rules: "whenever you hit with Flurry").
+
     const pendingAction = {
       type: "ATTACK",
       timestamp: new Date(),

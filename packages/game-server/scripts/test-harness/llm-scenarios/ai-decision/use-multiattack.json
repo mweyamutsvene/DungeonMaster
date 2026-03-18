@@ -1,0 +1,83 @@
+{
+  "name": "AI Decision: Use Multiattack",
+  "description": "Monster with multiattack ability should use it when enemies are in range",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Owlbear with multiattack and adjacent enemy should use multiattack",
+      "input": {
+        "combatantName": "Owlbear",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Owlbear",
+            "type": "Owlbear",
+            "cr": 3,
+            "hp": { "current": 59, "max": 59, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 40
+            },
+            "ac": 13,
+            "speed": 40,
+            "initiative": 11,
+            "attacks": [
+              {
+                "name": "Beak",
+                "kind": "melee",
+                "attackBonus": 7,
+                "damage": { "diceCount": 1, "diceSides": 10, "modifier": 5 },
+                "damageType": "piercing",
+                "range": "melee"
+              },
+              {
+                "name": "Claws",
+                "kind": "melee",
+                "attackBonus": 7,
+                "damage": { "diceCount": 2, "diceSides": 8, "modifier": 5 },
+                "damageType": "slashing",
+                "range": "melee"
+              }
+            ],
+            "actions": [
+              { "name": "Multiattack", "description": "The owlbear makes two attacks: one with its beak and one with its claws." }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 1, "turn": 2, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 42, "max": 42, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "initiative": 15,
+              "knownAbilities": ["Extra Attack"]
+            }
+          ],
+          "recentNarrative": ["The owlbear lets out a terrifying screech."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "attack",
+        "actionOneOf": ["attack"],
+        "targetName": "Thorin",
+        "promptSnapshot": "use-multiattack"
+      }
+    }
+  ]
+}

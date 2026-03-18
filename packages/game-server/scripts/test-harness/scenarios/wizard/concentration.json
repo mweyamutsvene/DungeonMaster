@@ -1,0 +1,103 @@
+{
+  "name": "Wizard Concentration: CON Save on Damage",
+  "description": "A Wizard casts a concentration spell (Bless), then takes damage from a monster. The server auto-rolls a CON save to maintain concentration. Tests concentration tracking and auto-check on damage.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4 },
+        "preparedSpells": [
+          { "name": "Bless", "level": 1, "concentration": true },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Bless (concentration spell) - should spend level 1 slot and start concentration",
+      "type": "action",
+      "input": { "text": "cast Bless" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn, monster attacks - concentration check will auto-fire on any damage",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Cast Magic Missile (non-concentration) - should work regardless of concentration state",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Goblin" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Cast Bless again - if concentration was broken, this restarts it; if maintained, this replaces it",
+      "type": "action",
+      "input": { "text": "cast Bless" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Cast Fire Bolt (cantrip) - always works, no slots needed",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    }
+  ]
+}

@@ -99,6 +99,14 @@ export class MemoryCharacterRepository implements ICharacterRepository {
     return [...this.characters.values()].filter((c) => c.sessionId === sessionId);
   }
 
+  async updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord> {
+    const existing = this.characters.get(id);
+    if (!existing) throw new Error("Character not found: " + id);
+    const updated: SessionCharacterRecord = { ...existing, sheet, updatedAt: now() };
+    this.characters.set(id, updated);
+    return updated;
+  }
+
   clear(): void {
     this.characters.clear();
   }
@@ -155,10 +163,11 @@ export class MemoryCombatRepository implements ICombatRepository {
   private readonly encounters = new Map<string, CombatEncounterRecord>();
   private readonly combatantsByEncounter = new Map<string, CombatantStateRecord[]>();
   private readonly pendingActionsByEncounter = new Map<string, JsonValue>();
+  private readonly battlePlansByEncounter = new Map<string, Record<string, JsonValue>>();
 
   async createEncounter(
     sessionId: string,
-    input: { id: string; status: string; round: number; turn: number },
+    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue; surprise?: JsonValue },
   ): Promise<CombatEncounterRecord> {
     const created: CombatEncounterRecord = {
       id: input.id,
@@ -166,6 +175,8 @@ export class MemoryCombatRepository implements ICombatRepository {
       status: input.status,
       round: input.round,
       turn: input.turn,
+      mapData: input.mapData,
+      surprise: input.surprise,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -185,7 +196,7 @@ export class MemoryCombatRepository implements ICombatRepository {
 
   async updateEncounter(
     id: string,
-    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn">>,
+    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData" | "surprise" | "battlePlans">>,
   ): Promise<CombatEncounterRecord> {
     const existing = this.encounters.get(id);
     if (!existing) throw new Error("Encounter not found: " + id);
@@ -308,10 +319,23 @@ export class MemoryCombatRepository implements ICombatRepository {
     return this.updateEncounter(encounterId, { status: "Active" });
   }
 
+  async getBattlePlan(encounterId: string, faction: string): Promise<JsonValue | null> {
+    const plans = this.battlePlansByEncounter.get(encounterId);
+    if (!plans) return null;
+    return plans[faction] ?? null;
+  }
+
+  async updateBattlePlan(encounterId: string, faction: string, plan: JsonValue): Promise<void> {
+    const existing = this.battlePlansByEncounter.get(encounterId) ?? {};
+    existing[faction] = plan;
+    this.battlePlansByEncounter.set(encounterId, existing);
+  }
+
   clear(): void {
     this.encounters.clear();
     this.combatantsByEncounter.clear();
     this.pendingActionsByEncounter.clear();
+    this.battlePlansByEncounter.clear();
   }
 }
 

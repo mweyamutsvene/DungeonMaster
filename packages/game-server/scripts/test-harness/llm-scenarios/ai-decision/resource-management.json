@@ -1,0 +1,90 @@
+{
+  "name": "AI Decision: Resource Management",
+  "description": "Monster with limited resources at low supply should conserve them",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Goblin shaman far from enemy with 1 spell slot left should use cantrip from range rather than advancing",
+      "input": {
+        "combatantName": "Goblin Shaman",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Goblin Shaman",
+            "type": "Goblin",
+            "cr": 1,
+            "hp": { "current": 15, "max": 15, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 90, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 12,
+            "speed": 30,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Staff",
+                "kind": "melee",
+                "attackBonus": 2,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+                "damageType": "bludgeoning",
+                "range": "melee"
+              }
+            ],
+            "spells": [
+              {
+                "name": "Fire Bolt",
+                "level": 0,
+                "school": "Evocation",
+                "range": "120 feet",
+                "description": "Ranged spell attack dealing 1d10 fire damage"
+              },
+              {
+                "name": "Burning Hands",
+                "level": 1,
+                "school": "Evocation",
+                "range": "Self (15-foot cone)",
+                "description": "Each creature in a 15-foot cone must make a Dex save or take 3d6 fire damage"
+              }
+            ],
+            "resourcePools": [
+              { "name": "Spell Slots (1st)", "current": 1, "max": 2 }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 3, "turn": 5, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 30, "max": 42, "percentage": 71 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 80,
+              "ac": 18,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack"]
+            }
+          ],
+          "recentNarrative": ["The goblin shaman hurls a bolt of fire at the fighter."],
+          "actionHistory": ["castSpell Fire Bolt (hit, 8 damage)", "castSpell Burning Hands (3 damage)"],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "castSpell",
+        "actionOneOf": ["castSpell", "attack"],
+        "promptSnapshot": "resource-management"
+      }
+    }
+  ]
+}

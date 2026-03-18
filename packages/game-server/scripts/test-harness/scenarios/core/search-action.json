@@ -1,0 +1,135 @@
+{
+  "name": "Search: Reveal hidden monster",
+  "description": "A Rogue hides (gaining Hidden condition), then the monster's turn passes. The Rogue then searches for hidden enemies. Since no enemies are hidden this tests the basic search flow. A second variant: a monster hides, then the player searches to find them. For now, we test the action works and spends the action economy.",
+  "setup": {
+    "character": {
+      "name": "Scout",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": {
+          "perception": 6
+        },
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I search for enemies" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "search" },
+      "comment": "Search action — no hidden enemies, should complete and spend action",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn after spending action on Search"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for monster turn to pass (endTurn AI), then our turn again"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Scout" },
+      "comment": "Normal attack on visible enemy — action should work on new turn",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 5 = 23 vs AC 15 — hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 2 = 8 damage — Goblin dies (7 HP)",
+      "expect": {
+        "actionComplete": true
+      }
+    }
+  ]
+}

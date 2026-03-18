@@ -11,19 +11,26 @@ import type { INPCRepository } from "../../repositories/npc-repository.js";
 import type { ICombatRepository } from "../../repositories/combat-repository.js";
 import type { CombatService } from "./combat-service.js";
 import { calculateDistance, crossesThroughReach } from "../../../domain/rules/movement.js";
+import { getMapZones } from "../../../domain/rules/combat-map.js";
+import type { CombatMap } from "../../../domain/rules/combat-map.js";
+import { getGroundItems, getGroundItemsNearPosition } from "../../../domain/rules/combat-map.js";
 import {
   getPosition,
   getResourcePools,
   normalizeResources,
   readBoolean,
+  getEffectiveSpeed,
 } from "./helpers/resource-utils.js";
 import { ClassFeatureResolver } from "../../../domain/entities/classes/class-feature-resolver.js";
+import { readConditionNames } from "../../../domain/entities/combat/conditions.js";
 
 export interface TacticalCombatant {
   id: string;
   name: string;
   combatantType: "Character" | "Monster" | "NPC";
   hp: { current: number; max: number };
+  conditions: string[];
+  deathSaves?: { successes: number; failures: number };
   position: { x: number; y: number } | null;
   distanceFromActive: number | null;
   actionEconomy: {
@@ -48,9 +55,36 @@ export interface TacticalCombatant {
 
 export interface TacticalView {
   encounterId: string;
+  status: string;
   activeCombatantId: string;
   combatants: TacticalCombatant[];
+  pendingAction?: { type: string; actorId?: string };
   map: unknown | null;
+  /** Last move path for the active combatant (cleared on turn change). Rich clients can use this for animated tokens, trail rendering, and cost overlays. */
+  lastMovePath?: {
+    combatantId: string;
+    cells: Array<{ x: number; y: number; terrain: string; stepCostFeet: number; cumulativeCostFeet: number }>;
+    costFeet: number;
+  } | null;
+  /** Active combat zones on the battlefield (area effects, auras, etc.). */
+  zones?: Array<{
+    id: string;
+    type: string;
+    center: { x: number; y: number };
+    radiusFeet: number;
+    shape: string;
+    source: string;
+    sourceCombatantId?: string;
+    roundsRemaining?: number;
+    effects: Array<{ trigger: string; damageType?: string; damage?: unknown }>;
+  }>;
+  /** Items on the ground that can be picked up. */
+  groundItems?: Array<{
+    id: string;
+    name: string;
+    position: { x: number; y: number };
+    distanceFromActive: number | null;
+  }>;
 }
 
 export interface CombatQueryContext {
@@ -58,7 +92,7 @@ export interface CombatQueryContext {
     id: string;
     name: string;
     character: { id: string; name: string; className: string | null; level: number } | null;
-    capabilities: { classFeatures: Array<{ name: string; economy: string; cost?: string; requires?: string; effect: string }> };
+    capabilities: { classFeatures: ReadonlyArray<{ name: string; economy: string; cost?: string; requires?: string; effect: string }> };
     attackOptions: Array<{ name: string; kind: string; reachFeet: number; attackBonus: number; damageFormula: string }>;
     position: { x: number; y: number };
     speed: number;
@@ -78,6 +112,7 @@ export interface CombatQueryContext {
     movementRequiredFeet: number | null;
     oaRisks: Array<{ combatantId: string; combatantName: string; reach: number; hasReaction: boolean; wouldProvoke: boolean }>;
   };
+  nearbyItems?: Array<{ id: string; name: string; distance: number; position: { x: number; y: number } }>;
 }
 
 export interface TacticalViewServiceDeps {
@@ -136,17 +171,22 @@ export class TacticalViewService {
 
       const actionEconomy = this.parseActionEconomy(resourcesRaw);
 
+      const conditions: string[] = readConditionNames(c.conditions);
+      const deathSaves = (resources as any).deathSaves as { successes: number; failures: number } | undefined;
+
       return {
         id: c.id,
         name: nameFor(c),
         combatantType: c.combatantType,
         hp: { current: c.hpCurrent, max: c.hpMax },
+        conditions,
+        ...(deathSaves ? { deathSaves } : {}),
         position: pos ?? null,
         distanceFromActive,
         actionEconomy,
         resourcePools,
         movement: {
-          speed: typeof resources.speed === "number" ? resources.speed : 30,
+          speed: getEffectiveSpeed(c.resources),
           dashed: readBoolean(resources, "dashed") ?? false,
           movementSpent: readBoolean(resources, "movementSpent") ?? false,
         },
@@ -163,11 +203,71 @@ export class TacticalViewService {
       };
     });
 
+    // Get pending action info
+    let pendingAction: { type: string; actorId?: string } | undefined;
+    try {
+      const pa = await this.deps.combatRepo.getPendingAction(encounterId);
+      if (pa) {
+        pendingAction = { type: (pa as any).type, actorId: (pa as any).actorId };
+      }
+    } catch { /* no pending action */ }
+
+    // Extract lastMovePath from the active combatant's resources (if present)
+    let lastMovePath: TacticalView["lastMovePath"] = null;
+    if (activeCombatant) {
+      const activeRes = (activeCombatant as any)?.resources ?? {};
+      const storedPath = activeRes.lastMovePath;
+      if (storedPath && Array.isArray(storedPath.cells) && storedPath.cells.length > 0) {
+        lastMovePath = {
+          combatantId: (activeCombatant as any).id,
+          cells: storedPath.cells,
+          costFeet: typeof storedPath.costFeet === "number" ? storedPath.costFeet : 0,
+        };
+      }
+    }
+
+    // Extract zones from map data
+    const mapData = (encounter as any).mapData;
+    const zoneList = mapData ? getMapZones(mapData as CombatMap) : [];
+    const zones = zoneList.length > 0
+      ? zoneList.map((z) => ({
+          id: z.id,
+          type: z.type,
+          center: z.center,
+          radiusFeet: z.radiusFeet,
+          shape: z.shape,
+          source: z.source,
+          sourceCombatantId: z.sourceCombatantId,
+          roundsRemaining: z.roundsRemaining,
+          effects: z.effects.map((e) => ({
+            trigger: e.trigger,
+            damageType: e.damageType,
+            damage: e.damage,
+          })),
+        }))
+      : undefined;
+
+    // Extract ground items from map data
+    const groundItemsList = mapData ? getGroundItems(mapData as CombatMap) : [];
+    const groundItems = groundItemsList.length > 0
+      ? groundItemsList.map((gi) => ({
+          id: gi.id,
+          name: gi.name,
+          position: gi.position,
+          distanceFromActive: activePos ? calculateDistance(activePos, gi.position) : null,
+        }))
+      : undefined;
+
     return {
       encounterId: encounter.id,
+      status: (encounter as any).status ?? "Active",
       activeCombatantId: (activeCombatant as any)?.id ?? "",
       combatants: tacticalCombatants,
+      pendingAction,
       map: (encounter as any).mapData ?? null,
+      lastMovePath,
+      zones,
+      groundItems,
     };
   }
 
@@ -219,7 +319,7 @@ export class TacticalViewService {
       throw new Error("actor does not have a position set");
     }
 
-    const actorSpeed = typeof actorResources.speed === "number" ? actorResources.speed : 30;
+    const actorSpeed = getEffectiveSpeed(actorCombatant.resources);
     const actorDashed = readBoolean(actorResources, "dashed") ?? false;
     const actorMovementSpent = readBoolean(actorResources, "movementSpent") ?? false;
     const actorMovementRemainingRaw = (actorResources as any).movementRemaining;
@@ -272,7 +372,7 @@ export class TacticalViewService {
     const actorClassName = typeof actorChar?.className === "string" ? actorChar.className : null;
 
     const unarmedStats = ClassFeatureResolver.getUnarmedStrikeStats(actorSheet, actorClassName, actorLevel);
-    const monkCapabilities = ClassFeatureResolver.getMonkCapabilities(actorSheet, actorClassName, actorLevel);
+    const classCapabilities = ClassFeatureResolver.getClassCapabilities(actorSheet, actorClassName, actorLevel);
 
     return {
       actor: {
@@ -287,7 +387,7 @@ export class TacticalViewService {
             }
           : null,
         capabilities: {
-          classFeatures: monkCapabilities,
+          classFeatures: classCapabilities,
         },
         attackOptions: [
           {
@@ -318,6 +418,20 @@ export class TacticalViewService {
         movementRequiredFeet,
         oaRisks,
       },
+      ...((() => {
+        const mapDataForItems = (encounter as any).mapData as CombatMap | undefined;
+        if (!mapDataForItems) return {};
+        const nearby = getGroundItemsNearPosition(mapDataForItems, actorPos, 30);
+        if (nearby.length === 0) return {};
+        return {
+          nearbyItems: nearby.map(gi => ({
+            id: gi.id,
+            name: gi.name,
+            distance: calculateDistance(actorPos, gi.position),
+            position: gi.position,
+          })).sort((a, b) => a.distance - b.distance),
+        };
+      })()),
     };
   }
 
@@ -369,6 +483,8 @@ export class TacticalViewService {
     bonusActionAvailable: boolean;
     reactionAvailable: boolean;
     movementRemainingFeet: number;
+    attacksUsed: number;
+    attacksAllowed: number;
   } {
     const resources = normalizeResources(resourcesRaw);
 
@@ -383,7 +499,7 @@ export class TacticalViewService {
     const movementSpent = readBoolean(resources, "movementSpent") ?? false;
     const dashed = readBoolean(resources, "dashed") ?? false;
 
-    const speed = typeof resources.speed === "number" ? resources.speed : 30;
+    const speed = getEffectiveSpeed(resourcesRaw);
     const effectiveSpeed = dashed ? speed * 2 : speed;
     const movementRemainingRaw = (resources as any).movementRemaining;
     const movementRemainingFeet =
@@ -393,11 +509,21 @@ export class TacticalViewService {
           ? 0
           : effectiveSpeed;
 
+    // Parse attack tracking for Extra Attack / Action Surge visibility
+    const attacksUsed = typeof (resources as any).attacksUsedThisTurn === "number"
+      ? (resources as any).attacksUsedThisTurn
+      : 0;
+    const attacksAllowed = typeof (resources as any).attacksAllowedThisTurn === "number"
+      ? (resources as any).attacksAllowedThisTurn
+      : 1;
+
     return {
       actionAvailable: !actionSpent,
       bonusActionAvailable: !bonusActionUsed,
       reactionAvailable: !reactionUsed,
       movementRemainingFeet,
+      attacksUsed,
+      attacksAllowed,
     };
   }
 

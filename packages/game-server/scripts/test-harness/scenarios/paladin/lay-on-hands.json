@@ -1,0 +1,88 @@
+{
+  "name": "Paladin Lay on Hands: Bonus action self-healing from HP pool",
+  "description": "A Paladin takes damage, then uses Lay on Hands to heal. Tests pool-based healing, bonus action cost, and HP update persistence.",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric",
+      "className": "paladin",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "className": "paladin",
+        "level": 5,
+        "maxHp": 44,
+        "currentHp": 30,
+        "ac": 18,
+        "speed": 30,
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 16
+        },
+        "proficiencyBonus": 3,
+        "spellSlots": { "1": 4, "2": 2 },
+        "equipment": {
+          "weapons": [
+            { "name": "Longsword", "damage": "1d8+3", "damageType": "slashing", "kind": "melee", "properties": ["versatile"] }
+          ],
+          "armor": { "name": "Chain Mail", "ac": 16 },
+          "shield": { "name": "Shield", "ac": 2 }
+        }
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "statBlock": {
+          "name": "Training Dummy",
+          "type": "construct",
+          "ac": 10,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": { "strength": 1, "dexterity": 1, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "actions": []
+        },
+        "position": { "x": 15, "y": 10 }
+      }
+    ],
+    "fixedInitiativeRolls": [20, 1]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "roll for initiative" },
+      "comment": "Start combat"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Sir Aldric rolls 20, goes first"
+    },
+    {
+      "type": "action",
+      "input": { "text": "lay on hands" },
+      "comment": "Use Lay on Hands to heal self. Pool = 25 (5 × level 5). Missing 14 HP. Should heal 14.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 44 }
+      },
+      "comment": "Should be at full HP (44) after healing 14 from the pool (25 - 14 = 11 remaining)"
+    },
+    {
+      "type": "action",
+      "input": { "text": "lay on hands" },
+      "comment": "Try again — should fail since already at full HP or bonus action spent",
+      "expect": {
+        "error": true
+      }
+    }
+  ]
+}

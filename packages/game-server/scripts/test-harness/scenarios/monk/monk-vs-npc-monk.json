@@ -1,0 +1,197 @@
+{
+  "name": "Monk vs NPC Monk: Class Ability Inheritance",
+  "description": "A PC monk fights an NPC monk (enemy with className/level in statBlock). Validates that the NPC monk auto-initializes ki, gets class abilities, and can use them during AI turns. This tests the NPC class ability inheritance pipeline end-to-end.",
+  "setup": {
+    "character": {
+      "name": "Li Wei",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Shadow Monk",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "className": "monk",
+          "level": 5,
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 16,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 14,
+            "charisma": 8
+          },
+          "maxHp": 38,
+          "hp": 38,
+          "armorClass": 15,
+          "speed": 45,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Unarmed Strike",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Shadow Monk" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative (18 + 3 DEX = 21) to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "Move 25ft to get within melee range of the Shadow Monk",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Shadow Monk with an unarmed strike" },
+      "comment": "Main action: Unarmed Strike",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 6 = 21 vs AC 15 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 3 = 8 bludgeoning damage. Shadow Monk: 38 - 8 = 30 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "Bonus Action: Flurry of Blows - costs 1 Ki, 2 unarmed strikes",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "comment": "First Flurry: 12 + 6 = 18 vs AC 15 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 4" },
+      "comment": "4 + 3 = 7 damage. Shadow Monk: 30 - 7 = 23 HP. Second strike auto-triggers",
+      "expect": {
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "Second Flurry: 10 + 6 = 16 vs AC 15 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "6 + 3 = 9 damage. Shadow Monk: 23 - 9 = 14 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ki should be 4/5 — Flurry costs 1 ki",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Shadow Monk should have taken 24 total damage (8+7+9), HP ~14",
+      "expect": {
+        "monsterHp": { "name": "Shadow Monk", "max": 24 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn — NPC monk's turn is next. AI should use monk abilities (attack, possibly flurry)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for NPC monk's AI turn to complete — validates class ability inheritance works for AI",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat should still be active after NPC monk's turn",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

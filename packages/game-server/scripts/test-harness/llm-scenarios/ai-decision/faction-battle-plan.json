@@ -1,0 +1,100 @@
+{
+  "name": "AI Decision: Battle Plan Adherence",
+  "description": "Monster with an active battle plan should follow tactical guidance — focus fire on designated target, play assigned role",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Wolf with battle plan should focus-fire the designated target instead of the closest enemy",
+      "input": {
+        "combatantName": "Alpha Wolf",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Alpha Wolf",
+            "type": "Wolf",
+            "cr": 0.25,
+            "hp": { "current": 11, "max": 11, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 30, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 40
+            },
+            "ac": 13,
+            "speed": 40,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Bite",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+                "damageType": "piercing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 1, "turn": 2, "totalCombatants": 4 },
+          "allies": [
+            {
+              "name": "Pack Wolf",
+              "hp": { "current": 11, "max": 11, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 35, "y": 15 },
+              "distanceFeet": 7
+            }
+          ],
+          "enemies": [
+            {
+              "name": "Elara the Wizard",
+              "class": "Wizard",
+              "level": 5,
+              "hp": { "current": 22, "max": 22, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 60, "y": 10 },
+              "distanceFeet": 30,
+              "ac": 12,
+              "speed": 30,
+              "initiative": 10,
+              "knownAbilities": ["Shield", "Fireball"]
+            },
+            {
+              "name": "Thorin the Fighter",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 42, "max": 42, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 35, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "speed": 30,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge"]
+            }
+          ],
+          "battlePlan": {
+            "priority": "focus-fire",
+            "focusTarget": "Elara the Wizard",
+            "yourRole": "flanker — rush past the fighter to reach the wizard",
+            "tacticalNotes": "The wizard is the biggest threat with Fireball. Bypass the armored fighter and take her down first.",
+            "retreatCondition": "If both wolves drop below 5 HP, flee"
+          },
+          "recentNarrative": ["The wolves growl and pace, circling the adventurers."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "actionOneOf": ["move", "moveToward", "attack", "dash"],
+        "targetOneOf": ["Elara the Wizard", "Elara"],
+        "promptSnapshot": "battle-plan-focus-fire"
+      }
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "name": "Feat: Archery Fighting Style (+2 Ranged Attack Bonus)",
+  "description": "Validates that the Archery fighting style feat adds +2 to ranged attack rolls. Base attack bonus is 5 (DEX 14 +2 + proficiency 3). With Archery, effective bonus is 7. A roll of 2 + 7 = 9 vs AC 9 should hit. Without Archery, 2 + 5 = 7 would miss.",
+  "setup": {
+    "character": {
+      "name": "Elara the Archer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 40,
+        "currentHp": 40,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "featIds": ["feat_archery"],
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "ranged",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Target Scarecrow",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 9,
+          "speed": 0,
+          "attacks": [
+            {
+              "name": "Straw Swipe",
+              "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I shoot the scarecrow with my longbow" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 2 (DEX) = 17 initiative, goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I shoot the Target Scarecrow with my longbow" },
+      "comment": "Ranged attack — Archery feat should add +2 to attack bonus",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 2" },
+      "comment": "2 + 5 (base) + 2 (Archery) = 9 vs AC 9 — should HIT. Without Archery, 2+5=7 would MISS. This validates the feat.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 2 (DEX mod) = 7 damage. Scarecrow: 50 - 7 = 43 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Scarecrow should have taken 7 damage (50 - 7 = 43 HP)",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

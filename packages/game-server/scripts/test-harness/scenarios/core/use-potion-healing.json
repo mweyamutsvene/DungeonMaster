@@ -1,0 +1,159 @@
+{
+  "name": "Use Potion of Healing in combat",
+  "setup": {
+    "character": {
+      "name": "Wounded Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 15,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "potion-of-healing",
+            "name": "Potion of Healing",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 2
+          },
+          {
+            "magicItemId": "potion-of-greater-healing",
+            "name": "Potion of Greater Healing",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "name": "Training Dummy",
+          "armorClass": 10,
+          "maxHp": 200,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character starts wounded at 15 HP",
+      "expect": {
+        "characterHp": { "min": 15, "max": 15 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Inventory should have potions loaded from sheet",
+      "expect": {
+        "characterInventory": {
+          "has": [
+            { "name": "Potion of Healing", "quantity": 2 }
+          ]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "drink potion of healing" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "HP should have increased (2d4+2 = 4-10 healing, so 19-25 HP)",
+      "expect": {
+        "characterHp": { "min": 19, "max": 25 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Potion of Healing quantity should decrease to 1",
+      "expect": {
+        "characterInventory": {
+          "has": [
+            { "name": "Potion of Healing", "quantity": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "type": "endTurn",
+      "expect": {}
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for dummy turn"
+    },
+    {
+      "type": "action",
+      "input": { "text": "use potion of greater healing" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "HP should have increased more (4d4+4 = 8-20 healing)",
+      "expect": {
+        "characterHp": { "min": 27 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Greater Healing potion consumed, none remaining",
+      "expect": {
+        "characterInventory": {
+          "doesNotHave": ["Potion of Greater Healing"]
+        }
+      }
+    }
+  ]
+}

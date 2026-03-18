@@ -10,8 +10,13 @@ import type { ICharacterRepository, IMonsterRepository, INPCRepository } from ".
 import type { FactionService } from "../helpers/faction-service.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
+import { getMapZones } from "../../../../domain/rules/combat-map.js";
 import { renderBattlefield, createCombatantEntity } from "../../../../domain/rules/battlefield-renderer.js";
-import { listCreatureAbilities } from "../../../../domain/abilities/creature-abilities.js";
+import { listCreatureAbilities, getClassAbilities } from "../../../../domain/abilities/creature-abilities.js";
+import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
+import { getResourcePools } from "../helpers/resource-utils.js";
+import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
+import { calculateDistance } from "../../../../domain/rules/movement.js";
 import type { TurnStepResult, AiCombatContext } from "./ai-types.js";
 
 export class AiContextBuilder {
@@ -38,6 +43,7 @@ export class AiContextBuilder {
     actionSpent: boolean;
     bonusActionSpent: boolean;
     reactionSpent: boolean;
+    movementSpent: boolean;
     movementRemaining?: number;
   } | undefined {
     const resources = c.resources as Record<string, unknown> | null;
@@ -48,32 +54,189 @@ export class AiContextBuilder {
 
     return {
       actionSpent: resources.actionSpent === true,
-      bonusActionSpent: resources.bonusActionSpent === true,
-      reactionSpent: resources.reactionSpent === true,
+      bonusActionSpent: resources.bonusActionUsed === true,
+      reactionSpent: resources.reactionUsed === true,
+      movementSpent: resources.movementSpent === true,
       ...(movementRemaining !== undefined ? { movementRemaining } : {}),
     };
   }
 
   /**
-   * Build ally details for context.
+   * Extract resource pools from combatant resources (ki, spell slots, rage, etc.).
    */
-  private buildAllyDetails(
+  private getResourcePoolsForContext(c: CombatantStateRecord): Array<{ name: string; current: number; max: number }> | undefined {
+    const pools = getResourcePools(c.resources);
+    return pools.length > 0 ? pools : undefined;
+  }
+
+  /**
+   * Extract active buff flags from combatant resources.
+   * Combines boolean flags with ActiveEffect sources for a unified view.
+   */
+  private getActiveBuffs(c: CombatantStateRecord): string[] | undefined {
+    const resources = c.resources as Record<string, unknown> | null;
+    if (!resources || typeof resources !== "object") return undefined;
+
+    // Boolean flag-based buffs (legacy + still-flag-based)
+    const buffMap: Array<[string, string]> = [
+      ["raging", "Raging"],
+      ["dashed", "Dashed"],
+      ["disengaged", "Disengaged"],
+    ];
+
+    const active = buffMap
+      .filter(([key]) => resources[key] === true)
+      .map(([, label]) => label);
+
+    // Add ActiveEffect-sourced buffs (Reckless Attack, Dodge, spells, etc.)
+    const effects = Array.isArray(resources.activeEffects) ? resources.activeEffects : [];
+    const effectSources = new Set<string>();
+    for (const eff of effects) {
+      if (typeof eff === "object" && eff !== null && typeof (eff as any).source === "string") {
+        effectSources.add((eff as any).source);
+      }
+    }
+    for (const src of effectSources) {
+      if (!active.includes(src)) {
+        active.push(src);
+      }
+    }
+
+    return active.length > 0 ? active : undefined;
+  }
+
+  /**
+   * Extract concentration spell name from combatant resources.
+   */
+  private getConcentrationSpell(c: CombatantStateRecord): string | undefined {
+    const resources = c.resources as Record<string, unknown> | null;
+    if (!resources || typeof resources !== "object") return undefined;
+    const spellName = resources.concentrationSpellName;
+    return typeof spellName === "string" && spellName.length > 0 ? spellName : undefined;
+  }
+
+  /**
+   * Extract death save state from combatant resources.
+   */
+  private getDeathSaves(c: CombatantStateRecord): { successes: number; failures: number } | undefined {
+    const resources = c.resources as Record<string, unknown> | null;
+    if (!resources || typeof resources !== "object") return undefined;
+    const deathSaves = resources.deathSaves;
+    if (!deathSaves || typeof deathSaves !== "object") return undefined;
+    const ds = deathSaves as Record<string, unknown>;
+    const successes = typeof ds.successes === "number" ? ds.successes : 0;
+    const failures = typeof ds.failures === "number" ? ds.failures : 0;
+    if (successes === 0 && failures === 0) return undefined;
+    return { successes, failures };
+  }
+
+  /**
+   * Build ally details for context (async - loads entity data for enrichment).
+   */
+  private async buildAllyDetails(
     allies: CombatantStateRecord[],
     nameMap: Map<string, string>,
-  ): AiCombatContext["allies"] {
-    return allies.map((a) => {
-      const position = this.getPosition(a);
-      return {
-        name: nameMap.get(a.id) || "Ally",
-        hp: {
-          current: a.hpCurrent,
-          max: a.hpMax,
-          percentage: Math.round((a.hpCurrent / a.hpMax) * 100),
-        },
-        ...(position ? { position } : {}),
-        initiative: a.initiative,
-      };
-    });
+  ): Promise<AiCombatContext["allies"]> {
+    return Promise.all(
+      allies.map(async (a) => {
+        const position = this.getPosition(a);
+        const conditions = readConditionNames(a.conditions);
+        const concentrationSpell = this.getConcentrationSpell(a);
+        const deathSaves = this.getDeathSaves(a);
+
+        let className: string | undefined;
+        let level: number | undefined;
+        let armorClass: number | undefined;
+        let speed: number | undefined;
+        let size: string | undefined;
+        let knownAbilities: string[] = [];
+        let entityDefenses: ReturnType<typeof extractDamageDefenses> = {};
+
+        if (a.combatantType === "Character" && a.characterId) {
+          const char = await this.characters.getById(a.characterId);
+          if (char) {
+            className = char.className || undefined;
+            level = char.level;
+            const sheet = char.sheet as Record<string, unknown>;
+            armorClass = sheet?.armorClass as number | undefined;
+            speed = (sheet?.speed as number | undefined) ?? 30;
+            size = (sheet?.size as string | undefined) ?? "Medium";
+            entityDefenses = extractDamageDefenses(sheet);
+
+            try {
+              const abilities = listCreatureAbilities({ creature: char as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"] });
+              knownAbilities = abilities
+                .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
+                .map((ab) => ab.name);
+            } catch {
+              // Ignore errors
+            }
+          }
+        } else if (a.combatantType === "NPC" && a.npcId) {
+          const npc = await this.npcs.getById(a.npcId);
+          if (npc) {
+            const statBlock = npc.statBlock as Record<string, unknown>;
+            className = statBlock?.className as string | undefined;
+            level = statBlock?.level as number | undefined;
+            armorClass = statBlock?.armorClass as number | undefined;
+            speed = (statBlock?.speed as number | undefined) ?? 30;
+            size = statBlock?.size as string | undefined;
+            entityDefenses = extractDamageDefenses(statBlock);
+
+            try {
+              const abilities = listCreatureAbilities({ creature: npc as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"], monsterStatBlock: statBlock });
+              knownAbilities = abilities
+                .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
+                .map((ab) => ab.name);
+            } catch {
+              // Ignore errors
+            }
+          }
+        } else if (a.combatantType === "Monster" && a.monsterId) {
+          const monster = await this.monsters.getById(a.monsterId);
+          if (monster) {
+            const statBlock = monster.statBlock as Record<string, unknown>;
+            armorClass = statBlock?.armorClass as number | undefined;
+            speed = (statBlock?.speed as number | undefined) ?? 30;
+            size = statBlock?.size as string | undefined;
+            entityDefenses = extractDamageDefenses(statBlock);
+
+            try {
+              const abilities = listCreatureAbilities({ creature: monster as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"], monsterStatBlock: statBlock });
+              knownAbilities = abilities
+                .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
+                .map((ab) => ab.name);
+            } catch {
+              // Ignore errors
+            }
+          }
+        }
+
+        const { damageResistances, damageImmunities, damageVulnerabilities } = entityDefenses;
+        return {
+          name: nameMap.get(a.id) || "Ally",
+          hp: {
+            current: a.hpCurrent,
+            max: a.hpMax,
+            percentage: Math.round((a.hpCurrent / a.hpMax) * 100),
+          },
+          ...(conditions.length > 0 ? { conditions } : {}),
+          ...(position ? { position } : {}),
+          ac: armorClass,
+          speed,
+          ...(size ? { size } : {}),
+          ...(className ? { class: className } : {}),
+          ...(level ? { level } : {}),
+          initiative: a.initiative,
+          ...(knownAbilities.length > 0 ? { knownAbilities } : {}),
+          ...(damageResistances && damageResistances.length > 0 ? { damageResistances } : {}),
+          ...(damageImmunities && damageImmunities.length > 0 ? { damageImmunities } : {}),
+          ...(damageVulnerabilities && damageVulnerabilities.length > 0 ? { damageVulnerabilities } : {}),
+          ...(deathSaves ? { deathSaves } : {}),
+          ...(concentrationSpell ? { concentrationSpell } : {}),
+        };
+      }),
+    );
   }
 
   /**
@@ -90,7 +253,12 @@ export class AiContextBuilder {
         let className: string | undefined;
         let level: number | undefined;
         let armorClass: number | undefined;
+        let speed: number | undefined;
+        let size: string | undefined;
         let knownAbilities: string[] = [];
+        let entityDefenses: ReturnType<typeof extractDamageDefenses> = {};
+
+        let spellSaveDC: number | undefined;
 
         if (e.combatantType === "Character" && e.characterId) {
           const char = await this.characters.getById(e.characterId);
@@ -99,6 +267,10 @@ export class AiContextBuilder {
             level = char.level;
             const sheet = char.sheet as Record<string, unknown>;
             armorClass = sheet?.armorClass as number | undefined;
+            speed = (sheet?.speed as number | undefined) ?? 30;
+            size = (sheet?.size as string | undefined) ?? "Medium";
+            entityDefenses = extractDamageDefenses(sheet);
+            spellSaveDC = this.extractSpellCasting(sheet).spellSaveDC;
 
             try {
               const abilities = listCreatureAbilities({ creature: char as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"] });
@@ -116,6 +288,10 @@ export class AiContextBuilder {
             className = statBlock?.className as string | undefined;
             level = statBlock?.level as number | undefined;
             armorClass = statBlock?.armorClass as number | undefined;
+            speed = (statBlock?.speed as number | undefined) ?? 30;
+            size = statBlock?.size as string | undefined;
+            entityDefenses = extractDamageDefenses(statBlock);
+            spellSaveDC = this.extractSpellCasting(statBlock).spellSaveDC;
 
             try {
               const abilities = listCreatureAbilities({ creature: npc as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"], monsterStatBlock: statBlock });
@@ -131,6 +307,10 @@ export class AiContextBuilder {
           if (monster) {
             const statBlock = monster.statBlock as Record<string, unknown>;
             armorClass = statBlock?.armorClass as number | undefined;
+            speed = (statBlock?.speed as number | undefined) ?? 30;
+            size = statBlock?.size as string | undefined;
+            entityDefenses = extractDamageDefenses(statBlock);
+            spellSaveDC = this.extractSpellCasting(statBlock).spellSaveDC;
 
             try {
               const abilities = listCreatureAbilities({ creature: monster as unknown as Parameters<typeof listCreatureAbilities>[0]["creature"], monsterStatBlock: statBlock });
@@ -143,6 +323,10 @@ export class AiContextBuilder {
           }
         }
 
+        const conditions = readConditionNames(e.conditions);
+        const concentrationSpell = this.getConcentrationSpell(e);
+        const deathSaves = this.getDeathSaves(e);
+        const { damageResistances, damageImmunities, damageVulnerabilities } = entityDefenses;
         return {
           name,
           class: className,
@@ -152,13 +336,72 @@ export class AiContextBuilder {
             max: e.hpMax,
             percentage: Math.round((e.hpCurrent / e.hpMax) * 100),
           },
+          ...(conditions.length > 0 ? { conditions } : {}),
           ...(position ? { position } : {}),
           ac: armorClass,
+          speed,
+          ...(size ? { size } : {}),
           initiative: e.initiative,
           ...(knownAbilities.length > 0 ? { knownAbilities } : {}),
+          ...(damageResistances && damageResistances.length > 0 ? { damageResistances } : {}),
+          ...(damageImmunities && damageImmunities.length > 0 ? { damageImmunities } : {}),
+          ...(damageVulnerabilities && damageVulnerabilities.length > 0 ? { damageVulnerabilities } : {}),
+          ...(spellSaveDC ? { spellSaveDC } : {}),
+          ...(concentrationSpell ? { concentrationSpell } : {}),
+          ...(deathSaves ? { deathSaves } : {}),
         };
       }),
     );
+  }
+
+  /**
+   * Extract ability scores from a stat block or character sheet.
+   */
+  private extractAbilityScores(source: Record<string, unknown> | undefined): AiCombatContext["combatant"]["abilityScores"] {
+    if (!source) return undefined;
+    const scores = source.abilityScores as Record<string, unknown> | undefined;
+    if (!scores || typeof scores !== "object") return undefined;
+    const str = typeof scores.strength === "number" ? scores.strength : undefined;
+    const dex = typeof scores.dexterity === "number" ? scores.dexterity : undefined;
+    const con = typeof scores.constitution === "number" ? scores.constitution : undefined;
+    const int = typeof scores.intelligence === "number" ? scores.intelligence : undefined;
+    const wis = typeof scores.wisdom === "number" ? scores.wisdom : undefined;
+    const cha = typeof scores.charisma === "number" ? scores.charisma : undefined;
+    if (str === undefined && dex === undefined && con === undefined && int === undefined && wis === undefined && cha === undefined) return undefined;
+    return {
+      strength: str ?? 10,
+      dexterity: dex ?? 10,
+      constitution: con ?? 10,
+      intelligence: int ?? 10,
+      wisdom: wis ?? 10,
+      charisma: cha ?? 10,
+    };
+  }
+
+  /**
+   * Extract spell save DC and spell attack bonus from a stat block or character sheet.
+   */
+  private extractSpellCasting(source: Record<string, unknown> | undefined): { spellSaveDC?: number; spellAttackBonus?: number } {
+    if (!source) return {};
+    const dc = typeof source.spellSaveDC === "number" ? source.spellSaveDC : undefined;
+    const bonus = typeof source.spellAttackBonus === "number" ? source.spellAttackBonus : undefined;
+    return { spellSaveDC: dc, spellAttackBonus: bonus };
+  }
+
+  /**
+   * Derive class abilities from className + level for the AI context.
+   * Returns a simplified list the LLM can use for tactical decisions.
+   */
+  private getClassAbilitiesForContext(className?: string, level?: number): AiCombatContext["combatant"]["classAbilities"] {
+    if (!className || !level || level <= 0) return undefined;
+    const abilities = getClassAbilities(className.toLowerCase(), level);
+    if (abilities.length === 0) return undefined;
+    return abilities.map(a => ({
+      name: a.name,
+      economy: a.economy,
+      ...(a.resourceCost ? { resourceCost: `${a.resourceCost.amount} ${a.resourceCost.pool}` } : {}),
+      ...(a.summary ? { effect: a.summary } : {}),
+    }));
   }
 
   /**
@@ -170,60 +413,141 @@ export class AiContextBuilder {
   ): AiCombatContext["combatant"] {
     const aiPosition = this.getPosition(aiCombatant);
     const aiEconomy = this.getEconomy(aiCombatant);
+    const aiConditions = readConditionNames(aiCombatant.conditions);
+    const resourcePools = this.getResourcePoolsForContext(aiCombatant);
+    const activeBuffs = this.getActiveBuffs(aiCombatant);
+    const concentrationSpell = this.getConcentrationSpell(aiCombatant);
 
     if (aiCombatant.combatantType === "Monster") {
       const statBlock = entityData.statBlock as Record<string, unknown>;
+      const defenses = extractDamageDefenses(statBlock);
+      const ac = statBlock.armorClass as number | undefined;
+      const speed = (statBlock.speed as number | undefined) ?? 30;
+      const abilityScores = this.extractAbilityScores(statBlock);
+      const size = statBlock.size as string | undefined;
+      const monsterClass = statBlock.className as string | undefined;
+      const monsterLevel = statBlock.level as number | undefined;
+      const { spellSaveDC, spellAttackBonus } = this.extractSpellCasting(statBlock);
+      const classAbilities = this.getClassAbilitiesForContext(monsterClass, monsterLevel);
       return {
         name: entityData.name as string,
         type: statBlock.type as string | undefined,
         alignment: statBlock.alignment as string | undefined,
         cr: statBlock.cr as number | undefined,
+        ...(monsterClass ? { class: monsterClass } : {}),
+        ...(monsterLevel ? { level: monsterLevel } : {}),
         hp: {
           current: aiCombatant.hpCurrent,
           max: aiCombatant.hpMax,
           percentage: Math.round((aiCombatant.hpCurrent / aiCombatant.hpMax) * 100),
         },
+        ...(aiConditions.length > 0 ? { conditions: aiConditions } : {}),
         ...(aiPosition ? { position: aiPosition } : {}),
         ...(aiEconomy ? { economy: aiEconomy } : {}),
+        ac,
+        speed,
+        ...(size ? { size } : {}),
+        ...(abilityScores ? { abilityScores } : {}),
+        ...(spellSaveDC ? { spellSaveDC } : {}),
+        ...(spellAttackBonus ? { spellAttackBonus } : {}),
+        initiative: aiCombatant.initiative,
+        ...(resourcePools ? { resourcePools } : {}),
+        ...(concentrationSpell ? { concentrationSpell } : {}),
+        ...(defenses.damageResistances && defenses.damageResistances.length > 0 ? { damageResistances: defenses.damageResistances } : {}),
+        ...(defenses.damageImmunities && defenses.damageImmunities.length > 0 ? { damageImmunities: defenses.damageImmunities } : {}),
+        ...(defenses.damageVulnerabilities && defenses.damageVulnerabilities.length > 0 ? { damageVulnerabilities: defenses.damageVulnerabilities } : {}),
+        ...(activeBuffs ? { activeBuffs } : {}),
         traits: (statBlock.traits as unknown[]) || [],
         attacks: (statBlock.attacks as unknown[]) || [],
         actions: (statBlock.actions as unknown[]) || [],
         bonusActions: (statBlock.bonusActions as unknown[]) || [],
         reactions: (statBlock.reactions as unknown[]) || [],
+        spells: (statBlock.spells as unknown[]) || [],
+        ...(classAbilities ? { classAbilities } : {}),
       };
     } else if (aiCombatant.combatantType === "NPC") {
       const statBlock = entityData.statBlock as Record<string, unknown>;
+      const defenses = extractDamageDefenses(statBlock);
+      const ac = statBlock.armorClass as number | undefined;
+      const speed = (statBlock.speed as number | undefined) ?? 30;
+      const abilityScores = this.extractAbilityScores(statBlock);
+      const npcSize = statBlock.size as string | undefined;
+      const npcClass = statBlock.className as string | undefined;
+      const npcLevel = statBlock.level as number | undefined;
+      const { spellSaveDC, spellAttackBonus } = this.extractSpellCasting(statBlock);
+      const classAbilities = this.getClassAbilitiesForContext(npcClass, npcLevel);
       return {
         name: entityData.name as string,
-        class: statBlock.className as string | undefined,
-        level: statBlock.level as number | undefined,
+        class: npcClass,
+        level: npcLevel,
         hp: {
           current: aiCombatant.hpCurrent,
           max: aiCombatant.hpMax,
           percentage: Math.round((aiCombatant.hpCurrent / aiCombatant.hpMax) * 100),
         },
+        ...(aiConditions.length > 0 ? { conditions: aiConditions } : {}),
         ...(aiPosition ? { position: aiPosition } : {}),
         ...(aiEconomy ? { economy: aiEconomy } : {}),
+        ac,
+        speed,
+        ...(npcSize ? { size: npcSize } : {}),
+        ...(abilityScores ? { abilityScores } : {}),
+        ...(spellSaveDC ? { spellSaveDC } : {}),
+        ...(spellAttackBonus ? { spellAttackBonus } : {}),
+        initiative: aiCombatant.initiative,
+        ...(resourcePools ? { resourcePools } : {}),
+        ...(concentrationSpell ? { concentrationSpell } : {}),
+        ...(defenses.damageResistances && defenses.damageResistances.length > 0 ? { damageResistances: defenses.damageResistances } : {}),
+        ...(defenses.damageImmunities && defenses.damageImmunities.length > 0 ? { damageImmunities: defenses.damageImmunities } : {}),
+        ...(defenses.damageVulnerabilities && defenses.damageVulnerabilities.length > 0 ? { damageVulnerabilities: defenses.damageVulnerabilities } : {}),
+        ...(activeBuffs ? { activeBuffs } : {}),
         spells: (statBlock.spells as unknown[]) || [],
         abilities: (statBlock.abilities as unknown[]) || [],
         actions: (statBlock.actions as unknown[]) || [],
+        ...(classAbilities ? { classAbilities } : {}),
       };
     } else {
       // AI-controlled Character
       const sheet = entityData.sheet as Record<string, unknown>;
+      const defenses = extractDamageDefenses(sheet);
+      const ac = sheet?.armorClass as number | undefined;
+      const speed = (sheet?.speed as number | undefined) ?? 30;
+      const abilityScores = this.extractAbilityScores(sheet);
+      const charSize = (sheet?.size as string | undefined) ?? "Medium";
+      const { spellSaveDC, spellAttackBonus } = this.extractSpellCasting(sheet);
+      const charClass = entityData.className as string | undefined;
+      const charLevel = entityData.level as number | undefined;
+      const classAbilities = this.getClassAbilitiesForContext(charClass, charLevel);
       return {
         name: entityData.name as string,
-        class: entityData.className as string | undefined,
-        level: entityData.level as number | undefined,
+        class: charClass,
+        level: charLevel,
         hp: {
           current: aiCombatant.hpCurrent,
           max: aiCombatant.hpMax,
           percentage: Math.round((aiCombatant.hpCurrent / aiCombatant.hpMax) * 100),
         },
+        ...(aiConditions.length > 0 ? { conditions: aiConditions } : {}),
         ...(aiPosition ? { position: aiPosition } : {}),
         ...(aiEconomy ? { economy: aiEconomy } : {}),
+        ac,
+        speed,
+        size: charSize,
+        ...(abilityScores ? { abilityScores } : {}),
+        ...(spellSaveDC ? { spellSaveDC } : {}),
+        ...(spellAttackBonus ? { spellAttackBonus } : {}),
+        initiative: aiCombatant.initiative,
+        ...(resourcePools ? { resourcePools } : {}),
+        ...(concentrationSpell ? { concentrationSpell } : {}),
+        ...(defenses.damageResistances && defenses.damageResistances.length > 0 ? { damageResistances: defenses.damageResistances } : {}),
+        ...(defenses.damageImmunities && defenses.damageImmunities.length > 0 ? { damageImmunities: defenses.damageImmunities } : {}),
+        ...(defenses.damageVulnerabilities && defenses.damageVulnerabilities.length > 0 ? { damageVulnerabilities: defenses.damageVulnerabilities } : {}),
+        ...(activeBuffs ? { activeBuffs } : {}),
         spells: (sheet?.spells as unknown[]) || [],
         abilities: (sheet?.abilities as unknown[]) || [],
+        features: (sheet?.features as unknown[]) || [],
+        attacks: (sheet?.attacks as unknown[]) || [],
+        ...(classAbilities ? { classAbilities } : {}),
       };
     }
   }
@@ -318,6 +642,7 @@ export class AiContextBuilder {
     recentNarrative: string[],
     actionHistory: string[],
     turnResults: TurnStepResult[],
+    battlePlanView?: AiCombatContext["battlePlan"],
   ): Promise<AiCombatContext> {
     // Determine allies and enemies using faction service
     const allies = await this.factionService.getAllies(allCombatants, aiCombatant);
@@ -329,8 +654,24 @@ export class AiContextBuilder {
 
     // Build component parts
     const entityInfo = this.buildEntityInfo(entityData, aiCombatant);
-    const allyDetails = this.buildAllyDetails(allies, nameMap);
+    const allyDetails = await this.buildAllyDetails(allies, nameMap);
     const enemyDetails = await this.buildEnemyDetails(enemies, nameMap);
+
+    // Inject pre-computed distances from self to each enemy and ally
+    const selfPos = entityInfo.position;
+    if (selfPos) {
+      for (const enemy of enemyDetails) {
+        if (enemy.position) {
+          enemy.distanceFeet = Math.round(calculateDistance(selfPos, enemy.position));
+        }
+      }
+      for (const ally of allyDetails) {
+        if (ally.position) {
+          ally.distanceFeet = Math.round(calculateDistance(selfPos, ally.position));
+        }
+      }
+    }
+
     const battlefield = this.renderBattlefieldContext(
       encounter,
       aiCombatant,
@@ -339,6 +680,27 @@ export class AiContextBuilder {
       enemies,
       nameMap,
     );
+
+    // Build zone context from map data
+    const map = encounter.mapData as unknown as CombatMap | undefined;
+    const mapZones = map ? getMapZones(map) : [];
+    const zoneContext = mapZones.length > 0
+      ? mapZones.map(z => ({
+          id: z.id,
+          center: { x: z.center.x, y: z.center.y },
+          radiusFeet: z.radiusFeet,
+          shape: z.shape,
+          source: z.source,
+          type: z.type,
+          effects: z.effects.map(e => ({
+            trigger: e.trigger,
+            ...(e.damageType ? { damageType: e.damageType } : {}),
+            ...(e.damage ? { damage: `${e.damage.diceCount}d${e.damage.diceSides}${e.damage.modifier ? `+${e.damage.modifier}` : ""}` } : {}),
+            ...(e.saveAbility ? { saveAbility: e.saveAbility as string } : {}),
+            ...(e.saveDC !== undefined ? { saveDC: e.saveDC } : {}),
+          })),
+        }))
+      : undefined;
 
     return {
       combatant: entityInfo,
@@ -350,10 +712,12 @@ export class AiContextBuilder {
       allies: allyDetails,
       enemies: enemyDetails,
       ...(battlefield ? { battlefield } : {}),
+      ...(zoneContext ? { zones: zoneContext } : {}),
       recentNarrative,
       actionHistory,
       turnResults,
       lastActionResult: turnResults.length > 0 ? turnResults[turnResults.length - 1] : null,
+      ...(battlePlanView ? { battlePlan: battlePlanView } : {}),
     };
   }
 }

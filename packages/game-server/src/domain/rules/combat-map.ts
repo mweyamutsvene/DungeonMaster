@@ -7,6 +7,8 @@
 
 import type { Position } from "./movement.js";
 import { calculateDistance, isWithinRange } from "./movement.js";
+import type { CombatZone } from "../entities/combat/zones.js";
+import type { GroundItem } from "../entities/items/ground-item.js";
 
 /**
  * Terrain type affects movement and cover.
@@ -81,6 +83,10 @@ export interface CombatMap {
     terrain?: Record<string, string>;
     objects?: Record<string, string>;
   };
+  /** Active combat zones (spell areas, auras, etc.) */
+  zones?: CombatZone[];
+  /** Items on the ground (thrown, dropped, pre-placed) */
+  groundItems?: GroundItem[];
 }
 
 /**
@@ -290,6 +296,23 @@ export function getCoverLevel(
 }
 
 /**
+ * Convert a CoverLevel to its D&D 5e 2024 AC bonus.
+ * Half cover: +2 AC, Three-quarters cover: +5 AC, Full: untargetable.
+ */
+export function getCoverACBonus(cover: CoverLevel): number {
+  switch (cover) {
+    case "half":
+      return 2;
+    case "three-quarters":
+      return 5;
+    case "full":
+    case "none":
+    default:
+      return 0;
+  }
+}
+
+/**
  * Get all entities within a radius of a position.
  */
 export function getEntitiesInRadius(
@@ -358,4 +381,100 @@ export function getTerrainSpeedModifier(map: CombatMap, position: Position): num
     default:
       return 1.0;
   }
+}
+
+// ──────────────────────────────────── Zone Management ────────────────────────────────────
+
+/**
+ * Get all zones on the map (convenience accessor).
+ */
+export function getMapZones(map: CombatMap): CombatZone[] {
+  return map.zones ?? [];
+}
+
+/**
+ * Add a zone to the combat map. Returns a new map with the zone added.
+ */
+export function addZone(map: CombatMap, zone: CombatZone): CombatMap {
+  return {
+    ...map,
+    zones: [...(map.zones ?? []), zone],
+  };
+}
+
+/**
+ * Remove a zone from the combat map by its ID.
+ */
+export function removeZone(map: CombatMap, zoneId: string): CombatMap {
+  return {
+    ...map,
+    zones: (map.zones ?? []).filter(z => z.id !== zoneId),
+  };
+}
+
+/**
+ * Update a zone in the map (spread patch over existing zone).
+ */
+export function updateZone(map: CombatMap, zoneId: string, patch: Partial<CombatZone>): CombatMap {
+  return {
+    ...map,
+    zones: (map.zones ?? []).map(z => (z.id === zoneId ? { ...z, ...patch } : z)),
+  };
+}
+
+/**
+ * Replace the entire zones array on the map.
+ */
+export function setMapZones(map: CombatMap, zones: CombatZone[]): CombatMap {
+  return { ...map, zones };
+}
+
+// ──────────────────────────────────── Ground Item Management ────────────────────────────────────
+
+/**
+ * Get all ground items on the map.
+ */
+export function getGroundItems(map: CombatMap): GroundItem[] {
+  return map.groundItems ?? [];
+}
+
+/**
+ * Add a ground item to the map (e.g. thrown weapon landing, dropped weapon).
+ */
+export function addGroundItem(map: CombatMap, item: GroundItem): CombatMap {
+  return {
+    ...map,
+    groundItems: [...(map.groundItems ?? []), item],
+  };
+}
+
+/**
+ * Remove a ground item from the map by ID (e.g. when picked up).
+ */
+export function removeGroundItem(map: CombatMap, itemId: string): CombatMap {
+  return {
+    ...map,
+    groundItems: (map.groundItems ?? []).filter(i => i.id !== itemId),
+  };
+}
+
+/**
+ * Get all ground items at an exact position (same cell).
+ */
+export function getGroundItemsAtPosition(map: CombatMap, position: Position): GroundItem[] {
+  const gridX = Math.round(position.x / map.gridSize) * map.gridSize;
+  const gridY = Math.round(position.y / map.gridSize) * map.gridSize;
+  return (map.groundItems ?? []).filter(i => {
+    const ix = Math.round(i.position.x / map.gridSize) * map.gridSize;
+    const iy = Math.round(i.position.y / map.gridSize) * map.gridSize;
+    return ix === gridX && iy === gridY;
+  });
+}
+
+/**
+ * Get all ground items within a given radius (in feet) of a position.
+ * Default radius is 5ft (adjacent cells).
+ */
+export function getGroundItemsNearPosition(map: CombatMap, position: Position, radiusFeet: number = 5): GroundItem[] {
+  return (map.groundItems ?? []).filter(i => calculateDistance(i.position, position) <= radiusFeet + 0.0001);
 }

@@ -1,0 +1,184 @@
+{
+  "name": "Monk Flurry: Action + Bonus Action",
+  "description": "A level 5 Monk uses their action to attack, then Flurry of Blows as a bonus action for two additional strikes. Tests the action economy and bonus action flow with monk martial arts dice.",
+  "setup": {
+    "character": {
+      "name": "Li Wei",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy Golem",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 12,
+          "speed": 20,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the golem" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first (18 + 3 DEX = 21)",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "comment": "Move 25ft to get within melee range of dummy at (40,10)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Training Dummy Golem with an unarmed strike" },
+      "comment": "Main action: Unarmed Strike. Monk at level 5 uses 1d8 martial arts die",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "comment": "12 + 6 = 18 vs AC 12 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 3 (DEX) = 8 bludgeoning damage. Golem: 50 - 8 = 42 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "Bonus Action: Flurry of Blows - costs 1 Ki, grants 2 unarmed strikes",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "First Flurry strike: 14 + 6 = 20 vs AC 12 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "6 + 3 = 9 damage. Golem: 42 - 9 = 33 HP. Second strike should auto-trigger",
+      "expect": {
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "Second Flurry strike: 10 + 6 = 16 vs AC 12 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 4" },
+      "comment": "4 + 3 = 7 damage. Golem: 33 - 7 = 26 HP. All 3 strikes resolved!",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ki should be 4/5 — Flurry of Blows costs 1 ki point",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - used Action (attack) + Bonus Action (Flurry of Blows)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Training Dummy's turn (AI attacks back)",
+      "timeout": 5000
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify combat continues - golem should have taken 24 total damage",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

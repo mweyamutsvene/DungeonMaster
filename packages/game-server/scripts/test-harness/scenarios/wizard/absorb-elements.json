@@ -1,0 +1,100 @@
+{
+  "name": "Wizard Absorb Elements: Halve Elemental Damage",
+  "description": "A Wizard with Absorb Elements prepared faces a fire-dealing monster. When the monster hits and deals fire damage, the server detects Absorb Elements eligibility and pauses for damage reaction. Player casts Absorb Elements (halves triggering damage, heals back half). Tests damage reaction detection, two-phase damage reaction flow, spell slot consumption, and HP recovery.",
+  "setup": {
+    "character": {
+      "name": "Pyra the Elementalist",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 30, "currentHp": 30, "armorClass": 5, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 3 },
+        "preparedSpells": [
+          { "name": "Absorb Elements", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Fire Imp",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 6, "dexterity": 17, "constitution": 13,
+            "intelligence": 11, "wisdom": 12, "charisma": 14
+          },
+          "maxHp": 40, "hp": 40, "armorClass": 13, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Fire Touch", "kind": "melee", "attackBonus": 10,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "fire"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare myself against the fire imp" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative to ensure Wizard goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "End turn without acting - monster will attack on its turn",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster to attack with fire damage and trigger Absorb Elements reaction",
+      "type": "waitForReaction",
+      "input": { "reactionType": "absorb_elements" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Absorb Elements reaction - halve fire damage, heal back half",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for monster turn to finish and control to return to player",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "Wizard should have taken fire damage but healed back half via Absorb Elements. With AC 5 and monster +10, the attack always hits. Damage is 1d6+3 (4-9), halved = 2-4 absorbed, so HP should be 22-28.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 1, "max": 29 }
+      }
+    }
+  ]
+}

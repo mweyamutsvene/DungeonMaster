@@ -130,8 +130,19 @@ export function extractActionEconomy(
     bonusActionSpent: !economy.bonusActionAvailable,
     reactionSpent: !economy.reactionAvailable,
     movementRemaining: economy.movementRemainingFeet,
-    // Reset movementSpent when economy is fresh (new turn)
+    // Reset turn-based flags when economy is fresh (new turn)
     movementSpent: isFreshEconomy ? false : (resources as any).movementSpent ?? false,
+    dashed: isFreshEconomy ? false : (resources as any).dashed ?? false,
+    disengaged: isFreshEconomy ? false : (resources as any).disengaged ?? false,
+    attacksUsedThisTurn: isFreshEconomy ? 0 : (resources as any).attacksUsedThisTurn ?? 0,
+    sneakAttackUsedThisTurn: isFreshEconomy ? false : (resources as any).sneakAttackUsedThisTurn ?? false,
+    stunningStrikeUsedThisTurn: isFreshEconomy ? false : (resources as any).stunningStrikeUsedThisTurn ?? false,
+    // Also reset the "Used" variants (set by resource-utils useBonusAction/useReaction)
+    // to match the domain economy's fresh state
+    bonusActionUsed: isFreshEconomy ? false : (resources as any).bonusActionUsed ?? false,
+    reactionUsed: isFreshEconomy ? false : (resources as any).reactionUsed ?? false,
+    // D&D 5e 2024: Free Object Interaction resets each turn
+    objectInteractionUsed: isFreshEconomy ? false : (resources as any).objectInteractionUsed ?? false,
   };
 }
 

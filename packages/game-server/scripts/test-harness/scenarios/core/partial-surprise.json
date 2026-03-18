@@ -1,0 +1,106 @@
+{
+  "name": "Surprise: Per-creature surprise with { surprised: [...] }",
+  "description": "Uses the per-creature surprise model where only specific creatures are surprised, not an entire side. The PC is not surprised, so no disadvantage on initiative. The specified monster rolls with disadvantage.",
+  "setup": {
+    "character": {
+      "name": "Ranger",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Sleeping Bandit",
+        "position": { "x": 20, "y": 0 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 25,
+          "hp": 25,
+          "armorClass": 12,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "setSurprise",
+      "comment": "DM sets surprise: only the sleeping bandit is surprised. PC is NOT surprised.",
+      "input": { "surprise": { "surprised": ["Sleeping Bandit"] } }
+    },
+    {
+      "type": "initiate",
+      "comment": "Per-creature surprise read from encounter. PC is not surprised.",
+      "input": {
+        "text": "I attack the sleeping bandit"
+      },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true, "disadvantage": false }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll initiative",
+      "input": { "text": "I rolled a 14" },
+      "expect": { "rollType": "initiative", "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Attack the bandit",
+      "input": { "text": "I attack the sleeping bandit with my shortbow" },
+      "expect": { "rollType": "attack" }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll attack (hits AC 12)",
+      "input": { "text": "I rolled a 14" },
+      "expect": { "hit": true, "rollType": "damage" }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll damage",
+      "input": { "text": "I rolled a 5" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

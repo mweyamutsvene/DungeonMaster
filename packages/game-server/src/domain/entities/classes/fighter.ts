@@ -1,6 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface ActionSurgeState {
   pool: ResourcePool;
@@ -77,4 +78,29 @@ export const Fighter: CharacterClassDefinition = {
 
     return pools;
   },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Second Wind", economy: "bonusAction", cost: "1 use/short rest", effect: "Regain 1d10 + Fighter level HP", abilityId: "class:fighter:second-wind", resourceCost: { pool: "secondWind", amount: 1 } },
+    ];
+    if (level >= 2) {
+      caps.push({ name: "Action Surge", economy: "free", cost: "1 use/short rest", effect: "Take one additional action this turn", abilityId: "class:fighter:action-surge", resourceCost: { pool: "actionSurge", amount: 1 } });
+    }
+    if (level >= 5) {
+      caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
+    }
+    if (level >= 9) {
+      caps.push({ name: "Indomitable", economy: "free", cost: "1 use/long rest", effect: "Reroll a failed saving throw" });
+    }
+    return caps;
+  },
+};
+
+/** Combat text profile — maps text patterns to Fighter ability IDs. */
+export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "fighter",
+  actionMappings: [
+    { keyword: "action-surge", normalizedPatterns: [/actionsurge|useactionsurge/], abilityId: "class:fighter:action-surge", category: "classAction" },
+    { keyword: "second-wind", normalizedPatterns: [/secondwind|usesecondwind/], abilityId: "class:fighter:second-wind", category: "bonusAction" },
+  ],
+  attackEnhancements: [],
 };

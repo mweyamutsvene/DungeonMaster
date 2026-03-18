@@ -24,6 +24,13 @@ export * from "./items/weapon.js";
 export * from "./items/armor.js";
 export * from "./items/equipment.js";
 export * from "./items/equipped-items.js";
+export * from "./items/weapon-catalog.js";
+export * from "./items/armor-catalog.js";
+export * from "./items/weapon-properties.js";
+export * from "./items/magic-item.js";
+export * from "./items/magic-item-catalog.js";
+export * from "./items/inventory.js";
+export * from "./items/ground-item.js";
 
 export * from "./effects/effect.js";
 export * from "./effects/damage-effect.js";

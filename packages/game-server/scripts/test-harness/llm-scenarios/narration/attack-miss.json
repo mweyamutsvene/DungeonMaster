@@ -1,0 +1,33 @@
+{
+  "name": "Narration: Attack Miss",
+  "description": "Narration for a missed attack does not invent damage or success",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate a missed Longsword attack",
+      "input": {
+        "events": [
+          {
+            "type": "attackMiss",
+            "payload": {
+              "attackerName": "Thorin Ironfist",
+              "targetName": "Goblin Warrior",
+              "weaponName": "Longsword",
+              "attackRoll": 8,
+              "targetAC": 15,
+              "isCritical": false
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["miss", "misses", "wide", "dodg", "evade", "parr", "deflect", "fails", "glancing", "blocked"],
+        "doesNotContain": ["kills", "slays", "drops dead", "damage dealt"],
+        "maxLength": 500,
+        "minLength": 10
+      }
+    }
+  ]
+}

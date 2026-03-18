@@ -1,0 +1,35 @@
+{
+  "name": "Narration: Combat Victory",
+  "description": "Narration for combat ending with victory describes the win without inventing details",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate a combat victory after the last enemy falls",
+      "input": {
+        "events": [
+          {
+            "type": "combatVictory",
+            "payload": {
+              "winnerFaction": "players",
+              "survivors": [
+                { "name": "Thorin Ironfist", "hpRemaining": 28, "hpMax": 42 }
+              ],
+              "defeated": [
+                { "name": "Goblin Warrior" }
+              ]
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["victory", "triumph", "won", "defeated", "vanquish", "falls", "prevail", "over", "end", "battle", "combat", "slain", "fallen", "stood", "dust", "settle", "still", "Thorin", "Goblin", "last", "final"],
+        "doesNotContain": ["narrator", "dungeon master", "DM"],
+        "maxLength": 500,
+        "minLength": 10,
+        "promptSnapshot": "combat-victory"
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Narration: Spell Cast",
+  "description": "Narration for a spell being cast mentions the spell name without inventing effects",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate casting Shield spell (reaction)",
+      "input": {
+        "events": [
+          {
+            "type": "spellCast",
+            "payload": {
+              "casterName": "Elara Brightstaff",
+              "spellName": "Shield",
+              "spellLevel": 1,
+              "targetName": "Elara Brightstaff"
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["Shield", "shield", "magic", "spell", "barrier", "protect", "ward", "force"],
+        "doesNotContain": ["damage", "kills", "attack roll"],
+        "maxLength": 400,
+        "minLength": 10,
+        "promptSnapshot": "spell-cast"
+      }
+    }
+  ]
+}

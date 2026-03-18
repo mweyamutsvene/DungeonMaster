@@ -63,6 +63,8 @@ import {
   CharacterGenerator,
 } from "./infrastructure/llm/index.js";
 
+import { RandomDiceRoller } from "./domain/rules/dice-roller.js";
+
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "0.0.0.0";
 
@@ -96,6 +98,7 @@ const app = buildApp({
   eventsRepo,
   spellsRepo,
   unitOfWork,
+  diceRoller: new RandomDiceRoller(),
   storyGenerator,
   intentParser,
   narrativeGenerator,
@@ -106,9 +109,9 @@ const app = buildApp({
 
 try {
   await app.listen({ port, host });
-  app.log.info({ port, host }, "game-server listening");
+  console.log(`\n🎲 game-server listening on http://${host === "0.0.0.0" ? "localhost" : host}:${port}\n`);
 } catch (error) {
-  app.log.error({ error }, "failed to start game-server");
+  console.error("failed to start game-server:", error);
   process.exit(1);
 } finally {
   // fastify handles shutdown hooks; keep prisma open while server is running

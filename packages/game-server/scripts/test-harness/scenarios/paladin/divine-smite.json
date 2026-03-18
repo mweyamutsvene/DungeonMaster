@@ -1,0 +1,133 @@
+{
+  "name": "Paladin Divine Smite: Post-Hit Opt-In (2024 Rules)",
+  "description": "A Paladin attacks, and after confirming a hit, opts into Divine Smite via the damage text. Tests the 2024 post-hit enhancement flow: hit response includes eligibleEnhancements, player includes 'divine smite' keyword in damage roll text. Verifies spell slot spending, bonus action consumption, and bonus radiant dice.",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric",
+      "className": "paladin",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "className": "paladin",
+        "level": 5,
+        "maxHp": 44,
+        "currentHp": 44,
+        "ac": 18,
+        "speed": 30,
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 16
+        },
+        "proficiencyBonus": 3,
+        "spellSlots": { "1": 4, "2": 2 },
+        "equipment": {
+          "weapons": [
+            { "name": "Longsword", "damage": "1d8+3", "damageType": "slashing", "kind": "melee", "properties": ["versatile"] }
+          ],
+          "armor": { "name": "Chain Mail", "ac": 16 },
+          "shield": { "name": "Shield", "ac": 2 }
+        }
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Golem",
+        "statBlock": {
+          "name": "Training Golem",
+          "type": "construct",
+          "ac": 5,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": { "strength": 10, "dexterity": 10, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "actions": [{ "name": "Slam", "attackBonus": 10, "damage": "2d6+5", "damageType": "bludgeoning", "kind": "melee" }]
+        },
+        "position": { "x": 15, "y": 10 }
+      }
+    ],
+    "fixedInitiativeRolls": [20, 1]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "roll for initiative" },
+      "comment": "Start combat"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Sir Aldric rolls 20 for initiative, goes first"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Golem with longsword" },
+      "comment": "Normal melee attack — NO divine smite in action text (2024 rules: opt-in after hit)",
+      "expect": {
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Attack roll: 15 + 6 (STR 3 + prof 3) = 21 vs AC 5 → hit. Server returns eligibleEnhancements with divine-smite.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5 with divine smite" },
+      "comment": "Damage roll: 5 + 3 = 8 base slashing + 2d8 Divine Smite radiant (auto-rolled by server). Player opts in via 'with divine smite' keyword.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Golem", "max": 190 }
+      },
+      "comment": "Golem should have taken at least 8 (base) + 2 (min 2d8) = 10 damage. HP <= 190."
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Golem with longsword" },
+      "comment": "Second attack — NO divine smite in action text",
+      "expect": {
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Attack roll: hit. Server shows eligibleEnhancements again.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5 with divine smite" },
+      "comment": "Damage roll + divine smite on 2nd turn — should also have smite bonus dice",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Golem", "max": 180 }
+      },
+      "comment": "After 2 attacks with smite, each deals min 10 (8 base + 2 min 2d8). Total min damage = 20, so HP <= 180."
+    }
+  ]
+}

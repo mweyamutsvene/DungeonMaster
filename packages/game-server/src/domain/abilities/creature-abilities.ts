@@ -1,6 +1,34 @@
 import type { Combat } from "../combat/combat.js";
 import type { Creature } from "../entities/creatures/creature.js";
 import { Character } from "../entities/creatures/character.js";
+import { isCharacterClassId } from "../entities/classes/class-definition.js";
+import { getClassDefinition } from "../entities/classes/registry.js";
+
+/**
+ * Extract class info from a creature, supporting Characters (via methods)
+ * and NPCs/Monsters (via stat block JSON).
+ */
+export function extractClassInfo(
+  creature: Creature,
+  statBlock?: unknown,
+): { classId: string; level: number } | undefined {
+  if (creature instanceof Character) {
+    const classId = creature.getClassId();
+    const level = creature.getLevel();
+    if (classId && level > 0) return { classId, level };
+    return undefined;
+  }
+
+  // NPC/Monster: extract from stat block
+  if (statBlock && typeof statBlock === "object") {
+    const sb = statBlock as Record<string, unknown>;
+    const className = typeof sb.className === "string" ? sb.className.toLowerCase() : undefined;
+    const level = typeof sb.level === "number" ? sb.level : undefined;
+    if (className && level && level > 0) return { classId: className, level };
+  }
+
+  return undefined;
+}
 
 export type AbilityEconomy = "action" | "bonus" | "reaction";
 export type AbilitySource = "base" | "class" | "monster";
@@ -33,6 +61,8 @@ export interface CreatureAbility {
   summary?: string;
   resourceCost?: ResourceCost;
   attack?: AbilityAttackSummary;
+  /** Data-driven execution intent hint. Consumer narrows on `kind`. */
+  executionIntent?: { kind: string; [key: string]: unknown };
 }
 
 export type AbilityExecutionIntentKind = "attack" | "choice" | "text" | "flurry-of-blows";
@@ -176,6 +206,7 @@ function coerceMonsterAbilitiesFromStatBlock(statBlock: unknown): CreatureAbilit
       source: "monster",
       summary: typeof a.text === "string" ? a.text : undefined,
       attack: coerceAttackSummary(a.attack),
+      executionIntent: coerceExecutionIntent(a),
     });
   }
 
@@ -189,6 +220,7 @@ function coerceMonsterAbilitiesFromStatBlock(statBlock: unknown): CreatureAbilit
       economy: "bonus",
       source: "monster",
       summary: typeof a.text === "string" ? a.text : undefined,
+      executionIntent: coerceExecutionIntent(a),
     });
   }
 
@@ -202,10 +234,60 @@ function coerceMonsterAbilitiesFromStatBlock(statBlock: unknown): CreatureAbilit
       economy: "reaction",
       source: "monster",
       summary: typeof a.text === "string" ? a.text : undefined,
+      executionIntent: coerceExecutionIntent(a),
     });
   }
 
   return out;
+}
+
+/** Coerce an executionIntent from a stat block ability entry (monster JSON). */
+function coerceExecutionIntent(entry: MonsterAbilityLike): CreatureAbility["executionIntent"] {
+  const raw = (entry as Record<string, unknown>).executionIntent;
+  if (!isRecord(raw)) return undefined;
+  if (typeof raw.kind !== "string") return undefined;
+  return raw as { kind: string; [key: string]: unknown };
+}
+
+/** Map ClassCapability.economy to AbilityEconomy. "free" is excluded (not an economy slot). */
+function capabilityEconomyToAbilityEconomy(economy: string): AbilityEconomy | null {
+  switch (economy) {
+    case "action": return "action";
+    case "bonusAction": return "bonus";
+    case "reaction": return "reaction";
+    default: return null; // "free" capabilities aren't action-economy abilities
+  }
+}
+
+/**
+ * Convert class capabilities (from the class registry) into CreatureAbility[].
+ * Only capabilities that declare an `abilityId` and have a mappable economy are included.
+ */
+function classCapabilitiesToCreatureAbilities(classId: string, level: number): CreatureAbility[] {
+  if (!isCharacterClassId(classId)) return [];
+  const classDef = getClassDefinition(classId);
+  if (!classDef.capabilitiesForLevel) return [];
+
+  const capabilities = classDef.capabilitiesForLevel(level);
+  const abilities: CreatureAbility[] = [];
+
+  for (const cap of capabilities) {
+    if (!cap.abilityId) continue; // Skip display-only capabilities (Extra Attack, etc.)
+    const economy = capabilityEconomyToAbilityEconomy(cap.economy);
+    if (!economy) continue; // Skip "free" abilities (handled as enhancements, not standalone)
+
+    abilities.push({
+      id: cap.abilityId,
+      name: cap.name,
+      economy,
+      source: "class",
+      summary: cap.effect,
+      resourceCost: cap.resourceCost,
+      executionIntent: cap.executionIntent,
+    });
+  }
+
+  return abilities;
 }
 
 function canSpendEconomy(combat: Combat | undefined, creatureId: string, economy: AbilityEconomy): boolean {
@@ -232,10 +314,21 @@ function canPayResourceCost(creature: Creature, cost: ResourceCost | undefined):
 }
 
 /**
+ * Get class-derived abilities for a given class and level.
+ * Used by AI context builder to enrich self-combatant context without
+ * requiring a full Creature instance.
+ */
+export function getClassAbilities(classId: string, level: number): CreatureAbility[] {
+  return classCapabilitiesToCreatureAbilities(classId, level);
+}
+
+/**
  * Minimal ability list used for orchestration/UI.
  *
- * - Monsters: derived from imported stat block JSON.
- * - Characters: includes a small number of class abilities (starting with Monk: Flurry of Blows).
+ * - Monsters/NPCs: derived from imported stat block JSON.
+ * - Class abilities: auto-derived from the class registry via `capabilitiesForLevel()`.
+ *   Any class that declares capabilities with `abilityId` gets them surfaced here.
+ *   Supports multiclass via multiple `extractClassInfos()` calls (future).
  */
 export function listCreatureAbilities(params: ListCreatureAbilitiesParams): CreatureAbility[] {
   const { creature, monsterStatBlock } = params;
@@ -251,20 +344,10 @@ export function listCreatureAbilities(params: ListCreatureAbilitiesParams): Crea
 
   abilities.push(...coerceMonsterAbilitiesFromStatBlock(monsterStatBlock));
 
-  if (creature instanceof Character) {
-    const classId = creature.getClassId();
-    const level = creature.getLevel();
-
-    if (classId === "monk" && level >= 2) {
-      abilities.push({
-        id: makeClassAbilityId("monk", "Flurry of Blows"),
-        name: "Flurry of Blows",
-        economy: "bonus",
-        source: "class",
-        resourceCost: { pool: "ki", amount: 1 },
-        summary: "Spend 1 ki point to make two Unarmed Strikes as a bonus action.",
-      });
-    }
+  // Generic class capability → CreatureAbility conversion via the class registry.
+  const classInfo = extractClassInfo(creature, monsterStatBlock);
+  if (classInfo) {
+    abilities.push(...classCapabilitiesToCreatureAbilities(classInfo.classId, classInfo.level));
   }
 
   return abilities;
@@ -307,16 +390,16 @@ export function spendCreatureAbilityCosts(params: ListCreatureAbilitiesParams, a
   }
 }
 
-function includesToken(haystack: string | undefined, needle: string): boolean {
-  if (!haystack) return false;
-  return haystack.toLowerCase().includes(needle.toLowerCase());
-}
-
 /**
  * Minimal execution intent for an ability.
  *
  * This does NOT mutate state; it just returns a structured hint that higher layers
  * (or the LLM) can translate into concrete ops/state transitions.
+ *
+ * Resolution order:
+ * 1. If the ability has an explicit `attack`, return an attack intent.
+ * 2. If the ability carries a data-driven `executionIntent`, use it.
+ * 3. Fallback to generic text intent.
  */
 export function getAbilityExecutionIntent(ability: CreatureAbility): AbilityExecutionIntent {
   const name = ability.name;
@@ -333,29 +416,28 @@ export function getAbilityExecutionIntent(ability: CreatureAbility): AbilityExec
     };
   }
 
-  // Monk: Flurry of Blows.
-  if (ability.id.startsWith("class:monk:") && includesToken(name, "flurry of blows")) {
-    return {
-      kind: "flurry-of-blows",
-      economy,
-      name,
-      unarmedStrikes: 2,
-      summary: ability.summary,
-    };
-  }
-
-  // Goblin: Nimble Escape.
-  if (ability.id.startsWith("monster:") && includesToken(name, "nimble escape")) {
-    return {
-      kind: "choice",
-      economy,
-      name,
-      options: [
-        { id: "disengage", name: "Disengage" },
-        { id: "hide", name: "Hide" },
-      ],
-      summary: ability.summary,
-    };
+  // Data-driven execution intent from class capability or stat block.
+  if (ability.executionIntent) {
+    const ei = ability.executionIntent;
+    if (ei.kind === "flurry-of-blows") {
+      return {
+        kind: "flurry-of-blows",
+        economy,
+        name,
+        unarmedStrikes: typeof ei.unarmedStrikes === "number" ? ei.unarmedStrikes : 2,
+        summary: ability.summary,
+      };
+    }
+    if (ei.kind === "choice" && Array.isArray(ei.options)) {
+      return {
+        kind: "choice",
+        economy,
+        name,
+        options: ei.options as Array<{ id: string; name: string; summary?: string }>,
+        summary: ability.summary,
+      };
+    }
+    // Unknown intent kind — fall through to text.
   }
 
   return {

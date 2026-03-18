@@ -110,6 +110,87 @@ export type StealthBreaker =
   | "move-into-open"   // Leaving cover/obscurement
   | "damage-taken";    // Getting hit might give away position
 
+// ----- Surprise auto-computation -----
+
+/**
+ * Minimal creature info needed for surprise computation.
+ */
+export interface SurpriseCreatureInfo {
+  id: string;
+  /** "party" for PCs + allied NPCs, "enemy" for hostile monsters */
+  side: "party" | "enemy";
+  /** True if the creature currently has the Hidden condition */
+  isHidden: boolean;
+  /** The stealth roll stored as a resource (from a previous Hide action), or undefined */
+  stealthRoll?: number;
+  /** Passive Perception — 10 + Wisdom(Perception) modifier. For monsters, from stat block. */
+  passivePerception: number;
+}
+
+/**
+ * Compute passive perception for a creature from its stat/sheet data.
+ * D&D 5e 2024: Passive Perception = 10 + Wisdom(Perception) modifier.
+ *
+ * For monsters: `statBlock.passivePerception` is pre-computed.
+ * For characters: 10 + perception skill modifier (or 10 + Wisdom modifier if no proficiency).
+ */
+export function getPassivePerception(data: {
+  passivePerception?: number;
+  skills?: Record<string, number>;
+  abilityScores?: { wisdom?: number };
+}): number {
+  // If explicitly provided (monsters), use it
+  if (typeof data.passivePerception === "number") return data.passivePerception;
+  // If perception skill modifier is available, use it
+  if (data.skills && typeof data.skills.perception === "number") return 10 + data.skills.perception;
+  // Fall back to 10 + Wisdom modifier
+  if (data.abilityScores?.wisdom !== undefined) {
+    return 10 + Math.floor((data.abilityScores.wisdom - 10) / 2);
+  }
+  // Default passive perception
+  return 10;
+}
+
+/**
+ * Auto-compute surprise from creature states.
+ * D&D 5e 2024: A creature is surprised if combat starts while it can't perceive any threats
+ * (i.e., all enemies are Hidden and their stealth exceeds the creature's passive perception).
+ *
+ * Returns a list of creature IDs that are surprised, or undefined if no one is surprised.
+ */
+export function computeSurprise(
+  creatures: SurpriseCreatureInfo[],
+): string[] | undefined {
+  const surprised: string[] = [];
+
+  for (const creature of creatures) {
+    // Get all enemies of this creature
+    const enemies = creatures.filter((c) => c.side !== creature.side);
+    if (enemies.length === 0) continue;
+
+    // A creature is surprised if ALL enemies that are hidden have stealth > its passive perception
+    // AND at least one enemy is hidden
+    const hiddenEnemies = enemies.filter((e) => e.isHidden && e.stealthRoll !== undefined);
+    if (hiddenEnemies.length === 0) continue;
+
+    // All enemies must be hidden for the creature to be surprised
+    // (if any enemy is visible, the creature is aware of threats)
+    const visibleEnemies = enemies.filter((e) => !e.isHidden);
+    if (visibleEnemies.length > 0) continue;
+
+    // Check if ALL hidden enemies beat this creature's passive perception
+    const allUndetected = hiddenEnemies.every(
+      (e) => !detectHidden(e.stealthRoll!, creature.passivePerception),
+    );
+
+    if (allUndetected) {
+      surprised.push(creature.id);
+    }
+  }
+
+  return surprised.length > 0 ? surprised : undefined;
+}
+
 export function breaksHidden(breaker: StealthBreaker): boolean {
   // All of these typically break hidden status
   return true;

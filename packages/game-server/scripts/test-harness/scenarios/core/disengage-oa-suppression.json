@@ -1,0 +1,87 @@
+{
+  "name": "Disengage: Opportunity Attack Suppressed",
+  "description": "A Fighter takes the Disengage action and then retreats past a hostile creature. The retreat should NOT trigger an opportunity attack, since Disengage suppresses it. Tests that the disengaged flag prevents REACTION_CHECK.",
+  "setup": {
+    "character": {
+      "name": "Tactical Retreat",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 10, "charisma": 10
+        },
+        "maxHp": 28, "currentHp": 28, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Guard",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I need to retreat" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High init to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "disengage" },
+      "comment": "Disengage action — retreat without provoking opportunity attacks",
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (10, 10)" },
+      "comment": "Retreat 25ft away from the Goblin. Disengage is active, so NO opportunity attack should be triggered (no REACTION_CHECK).",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterPosition": { "x": 10, "y": 10 },
+        "characterHp": { "min": 28 }
+      },
+      "comment": "Character at (10,10) with full HP — no opportunity attack was triggered during the retreat"
+    }
+  ]
+}

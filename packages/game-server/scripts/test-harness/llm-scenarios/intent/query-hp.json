@@ -1,0 +1,37 @@
+{
+  "name": "Intent: Query HP",
+  "description": "LLM correctly classifies health-related questions as query with subject=hp",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'how much health do I have?'",
+      "input": {
+        "text": "how much health do I have?",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "query",
+        "subject": "hp"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'what's my HP?'",
+      "input": {
+        "text": "what's my HP?",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "query",
+        "subject": "hp"
+      }
+    }
+  ]
+}

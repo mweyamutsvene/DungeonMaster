@@ -1,0 +1,106 @@
+{
+  "name": "Action Economy Limits: Dash prevents Attack",
+  "description": "Tests that using Dash (action) prevents using Attack (also action) in the same turn. The server should reject the attack attempt.",
+  "setup": {
+    "character": {
+      "name": "Economy Tester",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Use Dash action - this should consume the action",
+      "input": { "text": "dash" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attempt attack after Dash - should be REJECTED because action already spent",
+      "input": { "text": "attack the dummy" },
+      "expect": {
+        "error": true,
+        "errorContains": "action"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Move should still work (not an action)",
+      "input": { "text": "move to (20, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE"
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

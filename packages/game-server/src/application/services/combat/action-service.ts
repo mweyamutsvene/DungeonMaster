@@ -4,12 +4,27 @@ import { nanoid } from "nanoid";
 import { resolveAttack, type AttackSpec } from "../../../domain/combat/attack-resolver.js";
 import { SeededDiceRoller } from "../../../domain/rules/dice-roller.js";
 import type { Ability } from "../../../domain/entities/core/ability-scores.js";
-import { concentrationCheckOnDamage, isConcentrating, endConcentration, type ConcentrationState } from "../../../domain/rules/concentration.js";
-import { attemptMovement, crossesThroughReach, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
+import type { RollMode } from "../../../domain/rules/advantage.js";
+import { concentrationCheckOnDamage } from "../../../domain/rules/concentration.js";
+import {
+  getConcentrationSpellName,
+  breakConcentration,
+  computeConSaveModifier,
+} from "./helpers/concentration-helper.js";
+import { attemptMovement, crossesThroughReach, calculateDistance, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
 import { canMakeOpportunityAttack } from "../../../domain/rules/opportunity-attack.js";
-import { resolveShove } from "../../../domain/rules/grapple-shove.js";
+import { resolveShove, resolveGrapple, isTargetTooLarge } from "../../../domain/rules/grapple-shove.js";
+import { attemptHide } from "../../../domain/rules/hide.js";
+import { attemptSearch } from "../../../domain/rules/search-use-object.js";
 
 import { NotFoundError, ValidationError } from "../../errors.js";
+import {
+  normalizeConditions,
+  addCondition,
+  removeCondition,
+  createCondition,
+  type Condition,
+} from "../../../domain/entities/combat/conditions.js";
 import {
   normalizeResources,
   readBoolean,
@@ -19,8 +34,22 @@ import {
   getPosition,
   setPosition,
   hasReactionAvailable,
+  getEffectiveSpeed,
   useReaction,
+  addActiveEffectsToResources,
+  getActiveEffects,
+  isConditionImmuneByEffects,
 } from "./helpers/resource-utils.js";
+import {
+  createEffect,
+  hasAdvantageFromEffects,
+  hasDisadvantageFromEffects,
+  calculateFlatBonusFromEffects,
+  calculateBonusFromEffects,
+  getDamageDefenseEffects,
+} from "../../../domain/entities/combat/effects.js";
+import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
+import { deriveRollModeFromConditions } from "./tabletop/combat-text-parser.js";
 import type { ICombatRepository } from "../../repositories/combat-repository.js";
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
@@ -81,6 +110,33 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+/**
+ * Compute flat + dice bonus and roll mode from ActiveEffects on ability_checks.
+ * Must be called AFTER creating the SeededDiceRoller so dice bonuses are deterministic.
+ */
+function abilityCheckEffectMods(
+  resources: unknown,
+  diceRoller: SeededDiceRoller,
+  ability?: Ability,
+): { bonus: number; mode: RollMode } {
+  const effects = getActiveEffects(resources ?? {});
+  const result = calculateBonusFromEffects(effects, 'ability_checks', ability);
+  let bonus = result.flatBonus;
+  for (const dr of result.diceRolls) {
+    const count = Math.abs(dr.count);
+    const sign = dr.count < 0 ? -1 : 1;
+    for (let i = 0; i < count; i++) {
+      bonus += sign * diceRoller.rollDie(dr.sides).total;
+    }
+  }
+  const hasAdv = hasAdvantageFromEffects(effects, 'ability_checks', ability);
+  const hasDisadv = hasDisadvantageFromEffects(effects, 'ability_checks', ability);
+  let mode: RollMode = "normal";
+  if (hasAdv && !hasDisadv) mode = "advantage";
+  else if (hasDisadv && !hasAdv) mode = "disadvantage";
+  return { bonus, mode };
+}
+
 function hashStringToInt32(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) {
@@ -127,6 +183,8 @@ type SimpleActionBaseInput = {
   encounterId?: string;
   actor: CombatantRef;
   seed?: unknown;
+  /** If true, bypass the action economy check (used by bonus action abilities like Patient Defense) */
+  skipActionCheck?: boolean;
 };
 
 type HelpActionInput = SimpleActionBaseInput & {
@@ -140,6 +198,22 @@ type CastSpellActionInput = SimpleActionBaseInput & {
 type ShoveActionInput = SimpleActionBaseInput & {
   target: CombatantRef;
   shoveType?: "push" | "prone";
+};
+
+type GrappleActionInput = SimpleActionBaseInput & {
+  target: CombatantRef;
+};
+
+type HideActionInput = SimpleActionBaseInput & {
+  /** Whether actor has cover or obscurement from enemies (assume true for simplicity) */
+  hasCover?: boolean;
+  /** Whether to use as bonus action (e.g., Cunning Action) */
+  isBonusAction?: boolean;
+};
+
+type SearchActionInput = SimpleActionBaseInput & {
+  /** Optional: specific target creature to search for */
+  targetRef?: CombatantRef;
 };
 
 type MoveActionInput = SimpleActionBaseInput & {
@@ -239,7 +313,7 @@ export class ActionService {
 
   private async resolveActiveActorOrThrow(
     sessionId: string,
-    input: { encounterId?: string; actor: CombatantRef },
+    input: { encounterId?: string; actor: CombatantRef; skipActionCheck?: boolean },
   ): Promise<{
     encounter: CombatEncounterRecord;
     combatants: CombatantStateRecord[];
@@ -263,7 +337,8 @@ export class ActionService {
       throw new ValidationError("It is not the actor's turn");
     }
 
-    if (hasSpentAction(actorState.resources)) {
+    // Skip action check for bonus action abilities like Patient Defense
+    if (!input.skipActionCheck && hasSpentAction(actorState.resources)) {
       throw new ValidationError("Actor has already spent their action this turn");
     }
 
@@ -283,6 +358,7 @@ export class ActionService {
     const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
       encounterId: input.encounterId,
       actor: input.actor,
+      skipActionCheck: input.skipActionCheck,
     });
 
     let targetState: CombatantStateRecord | null = null;
@@ -301,7 +377,14 @@ export class ActionService {
     
     // Mark turn-state flags for certain actions.
     // Note: Dash affects movement (handled by move via `dashed`), Disengage prevents OAs (handled by `disengaged`).
-    let updatedResources: JsonValue = { ...actorResources, actionSpent: true } as JsonValue;
+    // If skipActionCheck is true (bonus action), don't mark actionSpent - only mark bonusActionUsed.
+    let updatedResources: JsonValue;
+    if (input.skipActionCheck) {
+      // Bonus action version - don't spend the regular action
+      updatedResources = { ...actorResources, bonusActionUsed: true } as JsonValue;
+    } else {
+      updatedResources = { ...actorResources, actionSpent: true } as JsonValue;
+    }
     if (action === "Disengage") {
       updatedResources = markDisengaged(updatedResources);
     }
@@ -357,6 +440,7 @@ export class ActionService {
 
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
+    if (targetState.hpCurrent <= 0) throw new ValidationError("Target is already defeated");
 
     if (input.seed !== undefined && !Number.isInteger(input.seed)) {
       throw new ValidationError("seed must be an integer");
@@ -385,52 +469,40 @@ export class ActionService {
     if (input.attacker.type === "Monster" && !spec) {
       // Preserve existing behavior: allow selecting a monster attack from statBlock by name.
       const attacks = await this.combatants.getMonsterAttacks(input.attacker.monsterId);
-      console.log('[ActionService] Monster attacks retrieved:', JSON.stringify(attacks, null, 2));
       const desiredName = (input.monsterAttackName ?? "").trim().toLowerCase();
-      console.log('[ActionService] Looking for attack named:', desiredName);
       const picked = attacks.find(
         (a: unknown) => isRecord(a) && typeof a.name === "string" && a.name.trim().toLowerCase() === desiredName,
       );
-      console.log('[ActionService] Found attack:', picked ? JSON.stringify(picked) : 'NOT FOUND');
 
       if (picked && isRecord(picked)) {
         const attackBonus = readNumber(picked, "attackBonus");
-        console.log('[ActionService] attackBonus:', attackBonus, '(isInteger:', attackBonus !== null && Number.isInteger(attackBonus), ')');
         const dmg = isRecord((picked as any).damage) ? ((picked as any).damage as Record<string, unknown>) : null;
-        console.log('[ActionService] damage object:', dmg);
         const diceCount = dmg ? readNumber(dmg, "diceCount") : null;
-        console.log('[ActionService] diceCount:', diceCount, '(isInteger:', diceCount !== null && Number.isInteger(diceCount), ')');
         const diceSides = dmg ? readNumber(dmg, "diceSides") : null;
-        console.log('[ActionService] diceSides:', diceSides, '(isInteger:', diceSides !== null && Number.isInteger(diceSides), ')');
         const modifierVal = dmg ? (dmg.modifier as unknown) : undefined;
-        console.log('[ActionService] modifierVal (raw):', modifierVal);
 
         if (
           attackBonus !== null &&
           Number.isInteger(attackBonus) &&
           diceCount !== null &&
           Number.isInteger(diceCount) &&
+          diceCount >= 1 &&
           diceSides !== null &&
-          Number.isInteger(diceSides)
+          Number.isInteger(diceSides) &&
+          diceSides >= 2
         ) {
           const modN = modifierVal === undefined ? 0 : typeof modifierVal === "number" ? modifierVal : null;
-          console.log('[ActionService] modN:', modN, '(isInteger:', modN !== null && Number.isInteger(modN), ')');
           if (modN !== null && Number.isInteger(modN)) {
+            const extractedDamageType = typeof (picked as any).damageType === "string" ? (picked as any).damageType : undefined;
             spec = {
               name: typeof (picked as any).name === "string" ? (picked as any).name : undefined,
               kind: ((picked as any).kind === "ranged" ? "ranged" : "melee") as any,
               attackBonus,
               damage: { diceCount, diceSides, modifier: modN },
+              damageType: extractedDamageType,
             };
-            console.log('[ActionService] Built spec successfully:', spec);
-          } else {
-            console.log('[ActionService] FAILED: modN validation failed');
           }
-        } else {
-          console.log('[ActionService] FAILED: Initial validation failed');
         }
-      } else {
-        console.log('[ActionService] FAILED: Attack not found or not a record');
       }
     }
 
@@ -446,6 +518,102 @@ export class ActionService {
 
     const diceRoller = new SeededDiceRoller(seed);
 
+    // ── ActiveEffect integration: advantage/disadvantage + AC bonus + attack bonus + extra damage + defenses ──
+    const attackerActiveEffects = getActiveEffects(attackerState.resources ?? {});
+    const targetActiveEffects = getActiveEffects(targetState.resources ?? {});
+    const attackKind: "melee" | "ranged" = spec.kind === "ranged" ? "ranged" : "melee";
+
+    // Count advantage/disadvantage sources from ActiveEffects
+    let effectAdvantage = 0;
+    let effectDisadvantage = 0;
+
+    // Attacker's self-effects
+    if (hasAdvantageFromEffects(attackerActiveEffects, 'attack_rolls')) effectAdvantage++;
+    if (attackKind === 'melee' && hasAdvantageFromEffects(attackerActiveEffects, 'melee_attack_rolls')) effectAdvantage++;
+    if (attackKind === 'ranged' && hasAdvantageFromEffects(attackerActiveEffects, 'ranged_attack_rolls')) effectAdvantage++;
+    if (hasDisadvantageFromEffects(attackerActiveEffects, 'attack_rolls')) effectDisadvantage++;
+    if (attackKind === 'melee' && hasDisadvantageFromEffects(attackerActiveEffects, 'melee_attack_rolls')) effectDisadvantage++;
+    if (attackKind === 'ranged' && hasDisadvantageFromEffects(attackerActiveEffects, 'ranged_attack_rolls')) effectDisadvantage++;
+
+    // Target's effects on incoming attacks (e.g., Dodge → disadvantage, Reckless Attack → advantage)
+    for (const eff of targetActiveEffects) {
+      if (eff.target !== 'attack_rolls' && eff.target !== 'melee_attack_rolls' && eff.target !== 'ranged_attack_rolls') continue;
+      if (eff.target === 'melee_attack_rolls' && attackKind !== 'melee') continue;
+      if (eff.target === 'ranged_attack_rolls' && attackKind !== 'ranged') continue;
+      if (!eff.targetCombatantId || eff.targetCombatantId !== targetState.id) continue;
+      if (eff.type === 'advantage') effectAdvantage++;
+      if (eff.type === 'disadvantage') effectDisadvantage++;
+    }
+
+    // Resolve advantage/disadvantage from conditions + effects
+    const attackerCondNames = normalizeConditions(attackerState.conditions as unknown[]).map(c => c.condition);
+    const targetCondNames = normalizeConditions(targetState.conditions as unknown[]).map(c => c.condition);
+    const effectRollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdvantage, effectDisadvantage);
+    if (!spec.mode || spec.mode === "normal") {
+      spec.mode = effectRollMode;
+    }
+
+    // Attack bonus from ActiveEffects (Bless, etc.)
+    const atkBonusResult = calculateBonusFromEffects(attackerActiveEffects, 'attack_rolls');
+    spec.attackBonus += atkBonusResult.flatBonus;
+    // Pre-roll dice-based attack bonuses and add to flat bonus
+    for (const dr of atkBonusResult.diceRolls) {
+      const count = Math.abs(dr.count);
+      const sign = dr.count < 0 ? -1 : 1;
+      for (let i = 0; i < count; i++) {
+        spec.attackBonus += sign * diceRoller.rollDie(dr.sides).total;
+      }
+    }
+
+    // AC bonus from target's ActiveEffects (Shield of Faith, etc.)
+    const acBonusFromEffects = calculateFlatBonusFromEffects(targetActiveEffects, 'armor_class');
+    const effectAdjustedTargetAC = targetAC + acBonusFromEffects;
+
+    // Extra damage from ActiveEffects (Rage, Hunter's Mark, etc.)
+    let effectExtraDamage = 0;
+    {
+      const dmgEffects = attackerActiveEffects.filter(
+        e => (e.type === 'bonus' || e.type === 'penalty')
+          && (e.target === 'damage_rolls'
+            || (e.target === 'melee_damage_rolls' && attackKind === 'melee')
+            || (e.target === 'ranged_damage_rolls' && attackKind === 'ranged'))
+          && (!e.targetCombatantId || e.targetCombatantId === targetState.id)
+      );
+      for (const eff of dmgEffects) {
+        if (eff.type === 'bonus') effectExtraDamage += eff.value ?? 0;
+        if (eff.type === 'penalty') effectExtraDamage -= eff.value ?? 0;
+        if (eff.diceValue) {
+          const sign = eff.type === 'penalty' ? -1 : 1;
+          const count = Math.abs(eff.diceValue.count);
+          for (let i = 0; i < count; i++) {
+            effectExtraDamage += sign * diceRoller.rollDie(eff.diceValue.sides).total;
+          }
+        }
+      }
+    }
+    // Add extra damage to the spec modifier so resolveAttack includes it
+    if (effectExtraDamage !== 0) {
+      spec.damage = { ...spec.damage, modifier: (spec.damage.modifier ?? 0) + effectExtraDamage };
+    }
+
+    // Merge ActiveEffect damage defenses with stat-block defenses
+    const mergedDefenses = targetStats.damageDefenses ? { ...targetStats.damageDefenses } : undefined;
+    if (spec.damageType) {
+      const effDef = getDamageDefenseEffects(targetActiveEffects, spec.damageType);
+      if (effDef.resistances || effDef.vulnerabilities || effDef.immunities) {
+        const defenses = mergedDefenses ?? {} as any;
+        if (effDef.resistances) {
+          defenses.damageResistances = [...new Set([...(defenses.damageResistances ?? []), spec.damageType.toLowerCase()])];
+        }
+        if (effDef.vulnerabilities) {
+          defenses.damageVulnerabilities = [...new Set([...(defenses.damageVulnerabilities ?? []), spec.damageType.toLowerCase()])];
+        }
+        if (effDef.immunities) {
+          defenses.damageImmunities = [...new Set([...(defenses.damageImmunities ?? []), spec.damageType.toLowerCase()])];
+        }
+      }
+    }
+
     const attacker = buildCreatureAdapter({
       armorClass: attackerAC,
       abilityScores: attackerAbilityScores,
@@ -454,16 +622,49 @@ export class ActionService {
     }).creature as unknown as any;
 
     const targetAdapter = buildCreatureAdapter({
-      armorClass: targetAC,
+      armorClass: effectAdjustedTargetAC,
       abilityScores: targetAbilityScores,
       hpCurrent: targetState.hpCurrent,
     });
 
     const target = targetAdapter.creature as unknown as any;
-    const result = resolveAttack(diceRoller, attacker, target, spec);
+    const result = resolveAttack(diceRoller, attacker, target, spec, {
+      targetDefenses: mergedDefenses,
+    });
 
     const newHp = targetAdapter.getHpCurrent();
+    console.log(`[ActionService.attack] HP change: ${targetState.hpCurrent} -> ${newHp} (target: ${targetState.id}, combatantType: ${targetState.combatantType})`);
     const updatedTarget = await this.combat.updateCombatantState(targetState.id, { hpCurrent: newHp });
+    console.log(`[ActionService.attack] DB updated, returned hpCurrent: ${updatedTarget.hpCurrent}`);
+
+    // Apply KO effects if target dropped to 0 HP
+    await applyKoEffectsIfNeeded(targetState, targetState.hpCurrent, newHp, this.combat);
+
+    // ── ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) ──
+    const damageApplied = targetState.hpCurrent - newHp;
+    if (damageApplied > 0 && attackKind === "melee") {
+      const retaliatory = targetActiveEffects.filter(e => e.type === 'retaliatory_damage');
+      if (retaliatory.length > 0 && attackerState.hpCurrent > 0) {
+        let totalRetaliatoryDamage = 0;
+        for (const eff of retaliatory) {
+          let retDmg = eff.value ?? 0;
+          if (eff.diceValue) {
+            for (let i = 0; i < eff.diceValue.count; i++) {
+              retDmg += diceRoller.rollDie(eff.diceValue.sides).total;
+            }
+          }
+          totalRetaliatoryDamage += retDmg;
+          console.log(`[ActionService.attack] Retaliatory damage (${eff.source ?? 'effect'}): ${retDmg} ${eff.damageType ?? ''}`);
+        }
+        if (totalRetaliatoryDamage > 0) {
+          const atkHpBefore = attackerState.hpCurrent;
+          const atkHpAfter = Math.max(0, atkHpBefore - totalRetaliatoryDamage);
+          await this.combat.updateCombatantState(attackerState.id, { hpCurrent: atkHpAfter });
+          await applyKoEffectsIfNeeded(attackerState, atkHpBefore, atkHpAfter, this.combat);
+          console.log(`[ActionService.attack] Retaliatory damage: ${totalRetaliatoryDamage} to attacker (HP: ${atkHpBefore} → ${atkHpAfter})`);
+        }
+      }
+    }
 
     await this.combat.updateCombatantState(attackerState.id, {
       resources: spendAction(attackerState.resources),
@@ -504,55 +705,45 @@ export class ActionService {
         });
 
         // Check concentration if target is concentrating
-        const targetResources = normalizeResources(updatedTarget.resources);
-        const concentration = (targetResources as any).concentration as ConcentrationState | undefined;
-        
-        if (concentration && isConcentrating(concentration)) {
-          // Calculate Constitution save modifier
-          const conModifier = Math.floor((targetAbilityScores.constitution - 10) / 2);
-          
-          // Make concentration check
+        const concentrationSpellName = getConcentrationSpellName(updatedTarget.resources);
+        if (concentrationSpellName) {
+          // CON saving throw modifier (ability mod + proficiency if proficient)
+          const conSaveMod = computeConSaveModifier(
+            targetAbilityScores.constitution,
+            targetStats.proficiencyBonus,
+            // saveProficiencies not available via CombatantCombatStats yet;
+            // fall back to just ability modifier + 0 proficiency override
+          );
+
+          const appliedDamage = (result as any).damage.applied as number;
           const checkResult = concentrationCheckOnDamage(
-            new SeededDiceRoller(seed + 1000), // Offset seed for concentration roll
-            (result as any).damage.applied,
-            conModifier,
+            new SeededDiceRoller(seed + 1000),
+            appliedDamage,
+            conSaveMod,
           );
 
           if (!checkResult.maintained) {
-            // Concentration broken - update resources
-            const updatedConcentration = endConcentration(concentration);
-            await this.combat.updateCombatantState(targetState.id, {
-              resources: { ...targetResources, concentration: updatedConcentration },
-            });
-
-            // Emit concentration broken event
-            await this.events.append(sessionId, {
-              id: nanoid(),
-              type: "ConcentrationBroken",
-              payload: {
-                encounterId: encounter.id,
-                combatant: input.target,
-                spellId: concentration.activeSpellId,
-                dc: checkResult.dc,
-                roll: checkResult.check.total,
-                damage: (result as any).damage.applied,
-              } satisfies JsonValue,
-            });
-          } else {
-            // Concentration maintained - emit event
-            await this.events.append(sessionId, {
-              id: nanoid(),
-              type: "ConcentrationMaintained",
-              payload: {
-                encounterId: encounter.id,
-                combatant: input.target,
-                spellId: concentration.activeSpellId,
-                dc: checkResult.dc,
-                roll: checkResult.check.total,
-                damage: (result as any).damage.applied,
-              } satisfies JsonValue,
-            });
+            await breakConcentration(
+              updatedTarget, encounter.id, this.combat,
+            );
           }
+
+          // Emit event
+          const eventType = checkResult.maintained
+            ? "ConcentrationMaintained"
+            : "ConcentrationBroken";
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: eventType,
+            payload: {
+              encounterId: encounter.id,
+              combatant: input.target,
+              spellName: concentrationSpellName,
+              dc: checkResult.dc,
+              roll: checkResult.check.total,
+              damage: appliedDamage,
+            } satisfies JsonValue,
+          });
         }
       }
 
@@ -564,7 +755,33 @@ export class ActionService {
   }
 
   async dodge(sessionId: string, input: SimpleActionBaseInput): Promise<{ actor: CombatantStateRecord }> {
-    return this.performSimpleAction(sessionId, input, "Dodge");
+    const result = await this.performSimpleAction(sessionId, input, "Dodge");
+
+    // Apply Dodge active effects:
+    // 1. Attacks against the dodger have disadvantage
+    // 2. Dodger has advantage on DEX saving throws
+    const entityId = result.actor.characterId ?? result.actor.monsterId ?? result.actor.npcId ?? result.actor.id;
+    const dodgeEffects = [
+      createEffect(nanoid(), 'disadvantage', 'attack_rolls', 'until_start_of_next_turn', {
+        targetCombatantId: entityId,
+        source: 'Dodge',
+        description: 'Attacks against this creature have disadvantage',
+      }),
+      createEffect(nanoid(), 'advantage', 'saving_throws', 'until_start_of_next_turn', {
+        ability: 'dexterity',
+        source: 'Dodge',
+        description: 'Advantage on Dexterity saving throws',
+      }),
+    ];
+    const updatedResources = addActiveEffectsToResources(
+      normalizeResources(result.actor.resources),
+      ...dodgeEffects,
+    );
+    const updatedActor = await this.combat.updateCombatantState(result.actor.id, {
+      resources: updatedResources,
+    });
+
+    return { actor: updatedActor };
   }
 
   async dash(sessionId: string, input: SimpleActionBaseInput): Promise<{ actor: CombatantStateRecord }> {
@@ -573,6 +790,214 @@ export class ActionService {
 
   async disengage(sessionId: string, input: SimpleActionBaseInput): Promise<{ actor: CombatantStateRecord }> {
     return this.performSimpleAction(sessionId, input, "Disengage");
+  }
+
+  async hide(sessionId: string, input: HideActionInput): Promise<{
+    actor: CombatantStateRecord;
+    result: {
+      success: boolean;
+      stealthRoll: number;
+      reason?: string;
+    };
+  }> {
+    if (input.seed !== undefined && !Number.isInteger(input.seed)) {
+      throw new ValidationError("seed must be an integer");
+    }
+
+    const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
+      encounterId: input.encounterId,
+      actor: input.actor,
+      skipActionCheck: input.isBonusAction ?? input.skipActionCheck, // Skip action check if using bonus action
+    });
+
+    const seed =
+      (input.seed as number | undefined) ??
+      hashStringToInt32(
+        `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:Hide:${JSON.stringify(input.actor)}`,
+      );
+
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+    
+    // Get stealth modifier from skills if available, otherwise calculate from Dex + proficiency
+    let stealthModifier: number;
+    if (actorStats.skills?.stealth !== undefined) {
+      // Use pre-calculated stealth modifier from character sheet
+      stealthModifier = actorStats.skills.stealth;
+    } else {
+      // Calculate: Dex mod + proficiency bonus (assuming proficiency in Stealth)
+      const dexMod = modifier(actorStats.abilityScores.dexterity);
+      stealthModifier = dexMod + actorStats.proficiencyBonus;
+    }
+
+    const dice = new SeededDiceRoller(seed);
+
+    // ActiveEffect bonuses on ability checks (e.g., Guidance +1d4 on Stealth)
+    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'dexterity');
+
+    const hideResult = attemptHide(dice, {
+      stealthModifier: stealthModifier + actorCheckMods.bonus,
+      hasCoverOrObscurement: input.hasCover ?? true, // Assume cover for simplicity
+      clearlyVisible: false, // Assume not clearly visible
+      mode: actorCheckMods.mode !== "normal" ? actorCheckMods.mode : undefined,
+    });
+
+    // Spend action (or bonus action was already spent before calling this)
+    let updatedActor = actorState;
+    if (!input.isBonusAction && !input.skipActionCheck) {
+      updatedActor = await this.combat.updateCombatantState(actorState.id, {
+        resources: spendAction(actorState.resources),
+      });
+    }
+
+    // If hide succeeded, add Hidden condition
+    if (hideResult.success) {
+      let conditions = normalizeConditions(updatedActor.conditions);
+      conditions = addCondition(conditions, createCondition("Hidden" as Condition, "until_removed"));
+      updatedActor = await this.combat.updateCombatantState(updatedActor.id, {
+        conditions: conditions as any,
+        // Store stealth roll for later detection checks
+        resources: { ...(updatedActor.resources as any ?? {}), stealthRoll: hideResult.stealthRoll },
+      });
+    }
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "ActionResolved",
+        payload: {
+          encounterId: encounter.id,
+          actor: input.actor,
+          action: "Hide",
+          success: hideResult.success,
+          stealthRoll: hideResult.stealthRoll,
+          reason: hideResult.reason,
+        } satisfies JsonValue,
+      });
+    }
+
+    return {
+      actor: updatedActor,
+      result: {
+        success: hideResult.success,
+        stealthRoll: hideResult.stealthRoll,
+        reason: hideResult.reason,
+      },
+    };
+  }
+
+  /**
+   * Search action: Wisdom (Perception) check to reveal Hidden creatures.
+   * D&D 5e 2024: The Search action uses a Perception check vs. each hidden creature's Stealth DC.
+   */
+  async search(sessionId: string, input: SearchActionInput): Promise<{
+    actor: CombatantStateRecord;
+    result: {
+      found: string[];
+      roll: number;
+    };
+  }> {
+    if (input.seed !== undefined && !Number.isInteger(input.seed)) {
+      throw new ValidationError("seed must be an integer");
+    }
+
+    const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
+      encounterId: input.encounterId,
+      actor: input.actor,
+      skipActionCheck: input.skipActionCheck,
+    });
+
+    const seed =
+      (input.seed as number | undefined) ??
+      hashStringToInt32(
+        `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:Search:${JSON.stringify(input.actor)}`,
+      );
+
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+
+    // Get perception modifier from skills if available, otherwise calculate from Wis + proficiency
+    let perceptionModifier: number;
+    if (actorStats.skills?.perception !== undefined) {
+      perceptionModifier = actorStats.skills.perception;
+    } else {
+      const wisMod = modifier(actorStats.abilityScores.wisdom);
+      perceptionModifier = wisMod + actorStats.proficiencyBonus;
+    }
+
+    const dice = new SeededDiceRoller(seed);
+
+    // ActiveEffect bonuses on ability checks (e.g., Guidance +1d4 on Perception)
+    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'wisdom');
+
+    const searchResult = attemptSearch(dice, {
+      modifier: perceptionModifier + actorCheckMods.bonus,
+      dc: 0, // We'll contest against each hidden creature's stealth
+      checkType: "perception",
+      mode: actorCheckMods.mode !== "normal" ? actorCheckMods.mode : undefined,
+    });
+    const perceptionRoll = searchResult.roll;
+
+    // Find all Hidden combatants on the opposing faction
+    const found: string[] = [];
+    let updatedActor = actorState;
+
+    const actorIsPC = input.actor.type === "Character" || input.actor.type === "NPC";
+
+    for (const combatant of combatants) {
+      // Skip self
+      const combatantId = combatant.characterId ?? combatant.monsterId ?? combatant.npcId;
+      const actorId = (input.actor as any).characterId ?? (input.actor as any).monsterId ?? (input.actor as any).npcId;
+      if (combatantId === actorId) continue;
+
+      // Only check opposing faction
+      const otherIsPC = combatant.combatantType === "Character" || combatant.combatantType === "NPC";
+      if (actorIsPC === otherIsPC) continue;
+
+      // Check if this combatant is Hidden
+      const conditions = normalizeConditions(combatant.conditions);
+      const isHidden = conditions.some((c: any) => c.condition === "Hidden");
+      if (!isHidden) continue;
+
+      // Contest: perception roll vs. stealth DC (stored as stealthRoll on the hidden creature)
+      const res = normalizeResources(combatant.resources);
+      const stealthDC = typeof (res as any).stealthRoll === "number" ? (res as any).stealthRoll : 10;
+
+      if (perceptionRoll >= stealthDC) {
+        // Found! Remove Hidden condition
+        const updatedConditions = removeCondition(conditions, "Hidden" as Condition);
+        await this.combat.updateCombatantState(combatant.id, {
+          conditions: updatedConditions as any,
+        });
+        const combatantName = combatantId ?? "creature";
+        found.push(combatantName);
+      }
+    }
+
+    // Spend action
+    updatedActor = await this.combat.updateCombatantState(actorState.id, {
+      resources: spendAction(actorState.resources),
+    });
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "ActionResolved",
+        payload: {
+          encounterId: encounter.id,
+          actor: input.actor,
+          action: "Search",
+          perceptionRoll,
+          found,
+        } satisfies JsonValue,
+      });
+    }
+
+    return {
+      actor: updatedActor,
+      result: {
+        found,
+        roll: perceptionRoll,
+      },
+    };
   }
 
   async help(sessionId: string, input: HelpActionInput): Promise<{ actor: CombatantStateRecord }> {
@@ -647,11 +1072,18 @@ export class ActionService {
     );
 
     const dice = new SeededDiceRoller(seed);
+
+    // ActiveEffect bonuses on ability checks (e.g., Guidance, Hex disadvantage)
+    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'strength');
+    const targetCheckMods = abilityCheckEffectMods(targetState.resources, dice);
+
     const contested = resolveShove(dice, {
-      attackerAthleticsModifier,
-      targetContestModifier,
+      attackerAthleticsModifier: attackerAthleticsModifier + actorCheckMods.bonus,
+      targetContestModifier: targetContestModifier + targetCheckMods.bonus,
       targetTooLarge: false,
       shoveType,
+      attackerMode: actorCheckMods.mode,
+      targetMode: targetCheckMods.mode,
     });
 
     // Spend action.
@@ -685,12 +1117,13 @@ export class ActionService {
     }
 
     if (contested.success && shoveType === "prone") {
-      const existing = Array.isArray(targetState.conditions) ? (targetState.conditions as any[]) : [];
-      const hasProne = existing.some((c) => (typeof c === "string" ? c.toLowerCase() : "") === "prone");
-      const nextConditions = hasProne ? existing : [...existing, "Prone"];
-      updatedTarget = await this.combat.updateCombatantState(targetState.id, {
-        conditions: nextConditions as any,
-      });
+      if (!isConditionImmuneByEffects(targetState.resources, "Prone")) {
+        let conditions = normalizeConditions(targetState.conditions);
+        conditions = addCondition(conditions, createCondition("Prone" as Condition, "until_removed"));
+        updatedTarget = await this.combat.updateCombatantState(targetState.id, {
+          conditions: conditions as any,
+        });
+      }
     }
 
     if (this.events) {
@@ -721,6 +1154,131 @@ export class ActionService {
         targetRoll: contested.targetRoll,
         reason: contested.reason,
         ...(pushedTo ? { pushedTo } : {}),
+      },
+    };
+  }
+
+  async grapple(sessionId: string, input: GrappleActionInput): Promise<{
+    actor: CombatantStateRecord;
+    target: CombatantStateRecord;
+    result: {
+      success: boolean;
+      attackerRoll: number;
+      targetRoll: number;
+      reason?: string;
+    };
+  }> {
+    if (input.seed !== undefined && !Number.isInteger(input.seed)) {
+      throw new ValidationError("seed must be an integer");
+    }
+
+    const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
+      encounterId: input.encounterId,
+      actor: input.actor,
+    });
+
+    const targetState = findCombatantStateByRef(combatants, input.target);
+    if (!targetState) throw new NotFoundError("Target not found in encounter");
+    if (targetState.hpCurrent <= 0) throw new ValidationError("Target is down");
+    if (targetState.id === actorState.id) throw new ValidationError("Cannot grapple self");
+
+    const actorResources = normalizeResources(actorState.resources);
+    const targetResources = normalizeResources(targetState.resources);
+
+    const actorPos = getPosition(actorResources);
+    const targetPos = getPosition(targetResources);
+    if (!actorPos || !targetPos) {
+      throw new ValidationError("Actor and target must have positions set");
+    }
+
+    const reachValue = actorResources.reach;
+    const reach = typeof reachValue === "number" ? reachValue : 5;
+    const dx = targetPos.x - actorPos.x;
+    const dy = targetPos.y - actorPos.y;
+    const dist = Math.hypot(dx, dy);
+    if (!(dist <= reach + 0.0001)) {
+      throw new ValidationError("Target is out of reach");
+    }
+
+    const seed =
+      (input.seed as number | undefined) ??
+      hashStringToInt32(
+        `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:Grapple:${JSON.stringify(input.actor)}:${JSON.stringify(input.target)}`,
+      );
+
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+    const targetStats = await this.combatants.getCombatStats(input.target);
+
+    const attackerAthleticsModifier = modifier(actorStats.abilityScores.strength);
+    const targetContestModifier = Math.max(
+      modifier(targetStats.abilityScores.strength),
+      modifier(targetStats.abilityScores.dexterity),
+    );
+
+    // Check size - target can be at most one size larger
+    const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
+
+    // Check free hand - character needs at least one free hand to grapple
+    // A two-handed weapon occupies both hands, so no free hand available
+    const hasFreeHand = !actorStats.hasTwoHandedWeapon;
+
+    const dice = new SeededDiceRoller(seed);
+
+    // ActiveEffect bonuses on ability checks (e.g., Guidance, Hex disadvantage)
+    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'strength');
+    const targetCheckMods = abilityCheckEffectMods(targetState.resources, dice);
+
+    const contested = resolveGrapple(dice, {
+      attackerAthleticsModifier: attackerAthleticsModifier + actorCheckMods.bonus,
+      targetContestModifier: targetContestModifier + targetCheckMods.bonus,
+      targetTooLarge,
+      hasFreeHand,
+      attackerMode: actorCheckMods.mode,
+      targetMode: targetCheckMods.mode,
+    });
+
+    // Spend action.
+    const updatedActor = await this.combat.updateCombatantState(actorState.id, {
+      resources: spendAction(actorState.resources),
+    });
+
+    let updatedTarget = targetState;
+
+    if (contested.success) {
+      // Apply Grappled condition to target
+      if (!isConditionImmuneByEffects(targetState.resources, "Grappled")) {
+        let conditions = normalizeConditions(targetState.conditions);
+        conditions = addCondition(conditions, createCondition("Grappled" as Condition, "until_removed"));
+        updatedTarget = await this.combat.updateCombatantState(targetState.id, {
+          conditions: conditions as any,
+        });
+      }
+    }
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "ActionResolved",
+        payload: {
+          encounterId: encounter.id,
+          actor: input.actor,
+          action: "Grapple",
+          target: input.target,
+          success: contested.success,
+          attackerRoll: contested.attackerRoll,
+          targetRoll: contested.targetRoll,
+        } satisfies JsonValue,
+      });
+    }
+
+    return {
+      actor: updatedActor,
+      target: updatedTarget,
+      result: {
+        success: contested.success,
+        attackerRoll: contested.attackerRoll,
+        targetRoll: contested.targetRoll,
+        reason: contested.reason,
       },
     };
   }
@@ -765,8 +1323,7 @@ export class ActionService {
     }
 
     // Get actor's speed from resources
-    const speedValue = resources.speed;
-    const speed = typeof speedValue === "number" ? speedValue : 30; // Default to 30ft
+    const speed = getEffectiveSpeed(actor.resources);
 
     // Check if Dashed (doubles speed)
     const hasDashed = readBoolean(resources, "dashed") ?? false;
@@ -815,14 +1372,21 @@ export class ActionService {
       if (crossesReach) {
         const hasReaction = hasReactionAvailable(otherResources);
         const isDisengaged = readBoolean(resources, "disengaged") ?? false;
+        
+        // Check if observer is incapacitated (can't make opportunity attacks)
+        const otherConditions = Array.isArray(other.conditions) ? (other.conditions as string[]) : [];
+        const observerIncapacitated = otherConditions.some(
+          (c) => typeof c === "string" && c.toLowerCase() === "incapacitated",
+        );
+        
         const canAttack = canMakeOpportunityAttack(
           { reactionUsed: !hasReaction },
           {
             movingCreatureId: actor.id,
             observerId: other.id,
             disengaged: isDisengaged,
-            canSee: true, // TODO: implement vision checks
-            observerIncapacitated: false, // TODO: check incapacitated condition
+            canSee: true, // Vision checks would require line-of-sight calculation
+            observerIncapacitated,
             leavingReach: true,
           },
         );
@@ -836,11 +1400,17 @@ export class ActionService {
       }
     }
 
-    // Update position and mark action as spent
+    // Update position and track remaining movement
+    const distanceMoved = currentPos ? calculateDistance(currentPos, input.destination) : 0;
+    const currentRemaining = typeof (resources as any).movementRemaining === "number"
+      ? (resources as any).movementRemaining
+      : (typeof (resources as any).speed === "number" ? (resources as any).speed : 30);
+    const newMovementRemaining = Math.max(0, currentRemaining - distanceMoved);
     const updatedResources = {
       ...resources,
       position: input.destination,
-      movementSpent: true,
+      movementSpent: newMovementRemaining <= 0,
+      movementRemaining: newMovementRemaining,
     };
 
     const updatedActor = {
@@ -960,6 +1530,9 @@ export class ActionService {
       await this.combat.updateCombatantState(actor.id, {
         hpCurrent: newHp,
       });
+
+      // Apply KO effects if target dropped to 0 HP from opportunity attack
+      await applyKoEffectsIfNeeded(updatedActor, updatedActor.hpCurrent, newHp, this.combat);
 
       executedAttacks.push({
         attackerId: opp.attackerId,

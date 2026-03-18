@@ -1,0 +1,126 @@
+{
+  "name": "Ranged Attack: Longbow at Normal Range",
+  "description": "A Fighter attacks a Goblin Archer at 60ft with a Longbow (normal range 150ft). Tests ranged weapon kind inference, proper weapon selection, and damage application at range.",
+  "setup": {
+    "character": {
+      "name": "Archer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "slashing"
+          },
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Archer",
+        "position": { "x": 70, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I shoot the Goblin Archer with my longbow" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      },
+      "comment": "Start combat"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": {
+        "combatStarted": true
+      },
+      "comment": "Initiative roll resolves. Archer goes first."
+    },
+    {
+      "type": "action",
+      "input": { "text": "I shoot the Goblin Archer with my longbow" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      },
+      "comment": "Attack at 60ft range with Longbow (normal range 150ft). Should pick Longbow stats (attackBonus 7, 1d8+4)."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      },
+      "comment": "Attack roll 12 + 7 = 19 → hits AC 13. Prompt for damage."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "Damage roll 5 + 4 = 9. Goblin has 7 HP → drops to 0."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Archer", "exact": 0 }
+      },
+      "comment": "Verify ranged attack worked: 5 + 4 = 9 damage. 7 - 9 = 0 (can't go below 0)."
+    }
+  ]
+}

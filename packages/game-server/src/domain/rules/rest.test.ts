@@ -78,16 +78,16 @@ describe("rest resource refresh", () => {
     expect(longRest[0]!.current).toBe(3);
   });
 
-  it("refreshes cleric channel divinity on short rest", () => {
-    const pools = [{ name: "channelDivinity", current: 0, max: 2 }];
+  it("refreshes cleric channel divinity on short rest (2024 rules)", () => {
+    const pools = [{ name: "channelDivinity", current: 0, max: 3 }];
     const refreshed = refreshClassResourcePools({
       classId: "cleric",
       level: 6,
       rest: "short",
       pools,
     });
-    expect(refreshed[0]!.current).toBe(2);
-    expect(refreshed[0]!.max).toBe(2);
+    expect(refreshed[0]!.current).toBe(3);
+    expect(refreshed[0]!.max).toBe(3);
   });
 
   it("refreshes druid wild shape on short rest", () => {

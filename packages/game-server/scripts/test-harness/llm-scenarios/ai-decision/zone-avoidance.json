@@ -1,0 +1,100 @@
+{
+  "name": "AI Decision: Zone Avoidance",
+  "description": "Monster should avoid pathing through a damaging zone when possible",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Goblin needs to reach enemy but Spike Growth zone blocks direct path — should avoid zone or attack from range",
+      "input": {
+        "combatantName": "Goblin Warrior",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Goblin Warrior",
+            "type": "Goblin",
+            "cr": 0.25,
+            "hp": { "current": 7, "max": 7, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 40, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 15,
+            "speed": 30,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Scimitar",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "slashing",
+                "range": "melee"
+              },
+              {
+                "name": "Shortbow",
+                "kind": "ranged",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "piercing",
+                "range": "80/320"
+              }
+            ],
+            "bonusActions": [
+              { "name": "Nimble Escape", "description": "Disengage or Hide as bonus action" }
+            ]
+          },
+          "combat": { "round": 2, "turn": 3, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 42, "max": 42, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 30,
+              "ac": 18,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack"]
+            }
+          ],
+          "zones": [
+            {
+              "id": "zone-001",
+              "center": { "x": 25, "y": 10 },
+              "radiusFeet": 20,
+              "shape": "circle",
+              "source": "Spike Growth",
+              "type": "hazard",
+              "effects": [
+                {
+                  "trigger": "enterOrMove",
+                  "damageType": "piercing",
+                  "damage": "2d4",
+                  "saveAbility": "none",
+                  "saveDC": 0
+                }
+              ]
+            }
+          ],
+          "recentNarrative": ["Thorny vines sprout from the ground between the goblin and the fighter."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "attack",
+        "actionOneOf": ["attack", "move", "moveToward", "dash", "dodge"],
+        "promptSnapshot": "zone-avoidance"
+      }
+    }
+  ]
+}

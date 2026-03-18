@@ -1,0 +1,175 @@
+{
+  "name": "AI Decision: NPC Monk Class Abilities",
+  "description": "An NPC monk with className/level should have ki pool, monk bonus actions, and make tactical decisions using class abilities like Flurry of Blows or Patient Defense",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "NPC monk in melee with full ki should use Flurry of Blows after attacking",
+      "input": {
+        "combatantName": "Shadow Monk",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Shadow Monk",
+            "type": "Monk",
+            "cr": 3,
+            "hp": { "current": 30, "max": 38, "percentage": 79 },
+            "conditions": [],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": true,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 45
+            },
+            "ac": 15,
+            "speed": 45,
+            "initiative": 16,
+            "attacks": [
+              {
+                "name": "Unarmed Strike",
+                "kind": "melee",
+                "attackBonus": 6,
+                "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+                "damageType": "bludgeoning"
+              }
+            ],
+            "knownAbilities": [
+              "Flurry of Blows",
+              "Patient Defense",
+              "Step of the Wind",
+              "Stunning Strike",
+              "Martial Arts",
+              "Uncanny Metabolism"
+            ],
+            "bonusActions": [
+              { "name": "Flurry of Blows", "description": "Spend 1 ki: make 2 unarmed strikes as bonus action" },
+              { "name": "Patient Defense", "description": "Spend 1 ki: take Dodge action as bonus action" },
+              { "name": "Step of the Wind", "description": "Spend 1 ki: take Dash or Disengage as bonus action" }
+            ],
+            "resourcePools": [
+              { "name": "ki", "current": 5, "max": 5 }
+            ]
+          },
+          "combat": { "round": 1, "turn": 2, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 42, "max": 42, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "speed": 30,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge", "Second Wind"]
+            }
+          ],
+          "recentNarrative": ["The Shadow Monk darts forward and strikes at Thorin with a flurry of precise jabs."],
+          "actionHistory": ["attack Thorin (hit, 7 damage)"],
+          "turnResults": [
+            {
+              "step": 1,
+              "action": "attack",
+              "ok": true,
+              "summary": "Attacked Thorin with Unarmed Strike (hit, 7 damage)"
+            }
+          ],
+          "lastActionResult": {
+            "step": 1,
+            "action": "attack",
+            "ok": true,
+            "summary": "Attacked Thorin with Unarmed Strike (hit, 7 damage)"
+          }
+        }
+      },
+      "expect": {
+        "actionOneOf": ["move", "endTurn", "attack"],
+        "promptSnapshot": "npc-monk-abilities"
+      }
+    },
+    {
+      "type": "ai-decision",
+      "description": "NPC monk at low HP with ki should use Patient Defense or Step of the Wind to disengage",
+      "input": {
+        "combatantName": "Shadow Monk",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Shadow Monk",
+            "type": "Monk",
+            "cr": 3,
+            "hp": { "current": 8, "max": 38, "percentage": 21 },
+            "conditions": [],
+            "position": { "x": 10, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 45
+            },
+            "ac": 15,
+            "speed": 45,
+            "initiative": 16,
+            "attacks": [
+              {
+                "name": "Unarmed Strike",
+                "kind": "melee",
+                "attackBonus": 6,
+                "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+                "damageType": "bludgeoning"
+              }
+            ],
+            "knownAbilities": [
+              "Flurry of Blows",
+              "Patient Defense",
+              "Step of the Wind",
+              "Stunning Strike",
+              "Martial Arts",
+              "Uncanny Metabolism"
+            ],
+            "bonusActions": [
+              { "name": "Flurry of Blows", "description": "Spend 1 ki: make 2 unarmed strikes as bonus action" },
+              { "name": "Patient Defense", "description": "Spend 1 ki: take Dodge action as bonus action" },
+              { "name": "Step of the Wind", "description": "Spend 1 ki: take Dash or Disengage as bonus action" }
+            ],
+            "resourcePools": [
+              { "name": "ki", "current": 3, "max": 5 }
+            ]
+          },
+          "combat": { "round": 3, "turn": 6, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 28, "max": 42, "percentage": 67 },
+              "conditions": [],
+              "position": { "x": 15, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "speed": 30,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge", "Second Wind"]
+            }
+          ],
+          "recentNarrative": ["Thorin's sword bites deep into the monk's side. The Shadow Monk staggers."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "actionOneOf": ["dodge", "disengage", "dash", "move", "attack", "patientDefense", "stepOfTheWind", "Patient Defense", "Step of the Wind"],
+        "promptSnapshot": "npc-monk-low-hp"
+      }
+    }
+  ]
+}

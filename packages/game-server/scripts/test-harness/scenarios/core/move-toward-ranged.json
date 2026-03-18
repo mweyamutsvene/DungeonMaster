@@ -1,0 +1,90 @@
+{
+  "name": "Move Toward: Ranged Approach",
+  "description": "Character uses 'move within 30ft of Goblin Scout' to position at bow range instead of melee range. The text parser extracts desiredRange=30 and A* pathfinding stops the character ~30ft from the target.",
+  "setup": {
+    "character": {
+      "name": "Brave Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 60, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare to fight" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "18 + 2 (DEX) = 20, goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move within 30ft of Goblin Scout" },
+      "comment": "Fighter at (10,10), goblin at (60,10). Distance=50ft. desiredRange=30 extracted by text parser. Fighter moves 20ft to (30,10), which is 30ft from goblin. Within 30ft speed budget.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat still active — fighter positioned at range, not adjacent",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

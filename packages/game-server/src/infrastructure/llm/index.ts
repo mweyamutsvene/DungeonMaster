@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./ollama-provider.js";
 export * from "./openai-provider.js";
+export * from "./github-models-provider.js";
 export * from "./factory.js";
 export * from "./debug.js";
 export * from "./story-generator.js";
@@ -8,3 +9,4 @@ export * from "./intent-parser.js";
 export * from "./narrative-generator.js";
 export * from "./character-generator.js";
 export * from "./ai-decision-maker.js";
+export * from "./spy-provider.js";

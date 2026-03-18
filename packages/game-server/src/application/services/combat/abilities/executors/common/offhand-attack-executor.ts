@@ -3,9 +3,14 @@
  * 
  * Handles two-weapon fighting off-hand attacks as a bonus action.
  * Requires wielding two light melee weapons (or having the Dual Wielder feat).
+ * 
+ * Modes:
+ * - Tabletop mode (params.tabletopMode: true): Returns pendingAction for player dice rolls
+ * - AI mode: Calls services.attack() directly for auto-resolution
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { resolveWeaponMastery } from "../../../../../../domain/rules/weapon-mastery.js";
 
 /**
  * Executor for off-hand attack (two-weapon fighting).
@@ -27,7 +32,7 @@ export class OffhandAttackExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params, combat, actor } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator)
+    // Get actor ref from params (passed by AiTurnOrchestrator or handleBonusAbility)
     const actorRef = params?.actor;
     if (!actorRef) {
       return {
@@ -56,6 +61,112 @@ export class OffhandAttackExecutor implements AbilityExecutor {
       };
     }
 
+    // **TABLETOP MODE**: Return pending action for player dice rolls
+    if (params?.tabletopMode) {
+      return this.executeTabletopMode(context, actorRef, targetRef, params);
+    }
+
+    // **AI MODE**: Auto-roll attack via services
+    return this.executeAiMode(context, actorRef, targetRef, services, params);
+  }
+
+  /**
+   * Tabletop mode: Build pending action for player dice rolls.
+   * Off-hand attacks do NOT add ability modifier to damage (D&D 5e 2024 rules)
+   * unless the character has Two-Weapon Fighting style.
+   */
+  private async executeTabletopMode(
+    context: AbilityExecutionContext,
+    actorRef: any,
+    targetRef: any,
+    params: Record<string, unknown> | undefined,
+  ): Promise<AbilityExecutionResult> {
+    const actorId = actorRef.characterId || actorRef.monsterId || actorRef.npcId;
+    const targetId = (targetRef as any).monsterId || (targetRef as any).characterId || (targetRef as any).npcId;
+    const targetName = params?.targetName || 'target';
+
+    // Get weapon stats from character sheet
+    const sheet = params?.sheet as any;
+    const attacks: Array<{ name: string; kind: string; attackBonus: number; damage: { diceCount: number; diceSides: number; modifier: number } }> = sheet?.attacks ?? [];
+
+    // Pick the off-hand weapon: second weapon if available, first otherwise
+    const mainHandWeapon = attacks[0];
+    const offhandWeapon = attacks.length > 1 ? attacks[1] : undefined;
+    if (!offhandWeapon) {
+      return {
+        success: false,
+        summary: attacks.length < 2
+          ? 'Two-weapon fighting requires wielding two weapons'
+          : 'No weapon available for off-hand attack',
+        error: 'NO_WEAPON',
+      };
+    }
+
+    // TWF validation: both weapons must have the Light property (D&D 5e 2024)
+    const mainIsLight = (mainHandWeapon as any)?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
+    const offIsLight = (offhandWeapon as any)?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
+    if (!mainIsLight || !offIsLight) {
+      return {
+        success: false,
+        summary: 'Two-weapon fighting requires both weapons to have the Light property',
+        error: 'NOT_LIGHT',
+      };
+    }
+
+    // Off-hand attacks use the same attack bonus but NO damage modifier
+    // (D&D 5e: you don't add ability modifier to off-hand damage)
+    const className = params?.className as string | undefined;
+    const pendingAction = {
+      type: "ATTACK",
+      timestamp: new Date(),
+      actorId,
+      attacker: actorId,
+      target: targetId,
+      targetId,
+      weaponSpec: {
+        name: `${offhandWeapon.name} (Off-hand)`,
+        kind: offhandWeapon.kind as "melee" | "ranged",
+        attackBonus: offhandWeapon.attackBonus,
+        damage: {
+          diceCount: offhandWeapon.damage.diceCount,
+          diceSides: offhandWeapon.damage.diceSides,
+          modifier: 0, // Off-hand: NO ability modifier on damage
+        },
+        damageFormula: `${offhandWeapon.damage.diceCount}d${offhandWeapon.damage.diceSides}`,
+        mastery: resolveWeaponMastery(
+          offhandWeapon.name,
+          sheet ?? {},
+          className,
+          (offhandWeapon as any)?.mastery,
+        ),
+      },
+      bonusAction: "offhand-attack",
+    };
+
+    return {
+      success: true,
+      summary: `Roll a d20 for off-hand attack against ${targetName} (no modifiers; server applies bonuses).`,
+      requiresPlayerInput: true,
+      pendingAction,
+      rollType: "attack",
+      diceNeeded: "d20",
+      data: {
+        abilityName: 'Off-hand Attack',
+        target: targetName,
+      },
+    };
+  }
+
+  /**
+   * AI mode: Auto-roll attack via services.attack()
+   */
+  private async executeAiMode(
+    context: AbilityExecutionContext,
+    actorRef: any,
+    targetRef: any,
+    services: any,
+    params: Record<string, unknown> | undefined,
+  ): Promise<AbilityExecutionResult> {
     // Check if attack service is available
     if (!services.attack) {
       return {
@@ -65,19 +176,8 @@ export class OffhandAttackExecutor implements AbilityExecutor {
       };
     }
 
-    // TODO: Validate weapon properties (requires Equipment system integration)
-    // - Both weapons must be light (or have Dual Wielder feat)
-    // - Off-hand attack doesn't add ability modifier to damage (unless Fighting Style: Two-Weapon Fighting)
-    // Example implementation:
-    // const mainHandWeapon = actorRef.equipment?.mainHand;
-    // const offhandWeapon = actorRef.equipment?.offhand;
-    // if (!mainHandWeapon?.properties?.includes('Light') || !offhandWeapon?.properties?.includes('Light')) {
-    //   return { success: false, error: 'WEAPONS_NOT_LIGHT' };
-    // }
-
     try {
       // Execute off-hand attack
-      // Note: Off-hand attacks don't add ability modifier to damage by default
       const result = await services.attack({
         encounterId: context.encounterId,
         actor: actorRef,

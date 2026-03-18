@@ -8,11 +8,27 @@ export interface CombatVictoryPolicy {
 }
 
 /**
+ * Check if a combatant at 0 HP is "dying" (making death saves) rather than truly dead.
+ * Characters at 0 HP with fewer than 3 death save failures and not yet stabilized + dead
+ * are considered dying, not dead. Monsters/NPCs at 0 HP are always dead.
+ */
+function isDying(combatant: CombatantStateRecord): boolean {
+  if (combatant.hpCurrent > 0) return false;
+  if (combatant.combatantType !== "Character") return false;
+  const resources = (combatant.resources ?? {}) as Record<string, unknown>;
+  const deathSaves = resources.deathSaves as { successes: number; failures: number } | undefined;
+  // If no death saves initialized yet (just dropped to 0), they're dying
+  if (!deathSaves) return true;
+  return deathSaves.failures < 3;
+}
+
+/**
  * Default victory policy for tabletop-style combat in this project.
  *
  * - Characters are treated as "party"
  * - Enemies are factions "enemy" or "hostile"
  * - NPCs default to "neutral"
+ * - Characters at 0 HP still making death saves (failures < 3) count as "alive" (dying)
  */
 export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
   constructor(private readonly factionService: FactionService) {}
@@ -26,7 +42,8 @@ export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
 
       const stats = factions.get(faction) || { alive: 0, total: 0 };
       stats.total += 1;
-      if (combatant.hpCurrent > 0) stats.alive += 1;
+      // A combatant is "alive" if HP > 0 OR if they are dying (making death saves)
+      if (combatant.hpCurrent > 0 || isDying(combatant)) stats.alive += 1;
       factions.set(faction, stats);
     }
 

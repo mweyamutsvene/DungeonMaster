@@ -99,10 +99,16 @@ function extractResourcePools(resources: unknown): ResourcePool[] | undefined {
 
 /**
  * Parse conditions from CombatantStateRecord.
+ * Handles both legacy string[] and structured ActiveCondition[] formats.
  */
 function extractConditions(conditions: unknown): string[] {
   if (!Array.isArray(conditions)) return [];
-  return conditions.filter((c): c is string => typeof c === 'string');
+  // Handle ActiveCondition objects
+  return conditions.map((c) => {
+    if (typeof c === 'string') return c;
+    if (typeof c === 'object' && c !== null && 'condition' in c) return (c as { condition: string }).condition;
+    return '';
+  }).filter(Boolean);
 }
 
 /**

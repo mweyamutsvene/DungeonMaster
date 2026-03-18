@@ -1,0 +1,73 @@
+{
+  "name": "AI Decision: Concentration Target Priority",
+  "description": "Monster should prioritize attacking an enemy that is concentrating on a spell",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Orc adjacent to concentrating wizard should attack the wizard to break concentration",
+      "input": {
+        "combatantName": "Orc Brute",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Orc Brute",
+            "type": "Orc",
+            "cr": 0.5,
+            "hp": { "current": 15, "max": 15, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 13,
+            "speed": 30,
+            "initiative": 16,
+            "attacks": [
+              {
+                "name": "Greataxe",
+                "kind": "melee",
+                "attackBonus": 5,
+                "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+                "damageType": "slashing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 2, "turn": 3, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Elara Brightstaff",
+              "class": "Wizard",
+              "level": 5,
+              "hp": { "current": 22, "max": 28, "percentage": 78 },
+              "conditions": [],
+              "position": { "x": 20, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 12,
+              "initiative": 10,
+              "knownAbilities": ["Arcane Recovery"],
+              "concentrationSpell": "Bless"
+            }
+          ],
+          "recentNarrative": ["Elara blesses her allies, bolstering their attacks against the orc."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "attack",
+        "actionOneOf": ["attack", "moveToward"],
+        "targetName": "Elara",
+        "promptSnapshot": "concentration-target"
+      }
+    }
+  ]
+}

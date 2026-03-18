@@ -1,0 +1,142 @@
+{
+  "name": "Player Opportunity Attack: Fighter hits fleeing Goblin",
+  "description": "A Fighter engages a Goblin, ends turn, the Goblin flees triggering a player opportunity attack. Tests player OA roll submission flow.",
+  "setup": {
+    "character": {
+      "name": "Aggressive Agatha",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 30, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Tough Goblin",
+        "position": { "x": 35, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 20,
+          "hp": 20,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the goblin!" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "comment": "Low initiative ensures Goblin goes first, so it will attack and then player can attack",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin's first turn to complete - it should attack or move",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack goblin with longsword" },
+      "comment": "Player attacks the goblin on their turn",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Should hit AC 13"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "Damage roll - 6 + 3 = 9 damage, goblin has 20 HP so still alive with 11 HP"
+    },
+    {
+      "type": "configureAi",
+      "input": { "defaultBehavior": "flee" },
+      "comment": "Configure AI to flee on next turn, triggering player OA"
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn - goblin will try to flee since we configured AI to flee"
+    },
+    {
+      "type": "waitForPlayerOa",
+      "comment": "Wait for goblin to move away, triggering player OA opportunity",
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" },
+      "comment": "Player chooses to take the opportunity attack"
+    },
+    {
+      "type": "playerOaRoll",
+      "input": { "attackRoll": 18, "damageRoll": 8 },
+      "comment": "Player rolls 18+5=23 for attack (hits AC 13), then 8+3=11 damage - kills goblin",
+      "expect": { "hit": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monstersAlive": 0
+      },
+      "comment": "Goblin should be dead from 9+11=20 damage (had 20 HP)"
+    }
+  ]
+}

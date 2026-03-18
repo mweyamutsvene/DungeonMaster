@@ -1,0 +1,139 @@
+{"level":30,"time":1769412996596,"pid":13348,"hostname":"DESKTOP-9T5QPUN","msg":"Server listening at http://127.0.0.1:3001"}
+{"level":30,"time":1769412996596,"pid":13348,"hostname":"DESKTOP-9T5QPUN","msg":"Server listening at http://100.96.0.169:3001"}
+{"level":30,"time":1769412996596,"pid":13348,"hostname":"DESKTOP-9T5QPUN","msg":"Server listening at http://192.168.86.33:3001"}
+{"level":30,"time":1769412996596,"pid":13348,"hostname":"DESKTOP-9T5QPUN","msg":"Server listening at http://192.168.224.1:3001"}
+{"level":30,"time":1769412996596,"pid":13348,"hostname":"DESKTOP-9T5QPUN","port":3001,"host":"0.0.0.0","msg":"game-server listening"}
+{"level":30,"time":1769413027061,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-1","method":"POST","url":"/sessions","statusCode":200,"responseTime":10151.34450000152,"msg":"request completed"}
+{"level":30,"time":1769413027083,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/characters","statusCode":200,"responseTime":14.089099999517202,"msg":"request completed"}
+{"level":30,"time":1769413027097,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-3","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/monsters","statusCode":200,"responseTime":11.900700001046062,"msg":"request completed"}
+{"level":30,"time":1769413027109,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-4","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/monsters","statusCode":200,"responseTime":9.00870000012219,"msg":"request completed"}
+{"level":30,"time":1769413035245,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-5","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/initiate","statusCode":200,"responseTime":5931.678799999878,"msg":"request completed"}
+=== ROLL RESULT START ===
+{"level":30,"time":1769413038104,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-6","text":"I rolled 20","actorId":"uPwrSB5a9fUxda2iZQQTT","msg":"Roll result endpoint start"}
+{"level":30,"time":1769413039994,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-6","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/roll-result","statusCode":200,"responseTime":1890.3245999999344,"msg":"request completed"}
+{"level":30,"time":1769413040523,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-8","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":10.991399999707937,"msg":"request completed"}
+{"level":30,"time":1769413046180,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-9","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/action","statusCode":200,"responseTime":2182.078299999237,"msg":"request completed"}
+{"level":30,"time":1769413046707,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-c","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":8.82120000012219,"msg":"request completed"}
+{"level":30,"time":1769413058724,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-d","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/action","statusCode":200,"responseTime":7332.895500000566,"msg":"request completed"}
+=== ROLL RESULT START ===
+{"level":30,"time":1769413063362,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-e","text":"I rolled 20","actorId":"uPwrSB5a9fUxda2iZQQTT","msg":"Roll result endpoint start"}
+{"level":30,"time":1769413066271,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-e","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/roll-result","statusCode":200,"responseTime":2908.940000001341,"msg":"request completed"}
+=== ROLL RESULT START ===
+{"level":30,"time":1769413080720,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-f","text":"I rolled 3","actorId":"uPwrSB5a9fUxda2iZQQTT","msg":"Roll result endpoint start"}
+[TabletopCombatService.applyDamageResult] HP change: 7 -> 1 (target: vqCIIOYApEJLi4KSu6eST, damage: 6)
+[CombatRepository.updateCombatantState] id=vqCIIOYApEJLi4KSu6eST, hpCurrent: 7 -> 1
+Trace: [CombatRepository] Stack trace for HP update
+    at PrismaCombatRepository.updateCombatantState (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\infrastructure\db\combat-repository.ts:97:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async TabletopCombatService.handleDamageRoll (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\tabletop-combat-service.ts:922:7)
+{"level":30,"time":1769413083335,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-f","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/roll-result","statusCode":200,"responseTime":2615.795800000429,"msg":"request completed"}
+{"level":30,"time":1769413083868,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-i","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":9.271499998867512,"msg":"request completed"}
+{"level":30,"time":1769413096831,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-j","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/actions","statusCode":200,"responseTime":24.214299999177456,"msg":"request completed"}
+[AiTurnOrchestrator] Processing AI combatant turn: { type: 'Monster', id: 'voOIY6cNIydihDkuGaY9O', turn: 1 }
+[LlmAiDecisionMaker] Calling LLM with options: {
+  model: 'gpt-oss:20b',
+  temperature: 0.7,
+  seed: undefined,
+  timeoutMs: 180000
+}
+{"level":30,"time":1769413097354,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-l","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":8.990499999374151,"msg":"request completed"}
+[LlmAiDecisionMaker] Got LLM response: {
+  "action": "disengage",
+  "target": "",
+  "attackName": "",
+  "destination": null,
+  "spellName": "",
+  "bonusAction": "",
+  "seed": null,
+  "intentNarration": "The goblin pulls back, avoiding a co
+[AiTurnOrchestrator] Intent: The goblin pulls back, avoiding a counterattack.
+[LlmAiDecisionMaker] Calling LLM with options: {
+  model: 'gpt-oss:20b',
+  temperature: 0.7,
+  seed: undefined,
+  timeoutMs: 180000
+}
+[LlmAiDecisionMaker] Got LLM response: {"action":"move","destination":{"x":34,"y":10},"intentNarration":"The goblin scurries away from Thorin, seeking safety.","reasoning":"With only 1 HP and action already spent, the Goblin Warrior must u
+[AiTurnOrchestrator] Intent: The goblin scurries away from Thorin, seeking safety.
+[AiTurnOrchestrator] AI turn completed
+[AiTurnOrchestrator] Processing AI combatant turn: { type: 'Monster', id: 'WfBxImlgNEwTvV2QQCuen', turn: 2 }
+[LlmAiDecisionMaker] Calling LLM with options: {
+  model: 'gpt-oss:20b',
+  temperature: 0.7,
+  seed: undefined,
+  timeoutMs: 180000
+}
+[LlmAiDecisionMaker] Got LLM response: {
+  "action": "attack",
+  "target": "Thorin Ironfist",
+  "attackName": "Shortbow",
+  "destination": null,
+  "spellName": null,
+  "bonusAction": null,
+  "seed": null,
+  "intentNarration": "The goblin f
+[AiTurnOrchestrator] Intent: The goblin fires a swift arrow at Thorin Ironfist!
+[AiActionExecutor] Executing attack action: { target: 'Thorin Ironfist', attackName: 'Shortbow' }
+[AiActionExecutor] Calling actionService.attack... {
+  attacker: { type: 'Monster', monsterId: 'WfBxImlgNEwTvV2QQCuen' },
+  target: { type: 'Character', characterId: 'uPwrSB5a9fUxda2iZQQTT' }
+}
+[ActionService] Monster attacks retrieved: [
+  {
+    "name": "Shortbow",
+    "kind": "ranged",
+    "attackBonus": 4,
+    "damage": {
+      "diceCount": 1,
+      "diceSides": 6,
+      "modifier": 2
+    },
+    "damageType": "piercing"
+  }
+]
+[ActionService] Looking for attack named: shortbow
+[ActionService] Found attack: {"name":"Shortbow","kind":"ranged","attackBonus":4,"damage":{"diceCount":1,"diceSides":6,"modifier":2},"damageType":"piercing"}
+[ActionService] attackBonus: 4 (isInteger: true )
+[ActionService] damage object: { diceCount: 1, diceSides: 6, modifier: 2 }
+[ActionService] diceCount: 1 (isInteger: true )
+[ActionService] diceSides: 6 (isInteger: true )
+[ActionService] modifierVal (raw): 2
+[ActionService] modN: 2 (isInteger: true )
+[ActionService] Built spec successfully: {
+  name: 'Shortbow',
+  kind: 'ranged',
+  attackBonus: 4,
+  damage: { diceCount: 1, diceSides: 6, modifier: 2 }
+}
+[ActionService.attack] HP change: 47 -> 40 (target: DlQX6WCgnKoXaMeMIthi3, combatantType: Character)
+[CombatRepository.updateCombatantState] id=DlQX6WCgnKoXaMeMIthi3, hpCurrent: 47 -> 40
+Trace: [CombatRepository] Stack trace for HP update
+    at PrismaCombatRepository.updateCombatantState (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\infrastructure\db\combat-repository.ts:97:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ActionService.attack (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\action-service.ts:468:27)
+    at async AiActionExecutor.executeAttack (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\ai\ai-action-executor.ts:255:20)
+    at async AiTurnOrchestrator.executeAiTurn (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\ai\ai-turn-orchestrator.ts:320:22)
+    at async AiTurnOrchestrator.processMonsterTurnIfNeeded (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\ai\ai-turn-orchestrator.ts:204:5)
+    at async AiTurnOrchestrator.processAllMonsterTurns (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\ai\ai-turn-orchestrator.ts:520:19)
+[ActionService.attack] DB updated, returned hpCurrent: 40
+[AiActionExecutor] Attack completed: { hit: true, damage: 7 }
+[AiTurnOrchestrator] AI turn completed
+{"level":30,"time":1769413120133,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-29","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":7.241099998354912,"msg":"request completed"}
+{"level":30,"time":1769413133514,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2a","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/action","statusCode":200,"responseTime":1650.996799999848,"msg":"request completed"}
+{"level":30,"time":1769413134033,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2d","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":7.857999999076128,"msg":"request completed"}
+{"level":30,"time":1769413146268,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2e","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/action","statusCode":200,"responseTime":7804.145800000057,"msg":"request completed"}
+=== ROLL RESULT START ===
+{"level":30,"time":1769413149215,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2f","text":"I rolled 20","actorId":"uPwrSB5a9fUxda2iZQQTT","msg":"Roll result endpoint start"}
+{"level":30,"time":1769413151528,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2f","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/roll-result","statusCode":200,"responseTime":2313.615800000727,"msg":"request completed"}
+=== ROLL RESULT START ===
+{"level":30,"time":1769413156247,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2g","text":"I rolled 3","actorId":"uPwrSB5a9fUxda2iZQQTT","msg":"Roll result endpoint start"}
+[TabletopCombatService.applyDamageResult] HP change: 1 -> 0 (target: vqCIIOYApEJLi4KSu6eST, damage: 6)
+[CombatRepository.updateCombatantState] id=vqCIIOYApEJLi4KSu6eST, hpCurrent: 1 -> 0
+Trace: [CombatRepository] Stack trace for HP update
+    at PrismaCombatRepository.updateCombatantState (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\infrastructure\db\combat-repository.ts:97:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async TabletopCombatService.handleDamageRoll (C:\Users\tommy\Development\DungeonMaster\packages\game-server\src\application\services\combat\tabletop-combat-service.ts:922:7)
+{"level":30,"time":1769413158487,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2g","method":"POST","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/roll-result","statusCode":200,"responseTime":2240.6210999991745,"msg":"request completed"}
+{"level":30,"time":1769413159015,"pid":13348,"hostname":"DESKTOP-9T5QPUN","reqId":"req-2j","method":"GET","url":"/sessions/P3LoqSnR2SqCM-dBYCW3b/combat/x7EjeGd0EcJovMYQp5dng/tactical","statusCode":200,"responseTime":7.158500000834465,"msg":"request completed"}
+
+

@@ -1,0 +1,37 @@
+{
+  "name": "Intent: Move to Coordinates",
+  "description": "LLM parses movement commands with explicit x,y coordinates",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'move to 30, 20' into move command",
+      "input": {
+        "text": "move to 30, 20",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "move",
+        "destination": { "x": 30, "y": 20 }
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I walk to position 45, 10'",
+      "input": {
+        "text": "I walk to position 45, 10",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "move",
+        "destination": { "x": 45, "y": 10 }
+      }
+    }
+  ]
+}

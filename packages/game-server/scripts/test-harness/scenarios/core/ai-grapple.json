@@ -1,0 +1,124 @@
+{
+  "name": "AI Grapple: Monster grapples player",
+  "description": "A strong monster (Ogre) uses the grapple action via AI to restrain a player character. Tests the AI grapple executor, contested Athletics check, and Grappled condition application.",
+  "setup": {
+    "character": {
+      "name": "Elara the Swift",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 14,
+          "charisma": 10
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Rapier",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "size": "Large",
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "grapple"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "Low roll so monster goes first and attempts grapple",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Ogre's turn — AI should attempt grapple against Elara. Ogre STR +4 vs Elara STR 0/DEX +4."
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Ogre Brute" },
+      "comment": "Player attacks the ogre on their turn (grappled or not, can still attack)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 11 — hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "name": "AI Grapple + Condition: Verify grappled restricts movement",
+  "description": "An Ogre AI grapples a player character, then we verify the Grappled condition is applied and restricts movement. The player then attacks to test they can still fight while grappled.",
+  "setup": {
+    "character": {
+      "name": "Weak Willy",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 8,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Dagger",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": -1 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Strong Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 20,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 11,
+          "speed": 40,
+          "size": "Large",
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 5 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "grapple"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "comment": "Very low roll so Strong Ogre goes first (STR 20 vs player STR 8 — grapple should succeed)",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Ogre's turn — AI should grapple with STR +5 vs player STR -1. Very likely to succeed."
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the player character has the Grappled condition after Ogre's grapple",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Grappled"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Strong Ogre" },
+      "comment": "Even while grappled, the player can still attack (Grappled only restricts movement)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 1 = 19 vs AC 11 — hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "3 - 1 = 2 damage (min 1)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "name": "Wizard Spell Slots: Consumption and Exhaustion",
+  "description": "A Wizard casts leveled spells consuming spell slots, then tries to cast when out of slots. Cantrips remain available. Tests spell slot initialization, consumption, and rejection.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 2, "2": 1 },
+        "preparedSpells": [
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Shield", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Magic Missile (level 1) - should consume 1st-level slot (2→1)",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Skeleton Warrior" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Cast Magic Missile again (level 1) - should consume last 1st-level slot (1→0)",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Skeleton Warrior" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Try casting Magic Missile again with no 1st-level slots - should fail",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Skeleton Warrior" },
+      "expect": { "error": true, "errorContains": "spell slots remaining" }
+    },
+    {
+      "comment": "Cast Scorching Ray (level 2) - should consume 2nd-level slot (1→0)",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Skeleton Warrior" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Try casting Scorching Ray again with no 2nd-level slots - should fail",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Skeleton Warrior" },
+      "expect": { "error": true, "errorContains": "spell slots remaining" }
+    },
+    {
+      "comment": "Cast Fire Bolt (cantrip, level 0) - should always work, no slot needed",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Skeleton Warrior" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    }
+  ]
+}

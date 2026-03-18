@@ -27,11 +27,7 @@ import {
   PatientDefenseExecutor, 
   StepOfTheWindExecutor, 
   MartialArtsExecutor,
-  StunningStrikeExecutor,
   WholenessOfBodyExecutor,
-  UncannyMetabolismExecutor,
-  DeflectAttacksExecutor,
-  OpenHandTechniqueExecutor
 } from "../abilities/executors/index.js";
 import { TwoPhaseActionService } from "../two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../../../repositories/pending-action-repository.js";
@@ -169,11 +165,7 @@ describe.skipIf(!shouldRunLlmTests)("Character Class Abilities (Real LLM)", () =
     abilityRegistry.register(new PatientDefenseExecutor());
     abilityRegistry.register(new StepOfTheWindExecutor());
     abilityRegistry.register(new MartialArtsExecutor());
-    abilityRegistry.register(new StunningStrikeExecutor());
     abilityRegistry.register(new WholenessOfBodyExecutor());
-    abilityRegistry.register(new UncannyMetabolismExecutor());
-    abilityRegistry.register(new DeflectAttacksExecutor());
-    abilityRegistry.register(new OpenHandTechniqueExecutor());
 
     // Create session
     await sessionRepo.create({ 

@@ -20,8 +20,9 @@ import type { IIntentParser } from "../intent-parser.js";
 import type { INarrativeGenerator } from "../narrative-generator.js";
 import type { IStoryGenerator, StoryFramework } from "../story-generator.js";
 import type { ICharacterGenerator, GeneratedCharacterSheet } from "../character-generator.js";
-import type { IAiDecisionMaker, AiDecision } from "../../../application/services/combat/ai/ai-types.js";
+import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "../../../application/services/combat/ai/ai-types.js";
 import type { JsonValue } from "../../../application/types.js";
+import { getClassDefinition, isCharacterClassId } from "../../../domain/entities/classes/index.js";
 
 // ============================================================================
 // MockIntentParser
@@ -65,8 +66,15 @@ export class MockIntentParser implements IIntentParser {
     // Extract roster from schemaHint if available
     const roster = this.extractRoster(schemaHint);
 
-    // Pattern: "I attack the <target>" or "attack <target>"
-    const attackMatch = text.match(/(?:i\s+)?attack(?:\s+the)?\s+(.+?)(?:\s+with\s+.+)?$/i);
+    // Pattern: "throw/hurl/toss <weapon> at <target>"
+    const throwMatch = text.match(/(?:i\s+)?(?:throw|hurl|toss)\s+(?:the\s+|a\s+|my\s+)?[\w\s]+?\s+at\s+(?:the\s+)?(.+?)$/i);
+    if (throwMatch) {
+      const targetName = throwMatch[1]!.trim().toLowerCase();
+      return this.buildAttackCommand(targetName, roster);
+    }
+
+    // Pattern: "I attack the <target>" or "attack <target>" or "I shoot the <target>"
+    const attackMatch = text.match(/(?:i\s+)?(?:attack|shoot|fire\s+at|strike)(?:\s+the)?\s+(.+?)(?:\s+with\s+.+)?$/i);
     if (attackMatch) {
       const targetName = attackMatch[1]!.trim().toLowerCase();
       return this.buildAttackCommand(targetName, roster);
@@ -101,9 +109,10 @@ export class MockIntentParser implements IIntentParser {
       return this.buildEndTurnCommand(roster);
     }
 
-    // Pattern: tactical queries
-    if (text.includes("which") || text.includes("nearest") || text.includes("closest")) {
-      return { kind: "query", query: text };
+    // Pattern: question/query intents - classify by subject
+    const querySubject = this.classifyQuerySubject(text);
+    if (querySubject) {
+      return { kind: "query", subject: querySubject };
     }
 
     // Default: unknown intent
@@ -116,7 +125,7 @@ export class MockIntentParser implements IIntentParser {
   private extractRoster(schemaHint: string): Roster | null {
     try {
       // Find the JSON object at the end of the schema hint
-      const rosterMatch = schemaHint.match(/Roster \(valid IDs\):\s*(\{[\s\S]*\})$/);
+      const rosterMatch = schemaHint.match(/Roster \(valid IDs[^)]*\):\s*(\{[\s\S]*\})$/);
       if (rosterMatch) {
         return JSON.parse(rosterMatch[1]!) as Roster;
       }
@@ -124,6 +133,79 @@ export class MockIntentParser implements IIntentParser {
       // Ignore parse errors
     }
     return null;
+  }
+
+  /**
+   * Classify a question into its query subject category.
+   * Returns null if the text doesn't appear to be a question.
+   */
+  private classifyQuerySubject(text: string): string | null {
+    // Check if it looks like a question (has question marks or starts with question words)
+    const isQuestion =
+      text.includes("?") ||
+      /^(what|who|where|which|how|can|do|does|am|is|are)\s/i.test(text);
+
+    if (!isQuestion) {
+      return null;
+    }
+
+    // HP queries
+    if (/\b(hp|health|hit\s*point|damage|hurt|injured|wounded)\b/i.test(text)) {
+      return "hp";
+    }
+
+    // AC queries
+    if (/\b(ac|armor\s*class|defence|defense)\b/i.test(text)) {
+      return "ac";
+    }
+
+    // Weapon queries
+    if (/\b(weapons?|sword|bow|axe|dagger|attacks?)\b/i.test(text)) {
+      return "weapons";
+    }
+
+    // Spell queries
+    if (/\b(spells?|cantrips?|magic|cast)\b/i.test(text)) {
+      return "spells";
+    }
+
+    // Feature queries
+    if (/\b(features?|abilities|traits?|class\s*feature|racial|special)\b/i.test(text)) {
+      return "features";
+    }
+
+    // Stats/ability score queries
+    if (/\b(stats?|ability\s*scores?|strength|dexterity|constitution|intelligence|wisdom|charisma|str|dex|con|int|wis|cha)\b/i.test(text)) {
+      return "stats";
+    }
+
+    // Equipment/inventory queries
+    if (/\b(equipment|items?|inventory|carrying|gear|pack)\b/i.test(text)) {
+      return "equipment";
+    }
+
+    // Party queries
+    if (/\b(party|allies|team|companions|group)\b/i.test(text)) {
+      return "party";
+    }
+
+    // Actions queries
+    if (/\b(action|what\s*can\s*i|turn|option|do\s+on)\b/i.test(text)) {
+      return "actions";
+    }
+
+    // Tactical/positioning queries
+    if (/\b(nearest|closest|which|enemy|distance|position|far|range)\b/i.test(text)) {
+      return "tactical";
+    }
+
+    // Environment queries
+    if (/\b(room|cover|terrain|environment|map|area|surroundings|nearby)\b/i.test(text)) {
+      return "environment";
+    }
+
+    // Default: if it's a question but we can't classify, default to tactical
+    return "tactical";
   }
 
   /**
@@ -157,20 +239,12 @@ export class MockIntentParser implements IIntentParser {
       }
     }
 
-    // Default attack spec for character attackers
-    const spec = attacker?.type === "Character"
-      ? {
-          kind: "melee",
-          attackBonus: 5,
-          damage: { diceCount: 1, diceSides: 8, modifier: 3 },
-        }
-      : undefined;
-
+    // Don't provide a spec - let the server determine weapon stats from character sheet
+    // This ensures proper attack bonus and damage modifiers are used
     return {
       kind: "attack",
       attacker: attacker ?? { type: "Character", characterId: "unknown" },
       target: target ?? { type: "Monster", monsterId: "unknown" },
-      spec,
     };
   }
 
@@ -546,14 +620,9 @@ export class MockCharacterGenerator implements ICharacterGenerator {
     const conMod = Math.floor(((template.abilityScores?.constitution ?? 10) - 10) / 2);
 
     // Calculate HP: max at level 1, average thereafter
-    const hitDice: Record<string, number> = {
-      fighter: 10,
-      monk: 8,
-      wizard: 6,
-      rogue: 8,
-      cleric: 8,
-    };
-    const hitDie = hitDice[className] ?? 8;
+    // Hit die comes from domain class definitions — no hardcoded map needed
+    const classDef = isCharacterClassId(className) ? getClassDefinition(className) : null;
+    const hitDie = classDef?.hitDie ?? 8;
     const baseHp = hitDie + conMod;
     const additionalHp = level > 1 ? (level - 1) * (Math.floor(hitDie / 2) + 1 + conMod) : 0;
     const hp = baseHp + additionalHp;
@@ -569,9 +638,11 @@ export class MockCharacterGenerator implements ICharacterGenerator {
     else if (hasScaleMail) armorClass = 14 + Math.min(2, Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2));
     else if (hasLeatherArmor) armorClass = 11 + Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2);
 
-    // Monk Unarmored Defense
+    // Monk Unarmored Defense: 10 + DEX mod + WIS mod (domain rule)
     if (className === "monk" && !hasLeatherArmor) {
-      armorClass = 10 + Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2) + Math.floor(((template.abilityScores?.wisdom ?? 10) - 10) / 2);
+      const dexMod = Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2);
+      const wisMod = Math.floor(((template.abilityScores?.wisdom ?? 10) - 10) / 2);
+      armorClass = 10 + dexMod + wisMod;
     }
 
     if (hasShield) armorClass += 2;
@@ -616,9 +687,46 @@ export class MockCharacterGenerator implements ICharacterGenerator {
  * Returns predictable AI decisions for monster/NPC turns.
  * Inspects the context to find actual enemy names and attacks.
  */
+/**
+ * Captured context entry from a single decide() call.
+ * Stores both the raw input and the typed context for assertion.
+ */
+export interface CapturedAiContext {
+  combatantName: string;
+  combatantType: string;
+  context: AiCombatContext;
+}
+
 export class MockAiDecisionMaker implements IAiDecisionMaker {
   private queuedDecisions: AiDecision[] = [];
-  private defaultBehavior: "attack" | "endTurn" = "attack";
+  private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide" = "attack";
+  private defaultBonusAction?: string;
+
+  /** Captured contexts from every decide() call, for test assertions. */
+  private _capturedContexts: CapturedAiContext[] = [];
+
+  // ---------------------------------------------------------------------------
+  // Context spy API
+  // ---------------------------------------------------------------------------
+
+  /** All contexts captured since last clear. */
+  get capturedContexts(): ReadonlyArray<CapturedAiContext> {
+    return this._capturedContexts;
+  }
+
+  /** Most recent context, or undefined if none captured. */
+  getLastContext(): CapturedAiContext | undefined {
+    return this._capturedContexts.at(-1);
+  }
+
+  /** Clear captured contexts (call between test scenarios). */
+  clearCapturedContexts(): void {
+    this._capturedContexts.length = 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Decision configuration
+  // ---------------------------------------------------------------------------
 
   /**
    * Queue a decision to be returned on the next call.
@@ -631,8 +739,15 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
   /**
    * Set the default behavior when queue is empty.
    */
-  setDefaultBehavior(behavior: "attack" | "endTurn"): void {
+  setDefaultBehavior(behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide"): void {
     this.defaultBehavior = behavior;
+  }
+
+  /**
+   * Set a bonus action to be included in attack decisions.
+   */
+  setDefaultBonusAction(bonusAction: string | undefined): void {
+    this.defaultBonusAction = bonusAction;
   }
 
   async decide(input: {
@@ -640,6 +755,13 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     combatantType: string;
     context: unknown;
   }): Promise<AiDecision | null> {
+    // Capture context for test assertions
+    this._capturedContexts.push({
+      combatantName: input.combatantName,
+      combatantType: input.combatantType,
+      context: input.context as AiCombatContext,
+    });
+
     if (this.queuedDecisions.length > 0) {
       return this.queuedDecisions.shift()!;
     }
@@ -650,10 +772,111 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     if (this.defaultBehavior === "endTurn" || !ctx) {
       return { action: "endTurn", intentNarration: `${input.combatantName} ends their turn.` };
     }
+
+    // Smart Prone handling: if Prone and movement not spent, move to stand up first
+    // This mirrors what a real AI would do — standing up removes disadvantage on attacks
+    const combatantCtx = ctx.combatant as Record<string, unknown> | undefined;
+    const conditions = Array.isArray(combatantCtx?.conditions) ? combatantCtx!.conditions as string[] : [];
+    const economy = combatantCtx?.economy as Record<string, unknown> | undefined;
+    const movementSpent = economy?.movementSpent === true;
+    const isProne = conditions.some(c => c.toLowerCase() === "prone");
+    
+    if (isProne && !movementSpent) {
+      // Stand up by moving — even moving to current position triggers stand-up logic.
+      // Try to stay in place (stand up without changing position) for simplicity.
+      const position = combatantCtx?.position as { x: number; y: number } | undefined;
+      
+      if (position) {
+        return {
+          action: "move",
+          destination: position, // Move to current position = just stand up
+          endTurn: false,
+          intentNarration: `${input.combatantName} stands up from prone.`,
+        };
+      }
+    }
+
+    // Grapple behavior: grapple the nearest enemy
+    if (this.defaultBehavior === "grapple") {
+      const grappleEnemies = Array.isArray(ctx.enemies)
+        ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
+        : [];
+      const livingEnemy = grappleEnemies.find(e => !e.hp || e.hp.current > 0);
+      if (livingEnemy) {
+        return {
+          action: "grapple",
+          target: livingEnemy.name,
+          endTurn: true,
+          intentNarration: `${input.combatantName} tries to grab ${livingEnemy.name}!`,
+        } satisfies AiDecision;
+      }
+    }
+
+    // Hide behavior: attempt to hide
+    if (this.defaultBehavior === "hide") {
+      return {
+        action: "hide",
+        endTurn: true,
+        intentNarration: `${input.combatantName} tries to hide!`,
+      } satisfies AiDecision;
+    }
+    
+    // Approach behavior: move toward the nearest enemy using moveToward action
+    if (this.defaultBehavior === "approach") {
+      const approachEnemies = Array.isArray(ctx.enemies)
+        ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
+        : [];
+      const livingEnemy = approachEnemies.find(e => !e.hp || e.hp.current > 0);
+      if (livingEnemy) {
+        return {
+          action: "moveToward",
+          target: livingEnemy.name,
+          desiredRange: 5,
+          endTurn: true,
+          intentNarration: `${input.combatantName} moves toward ${livingEnemy.name}!`,
+        } satisfies AiDecision;
+      }
+    }
+
+    // Flee behavior: move away from enemies
+    if (this.defaultBehavior === "flee") {
+      // Find nearest enemy to flee from
+      const enemies = Array.isArray(ctx.enemies) ? ctx.enemies as Array<{ name: string }> : [];
+      const fleeTarget = enemies[0]?.name;
+      if (fleeTarget) {
+        return {
+          action: "moveAwayFrom",
+          target: fleeTarget,
+          intentNarration: `${input.combatantName} darts away from ${fleeTarget}!`,
+        };
+      }
+      // Fallback: no enemies found, just end turn
+      return {
+        action: "endTurn",
+        intentNarration: `${input.combatantName} holds position.`,
+      };
+    }
+
+    // CastSpell behavior: pick the first available spell from combatant context
+    if (this.defaultBehavior === "castSpell") {
+      const combatant = ctx.combatant as Record<string, unknown> | undefined;
+      const spells = Array.isArray(combatant?.spells) ? combatant!.spells as Array<{ name: string; level?: number }> : [];
+
+      if (spells.length > 0) {
+        const spell = spells[0]!;
+        return {
+          action: "castSpell",
+          spellName: spell.name,
+          spellLevel: typeof spell.level === "number" ? spell.level : 1,
+          intentNarration: `${input.combatantName} casts ${spell.name}!`,
+        };
+      }
+      // No spells available — fall through to attack
+    }
     
     // Find an enemy to attack from enemies array
     const enemies = Array.isArray(ctx.enemies) 
-      ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }> 
+      ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number }; concentrationSpell?: string }> 
       : undefined;
     
     // Get available attacks from combatant info
@@ -668,11 +891,13 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
       }
     }
     
-    // Get target name - first living enemy
+    // Get target name - prefer concentration casters (break their zone spells)
     let targetName: string | undefined;
     if (enemies && enemies.length > 0) {
-      const livingEnemy = enemies.find(e => !e.hp || e.hp.current > 0);
-      targetName = livingEnemy?.name;
+      const livingEnemies = enemies.filter(e => !e.hp || e.hp.current > 0);
+      // Prioritize concentration casters — attacking them can break zone spells
+      const concentrator = livingEnemies.find(e => e.concentrationSpell);
+      targetName = (concentrator ?? livingEnemies[0])?.name;
     }
     
     // Get attack name
@@ -693,8 +918,9 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
       action: "attack",
       target: targetName,
       attackName: attackName,
+      bonusAction: this.defaultBonusAction,
       intentNarration: `${input.combatantName} attacks ${targetName} with ${attackName}!`,
-    };
+    } satisfies AiDecision;
   }
 }
 

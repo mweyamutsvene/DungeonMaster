@@ -1,0 +1,56 @@
+{
+  "name": "Intent: Query Tactical",
+  "description": "LLM recognizes battlefield/positioning questions as query with subject=tactical",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'how far is the goblin from me?'",
+      "input": {
+        "text": "how far is the goblin from me?",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "query",
+        "subject": "tactical",
+        "promptSnapshot": "query-tactical"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'how far away is the goblin?'",
+      "input": {
+        "text": "how far away is the goblin?",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "query",
+        "subject": "tactical"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'who is closest to me?'",
+      "input": {
+        "text": "who is closest to me?",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [
+            { "id": "mon-001", "name": "Goblin Warrior" },
+            { "id": "mon-002", "name": "Orc Brute" }
+          ]
+        }
+      },
+      "expect": {
+        "kind": "query",
+        "subject": "tactical"
+      }
+    }
+  ]
+}

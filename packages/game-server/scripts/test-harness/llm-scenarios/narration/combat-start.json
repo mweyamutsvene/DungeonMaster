@@ -1,0 +1,38 @@
+{
+  "name": "Narration: Combat Start",
+  "description": "Narration for combat beginning describes initiative without inventing outcomes",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate combat starting with initiative results",
+      "input": {
+        "events": [
+          {
+            "type": "combatStarted",
+            "payload": {
+              "initiativeOrder": [
+                { "name": "Thorin Ironfist", "initiative": 18 },
+                { "name": "Goblin Warrior", "initiative": 14 }
+              ],
+              "round": 1
+            }
+          }
+        ],
+        "storyFramework": {
+          "opening": "A fighter encounters a goblin blocking the tunnel.",
+          "arc": "Combat breaks out in the narrow passage.",
+          "ending": "One side will prevail.",
+          "checkpoints": []
+        }
+      },
+      "expect": {
+        "containsAny": ["combat", "battle", "fight", "initiative", "Thorin", "begin", "start", "engage"],
+        "doesNotContain": ["kills", "dies", "victory", "defeated", "dead"],
+        "maxLength": 500,
+        "minLength": 10,
+        "promptSnapshot": "combat-start"
+      }
+    }
+  ]
+}

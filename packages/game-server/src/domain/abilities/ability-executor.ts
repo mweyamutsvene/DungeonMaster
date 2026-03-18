@@ -5,8 +5,39 @@
  * Executors are registered in the application layer and handle the full lifecycle of ability execution.
  */
 
-import type { Combat } from "../combat/combat.js";
-import type { Creature } from "../entities/creatures/creature.js";
+// ─── Narrow protocol interfaces ────────────────────────────────────────
+// Replace concrete Creature / Combat class requirements with minimal
+// interfaces that match what executors **actually** use.  The real domain
+// classes satisfy these structurally — no adapters needed for them.
+
+/**
+ * Minimal actor interface that ability executors actually need.
+ * Both the domain `Creature` class and tabletop adapters satisfy this.
+ */
+export interface AbilityActor {
+  getId(): string;
+  getName(): string;
+  getCurrentHP(): number;
+  getMaxHP(): number;
+  getSpeed(): number;
+  modifyHP(amount: number): { actualChange: number; [key: string]: unknown };
+}
+
+/**
+ * Minimal combat-context interface that ability executors actually need.
+ * Both the domain `Combat` class and tabletop adapters satisfy this.
+ */
+export interface AbilityCombatContext {
+  hasUsedAction(creatureId: string, actionType: string): boolean;
+  getRound(): number;
+  getTurnIndex(): number;
+  addEffect(creatureId: string, effect: any): void;
+  getPosition(creatureId: string): { x: number; y: number; elevation?: number } | undefined;
+  setPosition(creatureId: string, pos: { x: number; y: number; elevation?: number }): void;
+  getMovementState?(creatureId: string): any;
+  initializeMovementState?(creatureId: string, pos: any, speed: number): void;
+  setJumpMultiplier?(creatureId: string, multiplier: number): void;
+}
 
 /**
  * Context provided to ability executors containing all information needed for execution.
@@ -19,16 +50,16 @@ export interface AbilityExecutionContext {
   encounterId: string;
   
   /** The creature using the ability */
-  actor: Creature;
+  actor: AbilityActor;
   
   /** Combat instance (for action economy, positioning, etc.) */
-  combat: Combat;
+  combat: AbilityCombatContext;
   
   /** Ability ID being executed (e.g., "monster:bonus:nimble-escape") */
   abilityId: string;
   
   /** Optional target creature (for targeted abilities) */
-  target?: Creature;
+  target?: AbilityActor;
   
   /** Optional parameters from LLM decision (e.g., choice selection) */
   params?: Record<string, unknown>;

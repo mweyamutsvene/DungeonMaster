@@ -1,0 +1,117 @@
+{
+  "name": "Weapon Mastery: Slow (Longbow)",
+  "description": "A Fighter with a Longbow (Slow mastery) hits a target. The target should receive the Slowed condition (speed reduced by 10ft).",
+  "setup": {
+    "character": {
+      "name": "Archer Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 18,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Orc Scout",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Javelin",
+              "kind": "ranged",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I shoot the orc with my longbow" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Orc Scout with my longbow" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Roll of 15 + 7 = 22 vs AC 13 = HIT. Slow mastery triggers on hit.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "Damage roll: 5 + 4 = 9 damage. Slow mastery: target gets Slowed condition.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Orc should have Slowed condition from Slow mastery (speed reduced by 10ft).",
+      "expect": {
+        "monsterConditions": { "name": "Orc Scout", "hasConditions": ["Slowed"] }
+      }
+    }
+  ]
+}

@@ -32,13 +32,20 @@ function rollOne(rand: () => number, sides: number): number {
 }
 
 export class SeededDiceRoller implements DiceRoller {
-  private readonly rand: () => number;
+  private rand: () => number;
+  private readonly seed: number;
 
   public constructor(seed: number) {
     if (!Number.isInteger(seed)) {
       throw new Error("Seed must be an integer");
     }
+    this.seed = seed;
     this.rand = mulberry32(seed);
+  }
+
+  /** Reset the RNG back to its initial seed, reproducing the same sequence. */
+  public reset(): void {
+    this.rand = mulberry32(this.seed);
   }
 
   public d20(modifier = 0): DiceRoll {
@@ -56,6 +63,32 @@ export class SeededDiceRoller implements DiceRoller {
     const rolls: number[] = [];
     for (let i = 0; i < count; i++) {
       rolls.push(rollOne(this.rand, sides));
+    }
+
+    const total = rolls.reduce((sum, r) => sum + r, 0) + modifier;
+    return { total, rolls };
+  }
+}
+
+/**
+ * Production dice roller using crypto-quality randomness via Math.random().
+ */
+export class RandomDiceRoller implements DiceRoller {
+  public d20(modifier = 0): DiceRoll {
+    return this.rollDie(20, 1, modifier);
+  }
+
+  public rollDie(sides: number, count = 1, modifier = 0): DiceRoll {
+    if (!Number.isInteger(count) || count < 1) {
+      throw new Error("Die count must be an integer >= 1");
+    }
+    if (!Number.isInteger(modifier)) {
+      throw new Error("Modifier must be an integer");
+    }
+
+    const rolls: number[] = [];
+    for (let i = 0; i < count; i++) {
+      rolls.push(rollOne(() => Math.random(), sides));
     }
 
     const total = rolls.reduce((sum, r) => sum + r, 0) + modifier;

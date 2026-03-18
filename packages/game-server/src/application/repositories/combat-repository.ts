@@ -8,7 +8,7 @@ import type {
 export interface ICombatRepository {
   createEncounter(
     sessionId: string,
-    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue },
+    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue; surprise?: JsonValue },
   ): Promise<CombatEncounterRecord>;
 
   listEncountersBySession(sessionId: string): Promise<CombatEncounterRecord[]>;
@@ -17,7 +17,7 @@ export interface ICombatRepository {
 
   updateEncounter(
     id: string,
-    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData">>,
+    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData" | "surprise" | "battlePlans">>,
   ): Promise<CombatEncounterRecord>;
 
   listCombatants(encounterId: string): Promise<CombatantStateRecord[]>;
@@ -52,4 +52,8 @@ export interface ICombatRepository {
   findActiveEncounter(sessionId: string): Promise<CombatEncounterRecord | null>;
   findById(encounterId: string): Promise<CombatEncounterRecord | null>;
   startCombat(encounterId: string, initiatives: Record<string, number>): Promise<CombatEncounterRecord>;
+
+  // Battle plan persistence
+  getBattlePlan(encounterId: string, faction: string): Promise<JsonValue | null>;
+  updateBattlePlan(encounterId: string, faction: string, plan: JsonValue): Promise<void>;
 }

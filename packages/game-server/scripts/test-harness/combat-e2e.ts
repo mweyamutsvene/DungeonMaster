@@ -34,17 +34,27 @@ const BASE_URL = `http://localhost:${PORT}`;
 const args = process.argv.slice(2);
 const scenarioArg = args.find((a) => a.startsWith("--scenario="));
 const runAll = args.includes("--all");
-const scenarioName = scenarioArg?.split("=")[1] ?? "happy-path";
+const scenarioName = scenarioArg?.split("=")[1] ?? "core/happy-path";
 const verbose = args.includes("--verbose") || args.includes("-v");
 const detailed = args.includes("--detailed") || args.includes("-d");
 
-// Get all available scenarios
+// Get all available scenarios (supports subfolder organization)
 function getAllScenarioNames(): string[] {
   const scenariosDir = path.join(import.meta.dirname, "scenarios");
-  const files = fs.readdirSync(scenariosDir);
-  return files
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => f.replace(".json", ""));
+  const names: string[] = [];
+
+  function scanDir(dir: string, prefix: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        scanDir(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name);
+      } else if (entry.name.endsWith(".json")) {
+        names.push(prefix ? `${prefix}/${entry.name.replace(".json", "")}` : entry.name.replace(".json", ""));
+      }
+    }
+  }
+
+  scanDir(scenariosDir, "");
+  return names.sort();
 }
 
 async function main() {
@@ -92,6 +102,13 @@ async function main() {
       // Clear repos between scenarios
       clearAllRepos(repos);
       
+      // Reset dice roller to ensure deterministic results per-scenario
+      diceRoller.reset();
+      
+      // Reset AI behavior to default for each scenario
+      aiDecisionMaker.setDefaultBehavior("attack");
+      aiDecisionMaker.setDefaultBonusAction(undefined);
+      
       console.log(`📋 Loading scenario: ${name}\n`);
 
       let scenario: TestScenario;
@@ -107,7 +124,13 @@ async function main() {
       console.log(`🎯 Running: ${scenario.name}\n`);
       console.log(`   ${scenario.description ?? ""}\n`);
 
-      const result = await runScenario(scenario, BASE_URL, { verbose, detailed });
+      // Create AI configuration callback
+      const configureAi = (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide"; defaultBonusAction?: string }) => {
+        aiDecisionMaker.setDefaultBehavior(config.defaultBehavior);
+        aiDecisionMaker.setDefaultBonusAction(config.defaultBonusAction);
+      };
+
+      const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi });
       results.push({ name, success: result.success, passedSteps: result.passedSteps, totalSteps: result.totalSteps });
 
       // Print results for this scenario

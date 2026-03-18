@@ -1,0 +1,137 @@
+{
+  "name": "Monk Deflect Attacks: Reduce Incoming Damage",
+  "description": "A level 5 Monk with Deflect Attacks (Monk 3+ feature) faces a monster attack. When the monster attacks and would hit, the server detects Deflect Attacks eligibility and pauses for player reaction. Player uses Deflect Attacks to reduce damage by 1d10 + DEX mod + Monk level. AC is kept low to ensure the attack always 'would hit' to guarantee the reaction triggers.",
+  "setup": {
+    "character": {
+      "name": "Ren the Swift",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 5,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare to defend" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative to ensure Monk goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "End turn without acting - monster will attack on its turn",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster to attack and trigger Deflect Attacks reaction prompt",
+      "type": "waitForReaction",
+      "input": { "reactionType": "deflect_attacks" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Deflect Attacks reaction - reduces damage by 1d10 + DEX mod (3) + Monk level (5)",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for monster turn to finish and control to return to player",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "Verify monk survived - damage was reduced by Deflect Attacks (1d10 + 3 + 5 = min 9, max 18). Max monster damage is 1d8+2=10, so damage may be fully deflected.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 1, "max": 38 }
+      }
+    },
+    {
+      "comment": "Monk attacks the skeleton on their turn to verify they can still act",
+      "type": "action",
+      "input": { "text": "attack Skeleton Warrior" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 13 - hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    }
+  ]
+}

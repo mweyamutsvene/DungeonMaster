@@ -1,0 +1,172 @@
+{
+  "name": "Cleric Turn Undead: Channel Divinity AoE vs Undead",
+  "description": "A Cleric uses Turn Undead to force Wisdom saves on nearby Undead. Only Undead monsters within 30ft are targeted; non-undead are unaffected. Tests Channel Divinity spend, AoE targeting, save resolution, and Frightened condition application.",
+  "setup": {
+    "character": {
+      "name": "Brother Aldric",
+      "className": "Cleric",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 12
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Sacred Flame", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Mace",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Channel Divinity", "description": "2 uses per short rest at level 5" },
+          { "name": "Turn Undead", "description": "Each Undead within 30 ft must make a WIS save or become Frightened" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "name": "Skeleton Warrior",
+          "type": "Undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 1,
+            "charisma": 5
+          },
+          "maxHp": 13,
+          "hp": 13,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "proficiencyBonus": 2,
+          "saveProficiencies": [],
+          "actions": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Ambusher",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "name": "Goblin Ambusher",
+          "type": "Humanoid",
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "actions": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I channel my holy power against the undead!" },
+      "comment": "Start combat — server asks for initiative roll",
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to ensure Cleric acts first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "turn undead" },
+      "comment": "Cleric uses Turn Undead — Skeleton (Undead, WIS 8, -1 mod) must save DC 14; Goblin (Humanoid) is unaffected",
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Skeleton should be Frightened (WIS 1, -5 mod → d20(18)-5=13 < DC 14 → fails)",
+      "expect": {
+        "monsterConditions": {
+          "name": "Skeleton Warrior",
+          "hasConditions": ["Frightened"]
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin is not Undead so should have no conditions from Turn Undead",
+      "expect": {
+        "monsterConditions": {
+          "name": "Goblin Ambusher",
+          "doesNotHaveConditions": ["Frightened"]
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Channel Divinity pool should drop from 2 to 1 after one use",
+      "expect": {
+        "characterResource": {
+          "poolName": "channelDivinity",
+          "current": 1
+        }
+      }
+    }
+  ]
+}

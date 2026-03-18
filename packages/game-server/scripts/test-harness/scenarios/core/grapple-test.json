@@ -1,0 +1,123 @@
+{
+  "name": "Grapple: Fighter restrains Goblin",
+  "description": "A Fighter uses the Grapple option of Unarmed Strike to restrain a Goblin. Tests the contested Athletics check and Grappled condition application.",
+  "setup": {
+    "character": {
+      "name": "Grimgar the Grappler",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 20,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Warhammer",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 5 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Victim",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 12,
+          "hp": 12,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "grapple Goblin Victim" },
+      "comment": "Attempt to grapple - contested STR (Athletics) vs target's STR/DEX",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "Grapple"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for monster turn (should have Grappled condition if successful)"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Victim" },
+      "comment": "Attack the grappled target - advantage due to Grappled condition",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

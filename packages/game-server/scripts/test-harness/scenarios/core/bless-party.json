@@ -1,0 +1,157 @@
+{
+  "name": "Bless Party: Multi-PC Buff",
+  "description": "A Cleric casts Bless targeting allies, buffing both party members with +1d4 on attacks and saves. Fighter attacks to exercise the buff through the tabletop attack resolution. Tests multi-target buff spell with ActiveEffect system.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Sister Miriel",
+        "className": "Cleric",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 24, "currentHp": 24, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 4 },
+          "preparedSpells": [
+            {
+              "name": "Bless",
+              "level": 1,
+              "concentration": true,
+              "effects": [
+                {
+                  "type": "bonus",
+                  "target": "attack_rolls",
+                  "diceValue": { "count": 1, "sides": 4 },
+                  "duration": "concentration",
+                  "appliesTo": "allies"
+                },
+                {
+                  "type": "bonus",
+                  "target": "saving_throws",
+                  "diceValue": { "count": 1, "sides": 4 },
+                  "duration": "concentration",
+                  "appliesTo": "allies"
+                }
+              ]
+            }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee", "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bron the Bold",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 12, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 14, "constitution": 15,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 30, "currentHp": 30, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Zombie",
+        "position": { "x": 17, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13, "dexterity": 6, "constitution": 16,
+            "intelligence": 3, "wisdom": 6, "charisma": 5
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 8, "speed": 20,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Slam", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "comment": "Cleric initiates and rolls initiative (Bron auto-rolls)",
+      "type": "initiate",
+      "actor": "Sister Miriel",
+      "input": { "text": "I call upon divine blessing for the party" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Sister Miriel",
+      "input": { "text": "18" },
+      "comment": "Miriel rolls 18 (goes first). Bron and Zombie auto-roll."
+    },
+    {
+      "comment": "Cleric casts Bless targeting allies — both PCs get +1d4 on attacks and saves",
+      "type": "action",
+      "actor": "Sister Miriel",
+      "input": { "text": "cast Bless" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "Cleric ends turn",
+      "type": "endTurn",
+      "actor": "Sister Miriel"
+    },
+    {
+      "comment": "Wait for Fighter's turn",
+      "type": "waitForTurn",
+      "actor": "Bron the Bold"
+    },
+    {
+      "comment": "Fighter attacks Zombie — Bless +1d4 should be applied to attack roll",
+      "type": "action",
+      "actor": "Bron the Bold",
+      "input": { "text": "I attack the Zombie with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Bron the Bold",
+      "input": { "text": "10" },
+      "expect": { "hit": true, "requiresPlayerInput": true },
+      "comment": "10 + 5 (attack bonus) + 1d4 (Bless) should easily hit AC 8"
+    },
+    {
+      "type": "rollResult",
+      "actor": "Bron the Bold",
+      "input": { "text": "6" },
+      "comment": "Damage: 6 + 3 = 9 slashing"
+    },
+    {
+      "comment": "Zombie should have taken damage",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Zombie", "max": 29 } }
+    }
+  ]
+}

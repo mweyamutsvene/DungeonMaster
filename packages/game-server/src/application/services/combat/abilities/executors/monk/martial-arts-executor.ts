@@ -4,9 +4,14 @@
  * Handles the Monk's "Martial Arts" class feature (level 1+).
  * When you use the Attack action with an unarmed strike or monk weapon on your turn,
  * you can make one unarmed strike as a bonus action.
+ * 
+ * Supports two modes:
+ * - AI mode (default): Auto-rolls attack and returns results
+ * - Tabletop mode (params.tabletopMode: true): Returns pendingAction for player dice rolls
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
 
 /**
  * Executor for Martial Arts (Monk class feature).
@@ -55,7 +60,7 @@ export class MartialArtsExecutor implements AbilityExecutor {
     }
 
     // Validate level requirement (Monk level 1+)
-    const level = (actorRef as any).level || 1;
+    const level = (params?.level as number) || (actorRef as any).level || 1;
     if (level < 1) {
       return {
         success: false,
@@ -73,7 +78,12 @@ export class MartialArtsExecutor implements AbilityExecutor {
       };
     }
 
-    // Validate that Attack action was used this turn
+    // **TABLETOP MODE**: Return pending action for player dice rolls
+    if (params?.tabletopMode) {
+      return this.executeTabletopMode(context, actorRef, targetRef, level, params);
+    }
+
+    // Validate that Attack action was used this turn (only in AI mode)
     if (!context.combat.hasUsedAction(actor.getId(), 'Attack')) {
       return {
         success: false,
@@ -113,5 +123,59 @@ export class MartialArtsExecutor implements AbilityExecutor {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Tabletop mode: Build pending action for player dice rolls (1 unarmed strike)
+   */
+  private async executeTabletopMode(
+    _context: AbilityExecutionContext,
+    actorRef: any,
+    targetRef: any,
+    level: number,
+    params: Record<string, unknown> | undefined,
+  ): Promise<AbilityExecutionResult> {
+    const actorId = actorRef.characterId || actorRef.monsterId || actorRef.npcId;
+    const targetId = targetRef.monsterId || targetRef.characterId || targetRef.npcId;
+    const targetName = params?.targetName || 'target';
+    const className = params?.className || '';
+
+    // Get unarmed strike stats from sheet
+    const sheet = params?.sheet || {};
+    const unarmedStats = ClassFeatureResolver.getUnarmedStrikeStats(sheet as any, className as string, level);
+
+    const pendingAction = {
+      type: "ATTACK",
+      timestamp: new Date(),
+      actorId,
+      attacker: actorId,
+      target: targetId,
+      targetId,
+      weaponSpec: {
+        name: "Martial Arts (Unarmed Strike)",
+        kind: "melee" as const,
+        attackBonus: unarmedStats.attackBonus,
+        damage: {
+          diceCount: 1,
+          diceSides: unarmedStats.damageDie,
+          modifier: unarmedStats.damageModifier,
+        },
+        damageFormula: unarmedStats.damageFormula,
+      },
+      bonusAction: "martial-arts",
+    };
+
+    return {
+      success: true,
+      summary: `Roll a d20 for attack against ${targetName} (no modifiers; server applies bonuses).`,
+      requiresPlayerInput: true,
+      pendingAction,
+      rollType: "attack",
+      diceNeeded: "d20",
+      data: {
+        abilityName: 'Martial Arts',
+        target: targetName,
+      },
+    };
   }
 }

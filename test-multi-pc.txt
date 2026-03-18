@@ -1,0 +1,78 @@
+﻿
+> @dungeonmaster/game-server@0.1.0 test:e2e:combat:mock C:\Users\tommy\Development\DungeonMaster\packages\game-server
+> tsx scripts/test-harness/combat-e2e.ts "--scenario=core/heal-unconscious-ally" "--verbose"
+
+≡ƒÄ▓ DungeonMaster Combat E2E Test Harness
+=========================================
+
+Γ£à Server started on http://localhost:3099
+
+≡ƒôï Loading scenario: core/heal-unconscious-ally
+
+≡ƒÄ» Running: Multi-PC: Heal Unconscious Ally
+
+   Two PCs fight a goblin. Valeria (Fighter, 3 HP) gets KO'd by the goblin. Brother Aldric (Cleric) casts Cure Wounds to revive her. Tests multi-PC initiative, cross-PC healing, revival from 0 HP.
+
+
+[1mΓöüΓöüΓöü Step 1: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating game session[0m
+   [32mΓ£ô[0m Session created: rGyaldwqJj3ZrBuKQ5aVg
+
+[1mΓöüΓöüΓöü Step 2: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating character(s), monsters, and NPCs[0m
+   [32mΓ£ô[0m Character created: Valeria (rR6CdUt_CYC46KkAL6xwH)
+   [32mΓ£ô[0m Character created: Brother Aldric (LKWzZm3-beFiORKqfD8li)
+   [32mΓ£ô[0m Monster created: Goblin Brute (sHE_r159ZJTVM1_y1joNw)
+
+[1mΓöüΓöüΓöü Step 3: INITIATE ΓöüΓöüΓöü[0m
+   [90mAldric (Cleric) initiates ΓÇö he rolls initiative[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mTensions rise as battle is about to begin. Roll for initiative![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Roll for initiative! (d20 + your DEX modifier)
+   [32mΓ£ô[0m rollType=initiative, requiresPlayerInput=true
+
+[1mΓöüΓöüΓöü Step 4: ROLLRESULT ΓöüΓöüΓöü[0m
+   [90mVery low initiative (1+0 DEX=1) so Aldric goes last. Valeria auto-rolls. Goblin auto-rolls. Expected order: Valeria > Goblin > Aldric.[0m
+=== ROLL RESULT START ===
+[RollStateMachine] Multi-PC: Added "Valeria" with initiative 15 (roll=13, dex=2, alert=0)
+
+   [1m[36m≡ƒôû Narration:[0m [3mCombat begins! Valeria seizes the initiative.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Combat started! Valeria's turn (Initiative: 15).
+   [32mΓ£ô[0m rollType=initiative, hit=undefined, actionComplete=undefined
+      [36mCaptured encounterId: 3iSVzGUx8iSelEf9m_lR7[0m
+
+[1mΓöüΓöüΓöü Step 5: ENDTURN ΓöüΓöüΓöü[0m
+   [90mValeria goes first (highest init via auto-roll). She ends turn immediately.[0m
+[AiActionExecutor] Executing attack action: { target: 'Valeria', attackName: 'Greatclub' }
+[AiActionExecutor] Target may have reactions (Shield/Deflect) - using two-phase attack flow
+[AiActionExecutor] Two-phase flow: d20=11 + 8 = 19
+[AiActionExecutor] Two-phase flow: hit with no reaction, resolving damage
+   [32mΓ£ô[0m Turn ended - monster's turn begins...
+
+[1mΓöüΓöüΓöü Step 6: WAITFORTURN ΓöüΓöüΓöü[0m
+   [90mWait through goblin's turn. Goblin attacks Valeria (highest init = first in enemies list). With 3 HP, AC 8, goblin +8 attack / 2d8+4 damage ΓåÆ guaranteed KO.[0m
+      [90mWaiting for Brother Aldric player turn (timeout: 5000ms)...[0m
+      [90m[poll 1] status=200[0m
+      [90mKeys: encounterId, status, activeCombatantId, combatants, map, lastMovePath[0m
+      [90mCombatants: Valeria(Character, HP:0/28), Goblin Brute(Monster, HP:50/50), Brother Aldric(Character, HP:24/24)[0m
+      [36mActive: Brother Aldric (combatantId: BQF8WO1NuN0ShpV1nx6WQ)[0m
+      [90mmovement: {"speed":30,"dashed":false,"movementSpent":false}[0m
+      [90mLooking for characterId: rR6CdUt_CYC46KkAL6xwH[0m
+      [90mActive is Brother Aldric but waiting for Brother Aldric...[0m
+      [90m[poll 2] status=200[0m
+      [90mKeys: encounterId, status, activeCombatantId, combatants, map, lastMovePath[0m
+      [90mCombatants: Valeria(Character, HP:0/28), Goblin Brute(Monster, HP:50/50), Brother Aldric(Character, HP:24/24)[0m
+      [90mActive is Brother Aldric but waiting for Brother Aldric...[0m
+      [90m[poll 3] status=200[0m
+      [90mKeys: encounterId, status, activeCombatantId, combatants, map, lastMovePath[0m
+      [90mCombatants: Valeria(Character, HP:0/28), Goblin Brute(Monster, HP:50/50), Brother Aldric(Character, HP:24/24)[0m
+      [90mActive is Brother Aldric but waiting for Brother Aldric...[0m
+
+=========================================
+Γ¥î FAILED: 5/10 steps
+
+   Failed at step 6:
+   Timeout waiting for player turn after 5000ms (polled 46 times)
+=========================================
+
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.

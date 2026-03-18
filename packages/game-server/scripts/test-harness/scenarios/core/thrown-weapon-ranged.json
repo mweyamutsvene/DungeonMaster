@@ -1,0 +1,159 @@
+{
+  "name": "Thrown: Dart (ranged weapon with Thrown property)",
+  "description": "A Monk with Darts and a Quarterstaff tests thrown weapon scenarios: (1) explicit 'throw dart' resolves as ranged attack with correct range, (2) 'throw quarterstaff' fails because Quarterstaff lacks Thrown property, (3) 'throw rock' fails because rock isn't in inventory.",
+  "setup": {
+    "character": {
+      "name": "Kai Stormfist",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 36,
+        "currentHp": 36,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "bludgeoning"
+          },
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "versatileDamage": { "diceSides": 8 },
+            "damageType": "bludgeoning",
+            "properties": ["Versatile"]
+          },
+          {
+            "name": "Dart",
+            "kind": "ranged",
+            "range": "20/60",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 3 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Thrown"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 21,
+          "hp": 21,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for combat" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "throw rock at Goblin Scout" },
+      "comment": "Error: rock is not a weapon in inventory — should get validation error",
+      "expect": {
+        "error": true,
+        "errorContains": "don't have anything you can throw"
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "throw quarterstaff at Goblin Scout" },
+      "comment": "Error: Quarterstaff has Versatile but NOT Thrown — should fail",
+      "expect": {
+        "error": true,
+        "errorContains": "Thrown property"
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "throw dart at Goblin Scout" },
+      "comment": "Dart is ranged + Thrown at 15ft — within normal range (20ft). Should resolve as ranged attack.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 13 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "3 + 3 = 6 damage (1d4+3 piercing)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin took 6 damage: 21 - 6 = 15 HP",
+      "expect": {
+        "monsterHp": { "name": "Goblin Scout", "min": 15, "max": 15 }
+      }
+    }
+  ]
+}

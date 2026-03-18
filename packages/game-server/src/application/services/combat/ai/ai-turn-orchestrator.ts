@@ -24,8 +24,11 @@ import type { AbilityRegistry } from "../abilities/ability-registry.js";
 import { TwoPhaseActionService } from "../two-phase-action-service.js";
 import { nanoid } from "nanoid";
 import type { IAiDecisionMaker, AiDecision, TurnStepResult, ActorRef } from "./ai-types.js";
+import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
+import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
+import type { BattlePlanService } from "./battle-plan-service.js";
 
 /**
  * LLM-driven tactical decision-making for AI-controlled combatants.
@@ -65,8 +68,10 @@ export class AiTurnOrchestrator {
     private readonly abilityRegistry: AbilityRegistry,
     private readonly twoPhaseActions: TwoPhaseActionService,
     private readonly pendingActions: PendingActionRepository,
+    private readonly diceRoller?: DiceRoller,
     private readonly aiDecisionMaker?: IAiDecisionMaker,
     private readonly events?: IEventRepository,
+    private readonly battlePlanService?: BattlePlanService,
   ) {
     // Initialize extracted collaborators
     this.contextBuilder = new AiContextBuilder(
@@ -86,6 +91,8 @@ export class AiTurnOrchestrator {
       abilityRegistry,
       this.aiDecideReaction.bind(this),
       this.aiLog.bind(this),
+      diceRoller,
+      events,
     );
   }
 
@@ -159,8 +166,59 @@ export class AiTurnOrchestrator {
       return false;
     }
 
-    // Skip dead combatants entirely
+    // Handle combatants at 0 HP
     if (currentCombatant.hpCurrent <= 0) {
+      // Check if this is a dying CHARACTER (needs interactive death save)
+      if (currentCombatant.combatantType === "Character" && currentCombatant.characterId) {
+        const resources = (currentCombatant.resources ?? {}) as Record<string, unknown>;
+        const deathSaves = resources.deathSaves as { successes: number; failures: number } | undefined;
+        const isStabilized = resources.stabilized === true;
+        const failures = deathSaves?.failures ?? 0;
+
+        // Character is dying (not yet dead or stabilized) — set up death save pending action
+        if (failures < 3 && !isStabilized) {
+          // Set DEATH_SAVE pending action so the tabletop flow can prompt the player
+          await this.combat.setPendingAction(encounterId, {
+            type: "DEATH_SAVE",
+            timestamp: new Date(),
+            actorId: currentCombatant.characterId,
+            encounterId,
+            currentDeathSaves: deathSaves ?? { successes: 0, failures: 0 },
+          });
+
+          if (this.events) {
+            let name = "Character";
+            const c = await this.characters.getById(currentCombatant.characterId);
+            name = c?.name ?? "Character";
+
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "NarrativeText",
+              payload: { encounterId, text: `${name} is dying! Death saving throw required.` },
+            });
+          }
+
+          // Return false to stop the AI loop — player needs to roll death save
+          return false;
+        }
+
+        // Character is stabilized at 0 HP — skip their turn
+        if (isStabilized) {
+          if (this.events) {
+            const c = await this.characters.getById(currentCombatant.characterId);
+            const name = c?.name ?? "Character";
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "NarrativeText",
+              payload: { encounterId, text: `${name} is stabilized but unconscious.` },
+            });
+          }
+          await this.combatService.nextTurn(sessionId, { encounterId, skipDeathSaveAutoRoll: true });
+          return true;
+        }
+      }
+
+      // Dead combatant (monster/NPC at 0 HP, or character with 3 failures) — skip
       if (this.events) {
         const key = `${encounterId}:${currentCombatant.id}`;
         if (!this.downedSkipNarrated.has(key)) {
@@ -185,7 +243,33 @@ export class AiTurnOrchestrator {
           });
         }
       }
-      await this.combatService.nextTurn(sessionId, { encounterId });
+      await this.combatService.nextTurn(sessionId, { encounterId, skipDeathSaveAutoRoll: true });
+      return true;
+    }
+
+    // Stunned/Incapacitated combatants cannot act — skip their turn
+    const combatantConditions: string[] = readConditionNames(currentCombatant.conditions).map(c => c.toLowerCase());
+    if (combatantConditions.includes("stunned") || combatantConditions.includes("incapacitated") || combatantConditions.includes("paralyzed")) {
+      const condName = combatantConditions.find(c => ["stunned", "incapacitated", "paralyzed"].includes(c)) ?? "incapacitated";
+      if (this.events) {
+        let name = "Combatant";
+        if (currentCombatant.combatantType === "Monster" && currentCombatant.monsterId) {
+          const m = await this.monsters.getById(currentCombatant.monsterId);
+          name = m?.name ?? "Monster";
+        } else if (currentCombatant.combatantType === "NPC" && currentCombatant.npcId) {
+          const n = await this.npcs.getById(currentCombatant.npcId);
+          name = n?.name ?? "NPC";
+        } else if (currentCombatant.combatantType === "Character" && currentCombatant.characterId) {
+          const c = await this.characters.getById(currentCombatant.characterId);
+          name = c?.name ?? "Character";
+        }
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "NarrativeText",
+          payload: { encounterId, text: `${name} is ${condName} and cannot act!` },
+        });
+      }
+      await this.combatService.nextTurn(sessionId, { encounterId, skipDeathSaveAutoRoll: true });
       return true;
     }
 
@@ -201,34 +285,37 @@ export class AiTurnOrchestrator {
       turn: encounter.turn,
     });
 
-    await this.executeAiTurn(sessionId, encounter, currentCombatant, combatants);
+    const turnCompleted = await this.executeAiTurn(sessionId, encounter, currentCombatant, combatants);
     this.aiLog("[AiTurnOrchestrator] AI turn completed");
-    return true;
+    
+    // If AI turn paused for player input (e.g., OA), return false to stop the loop
+    return turnCompleted;
   }
 
   /**
    * Execute a single AI-controlled combatant turn using LLM as the "brain"
    * Implements feedback loop: LLM decides action → server executes → LLM sees results → repeats until turn ends
+   * @returns true if turn completed normally, false if paused awaiting player input
    */
   private async executeAiTurn(
     sessionId: string,
     encounter: CombatEncounterRecord,
     aiCombatant: CombatantStateRecord,
     allCombatants: CombatantStateRecord[],
-  ): Promise<void> {
+  ): Promise<boolean> {
     const aiCombatantId = aiCombatant.id;
 
     // Load the entity based on type
     const { entityName, entityData } = await this.loadEntity(aiCombatant);
     if (!entityData) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
-      return;
+      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
+      return true;
     }
 
     // If no AI decision maker available, fall back to simple behavior
     if (!this.aiDecisionMaker) {
       await this.fallbackSimpleTurn(sessionId, encounter, entityData, allCombatants);
-      return;
+      return true;
     }
 
     // Execute turn loop: LLM decides actions until it explicitly ends turn
@@ -236,10 +323,25 @@ export class AiTurnOrchestrator {
     const turnResults: TurnStepResult[] = [];
     let turnComplete = false;
     let iterations = 0;
+    let consecutiveFailures = 0;
     const maxIterations = 5; // Safety limit
+    const maxConsecutiveFailures = 2; // End turn after 2 consecutive failures
 
     // Load recent narrative history
     const recentNarrative = await this.loadRecentNarrative(sessionId, encounter.id);
+
+    // Load or generate faction battle plan (once per turn, reused across steps)
+    let battlePlanView: Awaited<ReturnType<typeof this.contextBuilder.build>>["battlePlan"];
+    if (this.battlePlanService) {
+      try {
+        const plan = await this.battlePlanService.ensurePlan(encounter.id, encounter, aiCombatant, allCombatants);
+        if (plan) {
+          battlePlanView = this.battlePlanService.getPlanViewForCombatant(plan, entityName);
+        }
+      } catch (err) {
+        this.aiLog("[AiTurnOrchestrator] Battle plan generation failed, continuing without plan:", err);
+      }
+    }
 
     // Mutable snapshot for iteration
     let currentCombatants = allCombatants;
@@ -257,6 +359,7 @@ export class AiTurnOrchestrator {
         recentNarrative,
         actionHistory,
         turnResults,
+        battlePlanView,
       );
 
       // Get AI decision
@@ -352,12 +455,21 @@ export class AiTurnOrchestrator {
             text: `[Action Failed] ${result.summary}`,
           },
         });
+        
+        // Track consecutive failures to avoid infinite loops
+        consecutiveFailures++;
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+          this.aiLog("[AiTurnOrchestrator] Too many consecutive failures, ending turn");
+          break;
+        }
+      } else {
+        consecutiveFailures = 0; // Reset on success
       }
 
       // If action is awaiting player input (e.g., player OA roll), pause AI turn
       if (result.data?.awaitingPlayerInput) {
         this.aiLog("[AiTurnOrchestrator] Pausing turn - awaiting player input for opportunity attack");
-        return; // Do NOT call nextTurn() - turn pauses until player responds
+        return false; // Do NOT call nextTurn() - turn pauses until player responds
       }
 
       // Refresh combatant snapshots
@@ -376,7 +488,8 @@ export class AiTurnOrchestrator {
     }
 
     // Advance to next turn
-    await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
+    await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
+    return true;
   }
 
   /**
@@ -441,7 +554,7 @@ export class AiTurnOrchestrator {
   ): Promise<void> {
     // Only works for monsters with stat blocks
     if (!entityData.statBlock) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
+      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
       return;
     }
 
@@ -450,7 +563,7 @@ export class AiTurnOrchestrator {
     );
 
     if (alivePlayerCombatants.length === 0) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
+      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
       return;
     }
 
@@ -459,7 +572,7 @@ export class AiTurnOrchestrator {
     const attacks = (statBlock.actions as Array<{ name: string }>) || [];
 
     if (attacks.length === 0) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
+      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
       return;
     }
 
@@ -467,28 +580,43 @@ export class AiTurnOrchestrator {
       const monsterId = entityData.id as string;
       const monsterName = entityData.name as string;
 
-      const result = await this.actionService.attack(sessionId, {
-        encounterId: encounter.id,
-        attacker: { type: "Monster", monsterId },
-        target: { type: "Character", characterId: target.characterId! },
-        monsterAttackName: attacks[0]!.name,
-      });
+      // Use the AI action executor which supports two-phase reactions (Shield, Deflect, damage reactions)
+      const actorRef = { type: "Monster" as const, monsterId };
+      const targetRef = { type: "Character" as const, characterId: target.characterId! };
+      const decision: AiDecision = {
+        action: "attack",
+        target: monsterName, // name placeholder — executor resolves by ref
+        attackName: attacks[0]!.name,
+      };
+
+      const result = await this.actionExecutor.executeAttack(
+        sessionId,
+        encounter.id,
+        allCombatants.find((c) => c.monsterId === monsterId) ?? allCombatants[0]!,
+        decision,
+        allCombatants,
+        actorRef,
+      );
+
+      // If awaiting player reaction, don't advance turn
+      if (result.data?.awaitingPlayerInput) {
+        return;
+      }
 
       if (this.events) {
-        const attackResult = result.result as Record<string, unknown>;
-        const hitOrMiss = attackResult.hit ? "hit" : "missed";
-        const damageData = attackResult.damage as Record<string, unknown> | undefined;
-        const damageAmount = attackResult.hit ? (damageData?.applied ?? 0) : 0;
+        const hit = result.data?.hit ?? false;
+        const damage = result.data?.damage ?? 0;
+        const hitOrMiss = hit ? "hit" : "missed";
 
         await this.events.append(sessionId, {
           id: nanoid(),
           type: "NarrativeText",
           payload: {
             encounterId: encounter.id,
-            actor: { type: "Monster", monsterId },
+            actor: actorRef,
             text:
-              (damageAmount as number) > 0
-                ? `${monsterName} attacks and ${hitOrMiss} for ${damageAmount} damage!`
+              (damage as number) > 0
+                ? `${monsterName} attacks and ${hitOrMiss} for ${damage} damage!`
                 : `${monsterName} attacks but ${hitOrMiss}!`,
           },
         });
@@ -497,7 +625,7 @@ export class AiTurnOrchestrator {
       console.error(`Fallback turn failed for ${entityData.name}:`, error);
     }
 
-    await this.combatService.nextTurn(sessionId, { encounterId: encounter.id });
+    await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
   }
 
   /**
@@ -505,7 +633,13 @@ export class AiTurnOrchestrator {
    */
   async processAllMonsterTurns(sessionId: string, encounterId: string): Promise<void> {
     let processed = true;
-    while (processed) {
+    // Guard against infinite loops (e.g., all remaining combatants are stabilized/dead)
+    // Max iterations = 2x combatant count should be enough for one full round
+    let iterations = 0;
+    const combatants = await this.combat.listCombatants(encounterId);
+    const maxIterations = Math.max(combatants.length * 2, 10);
+    while (processed && iterations < maxIterations) {
+      iterations++;
       processed = await this.processMonsterTurnIfNeeded(sessionId, encounterId);
     }
   }

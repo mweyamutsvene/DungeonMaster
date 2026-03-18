@@ -1,0 +1,140 @@
+{
+  "name": "Monk Flurry Ki Spending: Tabletop mode should deduct ki",
+  "description": "Tests that Flurry of Blows correctly spends 1 ki point in the tabletop (dice-rolling) flow. Previously, ki was only deducted in the 'completed immediately' path (AI mode) but not in the 'requiresPlayerInput' path (tabletop mode).",
+  "setup": {
+    "character": {
+      "name": "Ki Tester",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      },
+      "position": { "x": 35, "y": 10 }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 12,
+          "speed": 0,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ki should be 5/5 at start of combat",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 5, "max": 5 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Main action attack to satisfy Flurry prerequisite",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 12 - hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "flurry of blows" },
+      "comment": "Bonus Action: Flurry of Blows — should cost 1 ki",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Flurry strike 1 hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Damage for strike 1. Strike 2 auto-chains.",
+      "expect": { "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Flurry strike 2 hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "Damage for strike 2. Flurry complete.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ki should be 4/5 — Flurry costs 1 ki (BUG: currently stays at 5/5 because ki spending is skipped in tabletop path)",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4 }
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

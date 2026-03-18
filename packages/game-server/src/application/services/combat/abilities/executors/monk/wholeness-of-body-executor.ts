@@ -1,7 +1,6 @@
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
 import { hasResourceAvailable } from "../../../helpers/resource-utils.js";
 import { rollMartialArtsDie } from "../../../../../../domain/rules/martial-arts-die.js";
-import { Character } from "../../../../../../domain/entities/creatures/character.js";
 
 /**
  * Wholeness of Body (Monk Level 6 - Open Hand Subclass)
@@ -33,7 +32,7 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
     }
 
     // Validate level requirement (Monk level 6+ with Open Hand subclass)
-    const level = (actorRef as any).level || 1;
+    const level = (params?.level as number) || (actorRef as any).level || 1;
     if (level < 6) {
       return {
         success: false,
@@ -42,16 +41,17 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
       };
     }
 
-    // Validate Open Hand subclass
-    if (actorRef instanceof Character) {
-      const subclass = actorRef.getSubclass();
-      if (subclass !== 'Open Hand') {
-        return {
-          success: false,
-          summary: 'Wholeness of Body requires Open Hand subclass',
-          error: 'INVALID_SUBCLASS',
-        };
-      }
+    // Validate Open Hand subclass (type-agnostic: works for Characters, NPCs, and Monsters)
+    const sheet = params?.sheet as Record<string, unknown> | undefined;
+    const subclass = (sheet?.subclass as string)
+      || (typeof (actorRef as any).getSubclass === "function" ? (actorRef as any).getSubclass() : undefined)
+      || (params?.subclass as string | undefined);
+    if (subclass && subclass !== "Open Hand") {
+      return {
+        success: false,
+        summary: "Wholeness of Body requires Open Hand subclass",
+        error: "INVALID_SUBCLASS",
+      };
     }
 
     // Validate resources - passed via params.resources
@@ -76,11 +76,11 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
     }
 
     // Roll Martial Arts die (scales with monk level)
-    const monkLevel = (actorRef as any).level || 6;
+    const monkLevel = (params?.level as number) || (actorRef as any).level || 6;
     const martialArtsDieRoll = rollMartialArtsDie(monkLevel);
     
-    // Get Wisdom modifier
-    const wisdomScore = (actorRef as any).abilityScores?.wisdom || 10;
+    // Get Wisdom modifier from sheet (tabletop) or actorRef (AI)
+    const wisdomScore = (sheet as any)?.abilityScores?.wisdom ?? (actorRef as any).abilityScores?.wisdom ?? 10;
     const wisdomModifier = Math.floor((wisdomScore - 10) / 2);
     const healAmount = Math.max(1, martialArtsDieRoll + wisdomModifier);
 
@@ -91,16 +91,18 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
     
     // Apply healing via Creature.modifyHP()
     const healResult = actor.modifyHP(actualHealing);
+    const newHP = currentHP + (healResult.actualChange ?? actualHealing);
     
     return {
       success: true,
-      summary: `${actor.getName()} uses Wholeness of Body and regains ${healResult.actualChange} HP!`,
+      summary: `${actor.getName()} uses Wholeness of Body and regains ${healResult.actualChange ?? actualHealing} HP!`,
       data: {
         abilityName: 'Wholeness of Body',
-        healAmount: healResult.actualChange,
+        healAmount: healResult.actualChange ?? actualHealing,
         totalRoll: healAmount,
-        currentHP: actor.getCurrentHP(),
+        currentHP: newHP,
         maxHP,
+        hpUpdate: { hpCurrent: newHP },
         spendResource: { poolName: 'wholeness_of_body', amount: 1 },
       },
     };

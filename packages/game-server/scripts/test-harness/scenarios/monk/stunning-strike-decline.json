@@ -1,0 +1,116 @@
+{
+  "name": "Monk Stunning Strike: Player Declines (No Keyword in Damage Text)",
+  "description": "A level 5 Monk attacks and hits. Server offers eligibleEnhancements with stunning-strike. Player submits plain damage roll without keyword — stunning strike is NOT applied, ki is NOT spent.",
+  "setup": {
+    "character": {
+      "name": "Ren Thunderfist",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      },
+      "position": { "x": 10, "y": 10 }
+    },
+    "monsters": [
+      {
+        "name": "Stone Guardian",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 8,
+            "constitution": 12,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 60,
+          "hp": 60,
+          "armorClass": 12,
+          "speed": 20,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "saveProficiencies": [],
+          "proficiencyBonus": 2,
+          "position": { "x": 15, "y": 10 }
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Stone Guardian" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true, "rollType": "initiative" },
+      "comment": "Initiative: 18 + 3 (DEX) = 21"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Stone Guardian" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true },
+      "comment": "Normal melee attack — no stunning strike"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "stunning-strike" }]
+      },
+      "comment": "15 + 6 = 21 vs AC 12 → hit. Server offers stunning strike."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": {
+        "rollType": "damage",
+        "actionComplete": true
+      },
+      "comment": "5 + 3 = 8 damage. NO stunning strike keyword — player declines. No stunningStrike field in response."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 5 }
+      },
+      "comment": "Ki should NOT have been spent (still 5)"
+    }
+  ]
+}

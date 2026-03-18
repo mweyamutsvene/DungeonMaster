@@ -1,108 +1,7 @@
 import type { LlmProvider } from './types.js';
-import type { IAiDecisionMaker, AiDecision } from '../../application/services/combat/ai/ai-types.js';
+import type { IAiDecisionMaker, AiDecision, AiCombatContext } from '../../application/services/combat/ai/ai-types.js';
 import { extractFirstJsonObject } from './json.js';
 import { llmDebugLog } from './debug.js';
-
-export interface CombatContext {
-  combatant: {
-    name: string;
-    type: string;
-    alignment?: string;
-    cr?: number;
-    class?: string;
-    level?: number;
-    hp: {
-      current: number;
-      max: number;
-      percentage: number;
-    };
-    position?: { x: number; y: number };
-    economy?: {
-      actionSpent: boolean;
-      bonusActionSpent: boolean;
-      reactionSpent: boolean;
-      movementRemaining?: number;
-    };
-    traits?: any[];
-    actions?: any[];
-    bonusActions?: any[];
-    reactions?: any[];
-    spells?: any[];
-    abilities?: any[];
-  };
-  combat: {
-    round: number;
-    turn: number;
-    totalCombatants: number;
-  };
-  allies: Array<{
-    name: string;
-    hp: {
-      current: number;
-      max: number;
-      percentage: number;
-    };
-    position?: { x: number; y: number };
-    initiative: number;
-  }>;
-  enemies: Array<{
-    name: string;
-    class?: string;
-    level?: number;
-    hp: {
-      current: number;
-      max: number;
-      percentage: number;
-    };
-    position?: { x: number; y: number };
-    ac?: number;
-    initiative: number;
-    knownAbilities?: string[];  // Tactical awareness: known special abilities
-  }>;
-  battlefield?: {
-    grid: string;
-    legend: string;
-    size: { width: number; height: number };
-  };
-  recentNarrative: string[];
-  actionHistory: string[];
-  turnResults?: Array<{
-    step: number;
-    action: string;
-    ok: boolean;
-    intentNarration?: string;
-    reasoning?: string;
-    decision?: {
-      target?: string;
-      attackName?: string;
-      destination?: { x: number; y: number };
-      bonusAction?: string;
-      spellName?: string;
-      seed?: number;
-      endTurn?: boolean;
-    };
-    summary: string;
-    data?: Record<string, unknown>;
-  }>;
-  lastActionResult?: {
-    step: number;
-    action: string;
-    ok: boolean;
-    intentNarration?: string;
-    reasoning?: string;
-    decision?: {
-      target?: string;
-      attackName?: string;
-      destination?: { x: number; y: number };
-      bonusAction?: string;
-      spellName?: string;
-      seed?: number;
-      endTurn?: boolean;
-    };
-    summary: string;
-    data?: Record<string, unknown>;
-  } | null;
-}
 
 /**
  * Infrastructure adapter: LLM-based AI decision maker
@@ -132,11 +31,11 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
     combatantType: string;
-    context: CombatContext;
+    context: AiCombatContext;
   }): Promise<AiDecision | null> {
     const systemPrompt = this.buildSystemPrompt(input.combatantName, input.combatantType);
     
-    // Build user message with battlefield, narrative, and state
+    // Build user message with battlefield, narrative, battle plan, and state
     let userMessage = '';
     
     // Add battlefield visualization if available
@@ -144,6 +43,18 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
       userMessage += 'BATTLEFIELD:\n' + 
         input.context.battlefield.grid + '\n\n' +
         'LEGEND:\n' + input.context.battlefield.legend + '\n\n';
+    }
+
+    // Add battle plan if available
+    if (input.context.battlePlan) {
+      const bp = input.context.battlePlan;
+      userMessage += 'BATTLE PLAN:\n';
+      userMessage += `Priority: ${bp.priority}\n`;
+      if (bp.focusTarget) userMessage += `Focus target: ${bp.focusTarget}\n`;
+      if (bp.yourRole) userMessage += `Your role: ${bp.yourRole}\n`;
+      userMessage += `Strategy: ${bp.tacticalNotes}\n`;
+      if (bp.retreatCondition) userMessage += `Retreat if: ${bp.retreatCondition}\n`;
+      userMessage += '\n';
     }
     
     // Add recent narrative context if available
@@ -217,9 +128,111 @@ COMBATANT IDENTITY:
 
 PERSONALITY & TACTICS:
 - Act in character based on the combatant's type, traits, and style.
-- Use abilities from the context.combatant.bonusActions array when strategically advantageous.
+- Use abilities from the context.combatant.bonusActions array or context.combatant.classAbilities when strategically advantageous.
 - Consider enemy knownAbilities (listed in context.enemies[].knownAbilities) for tactical awareness.
 - Consider morale: flee if badly wounded and outnumbered, fight to death if cornered.
+
+CONDITIONS (IMPORTANT — source of truth):
+- context.combatant.conditions lists YOUR current active conditions (e.g., ["Stunned", "Prone"]).
+- context.enemies[].conditions and context.allies[].conditions list their active conditions.
+- If context.combatant.conditions is absent or empty, you have NO conditions and can act normally.
+- The "Recent combat narrative" may mention past conditions that have since expired — ALWAYS trust the structured conditions data over narrative text.
+- Do NOT choose "endTurn" just because narrative describes a past condition. Only the conditions array is current state.
+
+RESOURCES (check before using abilities):
+- context.combatant.resourcePools is an array of { name, current, max } tracking expendable resources.
+- Pool names include: "ki", "spellSlot_1" through "spellSlot_9", "rage", "actionSurge", "secondWind", "channelDivinity", "layOnHands", "pactMagic".
+- ALWAYS check current > 0 before attempting abilities that cost resources.
+- Do NOT try to cast a leveled spell if the corresponding spellSlot_N pool has current === 0.
+- Cantrips (level 0 spells) do not consume spell slots.
+
+CONCENTRATION (spell management):
+- context.combatant.concentrationSpell — if set, you are currently concentrating on this spell.
+- Casting a new concentration spell will AUTOMATICALLY drop your current concentration spell. Only do this if the new spell is more valuable.
+- context.enemies[].concentrationSpell — if an enemy is concentrating, attacking them can force a CON save to break their spell. Prioritize attacking concentrating enemies if their spell is dangerous (Spirit Guardians, Spike Growth, etc.).
+- context.allies[].concentrationSpell — be aware of ally concentration to avoid friendly fire or tactical conflicts.
+
+ZONES (area effects on the battlefield):
+- context.zones lists active zone effects on the battlefield (Spirit Guardians, Spike Growth, Cloud of Daggers, Wall of Fire, auras, etc.).
+- Each zone has: center position, radiusFeet, shape (circle/line/cone/cube), source (spell name), type (aura/placed/stationary).
+- Each zone has effects[] listing what triggers: "on_enter" (entering), "on_start_turn" / "on_end_turn" (starting/ending turn in zone), "per_5ft_moved" (every 5ft inside), "passive" (continuous aura buff).
+- AVOID moving through damaging zones if possible — use paths that go around them.
+- "per_5ft_moved" zones (Spike Growth) deal cumulative damage for every cell traversed inside them — NEVER walk through these unless absolutely necessary.
+- "on_enter" zones (Spirit Guardians) deal damage once when you enter — consider the cost before entering.
+- "aura" type zones MOVE WITH their source creature — attacking and killing the caster removes the zone.
+- To remove a concentration zone (Spirit Guardians, Spike Growth, etc.), attack the concentrating caster to force a CON save. If they fail, the zone disappears.
+- The A* pathfinding already penalizes zone cells, so "moveToward" will prefer safe paths. But you should still avoid choosing destinations inside damaging zones.
+
+DEFENSES (damage type awareness):
+- context.combatant.damageResistances/damageImmunities/damageVulnerabilities — YOUR damage defenses.
+- context.enemies[].damageResistances/damageImmunities/damageVulnerabilities — enemy defenses.
+- context.allies[].damageResistances/damageImmunities/damageVulnerabilities — ally defenses.
+- Prefer damage types enemies are VULNERABLE to (double damage).
+- AVOID damage types enemies are IMMUNE to (zero damage) or RESISTANT to (half damage).
+- When choosing between attacks or spells, factor in the target's defenses.
+
+BUFFS (active effects on self):
+- context.combatant.activeBuffs lists currently active buff effects as human-readable strings.
+- "Raging" = you have resistance to bludgeoning/piercing/slashing + melee damage bonus. Prefer STR-based melee attacks.
+- "Dashed" = you have extra movement available this turn.
+- "Disengaged" = you can move without provoking opportunity attacks this turn.
+- "Reckless Attack" = enemies have advantage on attacks against you this round — be cautious about staying in melee.
+
+DISTANCES (pre-computed — no math needed):
+- context.enemies[].distanceFeet and context.allies[].distanceFeet are pre-computed distances in feet from YOU to each creature.
+- Use distanceFeet to assess range: compare against your speed, weapon ranges, and spell ranges.
+- A creature with distanceFeet <= 5 is in melee reach (or 10 for reach weapons).
+- DO NOT calculate distances from grid coordinates — always use distanceFeet.
+
+ABILITY SCORES (self assessment):
+- context.combatant.abilityScores provides your { strength, dexterity, constitution, intelligence, wisdom, charisma }.
+- Use STR for grapple/shove contests. Compare your STR vs the target's likely STR or DEX.
+- Use ability scores to assess which saves you're strong/weak at.
+
+SPELL SAVE DC & ATTACK BONUS:
+- context.combatant.spellSaveDC — your spell save DC. Higher DC = harder for enemies to resist your spells.
+- context.combatant.spellAttackBonus — your spell attack modifier.
+- When choosing spells, target enemies with low saves against your attack type.
+
+SIZE (creature size category):
+- context.combatant.size, context.enemies[].size, context.allies[].size — creature sizes (Tiny, Small, Medium, Large, Huge, Gargantuan).
+- You can only grapple creatures up to ONE size larger than you.
+- Size affects space on the grid and some ability eligibility.
+
+SPEED (movement assessment):
+- context.combatant.speed is your movement speed in feet.
+- context.enemies[].speed and context.allies[].speed are their speeds.
+- Compare speeds to assess chase/escape viability. A faster enemy can outrun you.
+
+CHARACTER FEATURES & ATTACKS:
+- context.combatant.features lists class features (e.g., Extra Attack, Fighting Style, Improved Critical).
+- If you have a feature named "Extra Attack", you can make TWO attacks per Attack action — set endTurn: false after your first attack to take the second.
+- context.combatant.attacks lists your weapon attacks with attack bonuses and damage dice.
+- Use attacks[] to choose the best weapon for each situation (melee vs ranged, damage type vs enemy defenses).
+
+ALLY AWARENESS:
+- context.allies[] now includes full tactical data: ac, speed, class, level, knownAbilities, and damage defenses.
+- Use ally AC to prioritize healing (low AC allies are more vulnerable).
+- Use ally knownAbilities to coordinate tactics (e.g., an ally with Cunning Action can reposition on their own).
+- Use ally class/level to decide your role (support the frontline fighter, protect the squishy wizard).
+
+BATTLE PLAN (faction coordination):
+- If context.battlePlan is present, it contains your faction's strategic objectives.
+- priority: The overall faction strategy (offensive/defensive/retreat/protect/ambush).
+- focusTarget: The primary enemy to focus on. Prefer attacking this target over others.
+- yourRole: Your specific role in the plan. Follow it.
+- tacticalNotes: General tactical guidance from your faction commander.
+- retreatCondition: If this condition is met, use Disengage and move away from enemies.
+- Adhere to the battle plan UNLESS:
+  - Your focusTarget is dead or unreachable
+  - You are about to die (self-preservation overrides)
+  - A clearly better opportunity presents itself (e.g., finishing off a nearly dead enemy)
+
+DEATH SAVES (triage):
+- context.allies[].deathSaves — if present, this ally is dying (0 HP). { successes, failures } tracks their death save progress.
+  - 3 failures = dead. Prioritize stabilizing allies with 2 failures.
+  - Consider using Help action, Spare the Dying, or healing spells on dying allies.
+- context.enemies[].deathSaves — if present, this enemy is dying. Consider finishing them off if they have few failures.
 
 D&D RULES (Action Economy):
 - You have ONE ACTION per turn
@@ -242,10 +255,23 @@ CRITICAL - DASH ACTION MECHANICS:
 - DO NOT set endTurn: true after "dash" unless you want to waste the extra movement
 
 ACTION ECONOMY ENFORCEMENT (read the context):
-- The input context may include context.combatant.economy.actionSpent / bonusActionSpent / reactionSpent.
+- The input context may include context.combatant.economy.actionSpent / bonusActionSpent / reactionSpent / movementSpent.
 - If context.combatant.economy.actionSpent is true, you MUST NOT choose an action-consuming action (attack, shove, grapple, dash, dodge, disengage, help, hide, search, useObject, castSpell).
   - In that case, only choose action: "move" (optionally with a bonusAction if allowed) OR action: "endTurn".
-- If context.combatant.economy.bonusActionSpent is true, do not include a bonusAction.
+- If context.combatant.economy.bonusActionSpent is true, do not include a bonusAction. This field now correctly reflects when bonus action has been used.
+- If context.combatant.economy.reactionSpent is true, your reaction is unavailable this round.
+- If context.combatant.economy.movementSpent is FALSE, you CAN still move! Choose action: "move" with a destination.
+- context.combatant.speed tells you your movement speed in feet (default 30). Use this to plan movement range.
+- context.combatant.ac is your armor class — factor this into defensive decisions.
+- PRIORITIZE movement after attacking if movementSpent is false - retreat to safety, get behind cover, etc.
+
+PRONE MOVEMENT RULES:
+- If you have the "Prone" condition, standing up costs HALF your base speed (e.g., 15ft for a creature with 30ft speed).
+- After standing up, you can move normally with the remaining speed.
+- The server automatically handles standing up when you choose "move" while Prone — the stand-up cost is deducted from your available movement.
+- If you have the "Prone" condition AND "Grappled", "Stunned", "Incapacitated", "Paralyzed", or "Unconscious", you CANNOT stand up or move.
+- While Prone, your attacks have DISADVANTAGE. Melee attacks against you have ADVANTAGE. Standing up is almost always worthwhile.
+- If you used Dash while Prone, you get double movement but still pay the half-base-speed stand-up cost once.
 
 ACTION RESULT FEEDBACK (read the context):
 - The context may include context.lastActionResult and context.turnResults describing what happened earlier this turn.
@@ -259,10 +285,14 @@ AVAILABLE ACTIONS:
 
 2. MOVEMENT (always available, does NOT cost an action):
    - "move" - move to a new position (provide destination coordinates)
+   - "moveToward" - move toward a named target (server handles pathfinding). Provide target name and optional desiredRange (default 5 = melee). The server uses A* pathfinding to find the best path.
+   - "moveAwayFrom" - RETREAT from a named target (server handles pathfinding). Provide target name. The server will calculate the optimal direction and move you as far from the target as your speed allows. USE THIS INSTEAD OF "move" WHEN RETREATING — do NOT try to calculate retreat coordinates yourself.
    - Movement is FREE and does NOT consume your action
    - You can move before, after, or between actions
    - Leaving enemy reach (5ft in D&D) triggers opportunity attacks unless you used Disengage
-   - IMPORTANT: After using "dash" action, you MUST use "move" to actually relocate with the doubled speed
+   - IMPORTANT: After using "dash" action, you MUST use "move"/"moveToward"/"moveAwayFrom" to actually relocate with the doubled speed
+   - PREFER "moveToward" when you want to approach a specific enemy — it handles pathfinding around obstacles automatically
+   - PREFER "moveAwayFrom" when you want to retreat/flee — the server calculates the best escape route
 
 3. BASIC COMBAT ACTIONS (always available to ALL creatures):
    - "dash" - doubles your movement speed for this turn (then use "move" to relocate)
@@ -270,9 +300,9 @@ AVAILABLE ACTIONS:
    - "disengage" - move without provoking opportunity attacks this turn
    - "dodge" - increase defense (enemies have disadvantage against you until your next turn)
    - "help" - give ally advantage on next attack or ability check
-   - "hide" - attempt to hide (requires cover or obscurement)
-   - "search" - look for hidden creatures or objects
-   - "useObject" - interact with objects (open doors, pull levers, drink potions)
+   - "hide" - attempt to hide (Stealth check; succeeds if not clearly visible)
+   - "search" - Perception check to find hidden creatures
+   - "useObject" - NOT CURRENTLY SUPPORTED — use attack, move, or endTurn instead
    
 4. ADVANCED ACTIONS (always available to ALL creatures):
    - "grapple" - grab an enemy (contested Athletics check)
@@ -281,6 +311,7 @@ AVAILABLE ACTIONS:
 5. SPECIAL ABILITIES:
    - "castSpell" - cast a spell (ONLY if context.combatant.spells array has spells)
    - Check context.combatant.bonusActions for bonus action abilities
+   - Check context.combatant.classAbilities for class-derived abilities (bonus actions, actions, reactions with resource costs)
    - Check context.combatant.reactions for reaction abilities
 
 6. END TURN:
@@ -302,12 +333,13 @@ GROUP TACTICS:
 OUTPUT FORMAT:
 Respond with ONLY a single JSON object containing (no other text, no markdown, no code fences):
 {
-  "action": string,           // "attack", "move", "dodge", "dash", "disengage", "help", "hide", "grapple", "shove", "search", "useObject", "castSpell", "endTurn"
+  "action": string,           // "attack", "move", "moveToward", "moveAwayFrom", "dodge", "dash", "disengage", "help", "hide", "grapple", "shove", "search", "castSpell", "endTurn"
   "target": string,           // Target name (for attacks, grapple, shove, help)
   "attackName": string,       // Specific attack from "actions" (e.g., "Scimitar", "Shortbow")
   "destination": object,      // For move: {x: number, y: number} coordinates
+  "desiredRange": number,     // For moveToward: how close to get to target in feet (default 5 = melee)
   "spellName": string,        // For castSpell: spell name
-  "bonusAction": string,      // Optional: bonus action ability name from context.combatant.bonusActions (e.g., "Nimble Escape", "Cunning Action")
+  "bonusAction": string,      // Optional: bonus action ability name from context.combatant.bonusActions or classAbilities (e.g., "Nimble Escape", "Flurry of Blows")
   "seed": number,             // Optional: deterministic seed for contested checks (useful for testing)
   "intentNarration": string,  // Brief intent (1 sentence): what you're about to do
   "reasoning": string,        // Your tactical reasoning (not shown to players)
@@ -316,6 +348,8 @@ Respond with ONLY a single JSON object containing (no other text, no markdown, n
 
 BONUS ACTIONS:
 - Check context.combatant.bonusActions array for available bonus action abilities
+- Check context.combatant.classAbilities for class-derived bonus actions (entries with economy: "bonus")
+- Class abilities include resource costs (e.g., "1 ki") — ALWAYS verify the corresponding resourcePool has current > 0 before using
 - Common examples: "Nimble Escape" (Goblin: disengage/hide), "Cunning Action" (Rogue: dash/disengage/hide), "Flurry of Blows" (Monk: extra unarmed strikes)
 - Include bonusAction field with the ability name when you want to use it
 - The server will handle the specific execution of the bonus action
@@ -350,7 +384,17 @@ EXAMPLES:
   "endTurn": true
 }
 
-3. Goblin grappling enemy:
+3. Goblin moving toward a target (server handles pathfinding):
+{
+  "action": "moveToward",
+  "target": "Gandalf",
+  "desiredRange": 5,
+  "intentNarration": "The goblin charges toward the wizard!",
+  "reasoning": "Need to close distance for melee attack next turn. Server will find best path around obstacles.",
+  "endTurn": false
+}
+
+4. Goblin grappling enemy:
 {
   "action": "grapple",
   "target": "Frodo",
@@ -359,16 +403,15 @@ EXAMPLES:
   "endTurn": true
 }
 
-4. Goblin using terrain:
+5. Goblin hiding:
 {
   "action": "hide",
-  "bonusAction": "Nimble Escape",
-  "intentNarration": "The goblin ducks behind the crates!",
-  "reasoning": "Low HP, using cover to hide with Nimble Escape bonus action. Will attack with advantage next turn.",
+  "intentNarration": "The goblin ducks behind cover!",
+  "reasoning": "Low HP, using Stealth to gain Hidden condition. Enemies will need to Search to find me.",
   "endTurn": true
 }
 
-5. Shove then move (multi-step within one turn):
+6. Shove then move (multi-step within one turn):
 First response:
 {
   "action": "shove",
@@ -386,7 +429,7 @@ Second response (after you are asked again):
   "endTurn": true
 }
 
-6. Goblin supporting ally:
+7. Goblin supporting ally:
 {
   "action": "attack",
   "target": "Thorin",
@@ -396,7 +439,7 @@ Second response (after you are asked again):
   "endTurn": true
 }
 
-7. Goblin skipping turn (waiting/defensive):
+8. Goblin skipping turn (waiting/defensive):
 {
   "action": "endTurn",
   "intentNarration": "The goblin holds its ground, circling warily.",
@@ -433,6 +476,29 @@ Second response (after you are asked again):
         destination: json.destination && typeof json.destination === 'object' 
           ? json.destination 
           : undefined,
+        bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
+        intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
+        reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,
+        endTurn: typeof json.endTurn === 'boolean' ? json.endTurn : true,
+      };
+    }
+
+    if (action === 'moveToward') {
+      return {
+        action: 'moveToward',
+        target: typeof json.target === 'string' ? json.target : undefined,
+        desiredRange: typeof json.desiredRange === 'number' ? json.desiredRange : undefined,
+        bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
+        intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
+        reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,
+        endTurn: typeof json.endTurn === 'boolean' ? json.endTurn : true,
+      };
+    }
+
+    if (action === 'moveAwayFrom') {
+      return {
+        action: 'moveAwayFrom',
+        target: typeof json.target === 'string' ? json.target : undefined,
         bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
         intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
         reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,

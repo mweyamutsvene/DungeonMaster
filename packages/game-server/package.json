@@ -22,13 +22,17 @@
     "test:e2e:combat:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
     "test:e2e:combat:mock": "tsx scripts/test-harness/combat-e2e.ts",
     "test:llm": "tsx scripts/run-vitest-with-env.ts DM_RUN_LLM_TESTS=1 -- run src/infrastructure/api/combat-flow.integration.test.ts src/infrastructure/api/combat-mechanics.integration.test.ts src/infrastructure/llm/character-generator.integration.test.ts --no-file-parallelism --reporter=verbose --no-color",
+    "test:llm:e2e": "tsx scripts/test-harness/llm-e2e.ts --all",
+    "test:llm:e2e:intent": "tsx scripts/test-harness/llm-e2e.ts --category=intent --all",
+    "test:llm:e2e:narration": "tsx scripts/test-harness/llm-e2e.ts --category=narration --all",
+    "test:llm:e2e:ai": "tsx scripts/test-harness/llm-e2e.ts --category=ai-decision --all",
+    "test:llm:e2e:snapshot-update": "tsx scripts/test-harness/llm-e2e.ts --all --update-snapshots",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "type-check": "pnpm typecheck"
   },
   "dependencies": {
-    "@dungeonmaster/shared": "workspace:*",
     "fastify": "^5.2.1",
     "prisma": "^6.1.0",
     "@prisma/client": "^6.1.0",
@@ -42,3 +46,4 @@
     "vitest": "^2.1.8"
   }
 }
+

@@ -1,0 +1,154 @@
+{
+  "name": "Prone Movement: Stand-up costs half speed",
+  "description": "Validates that a Prone creature must spend half its base speed to stand up before moving normally. D&D 5e 2024: standing from Prone costs movement equal to half your Speed. Tests both player and AI prone movement enforcement.",
+  "setup": {
+    "character": {
+      "name": "Grimgar the Strong",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 20,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Warhammer",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 5 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Dagger",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shove Goblin Scout prone" },
+      "comment": "Shove the goblin prone - should succeed (STR 20 vs STR 8)",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the Goblin Scout has the Prone condition applied",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Goblin Scout",
+          "hasConditions": ["Prone"]
+        }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - Goblin AI should stand up from prone (costs half speed)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Goblin's AI turn to pass. It should stand up from Prone automatically."
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify Goblin no longer has Prone condition (AI stood up during its turn)",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Goblin Scout",
+          "doesNotHaveConditions": ["Prone"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Scout" },
+      "comment": "Attack the now-standing goblin - should NOT have advantage",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 13 - hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 5 = 11 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    }
+  ]
+}

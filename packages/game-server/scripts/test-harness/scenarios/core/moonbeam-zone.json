@@ -1,0 +1,125 @@
+{
+  "name": "Moonbeam: Placed Zone with Save-for-Half",
+  "description": "A Druid casts Moonbeam — creates a placed 5ft zone of silvery light. Creatures starting their turn in the zone take 2d10 radiant damage (CON save DC 14 for half). Tests placed zone creation, on_start_turn trigger with saving throw and half-damage-on-save.",
+  "setup": {
+    "character": {
+      "name": "Lunara the Druid",
+      "className": "Druid",
+      "level": 3,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 14, "constitution": 14,
+          "intelligence": 12, "wisdom": 18, "charisma": 10
+        },
+        "maxHp": 26, "currentHp": 26, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          {
+            "name": "Moonbeam",
+            "level": 2,
+            "concentration": true,
+            "zone": {
+              "type": "placed",
+              "radiusFeet": 5,
+              "shape": "circle",
+              "effects": [
+                {
+                  "trigger": "on_start_turn",
+                  "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 },
+                  "damageType": "radiant",
+                  "saveAbility": "constitution",
+                  "saveDC": 14,
+                  "halfDamageOnSave": true,
+                  "affectsEnemies": true,
+                  "affectsAllies": true,
+                  "affectsSelf": true
+                }
+              ]
+            }
+          },
+          {
+            "name": "Produce Flame",
+            "level": 0,
+            "damageType": "fire",
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
+            "isRanged": true,
+            "range": 30
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Shaman",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 21, "hp": 21, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "saveProficiencies": [],
+          "attacks": [
+            {
+              "name": "Staff", "kind": "melee", "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I call down a beam of moonlight!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Moonbeam targeting the Goblin's position — placed zone at (15, 10). Goblin is right in the beam.",
+      "type": "action",
+      "input": { "text": "cast Moonbeam at Goblin Shaman" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End PC turn — Goblin's turn starts. Goblin is at (15,10) which is the zone center. Should take on_start_turn damage: 2d10 radiant (CON save DC 14, +0 mod, likely fails). On fail: 2-20 damage. On save (half): 1-10 damage. Either way, HP < 21.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Goblin should have taken some zone damage (2d10 radiant = 2-20 full, 1-10 half). With 21 HP max, HP should be less than 21.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Shaman", "min": 0, "max": 20 } }
+    },
+    {
+      "comment": "Verify Moonbeam concentration is active",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Moonbeam" }
+    },
+    {
+      "comment": "Verify combat is still active",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "name": "Modifier Validation: Attack and Damage Bonuses",
+  "description": "Validates that attack bonuses (+6 = STR 16 (+3) + proficiency 3) and damage modifiers (+3 = STR) are correctly calculated for a level 5 Fighter.",
+  "setup": {
+    "character": {
+      "name": "Gromm the Strong",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 47,
+        "currentHp": 47,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 5,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 2 (DEX) = 17, goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Training Dummy with my longsword" },
+      "comment": "Attack with longsword - should request d20 roll",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 2" },
+      "comment": "2 + 6 = 8 vs AC 5 - should hit! This validates +6 attack bonus is applied (can't use 1 since nat 1 is auto-miss)",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "comment": "1 + 3 = 4 damage. This validates +3 damage modifier is applied. Dummy: 50 - 4 = 46 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Training Dummy with my longsword" },
+      "comment": "Second attack (Extra Attack feature)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 6 = 11 vs AC 5 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "8 + 3 = 11 damage. Dummy: 46 - 11 = 35 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat continues - Dummy should have taken 15 total damage (50 - 15 = 35 HP)",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

@@ -42,6 +42,15 @@ export type MoveCommand = {
   destination: { x: number; y: number };
 };
 
+export type MoveTowardCommand = {
+  kind: "moveToward";
+  encounterId?: string;
+  actor: CombatantRef;
+  target: CombatantRef;
+  /** Desired stopping distance in feet. Default 5 (melee). */
+  desiredRange?: number;
+};
+
 export type AttackCommand = {
   kind: "attack";
   encounterId?: string;
@@ -60,7 +69,16 @@ export type RollResultCommand = {
   context?: string;      // Optional player description
 };
 
-export type GameCommand = EndTurnCommand | MoveCommand | AttackCommand | RollResultCommand;
+/**
+ * Query command for asking questions about character data, combat state, etc.
+ * The CLI resolves most of these locally from cached data.
+ */
+export type QueryCommand = {
+  kind: "query";
+  subject: "hp" | "weapons" | "spells" | "features" | "party" | "stats" | "equipment" | "ac" | "actions" | "tactical" | "environment";
+};
+
+export type GameCommand = EndTurnCommand | MoveCommand | MoveTowardCommand | AttackCommand | RollResultCommand | QueryCommand;
 
 export type LlmRoster = {
   characters: Array<{ id: string; name: string }>;
@@ -88,17 +106,39 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "type GameCommand =",
     "  | { kind: 'endTurn'; encounterId?: string; actor: CombatantRef }",
     "  | { kind: 'move'; encounterId?: string; actor: CombatantRef; destination: { x: number; y: number } }",
+    "  | { kind: 'moveToward'; encounterId?: string; actor: CombatantRef; target: CombatantRef; desiredRange?: number }",
     "  | { kind: 'attack'; encounterId?: string; attacker: CombatantRef; target: CombatantRef; seed?: number; spec?: AttackSpec; monsterAttackName?: string }",
-    "  | { kind: 'rollResult'; rollType: 'initiative'|'attack'|'damage'|'savingThrow'|'abilityCheck'; value?: number; values?: number[]; context?: string };",
-    "", 
+    "  | { kind: 'rollResult'; rollType: 'initiative'|'attack'|'damage'|'savingThrow'|'abilityCheck'; value?: number; values?: number[]; context?: string }",
+    "  | { kind: 'query'; subject: 'hp'|'weapons'|'spells'|'features'|'party'|'stats'|'equipment'|'ac'|'actions'|'tactical'|'environment' };",
+    "",
+    "QUESTION DETECTION:",
+    "If the player is asking a question about their character or the game state, use kind='query' with the appropriate subject:",
+    "- 'hp' - asking about hit points, health, damage taken",
+    "- 'weapons' - asking about weapons, attacks available",
+    "- 'spells' - asking about spells, cantrips, spell slots",
+    "- 'features' - asking about class features, abilities, racial traits",
+    "- 'party' - asking about party members, allies, companions",
+    "- 'stats' - asking about ability scores, modifiers, proficiency",
+    "- 'equipment' - asking about inventory, items, gear, what they're carrying",
+    "- 'ac' - asking about armor class, defenses",
+    "- 'actions' - asking about what actions they can take, turn economy",
+    "- 'tactical' - asking about distances, positions, who's nearest, can I reach (combat positioning)",    "- 'environment' - asking about the room, surroundings, cover, terrain, obstacles, objects in the area",    "",
     "Rules:",
     "- Use ONLY ids from the roster below.",
     "- If combat is not mentioned, omit encounterId.",
     "- For kind='move':",
     "  - destination.x and destination.y are coordinates in FEET.",
+    "- For kind='moveToward':",
+    "  - Use this when the player wants to move to/toward/near a creature by name.",
+    "  - target is a CombatantRef identifying who to move toward.",
+    "  - desiredRange is how close to get (in feet). Default 5 for melee. Use 30+ for ranged positioning.",
+    "  - Infer desiredRange from context: 'move to the orc' → 5, 'get within bow range' → 30, 'get close' → 5.",
     "- For kind='attack':",
-    "  - If attacker.type='Character', you MUST include spec.",
+    "  - spec is optional for Character attackers (server reads from character sheet if omitted).",
     "  - If attacker.type='Monster', include either spec OR monsterAttackName.",
+    "  - When multiple creatures share the same name, use the distanceFeet field in the roster to pick the right one.",
+    "  - If the player says 'nearest' or doesn't name a specific target, pick the target with the smallest distanceFeet.",
+    "  - For melee attacks, prefer targets within 5ft (distanceFeet ≤ 5).",
     "- For kind='rollResult':",
     "  - Extract the dice roll value(s) from natural language (e.g., 'I rolled a 15' → value: 15).",
     "  - For advantage/disadvantage rolls, use values array (e.g., 'I rolled 12 and 8' → values: [12, 8]).",
@@ -113,11 +153,19 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "  'spec': { 'kind': 'melee', 'attackBonus': 5, 'damage': { 'diceCount': 1, 'diceSides': 8, 'modifier': 3 } }",
     "}",
     "",
-    "Example (move):",
+    "Example (move to coordinates):",
     "{",
     "  'kind': 'move',",
     "  'actor': { 'type': 'Character', 'characterId': '<from roster>' },",
     "  'destination': { 'x': 35, 'y': 25 }",
+    "}",
+    "",
+    "Example (move toward creature):",
+    "{",
+    "  'kind': 'moveToward',",
+    "  'actor': { 'type': 'Character', 'characterId': '<from roster>' },",
+    "  'target': { 'type': 'Monster', 'monsterId': '<from roster>' },",
+    "  'desiredRange': 5",
     "}",
     "",
     "Example (roll result - single):",
@@ -126,7 +174,7 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "Example (roll result - advantage):",
     "{ 'kind': 'rollResult', 'rollType': 'attack', 'values': [12, 8] }",
     "", 
-    "Roster (valid IDs):",
+    "Roster (valid IDs — distanceFeet shows distance from the acting creature in feet):",
     JSON.stringify(roster, null, 2),
   ].join("\n");
 }
@@ -153,11 +201,20 @@ export function parseGameCommand(input: unknown): GameCommand {
   if (!isRecord(input)) throw new ValidationError("command must be an object");
 
   const kind = input.kind;
-  if (kind !== "attack" && kind !== "move" && kind !== "endTurn" && kind !== "rollResult") {
-    throw new ValidationError("command.kind must be 'attack', 'move', 'endTurn', or 'rollResult'");
+  if (kind !== "attack" && kind !== "move" && kind !== "moveToward" && kind !== "endTurn" && kind !== "rollResult" && kind !== "query") {
+    throw new ValidationError("command.kind must be 'attack', 'move', 'moveToward', 'endTurn', 'rollResult', or 'query'");
   }
 
   const encounterId = readOptionalString(input, "encounterId");
+
+  if (kind === "query") {
+    const subject = readRequiredString(input, "subject");
+    const validSubjects = ["hp", "weapons", "spells", "features", "party", "stats", "equipment", "ac", "actions", "tactical", "environment"];
+    if (!validSubjects.includes(subject)) {
+      throw new ValidationError(`query.subject must be one of: ${validSubjects.join(", ")}`);
+    }
+    return { kind, subject: subject as QueryCommand["subject"] };
+  }
 
   if (kind === "endTurn") {
     const actor = parseCombatantRef(input.actor, "actor");
@@ -174,6 +231,13 @@ export function parseGameCommand(input: unknown): GameCommand {
       throw new ValidationError("destination.x and destination.y are required integers (feet)");
     }
     return { kind, encounterId, actor, destination: { x, y } };
+  }
+
+  if (kind === "moveToward") {
+    const actor = parseCombatantRef(input.actor, "actor");
+    const target = parseCombatantRef(input.target, "target");
+    const desiredRange = readOptionalInteger(input, "desiredRange");
+    return { kind, encounterId, actor, target, desiredRange };
   }
 
   if (kind === "rollResult") {
@@ -233,19 +297,12 @@ export function parseGameCommand(input: unknown): GameCommand {
     throw new ValidationError("spec must be an object");
   }
 
-  if (attacker.type === "Character") {
-    if (spec === undefined) {
-      throw new ValidationError(
-        "attack.spec is required when attacker.type is 'Character' (include attackBonus and damage dice)",
-      );
-    }
-  } else {
-    // Monster attackers can omit spec if selecting an attack by name from stat block.
-    if (spec === undefined && !monsterAttackName) {
-      throw new ValidationError(
-        "attack requires either spec or monsterAttackName when attacker.type is 'Monster'",
-      );
-    }
+  // For Character attackers, spec is optional - the server will read from character sheet if not provided.
+  // For Monster attackers, either spec or monsterAttackName must be provided.
+  if (attacker.type === "Monster" && spec === undefined && !monsterAttackName) {
+    throw new ValidationError(
+      "attack requires either spec or monsterAttackName when attacker.type is 'Monster'",
+    );
   }
 
   return { kind, encounterId, attacker, target, seed, spec, monsterAttackName };

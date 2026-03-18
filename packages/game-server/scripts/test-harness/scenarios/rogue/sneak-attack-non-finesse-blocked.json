@@ -1,0 +1,135 @@
+{
+  "name": "Sneak Attack: Non-finesse melee weapon does NOT qualify",
+  "description": "A Rogue attacks with a Mace (no finesse, no ranged) while an NPC ally is adjacent to the target. Per D&D 5e rules, Sneak Attack requires a finesse OR ranged weapon. The mace is neither, so sneak attack damage should NOT be applied. Damage should be only 1d6+1 (weapon only), not 1d6+3d6+1.",
+  "setup": {
+    "character": {
+      "name": "Mace Rogue",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Mace",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+            "damageType": "bludgeoning",
+            "properties": []
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Guard",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "npcs": [
+      {
+        "name": "Guard Ally",
+        "position": { "x": 15, "y": 15 },
+        "faction": "party",
+        "aiControlled": true,
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 20,
+          "hp": 20,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Goblin Guard with my mace" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Guard with my mace" },
+      "comment": "Mace has no finesse and is melee — sneak attack should NOT be eligible even with ally adjacent",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Roll 14 + 4 = 18 vs AC 13 — hit. Damage should be weapon only (1d6+1), NOT 1d6+3d6+1.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "Damage: 4 (d6) + 1 (STR mod) = 5 total. NO sneak attack added. Goblin: 50 → 45.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify damage is ONLY weapon damage (5), not weapon + sneak attack. If sneak attack was incorrectly applied, damage would be much higher.",
+      "expect": { "monsterHp": { "name": "Goblin Guard", "exact": 45 } }
+    }
+  ]
+}

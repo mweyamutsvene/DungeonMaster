@@ -1,0 +1,108 @@
+{
+  "name": "Topple Mastery: Finesse weapon uses DEX for save DC",
+  "description": "A DEX-focused Fighter attacks with a Trident (topple mastery) that has finesse. The save DC for topple should be calculated as 8 + max(STR, DEX) + prof. With STR 10 (+0) and DEX 18 (+4), DC should be 8 + 4 + 3 = 15, NOT 8 + 0 + 3 = 11. The goblin has CON +0, so needs to roll 15+ to save — very likely to fail. This validates the isFinesse() check in the roll-state-machine mastery DC code.",
+  "setup": {
+    "character": {
+      "name": "Finesse Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Trident",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "thrown", "versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Weapon Mastery", "description": "You have mastered the use of certain weapons." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Brute",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Club",
+              "kind": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin with my trident" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Brute with my trident" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Roll 15 + 7 = 22 vs AC 13 — hit. Topple mastery triggers CON save. DC should be 15 (8 + 4 DEX + 3 prof) because weapon is finesse and DEX > STR.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Damage 5 + 4 = 9. After damage, topple auto-triggers. Goblin CON save: +0 mod, needs 15+. With seeded dice, goblin should fail.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin should be Prone from topple mastery (failed CON save vs DC 15 using finesse DEX modifier). If finesse wasn't detected, DC would be 11 (8 + 0 STR + 3 prof) — much easier to pass.",
+      "expect": {
+        "monsterConditions": { "name": "Goblin Brute", "hasConditions": ["Prone"] }
+      }
+    }
+  ]
+}

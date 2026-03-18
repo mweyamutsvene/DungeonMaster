@@ -11,3 +11,5 @@ export * from "./spell-slots.js";
 export * from "./concentration.js";
 export * from "./spell-resolver.js";
 export * from "./feat-modifiers.js";
+export * from "./damage-defenses.js";
+export * from "./hide.js";

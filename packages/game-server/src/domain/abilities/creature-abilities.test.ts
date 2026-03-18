@@ -44,7 +44,7 @@ describe("creature abilities", () => {
           attack: { kind: "melee-or-ranged", attackBonus: 4 },
         },
       ],
-      bonusActions: [{ name: "Nimble Escape", text: "The goblin takes the Disengage or Hide action." }],
+      bonusActions: [{ name: "Nimble Escape", text: "The goblin takes the Disengage or Hide action.", executionIntent: { kind: "choice", options: [{ id: "disengage", name: "Disengage" }, { id: "hide", name: "Hide" }] } }],
       reactions: [],
     };
 

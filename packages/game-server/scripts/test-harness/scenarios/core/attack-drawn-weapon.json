@@ -1,0 +1,120 @@
+{
+  "name": "Attack auto-draws weapon",
+  "description": "A Fighter sheathes their Longsword, then attacks. Since the free Object Interaction is used (by sheathe), attacking with the Shortbow (also sheathed) fails. But attacking with Longsword re-draws it if we sheathe Shortbow first with interaction still available.",
+  "setup": {
+    "character": {
+      "name": "Kael Dawnstrider",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 20, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          },
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "piercing",
+            "properties": ["Ammunition", "Two-Handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Target Scarecrow",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "sheathe shortbow" },
+      "comment": "Sheathe shortbow — uses free Object Interaction",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "attack Target Scarecrow with longsword" },
+      "comment": "Longsword is still drawn — attack should work without needing to draw",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 10 → hit",
+      "expect": { "hit": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 slashing damage",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Scarecrow took 9 damage. Longsword still drawn, Shortbow sheathed.",
+      "expect": {
+        "monsterHp": { "name": "Target Scarecrow", "min": 91, "max": 91 },
+        "characterDrawnWeapons": {
+          "has": ["Longsword"],
+          "doesNotHave": ["Shortbow"]
+        }
+      }
+    }
+  ]
+}

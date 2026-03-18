@@ -1,0 +1,103 @@
+{
+  "name": "Long Range Disadvantage: Ranged attack beyond normal range",
+  "description": "An Archer shoots a target at 200ft with a Longbow (normal range 150ft, long range 600ft). The attack should have disadvantage since the target is beyond normal range. Tests range-based disadvantage application.",
+  "setup": {
+    "character": {
+      "name": "Long Shot",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Distant Target",
+        "position": { "x": 210, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I take aim at the distant target" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High init to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shoot the Distant Target with my longbow" },
+      "comment": "Target at 200ft > 150ft normal range → disadvantage (but within 600ft long range, so still allowed)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12+7=19 vs AC 10 → hit even at disadvantage. Disadvantage is applied by the server for rollMode, but tabletop mode submits a single value.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6+4=10 damage",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Distant Target", "exact": 90 }
+      },
+      "comment": "Distant Target took 10 damage. HP: 100-10=90"
+    }
+  ]
+}

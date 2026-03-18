@@ -1,0 +1,568 @@
+/**
+ * A* Pathfinding on the D&D 5e 5ft Grid
+ *
+ * Domain-pure pathfinding algorithm that operates on CombatMap terrain cells.
+ * Handles:
+ *  - Impassable terrain (walls, obstacles)
+ *  - Difficult terrain (double movement cost)
+ *  - Hazard avoidance (lava, pits — optional)
+ *  - 8-directional movement with D&D 5e 2024 diagonal cost rules
+ *  - Narration hints for path descriptions
+ *  - Movement cost capping (stop when speed runs out)
+ *  - Occupied position blocking (optional)
+ *  - Finding the best adjacent cell to a target within a desired range
+ */
+
+import type { Position } from "./movement.js";
+import { calculateDistance, snapToGrid } from "./movement.js";
+import type { CombatMap, TerrainType } from "./combat-map.js";
+import { getCellAt, isPositionPassable, isOnMap } from "./combat-map.js";
+import type { CombatZone } from "../entities/combat/zones.js";
+import { isPositionInZone } from "../entities/combat/zones.js";
+
+// ----------------------------------------------------------------
+// Types
+// ----------------------------------------------------------------
+
+export interface PathOptions {
+  /** Maximum movement cost in feet. Path stops when budget is exhausted. */
+  maxCostFeet?: number;
+  /** When true, treat hazard/lava/pit cells as impassable (default: true). */
+  avoidHazards?: boolean;
+  /** Positions occupied by other creatures — treated as impassable. */
+  occupiedPositions?: Position[];
+  /** Active combat zones — cells inside damaging zones get a cost penalty. */
+  zones?: CombatZone[];
+  /** Cost penalty (in feet) added per cell inside a damaging zone (default: 15). */
+  zoneCostPenalty?: number;
+}
+
+/**
+ * Per-cell metadata for rich path visualization.
+ * Carries terrain type and movement costs so clients can render
+ * animated tokens, trail overlays, and cost labels without
+ * cross-referencing the full map grid.
+ */
+export interface PathCell {
+  x: number;
+  y: number;
+  /** Terrain type at this cell. */
+  terrain: TerrainType;
+  /** Cost (in feet) to enter this specific cell (5, 10 for difficult, etc.). */
+  stepCostFeet: number;
+  /** Running total movement cost from start to this cell (inclusive). */
+  cumulativeCostFeet: number;
+}
+
+export interface PathResult {
+  /** Ordered positions from start (exclusive) to destination (inclusive). */
+  path: Position[];
+  /** Per-cell metadata for visualization (same order as `path`). */
+  cells: PathCell[];
+  /** Actual movement cost in feet (accounts for difficult terrain). */
+  totalCostFeet: number;
+  /** True if no path exists to the destination. */
+  blocked: boolean;
+  /** Terrain types encountered along the path. */
+  terrainEncountered: TerrainType[];
+  /** Human-readable hints for narration (e.g., "Detours around a wall"). */
+  narrationHints: string[];
+  /** The farthest reachable position if movement budget was exceeded. */
+  reachablePosition?: Position;
+}
+
+// ----------------------------------------------------------------
+// Internal A* node
+// ----------------------------------------------------------------
+
+interface AStarNode {
+  pos: Position;
+  /** Cost from start to this node (in feet). */
+  g: number;
+  /** Heuristic estimate to goal (in feet). */
+  h: number;
+  /** f = g + h */
+  f: number;
+  parent: AStarNode | null;
+  /** Terrain at this cell. */
+  terrain: TerrainType;
+  /** Running count of diagonal moves (for alternating cost). */
+  diagonalCount: number;
+}
+
+// ----------------------------------------------------------------
+// Constants
+// ----------------------------------------------------------------
+
+/** The eight cardinal + ordinal directions on a 5ft grid. */
+const DIRECTIONS: Position[] = [
+  { x: 5, y: 0 },   // E
+  { x: -5, y: 0 },  // W
+  { x: 0, y: 5 },   // S
+  { x: 0, y: -5 },  // N
+  { x: 5, y: 5 },   // SE
+  { x: -5, y: 5 },  // SW
+  { x: 5, y: -5 },  // NE
+  { x: -5, y: -5 }, // NW
+];
+
+const HAZARD_TERRAINS: ReadonlySet<TerrainType> = new Set(["lava", "hazard", "pit"]);
+const IMPASSABLE_TERRAINS: ReadonlySet<TerrainType> = new Set(["wall", "obstacle"]);
+
+// ----------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------
+
+function posKey(p: Position): string {
+  return `${p.x},${p.y}`;
+}
+
+function isDiagonal(dx: number, dy: number): boolean {
+  return dx !== 0 && dy !== 0;
+}
+
+/**
+ * D&D 5e 2024 diagonal movement cost:
+ * Every *other* diagonal costs 10ft instead of 5ft.
+ * `diagonalCount` tracks how many diagonals have been taken so far.
+ * Returns the step cost and the updated count.
+ */
+function diagonalStepCost(diagonalCount: number): { cost: number; newCount: number } {
+  // Odd diagonal (1st, 3rd, …) = 5ft, even diagonal (2nd, 4th, …) = 10ft
+  const isExpensive = diagonalCount % 2 === 1;
+  return {
+    cost: isExpensive ? 10 : 5,
+    newCount: diagonalCount + 1,
+  };
+}
+
+/**
+ * Terrain cost multiplier.  Difficult terrain / water costs double.
+ * Impassable terrain returns Infinity (caller should skip).
+ */
+function terrainCostMultiplier(terrain: TerrainType): number {
+  switch (terrain) {
+    case "difficult":
+    case "water":
+      return 2;
+    case "wall":
+    case "obstacle":
+      return Infinity;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Chebyshev distance scaled to 5ft grid — admissible heuristic for D&D
+ * alternating diagonal rule.  (Never overestimates.)
+ */
+function chebyshevHeuristic(from: Position, to: Position, gridSize: number): number {
+  const dx = Math.abs(to.x - from.x) / gridSize;
+  const dy = Math.abs(to.y - from.y) / gridSize;
+  const diag = Math.min(dx, dy);
+  const straight = Math.max(dx, dy) - diag;
+  // Alternating cost: half diags cost 5, half cost 10 → avg 7.5 per diag
+  // Use 5*straight + 5*diag as lower bound (admissible, never overestimates)
+  return (straight + diag) * gridSize;
+}
+
+/**
+ * Check if a cell is walkable given options.
+ */
+function isCellWalkable(
+  map: CombatMap,
+  pos: Position,
+  avoidHazards: boolean,
+  occupiedSet: Set<string>,
+): boolean {
+  if (!isOnMap(map, pos)) return false;
+  const cell = getCellAt(map, pos);
+  if (!cell) return false;
+  if (!cell.passable) return false;
+  if (IMPASSABLE_TERRAINS.has(cell.terrain)) return false;
+  if (avoidHazards && HAZARD_TERRAINS.has(cell.terrain)) return false;
+  if (occupiedSet.has(posKey(pos))) return false;
+  return true;
+}
+
+// ----------------------------------------------------------------
+// Public API
+// ----------------------------------------------------------------
+
+/**
+ * Find the shortest path on the combat map using A*.
+ *
+ * @param map       The combat map with terrain cells.
+ * @param from      Start position (feet, must be grid-aligned).
+ * @param to        Goal position (feet, must be grid-aligned).
+ * @param options   Movement budget, hazard avoidance, occupied positions.
+ * @returns         PathResult with the path, cost, and narration hints.
+ */
+export function findPath(
+  map: CombatMap,
+  from: Position,
+  to: Position,
+  options: PathOptions = {},
+): PathResult {
+  const gridSize = map.gridSize || 5;
+  const start = snapToGrid(from, gridSize);
+  const goal = snapToGrid(to, gridSize);
+  const avoidHazards = options.avoidHazards ?? true;
+  const maxCost = options.maxCostFeet ?? Infinity;
+
+  const occupiedSet = new Set<string>();
+  if (options.occupiedPositions) {
+    for (const op of options.occupiedPositions) {
+      const snapped = snapToGrid(op, gridSize);
+      occupiedSet.add(posKey(snapped));
+    }
+  }
+  // Goal cell itself is never blocked by "occupied" — you can move onto it
+  occupiedSet.delete(posKey(goal));
+
+  // Trivial: already at goal
+  if (start.x === goal.x && start.y === goal.y) {
+    return { path: [], cells: [], totalCostFeet: 0, blocked: false, terrainEncountered: [], narrationHints: [] };
+  }
+
+  // Goal itself impassable?
+  if (!isCellWalkable(map, goal, avoidHazards, occupiedSet)) {
+    return {
+      path: [],
+      cells: [],
+      totalCostFeet: 0,
+      blocked: true,
+      terrainEncountered: [],
+      narrationHints: ["The destination is impassable."],
+    };
+  }
+
+  // === A* ===
+  const openMap = new Map<string, AStarNode>();
+  const closedSet = new Set<string>();
+
+  const startCell = getCellAt(map, start);
+  const startNode: AStarNode = {
+    pos: start,
+    g: 0,
+    h: chebyshevHeuristic(start, goal, gridSize),
+    f: chebyshevHeuristic(start, goal, gridSize),
+    parent: null,
+    terrain: startCell?.terrain ?? "normal",
+    diagonalCount: 0,
+  };
+  openMap.set(posKey(start), startNode);
+
+  // Track the best reachable node within budget (in case we can't reach the goal)
+  let bestReachable: AStarNode = startNode;
+
+  while (openMap.size > 0) {
+    // Pick node with lowest f-cost from open set
+    let current: AStarNode | null = null;
+    for (const node of openMap.values()) {
+      if (!current || node.f < current.f || (node.f === current.f && node.h < current.h)) {
+        current = node;
+      }
+    }
+    if (!current) break;
+
+    // Goal reached
+    if (current.pos.x === goal.x && current.pos.y === goal.y) {
+      return buildResult(current, start);
+    }
+
+    openMap.delete(posKey(current.pos));
+    closedSet.add(posKey(current.pos));
+
+    // Track best reachable node (closest to goal that's within budget)
+    if (current.g <= maxCost && current.h < bestReachable.h) {
+      bestReachable = current;
+    }
+
+    // Expand neighbors
+    for (const dir of DIRECTIONS) {
+      const neighbor: Position = { x: current.pos.x + dir.x, y: current.pos.y + dir.y };
+      const nKey = posKey(neighbor);
+
+      if (closedSet.has(nKey)) continue;
+      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet)) continue;
+
+      // Diagonal corner-cutting check: both adjacent orthogonal cells must be passable
+      const diag = isDiagonal(dir.x, dir.y);
+      if (diag) {
+        const adj1: Position = { x: current.pos.x + dir.x, y: current.pos.y };
+        const adj2: Position = { x: current.pos.x, y: current.pos.y + dir.y };
+        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet) ||
+            !isCellWalkable(map, adj2, avoidHazards, occupiedSet)) {
+          continue; // Can't cut corners around walls
+        }
+      }
+
+      // Calculate step cost
+      const neighborCell = getCellAt(map, neighbor);
+      const terrain = neighborCell?.terrain ?? "normal";
+      const terrainMult = terrainCostMultiplier(terrain);
+      if (terrainMult === Infinity) continue; // Impassable
+
+      let stepCost: number;
+      let newDiagCount = current.diagonalCount;
+      if (diag) {
+        const dc = diagonalStepCost(current.diagonalCount);
+        stepCost = dc.cost * terrainMult;
+        newDiagCount = dc.newCount;
+      } else {
+        stepCost = gridSize * terrainMult;
+      }
+
+      // Zone cost penalty — cells inside damaging zones are penalized
+      if (options.zones && options.zones.length > 0) {
+        const penalty = options.zoneCostPenalty ?? 15;
+        for (const zone of options.zones) {
+          if (isPositionInZone(zone, neighbor)) {
+            stepCost += penalty;
+            break; // One penalty per cell is enough
+          }
+        }
+      }
+
+      const newG = current.g + stepCost;
+
+      // Over budget — don't expand (but node stays reachable via bestReachable tracking)
+      if (newG > maxCost) continue;
+
+      const existing = openMap.get(nKey);
+      if (existing && newG >= existing.g) continue;
+
+      const h = chebyshevHeuristic(neighbor, goal, gridSize);
+      const node: AStarNode = {
+        pos: neighbor,
+        g: newG,
+        h,
+        f: newG + h,
+        parent: current,
+        terrain,
+        diagonalCount: newDiagCount,
+      };
+      openMap.set(nKey, node);
+    }
+  }
+
+  // No full path found — return the best reachable position within budget
+  if (bestReachable !== startNode) {
+    const partial = buildResult(bestReachable, start);
+    return {
+      ...partial,
+      blocked: true,
+      narrationHints: [...partial.narrationHints, "Cannot reach the destination — moving as far as possible."],
+      reachablePosition: bestReachable.pos,
+    };
+  }
+
+  return {
+    path: [],
+    cells: [],
+    totalCostFeet: 0,
+    blocked: true,
+    terrainEncountered: [],
+    narrationHints: ["No path exists to the destination."],
+  };
+}
+
+/**
+ * Find the best passable cell to stop at within `desiredRange` feet of `targetPos`,
+ * choosing the cell closest to `approachFrom` (i.e. least backtracking).
+ *
+ * Returns null if no passable cell is in range.
+ */
+export function findAdjacentPosition(
+  map: CombatMap,
+  targetPos: Position,
+  approachFrom: Position,
+  desiredRange: number = 5,
+): Position | null {
+  const gridSize = map.gridSize || 5;
+  const target = snapToGrid(targetPos, gridSize);
+  const origin = snapToGrid(approachFrom, gridSize);
+
+  // Simple case: if approach position is already within range, return it
+  if (calculateDistance(origin, target) <= desiredRange) {
+    return origin;
+  }
+
+  // Collect all passable cells within desiredRange of the target
+  const candidates: Position[] = [];
+  const searchRadius = Math.ceil(desiredRange / gridSize) + 1;
+
+  for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      const pos: Position = {
+        x: target.x + dx * gridSize,
+        y: target.y + dy * gridSize,
+      };
+      if (!isOnMap(map, pos)) continue;
+      if (!isPositionPassable(map, pos)) continue;
+      if (pos.x === target.x && pos.y === target.y) continue; // Don't stand on the target
+
+      const distToTarget = calculateDistance(pos, target);
+      if (distToTarget <= desiredRange) {
+        candidates.push(pos);
+      }
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Pick the candidate closest to the approach origin (least total travel)
+  candidates.sort((a, b) => calculateDistance(a, origin) - calculateDistance(b, origin));
+  return candidates[0]!;
+}
+
+/**
+ * Find the best retreat destination: the passable cell within movement range
+ * that maximises distance from `fleeFrom`.
+ *
+ * Uses A* to evaluate reachable cells within `speedFeet`, then picks the one
+ * farthest from the threat. Falls back to linear interpolation when no combat
+ * map is available (caller passes `map: undefined`).
+ */
+export function findRetreatPosition(
+  map: CombatMap | undefined,
+  currentPos: Position,
+  fleeFrom: Position,
+  speedFeet: number,
+  occupiedPositions?: Position[],
+  zones?: CombatZone[],
+): Position {
+  if (!map) {
+    // No map: move linearly away from threat, clamped to speed
+    const dx = currentPos.x - fleeFrom.x;
+    const dy = currentPos.y - fleeFrom.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist === 0) {
+      // Exactly overlapping — pick an arbitrary direction (positive X)
+      return { x: currentPos.x + speedFeet, y: currentPos.y };
+    }
+    const ratio = speedFeet / dist;
+    return {
+      x: Math.round(currentPos.x + dx * ratio),
+      y: Math.round(currentPos.y + dy * ratio),
+    };
+  }
+
+  const gridSize = map.gridSize || 5;
+  const origin = snapToGrid(currentPos, gridSize);
+  const threat = snapToGrid(fleeFrom, gridSize);
+  const occupiedSet = new Set((occupiedPositions ?? []).map(posKey));
+
+  // BFS/flood-fill: collect all passable cells reachable within speedFeet
+  const searchRadius = Math.ceil(speedFeet / gridSize) + 1;
+  let bestPos = origin;
+  let bestDist = calculateDistance(origin, threat);
+
+  for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      const pos: Position = {
+        x: origin.x + dx * gridSize,
+        y: origin.y + dy * gridSize,
+      };
+      if (!isOnMap(map, pos)) continue;
+      if (!isPositionPassable(map, pos)) continue;
+      if (occupiedSet.has(posKey(pos))) continue;
+
+      // Check zone penalties: skip cells in damaging zones
+      if (zones) {
+        const inDangerousZone = zones.some(z =>
+          z.effects.some(e => e.trigger === "on_enter" || e.trigger === "per_5ft_moved") &&
+          isPositionInZone(z, pos),
+        );
+        if (inDangerousZone) continue;
+      }
+
+      const distFromOrigin = calculateDistance(origin, pos);
+      if (distFromOrigin > speedFeet) continue; // Out of movement range
+
+      const distFromThreat = calculateDistance(pos, threat);
+      if (distFromThreat > bestDist) {
+        bestDist = distFromThreat;
+        bestPos = pos;
+      }
+    }
+  }
+
+  return bestPos;
+}
+
+// ----------------------------------------------------------------
+// Internal helpers
+// ----------------------------------------------------------------
+
+/**
+ * Reconstruct the path from a goal node back to start.
+ * Generates narration hints from terrain transitions.
+ */
+function buildResult(goalNode: AStarNode, start: Position): PathResult {
+  const reversePath: AStarNode[] = [];
+  let node: AStarNode | null = goalNode;
+  while (node && !(node.pos.x === start.x && node.pos.y === start.y)) {
+    reversePath.push(node);
+    node = node.parent;
+  }
+  reversePath.reverse();
+
+  const path = reversePath.map(n => n.pos);
+
+  // Build per-cell metadata for rich client visualization
+  const cells: PathCell[] = reversePath.map((n, i) => {
+    const prevG = i === 0 ? 0 : reversePath[i - 1].g;
+    return {
+      x: n.pos.x,
+      y: n.pos.y,
+      terrain: n.terrain,
+      stepCostFeet: n.g - prevG,
+      cumulativeCostFeet: n.g,
+    };
+  });
+
+  const terrainEncountered: TerrainType[] = [];
+  const narrationHints: string[] = [];
+
+  // Deduplicate terrain encounters for narration
+  const seenDifficult = new Set<string>();
+  let detoured = false;
+
+  for (const n of reversePath) {
+    if (n.terrain !== "normal" && !terrainEncountered.includes(n.terrain)) {
+      terrainEncountered.push(n.terrain);
+    }
+
+    if ((n.terrain === "difficult" || n.terrain === "water") && !seenDifficult.has(n.terrain)) {
+      seenDifficult.add(n.terrain);
+      if (n.terrain === "difficult") {
+        narrationHints.push("Crossing difficult terrain — movement slowed.");
+      } else {
+        narrationHints.push("Wading through water — movement slowed.");
+      }
+    }
+  }
+
+  // Detect detour: if the path isn't roughly straight-line, it routed around something
+  if (path.length > 0) {
+    const straightDist = calculateDistance(start, goalNode.pos);
+    const pathDist = goalNode.g;
+    // If path cost is significantly more than straight-line, we detoured
+    if (pathDist > straightDist * 1.3 && pathDist > straightDist + 5) {
+      detoured = true;
+      narrationHints.push("The direct path is blocked — taking a detour.");
+    }
+  }
+
+  return {
+    path,
+    cells,
+    totalCostFeet: goalNode.g,
+    blocked: false,
+    terrainEncountered,
+    narrationHints,
+  };
+}

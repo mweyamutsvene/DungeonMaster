@@ -1,0 +1,74 @@
+{
+  "name": "AI Decision: Melee Attack in Range",
+  "description": "Monster with enemy adjacent (5ft) should choose to attack",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Goblin with scimitar and adjacent enemy should attack",
+      "input": {
+        "combatantName": "Goblin Warrior",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Goblin Warrior",
+            "type": "Goblin",
+            "cr": 0.25,
+            "hp": { "current": 7, "max": 7, "percentage": 100 },
+            "conditions": [],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 15,
+            "speed": 30,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Scimitar",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "slashing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": [
+              { "name": "Nimble Escape", "description": "Disengage or Hide as bonus action" }
+            ]
+          },
+          "combat": { "round": 1, "turn": 2, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 42, "max": 42, "percentage": 100 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge"]
+            }
+          ],
+          "recentNarrative": ["Thorin steps forward, longsword raised."],
+          "actionHistory": [],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "attack",
+        "targetName": "Thorin",
+        "attackName": "Scimitar",
+        "promptSnapshot": "melee-attack-in-range"
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "Narration: Damage Dealt",
+  "description": "Narration for damage application mentions damage amount and type",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate slashing damage from a longsword hit",
+      "input": {
+        "events": [
+          {
+            "type": "damageDealt",
+            "payload": {
+              "targetName": "Goblin Warrior",
+              "attackerName": "Thorin Ironfist",
+              "damageAmount": 12,
+              "damageType": "slashing",
+              "weaponName": "Longsword",
+              "remainingHp": 0,
+              "wasLethal": true
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["12", "slash", "damage", "Longsword", "longsword", "sword", "cut", "cleave", "wound"],
+        "doesNotContain": ["miss", "healed", "recover"],
+        "maxLength": 500,
+        "minLength": 10,
+        "promptSnapshot": "damage-dealt"
+      }
+    }
+  ]
+}

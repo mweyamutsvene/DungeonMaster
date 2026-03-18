@@ -1,0 +1,148 @@
+{
+  "name": "Wizard Spell Attacks & Saves: Fire Bolt + Burning Hands",
+  "description": "Tests the three spell delivery modes: (1) Fire Bolt as a ranged spell attack (d20 attack roll + damage roll), (2) Burning Hands as a save-based spell (server auto-rolls DEX save + damage), (3) Magic Missile as a simple spell (no rolls). Includes a spell attack miss to verify miss handling.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4 },
+        "preparedSpells": [
+          {
+            "name": "Fire Bolt", "level": 0,
+            "attackType": "ranged_spell",
+            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 0 },
+            "damageType": "fire"
+          },
+          {
+            "name": "Burning Hands", "level": 1,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 3, "diceSides": 6, "modifier": 0 },
+            "damageType": "fire",
+            "halfDamageOnSave": true
+          },
+          { "name": "Magic Missile", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "--- Fire Bolt (spell attack): hit case ---",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 6 (spellAttackBonus) = 21 vs AC 13 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 fire damage → Goblin HP 30 → 22",
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "End turn → passive monster ends turn → back to player",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "--- Fire Bolt (spell attack): miss case ---",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 3 + 6 (spellAttackBonus) = 9 vs AC 13 → MISS",
+      "type": "rollResult",
+      "input": { "text": "I rolled 3" },
+      "expect": { "hit": false, "actionComplete": true }
+    },
+
+    {
+      "comment": "End turn → passive monster ends turn → back to player",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "--- Burning Hands (DEX save spell): server auto-resolves save + damage ---\nSeeded rolls: d20=13 (save), 3d6=4+3+6=13 (damage).\nGoblin DEX save: 13 + 2(DEX mod) = 15 vs DC 14 → SUCCESS → half damage = 6.\nGoblin HP: 22 → 16.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "End turn → passive monster ends turn → back to player",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "--- Magic Missile (simple spell): no rolls needed ---",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Goblin" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    }
+  ]
+}

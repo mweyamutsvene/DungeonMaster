@@ -1,0 +1,39 @@
+{
+  "name": "Intent: Basic Melee Attack",
+  "description": "LLM parses 'I attack the goblin' into a structured attack command with correct target",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'I attack the goblin' with single character vs single monster",
+      "input": {
+        "text": "I attack the goblin",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin",
+        "targetType": "Monster",
+        "promptSnapshot": "basic-attack"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I swing at the goblin warrior'",
+      "input": {
+        "text": "I swing at the goblin warrior",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin"
+      }
+    }
+  ]
+}

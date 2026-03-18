@@ -1,0 +1,87 @@
+﻿≡ƒÄ▓ DungeonMaster Combat E2E Test Harness
+=========================================
+
+Γ£à Server started on http://localhost:3099
+
+≡ƒôï Loading scenario: core/prone-effects
+
+≡ƒÄ» Running: Prone Effects: Melee advantage after shove
+
+   Validates that shoving a target prone applies the Prone condition, and subsequent melee attacks against the prone target have advantage. D&D 5e: melee attacks within 5ft of a prone target have advantage.
+
+
+[1mΓöüΓöüΓöü Step 1: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating game session[0m
+   [32mΓ£ô[0m Session created: YBV8ang8AyFtkWVt-ZasY
+
+[1mΓöüΓöüΓöü Step 2: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating character, monsters, and NPCs[0m
+   [32mΓ£ô[0m Character created: Grimgar the Strong (EeTPvAJcfjvh8iAiKWqgJ)
+   [32mΓ£ô[0m Monster created: Goblin Scout (A0yK-_t5caAsfVzLAnQb7)
+
+[1mΓöüΓöüΓöü Step 3: INITIATE ΓöüΓöüΓöü[0m
+   [90mI prepare for battle[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mTensions rise as battle is about to begin. Roll for initiative![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Roll for initiative! (d20 + your DEX modifier)
+   [32mΓ£ô[0m rollType=initiative, requiresPlayerInput=true
+
+[1mΓöüΓöüΓöü Step 4: ROLLRESULT ΓöüΓöüΓöü[0m
+   [90mHigh initiative to go first[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mCombat begins! Grimgar the Strong seizes the initiative.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Combat started! Grimgar the Strong's turn (Initiative: 19).
+   [32mΓ£ô[0m rollType=initiative, hit=undefined, actionComplete=undefined
+      [36mCaptured encounterId: 4yqAse2MM5MxC0tR7M0wh[0m
+
+[1mΓöüΓöüΓöü Step 5: ACTION ΓöüΓöüΓöü[0m
+   [90mShove the goblin prone - should succeed (STR 20 vs STR 8)[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[SIMPLE_ACTION_COMPLETE][0m Shove prone: goblin scout knocked prone. (8 vs 8)
+   [32mΓ£ô[0m type=SIMPLE_ACTION_COMPLETE, rollType=undefined, actionComplete=true
+
+[1mΓöüΓöüΓöü Step 6: ASSERTSTATE ΓöüΓöüΓöü[0m
+   [90mVerify the Goblin Scout has the Prone condition applied[0m
+   [32mΓ£ô[0m Combat status=Active, combatants=2
+      [32mΓ£ô[0m Monster "Goblin Scout" conditions: [prone]
+
+[1mΓöüΓöüΓöü Step 7: ENDTURN ΓöüΓöüΓöü[0m
+   [90mEnd turn - Goblin's AI turn: it will stand up from Prone (costs half speed) and then may attack/move[0m
+[AiActionExecutor] Executing attack action: { target: 'Grimgar the Strong', attackName: 'Dagger' }
+[AiActionExecutor] Target may have reactions (Shield/Deflect) - using two-phase attack flow
+[AiActionExecutor] Two-phase flow: d20=18 + 4 = 22
+[AiActionExecutor] Two-phase flow: hit with no reaction, resolving damage
+   [32mΓ£ô[0m Turn ended - monster's turn begins...
+
+[1mΓöüΓöüΓöü Step 8: WAITFORTURN ΓöüΓöüΓöü[0m
+   [90mWait for Goblin's turn to pass, then our turn comes[0m
+      [90mWaiting for player turn (timeout: 5000ms)...[0m
+      [90m[poll 1] status=200[0m
+      [90mKeys: encounterId, status, activeCombatantId, combatants, map[0m
+      [90mCombatants: Grimgar the Strong(Character, HP:39/44), Goblin Scout(Monster, HP:50/50)[0m
+      [36mActive: Grimgar the Strong (combatantId: e11IhvgVb-u5dTesS9l6y)[0m
+      [90mmovement: {"speed":30,"dashed":false,"movementSpent":false}[0m
+      [90mLooking for characterId: EeTPvAJcfjvh8iAiKWqgJ[0m
+   [32mΓ£ô[0m Player's turn (Grimgar the Strong) - movement reset
+
+   [1m[33mΓöüΓöüΓöü Monster Turn Events ΓöüΓöüΓöü[0m
+   [2m[Turn ΓåÆ Next combatant][0m
+   [36m≡ƒñû [AI Decision][0m attacks Grimgar the Strong with Dagger
+   [3m[90mGoblin Scout attacks Grimgar the Strong with Dagger![0m
+   [2m[Turn ΓåÆ Next combatant][0m
+   [2mΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü[0m
+
+[1mΓöüΓöüΓöü Step 9: ASSERTSTATE ΓöüΓöüΓöü[0m
+   [90mVerify Goblin no longer has Prone condition (AI stood up by moving during its turn)[0m
+   [32mΓ£ô[0m Combat status=Active, combatants=2
+
+=========================================
+Γ¥î FAILED: 8/12 steps
+
+   Failed at step 9:
+   Expected monster "Goblin Scout" to NOT have condition "Prone", found: [prone]
+=========================================
+
+undefined
+ΓÇëERR_PNPM_RECURSIVE_EXEC_FIRST_FAILΓÇë Command "tsx" not found
+
+Did you mean "pnpm exec tsx"?

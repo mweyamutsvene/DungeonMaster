@@ -1,0 +1,47 @@
+﻿
+> @dungeonmaster/game-server@0.1.0 test:e2e:combat:mock C:\Users\tommy\Development\DungeonMaster\packages\game-server
+> tsx scripts/test-harness/combat-e2e.ts
+
+≡ƒÄ▓ DungeonMaster Combat E2E Test Harness
+=========================================
+
+Γ£à Server started on http://localhost:3099
+
+≡ƒôï Loading scenario: core/happy-path
+
+≡ƒÄ» Running: Happy Path: Fighter vs Goblin
+
+   A level 5 Fighter defeats a single Goblin Warrior through the 2-phase tabletop combat flow. Includes a move action to close distance before attacking.
+
+[CLI ΓåÆ initiate] "I attack the goblin"
+
+   [1m[36m≡ƒôû Narration:[0m [3mTensions rise as battle is about to begin. Roll for initiative![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Roll for initiative! (d20 + your DEX modifier)
+[CLI ΓåÆ roll] "I rolled 15"
+
+   [1m[36m≡ƒôû Narration:[0m [3mCombat begins! Thorin Ironfist seizes the initiative.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Combat started! Thorin Ironfist's turn (Initiative: 17).
+[CLI ΓåÆ action] "move to (35, 10)"
+[ActionDispatcher] Direct parse: move
+
+   [1m[36m≡ƒôû Narration:[0m [3mMoving 25 feet across the battlefield.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[MOVE_COMPLETE][0m Moved to (35, 10) (25ft).
+[CLI ΓåÆ action] "I attack the Goblin Warrior with my sword"
+[ActionDispatcher] No direct parse match ΓåÆ LLM intent for: "I attack the Goblin Warrior with my sword"
+[ActionDispatcher] LLM intent ΓåÆ attack { target: 'Monster', spec: '(none)' }
+
+   [1m[36m≡ƒôû Narration:[0m [3mPreparing to strike at Goblin Warrior. Roll for attack![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[REQUEST_ROLL][0m Roll a d20 for attack against Goblin Warrior (no modifiers; server applies bonuses).
+[CLI ΓåÆ roll] "I rolled 18"
+
+   [1m[36m≡ƒôû Narration:[0m [3mThe attack strikes true against Goblin Warrior! Roll for damage.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[Hit!][0m 18 + 6 = 24 vs AC 15. Hit! Roll 1d10+3 for damage.
+[CLI ΓåÆ roll] "I rolled 6"
+
+   [1m[36m≡ƒôû Narration:[0m [3m9 damage! Goblin Warrior falls! Victory! All enemies have been vanquished![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[damage][0m 6 + 3 = 9 damage to Goblin Warrior! HP: 7 ΓåÆ 0. Victory!
+
+=========================================
+Γ£à PASSED: 9/9 steps
+=========================================
+

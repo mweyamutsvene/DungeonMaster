@@ -1,0 +1,38 @@
+{
+  "name": "Intent: Class Ability",
+  "description": "LLM correctly parses class ability names into appropriate action mappings",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'flurry of blows on the goblin' — should map to attack with target",
+      "input": {
+        "text": "flurry of blows on the goblin",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Kai Shadowfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin",
+        "promptSnapshot": "class-ability-flurry"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I use action surge and attack the goblin'",
+      "input": {
+        "text": "I use action surge and attack the goblin",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin"
+      }
+    }
+  ]
+}

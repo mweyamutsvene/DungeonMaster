@@ -1,0 +1,122 @@
+{
+  "name": "Ranged Attack in Melee: Disadvantage",
+  "description": "An Archer makes a ranged attack while a hostile creature is within 5ft. Per D&D 5e 2024 rules, this imposes disadvantage on the attack roll. Tests that the server correctly detects hostile proximity and applies disadvantage.",
+  "setup": {
+    "character": {
+      "name": "Cornered Archer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Melee Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 7, "hp": 7, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Distant Goblin",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I shoot the Distant Goblin" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High init to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shoot the Distant Goblin with my longbow" },
+      "comment": "Ranged attack at 40ft — Melee Goblin is 5ft away → disadvantage. The server should apply disadvantage automatically.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "With disadvantage, needs to beat AC 15. 14+7=21 should hit even with disadvantage (server uses the lower of two rolls for disadvantage). But since we submit a single roll in tabletop mode, the server uses it as-is with the rollMode. 14+7=21 >= 15 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+4=9 damage",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Distant Goblin", "max": 91 }
+      },
+      "comment": "Distant Goblin took 9 damage (5+4). HP: 100-9=91"
+    }
+  ]
+}

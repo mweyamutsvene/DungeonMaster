@@ -1,4 +1,5 @@
 import type { CombatantStateRecord, CombatantType } from "../../../types.js";
+import { getPosition } from "./resource-utils.js";
 
 export type CombatantRef =
   | { type: "Character"; characterId: string }
@@ -54,4 +55,17 @@ export function findCombatantIdByRef(
     return combatants.find((c) => c.combatantType === "NPC" && c.npcId === ref.npcId)?.id ?? null;
   }
   return combatants.find((c) => c.combatantType === "Monster" && c.monsterId === ref.monsterId)?.id ?? null;
+}
+
+/**
+ * Convenience helper: resolve a CombatantRef to a position.
+ * Returns null if the combatant is not found or has no position.
+ */
+export function getPositionByRef(
+  combatants: readonly CombatantStateRecord[],
+  ref: CombatantRef,
+): { x: number; y: number } | null {
+  const state = findCombatantStateByRef(combatants, ref);
+  if (!state) return null;
+  return getPosition(state.resources ?? {});
 }

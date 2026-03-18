@@ -1,0 +1,120 @@
+{
+  "name": "Damage Resistance/Immunity/Vulnerability",
+  "description": "A Fighter attacks a Fire Elemental that has bludgeoning resistance. Damage is halved by resistance in tabletop flow.",
+  "setup": {
+    "character": {
+      "name": "Frost Knight",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Warhammer",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Fire Elemental",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 16,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 102,
+          "hp": 102,
+          "armorClass": 5,
+          "speed": 50,
+          "challengeRating": 5,
+          "experienceValue": 1800,
+          "damageResistances": ["bludgeoning"],
+          "damageImmunities": ["fire", "poison"],
+          "damageVulnerabilities": ["cold"],
+          "attacks": [
+            {
+              "name": "Touch",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "fire"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Fire Elemental" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      },
+      "comment": "Start combat"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": {
+        "combatStarted": true
+      },
+      "comment": "Initiative roll resolves. Character goes first."
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Fire Elemental with my warhammer" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      },
+      "comment": "Declare attack with warhammer (bludgeoning damage type)"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      },
+      "comment": "Attack roll 18 + 6 = 24 → hits AC 5. Prompt for damage."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "Damage roll 6 + modifier 3 = 9 raw bludgeoning → resisted to floor(9/2) = 4. HP: 102 → 98"
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Fire Elemental", "exact": 98 }
+      },
+      "comment": "Verify bludgeoning resistance: 9 raw → 4 after resistance (floor(9/2))"
+    }
+  ]
+}

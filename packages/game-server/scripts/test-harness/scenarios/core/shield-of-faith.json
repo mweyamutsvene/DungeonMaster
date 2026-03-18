@@ -1,0 +1,111 @@
+{
+  "name": "Shield of Faith: AC Bonus Effect",
+  "description": "A Cleric casts Shield of Faith on self, applying a +2 AC bonus ActiveEffect with concentration. Then casts a cantrip to verify action economy. Tests buff/debuff spell handler with AC bonus effect.",
+  "setup": {
+    "character": {
+      "name": "Father Marcus",
+      "className": "Cleric",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 10, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 12
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          {
+            "name": "Shield of Faith",
+            "level": 1,
+            "concentration": true,
+            "effects": [
+              {
+                "type": "bonus",
+                "target": "armor_class",
+                "value": 2,
+                "duration": "concentration",
+                "appliesTo": "self"
+              }
+            ]
+          },
+          {
+            "name": "Sacred Flame",
+            "level": 0,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
+            "damageType": "radiant",
+            "halfDamageOnSave": false
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Mace", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare my defenses" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Shield of Faith — buff/debuff handler applies +2 AC effect with concentration",
+      "type": "action",
+      "input": { "text": "cast Shield of Faith" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn, AI attacks",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Combat should still be active",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" }
+    },
+    {
+      "comment": "Cast Sacred Flame cantrip (no slot cost, non-concentration)",
+      "type": "action",
+      "input": { "text": "cast Sacred Flame at Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    }
+  ]
+}

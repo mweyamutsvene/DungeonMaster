@@ -1,0 +1,58 @@
+{
+  "name": "Narration: Death Save",
+  "description": "Narration for death saving throws describes tension without revealing the final outcome",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate a successful death save",
+      "input": {
+        "events": [
+          {
+            "type": "deathSave",
+            "payload": {
+              "combatantName": "Thorin Ironfist",
+              "roll": 14,
+              "success": true,
+              "totalSuccesses": 2,
+              "totalFailures": 1
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["Thorin", "cling", "life", "breath", "pulse", "survive", "fight", "hold", "grasp"],
+        "doesNotContain": ["stands up", "attacks", "healed fully", "narrator"],
+        "maxLength": 400,
+        "minLength": 10,
+        "promptSnapshot": "death-save"
+      }
+    },
+    {
+      "type": "narration",
+      "description": "Narrate a failed death save — should convey dire stakes",
+      "input": {
+        "events": [
+          {
+            "type": "deathSave",
+            "payload": {
+              "combatantName": "Thorin Ironfist",
+              "roll": 6,
+              "success": false,
+              "totalSuccesses": 1,
+              "totalFailures": 2
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["Thorin", "fade", "slip", "weaken", "fail", "closer", "grip", "cold", "dark", "struggle"],
+        "doesNotContain": ["stands up", "attacks", "healed", "narrator"],
+        "maxLength": 400,
+        "minLength": 10
+      }
+    }
+  ]
+}

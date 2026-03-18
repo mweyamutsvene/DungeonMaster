@@ -1,0 +1,121 @@
+{
+  "name": "Spirit Guardians: Aura Zone Damage",
+  "description": "A Cleric casts Spirit Guardians — creates an aura zone that moves with the caster. Enemies starting their turn in the zone take 3d8 radiant damage (WIS save for half). Tests zone creation, turn-start damage trigger, and concentration tracking.",
+  "setup": {
+    "character": {
+      "name": "Sister Miriam",
+      "className": "Cleric",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 10, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 12
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          {
+            "name": "Spirit Guardians",
+            "level": 3,
+            "concentration": true,
+            "zone": {
+              "type": "aura",
+              "radiusFeet": 15,
+              "shape": "circle",
+              "attachToSelf": true,
+              "effects": [
+                {
+                  "trigger": "on_start_turn",
+                  "damage": { "diceCount": 3, "diceSides": 8, "modifier": 0 },
+                  "damageType": "radiant",
+                  "saveAbility": "wisdom",
+                  "saveDC": 15,
+                  "halfDamageOnSave": true,
+                  "affectsEnemies": true,
+                  "affectsAllies": false,
+                  "affectsSelf": false
+                }
+              ]
+            }
+          },
+          {
+            "name": "Sacred Flame",
+            "level": 0,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 2, "diceSides": 8, "modifier": 0 },
+            "damageType": "radiant",
+            "halfDamageOnSave": false
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Mace", "kind": "melee", "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton A",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "saveProficiencies": [],
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I invoke divine power" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Spirit Guardians — zone spell handler creates an aura zone centered on caster",
+      "type": "action",
+      "input": { "text": "cast Spirit Guardians" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn — Skeleton A's turn starts. It is within 15ft of caster at (15,10) vs (10,10) = 5ft away, inside the 15ft aura. Should take on_start_turn zone damage.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Skeleton A should have taken zone damage from Spirit Guardians (3d8 radiant, WIS save DC 15 with -1 mod → likely fails). HP should be less than max 30.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Skeleton A", "min": 0, "max": 29 } }
+    },
+    {
+      "comment": "Verify combat is still active",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

@@ -46,4 +46,11 @@ export class PrismaCharacterRepository implements ICharacterRepository {
   async listBySession(sessionId: string): Promise<SessionCharacterRecord[]> {
     return this.prisma.sessionCharacter.findMany({ where: { sessionId } });
   }
+
+  async updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord> {
+    return this.prisma.sessionCharacter.update({
+      where: { id },
+      data: { sheet: sheet as Prisma.InputJsonValue },
+    });
+  }
 }

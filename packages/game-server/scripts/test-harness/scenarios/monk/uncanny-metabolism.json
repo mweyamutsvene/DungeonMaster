@@ -1,0 +1,139 @@
+{
+  "name": "Monk Uncanny Metabolism: Ki Restoration & Healing on Initiative",
+  "description": "A level 5 Monk enters combat wounded (25/38 HP). Uncanny Metabolism auto-triggers on initiative: restores all ki to max and heals martial arts die (1d8) + monk level (5) = 6-13 HP. Then attacks normally to verify combat flow is unaffected.",
+  "setup": {
+    "character": {
+      "name": "Li Wei",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 25,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "position": { "x": 10, "y": 10 },
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy Golem",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 12,
+          "speed": 20,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "position": { "x": 15, "y": 10 },
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the golem" },
+      "comment": "Start combat — Uncanny Metabolism triggers on initiative roll",
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative (18 + 3 DEX = 21). Uncanny Metabolism fires: ki → max (5/5), heal 1d8+5 (6-13 HP). HP goes from 25 to 31-38.",
+      "expect": {
+        "combatStarted": true,
+        "uncannyMetabolism": {
+          "healAmount": { "min": 6, "max": 13 }
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify HP healed by Uncanny Metabolism (25 + 6-13 = 31-38) and ki at max (5/5)",
+      "expect": {
+        "characterHp": { "min": 31, "max": 38 },
+        "characterResource": { "poolName": "ki", "current": 5, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify uncanny_metabolism pool spent (0/1)",
+      "expect": {
+        "characterResource": { "poolName": "uncanny_metabolism", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Training Dummy Golem with an unarmed strike" },
+      "comment": "Normal attack to verify combat flow works after Uncanny Metabolism",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "comment": "12 + 6 = 18 vs AC 12 — hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "comment": "5 + 3 (DEX) = 8 bludgeoning damage. Golem: 50 - 8 = 42 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify golem took damage from the normal attack",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy Golem", "min": 40, "max": 44 }
+      }
+    }
+  ]
+}

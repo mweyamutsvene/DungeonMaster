@@ -1,0 +1,100 @@
+{
+  "name": "Initiative: Invisible creature gets advantage, Incapacitated gets disadvantage",
+  "description": "A Fighter with the Invisible condition should get advantage on initiative. Tests condition-based initiative modifiers (D&D 5e 2024). Also verifies the advantage flag is sent in the roll request.",
+  "setup": {
+    "character": {
+      "name": "Phantom",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 5, "y": 5 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "conditions": ["Invisible"],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Orc Sentry",
+        "position": { "x": 10, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Invisible PC initiates — should get advantage signal on initiative",
+      "input": { "text": "I attack the orc sentry" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true, "advantage": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll initiative (high roll with advantage)",
+      "input": { "text": "I rolled a 18" },
+      "expect": { "rollType": "initiative", "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Attack the orc",
+      "input": { "text": "I attack the orc sentry with my longsword" },
+      "expect": { "rollType": "attack" }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll attack (hits AC 13)",
+      "input": { "text": "I rolled a 15" },
+      "expect": { "hit": true, "rollType": "damage" }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll damage",
+      "input": { "text": "I rolled a 6" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

@@ -9,18 +9,42 @@ import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
 import type { CombatEncounterRecord, CombatantType, JsonValue } from "../../types.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
-import { createCombatMap, type CombatMap } from "../../../domain/rules/combat-map.js";
+import { createCombatMap, type CombatMap, getMapZones, setMapZones } from "../../../domain/rules/combat-map.js";
 import type { Position } from "../../../domain/rules/movement.js";
 
 import type { CombatVictoryPolicy } from "./combat-victory-policy.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantIdByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
-import { clearActionSpent, resetTurnResources } from "./helpers/resource-utils.js";
+import { clearActionSpent, resetTurnResources, getActiveEffects, setActiveEffects, normalizeResources, getPosition } from "./helpers/resource-utils.js";
+import {
+  shouldRemoveAtEndOfTurn,
+  shouldRemoveAtStartOfTurn,
+  decrementRounds,
+  getEffectsByType,
+  calculateBonusFromEffects,
+  hasAdvantageFromEffects,
+  hasDisadvantageFromEffects,
+  type ActiveEffect,
+} from "../../../domain/entities/combat/effects.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../domain/rules/saving-throws.js";
+import type { Ability } from "../../../domain/entities/core/ability-scores.js";
 import { hydrateCombat, extractCombatState, extractActionEconomy } from "./helpers/combat-hydration.js";
 import { hydrateCharacter, hydrateMonster, hydrateNPC } from "./helpers/creature-hydration.js";
 import type { Creature } from "../../../domain/entities/creatures/creature.js";
 import { makeDeathSave, applyDeathSaveResult, needsDeathSave, type DeathSaves } from "../../../domain/rules/death-saves.js";
+import { normalizeConditions, removeExpiredConditions, removeCondition, type Condition } from "../../../domain/entities/combat/conditions.js";
+import {
+  getTriggeredZoneEffects,
+  doesZoneEffectAffect,
+  isPositionInZone,
+  decrementZoneRounds,
+  getPassiveZoneSaveBonus,
+  type CombatZone,
+  type ZoneEffect,
+} from "../../../domain/entities/combat/zones.js";
+import { applyDamageDefenses } from "../../../domain/rules/damage-defenses.js";
+import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
 
 /**
  * Combat encounter lifecycle + turn progression orchestration for a session.
@@ -390,7 +414,7 @@ export class CombatService {
 
   async nextTurn(
     sessionId: string,
-    input?: { encounterId?: string },
+    input?: { encounterId?: string; skipDeathSaveAutoRoll?: boolean },
   ): Promise<CombatEncounterRecord> {
     // Use domain-based implementation if dependencies available
     if (this.characters && this.monsters && this.npcs && this.diceRoller) {
@@ -445,6 +469,9 @@ export class CombatService {
           this.combat.updateCombatantState(c.id, { resources: resetTurnResources(c.resources) }),
         ),
       );
+
+      // ── Zone round cleanup: decrement durations, remove expired zones ──
+      await this.cleanupExpiredZones(updated);
     } else {
       const active = combatants[updated.turn];
       if (!active) {
@@ -463,10 +490,14 @@ export class CombatService {
       });
     }
 
-    // Check if the newly active combatant needs a death saving throw
+    // Check if the newly active combatant needs a death saving throw.
+    // By default, only Characters make death saves (monsters die immediately at 0 HP).
+    // When skipDeathSaveAutoRoll is true (tabletop mode), skip auto-rolling — the tabletop
+    // service will prompt the player interactively instead.
+    if (!input?.skipDeathSaveAutoRoll) {
     const updatedCombatants = await this.combat.listCombatants(encounter.id);
     const activeCombatant = updatedCombatants[updated.turn];
-    if (activeCombatant) {
+    if (activeCombatant && activeCombatant.characterId) {
       const resources = (activeCombatant.resources as any) || {};
       const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
       const isStabilized = resources.stabilized === true;
@@ -545,6 +576,7 @@ export class CombatService {
         }
       }
     }
+    } // end skipDeathSaveAutoRoll guard
 
     return updated;
   }
@@ -554,7 +586,7 @@ export class CombatService {
    */
   private async nextTurnDomain(
     sessionId: string,
-    input?: { encounterId?: string },
+    input?: { encounterId?: string; skipDeathSaveAutoRoll?: boolean },
   ): Promise<CombatEncounterRecord> {
     const encounter = await resolveEncounterOrThrow(
       this.sessions,
@@ -612,6 +644,29 @@ export class CombatService {
     // Hydrate Combat domain instance
     const combat = hydrateCombat(encounter, combatantRecords, creatures, this.diceRoller!);
 
+    // --- End-of-turn condition expiry for the outgoing combatant ---
+    const outgoingCreatureId = combat.getActiveCreature().getId();
+    const outgoingRecord = combatantRecords.find(c => c.id === outgoingCreatureId);
+    const outgoingEntityId = outgoingRecord?.characterId ?? outgoingRecord?.monsterId ?? outgoingRecord?.npcId;
+    if (outgoingEntityId) {
+      for (const record of combatantRecords) {
+        const structuredConditions = normalizeConditions(record.conditions);
+        const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId);
+        if (removed.length > 0) {
+          await this.combat.updateCombatantState(record.id, {
+            conditions: remaining as any,
+          });
+          console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at end of ${outgoingEntityId}'s turn`);
+        }
+      }
+
+      // ── ActiveEffect: end-of-turn processing ──
+      await this.processActiveEffectsAtTurnEvent(combatantRecords, "end_of_turn", outgoingEntityId, encounter);
+
+      // ── Zone: end-of-turn triggers (Cloud of Daggers, Spirit Guardians, etc.) ──
+      await this.processZoneTurnTriggers(encounter, combatantRecords, "on_end_turn", outgoingCreatureId, outgoingEntityId);
+    }
+
     // Advance turn via domain logic
     combat.endTurn();
 
@@ -636,6 +691,11 @@ export class CombatService {
     const { round, turn } = extractCombatState(combat);
     const updated = await this.combat.updateEncounter(encounter.id, { round, turn });
 
+    // Re-fetch combatant records to get the latest state after effect cleanup
+    // (the original combatantRecords may have stale activeEffects that were
+    // removed during end-of-turn processing above)
+    const freshRecords = await this.combat.listCombatants(encounter.id);
+
     // Persist action economy for all creatures
     // Note: In a new round, all action economies are reset by endTurn()
     // In a regular turn, only the new active combatant's economy is reset
@@ -643,13 +703,61 @@ export class CombatService {
     await Promise.all(
       order.map((entry) => {
         const creatureId = entry.creature.getId();
-        const record = combatantRecords.find((c) => c.id === creatureId);
+        const record = freshRecords.find((c) => c.id === creatureId);
         if (!record) return Promise.resolve();
 
         const resources = extractActionEconomy(combat, creatureId, record.resources);
         return this.combat.updateCombatantState(creatureId, { resources });
       }),
     );
+
+    // Condition expiry: Remove "Stunned" from combatants whose stun expires
+    // at the start of the newly active combatant's turn.
+    const activeCreatureId = combat.getActiveCreature().getId();
+    const activeRecord = combatantRecords.find(
+      (c) => c.id === activeCreatureId,
+    );
+    // Determine the entity ID (characterId/monsterId/npcId) of the active combatant
+    const activeEntityId = activeRecord?.characterId ?? activeRecord?.monsterId ?? activeRecord?.npcId;
+    if (activeEntityId) {
+      // Re-fetch combatants to get latest state (action economy may have been updated above)
+      const latestRecords = await this.combat.listCombatants(encounter.id);
+      for (const record of latestRecords) {
+        const res = typeof record.resources === "object" && record.resources !== null
+          ? record.resources as Record<string, unknown>
+          : {};
+
+        // General-purpose structured condition expiry (System 4)
+        // Check for conditions with expiresAt tracking
+        const structuredConditions = normalizeConditions(record.conditions);
+        const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId;
+        const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId);
+        if (removed.length > 0) {
+          await this.combat.updateCombatantState(record.id, {
+            conditions: remaining as any,
+          });
+          console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at start of ${activeEntityId}'s turn`);
+        }
+
+        // Also remove StunningStrikePartial (speed halved + adv on next attack) at start of any of target's own turns
+        if (recordEntityId === activeEntityId) {
+          if (structuredConditions.some(c => c.condition === "StunningStrikePartial")) {
+            const updatedConditions = removeCondition(structuredConditions, "StunningStrikePartial" as Condition);
+            await this.combat.updateCombatantState(record.id, {
+              conditions: updatedConditions as any,
+            });
+            console.log(`[CombatService] Removed StunningStrikePartial from active combatant ${record.id}`);
+          }
+        }
+      }
+
+      // ── ActiveEffect: start-of-turn processing ──
+      const latestRecordsForEffects = await this.combat.listCombatants(encounter.id);
+      await this.processActiveEffectsAtTurnEvent(latestRecordsForEffects, "start_of_turn", activeEntityId, encounter);
+
+      // ── Zone: start-of-turn triggers (Moonbeam, Spirit Guardians, etc.) ──
+      await this.processZoneTurnTriggers(encounter, latestRecordsForEffects, "on_start_turn", activeCreatureId, activeEntityId);
+    }
 
     if (this.events) {
       await this.events.append(sessionId, {
@@ -661,6 +769,8 @@ export class CombatService {
 
     // Check if the newly active combatant needs a death saving throw.
     // By default, only Characters make death saves (monsters typically die at 0 HP).
+    // When skipDeathSaveAutoRoll is true (tabletop mode), skip auto-rolling.
+    if (!input?.skipDeathSaveAutoRoll) {
     const activeCombatant = combatantRecords[turn];
     if (activeCombatant && activeCombatant.characterId) {
       const resources = (activeCombatant.resources as any) || {};
@@ -741,6 +851,7 @@ export class CombatService {
         }
       }
     }
+    } // end skipDeathSaveAutoRoll guard (nextTurnDomain)
 
     return updated;
   }
@@ -774,7 +885,7 @@ export class CombatService {
       throw new ValidationError("It is not the actor's turn");
     }
 
-    return this.nextTurn(sessionId, { encounterId: encounter.id });
+    return this.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
   }
 
   /**
@@ -804,6 +915,11 @@ export class CombatService {
 
     const combatant = combatants.find((c) => c.id === actorId);
     if (!combatant) throw new ValidationError("Combatant not found");
+
+    // Monsters/NPCs die immediately at 0 HP - only Characters make death saves
+    if (!combatant.characterId) {
+      throw new ValidationError("Only player characters can make death saving throws");
+    }
 
     // Parse current death saves from resources
     const resources = (combatant.resources as any) || {};
@@ -878,5 +994,359 @@ export class CombatService {
       deathSaves: updatedDeathSaves,
       ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
     };
+  }
+
+  /**
+   * Process ActiveEffects at a turn transition event (start_of_turn or end_of_turn).
+   * 
+   * Phase A: Execute ongoing effects (ongoing_damage, recurring_temp_hp) for the active combatant.
+   * Phase B: Clean up expired effects for all combatants.
+   */
+  private async processActiveEffectsAtTurnEvent(
+    combatantRecords: any[],
+    event: "start_of_turn" | "end_of_turn",
+    activeEntityId: string,
+    encounter: CombatEncounterRecord,
+  ): Promise<void> {
+    const round = encounter.round ?? 1;
+    const turn = encounter.turn ?? 0;
+    const map = encounter.mapData as unknown as CombatMap | undefined;
+
+    for (const record of combatantRecords) {
+      const entityId = record.characterId ?? record.monsterId ?? record.npcId;
+      const isActiveCreatureTurn = entityId === activeEntityId;
+      const effects = getActiveEffects(record.resources ?? {});
+      if (effects.length === 0) continue;
+
+      let updatedEffects = [...effects];
+      let resourcesChanged = false;
+      let currentResources = record.resources;
+
+      // Phase A: Execute ongoing effects
+      // Two triggers: (1) effects on the active creature that fire on their own turn,
+      // (2) effects on OTHER creatures where sourceCombatantId is the active creature
+      //     (caster-turn-triggered, e.g. Heat Metal fires on caster's turn, not victim's)
+      {
+        // Ongoing damage — own-turn effects OR caster-turn-triggered effects
+        const ongoingDamage = updatedEffects.filter(
+          e => e.type === "ongoing_damage" && e.triggerAt === event && (
+            isActiveCreatureTurn
+              ? !e.sourceCombatantId || e.sourceCombatantId === entityId  // own-turn: fire if no source or self-applied
+              : e.sourceCombatantId === activeEntityId                    // caster-turn: fire only if caster is the active creature
+          )
+        );
+        for (const eff of ongoingDamage) {
+          if (record.hpCurrent <= 0) break; // Don't apply to dead/KO'd creatures
+          let dmg = eff.value ?? 0;
+          if (eff.diceValue && this.diceRoller) {
+            for (let i = 0; i < eff.diceValue.count; i++) {
+              dmg += this.diceRoller.rollDie(eff.diceValue.sides).total;
+            }
+          }
+          if (dmg > 0) {
+            const hpBefore = record.hpCurrent;
+            const hpAfter = Math.max(0, hpBefore - dmg);
+            await this.combat.updateCombatantState(record.id, { hpCurrent: hpAfter });
+            record.hpCurrent = hpAfter; // Update local copy
+            console.log(`[CombatService] Ongoing damage (${eff.source ?? "effect"}): ${dmg} ${eff.damageType ?? ""} to ${record.id} (HP: ${hpBefore} → ${hpAfter})`);
+          }
+        }
+
+        // Recurring temp HP (same own-turn vs caster-turn logic)
+        const recurringTempHp = updatedEffects.filter(
+          e => e.type === "recurring_temp_hp" && e.triggerAt === event && (
+            isActiveCreatureTurn
+              ? !e.sourceCombatantId || e.sourceCombatantId === entityId
+              : e.sourceCombatantId === activeEntityId
+          )
+        );
+        for (const eff of recurringTempHp) {
+          let tempHp = eff.value ?? 0;
+          if (eff.diceValue && this.diceRoller) {
+            for (let i = 0; i < eff.diceValue.count; i++) {
+              tempHp += this.diceRoller.rollDie(eff.diceValue.sides).total;
+            }
+          }
+          if (tempHp > 0) {
+            const res = typeof currentResources === "object" && currentResources !== null
+              ? currentResources as Record<string, unknown>
+              : {};
+            const currentTempHp = typeof res.tempHp === "number" ? res.tempHp : 0;
+            // Temp HP doesn't stack — only apply if higher
+            if (tempHp > currentTempHp) {
+              currentResources = { ...res, tempHp } as any;
+              resourcesChanged = true;
+              console.log(`[CombatService] Recurring temp HP (${eff.source ?? "effect"}): ${tempHp} to ${record.id}`);
+            }
+          }
+        }
+
+        // Save-to-end: effects with saveToEnd get a saving throw
+        for (let i = updatedEffects.length - 1; i >= 0; i--) {
+          const eff = updatedEffects[i];
+          if (!eff.saveToEnd || !this.diceRoller) continue;
+          // Only process save-to-end at the timing matching the effect's trigger
+          // (default: end_of_turn for most effects)
+          if (eff.triggerAt && eff.triggerAt !== event) continue;
+          // Caster-turn-triggered: only process if the caster is the active creature
+          if (!isActiveCreatureTurn) {
+            if (!eff.sourceCombatantId || eff.sourceCombatantId !== activeEntityId) continue;
+          }
+          if (!eff.triggerAt && event !== "end_of_turn") continue;
+
+          // Look up real ability score from sheet/statBlock
+          const saveAbility = eff.saveToEnd.ability as Ability;
+          const sheetOrStatBlock = (record as any).sheet ?? (record as any).statBlock ?? {};
+          const abilityScoresRaw = (typeof sheetOrStatBlock === "object" && sheetOrStatBlock !== null)
+            ? (sheetOrStatBlock as Record<string, unknown>).abilityScores ?? {}
+            : {};
+          const abilityScoreVal = (typeof abilityScoresRaw === "object" && abilityScoresRaw !== null)
+            ? (abilityScoresRaw as Record<string, unknown>)[saveAbility]
+            : undefined;
+          const abilityScore = typeof abilityScoreVal === "number" ? abilityScoreVal : 10;
+          const abilityMod = getAbilityModifier(abilityScore);
+
+          // Check save proficiency
+          const level = typeof sheetOrStatBlock.level === "number" ? sheetOrStatBlock.level : 1;
+          const profBonus = getProficiencyBonus(level);
+          const saveProficiencies: string[] = Array.isArray(sheetOrStatBlock.saveProficiencies)
+            ? sheetOrStatBlock.saveProficiencies
+            : Array.isArray(sheetOrStatBlock.proficiencies)
+              ? sheetOrStatBlock.proficiencies
+              : [];
+          const isProficient = saveProficiencies.includes(`${saveAbility}_save`) || saveProficiencies.includes(saveAbility);
+          const profMod = isProficient ? profBonus : 0;
+
+          // ActiveEffect bonuses on saving throws (e.g., Bless +1d4)
+          let effectBonus = 0;
+          const combatantEffects = getActiveEffects(record.resources ?? {});
+          const saveBonusResult = calculateBonusFromEffects(combatantEffects, 'saving_throws', saveAbility);
+          effectBonus += saveBonusResult.flatBonus;
+          for (const dr of saveBonusResult.diceRolls) {
+            const count = Math.abs(dr.count);
+            const sign = dr.count < 0 ? -1 : 1;
+            for (let j = 0; j < count; j++) {
+              effectBonus += sign * this.diceRoller.rollDie(dr.sides).total;
+            }
+          }
+
+          // Passive zone aura bonuses (e.g., Paladin Aura of Protection)
+          const zones = map ? getMapZones(map) : [];
+          if (zones.length > 0) {
+            const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId;
+            const recordPosition = getPosition(record.resources);
+            if (recordEntityId && recordPosition) {
+              const recordIsPC = record.combatantType === "Character" || record.combatantType === "NPC";
+              const zoneBonus = getPassiveZoneSaveBonus(zones, recordPosition, recordEntityId, (srcId) => {
+                const src = combatantRecords.find((c: any) =>
+                  (c.characterId ?? c.monsterId ?? c.npcId) === srcId,
+                );
+                return src ? (src.combatantType === "Character" || src.combatantType === "NPC") === recordIsPC : false;
+              }, saveAbility);
+              if (zoneBonus !== 0) {
+                effectBonus += zoneBonus;
+                console.log(`[CombatService] Passive zone aura bonus for ${recordEntityId}: +${zoneBonus} to ${saveAbility} save`);
+              }
+            }
+          }
+
+          // Advantage/disadvantage from effects
+          const hasAdvantage = hasAdvantageFromEffects(combatantEffects, 'saving_throws', saveAbility);
+          const hasDisadvantage = hasDisadvantageFromEffects(combatantEffects, 'saving_throws', saveAbility);
+
+          let roll;
+          if (hasAdvantage && !hasDisadvantage) {
+            const roll1 = this.diceRoller.d20();
+            const roll2 = this.diceRoller.d20();
+            roll = roll1.total >= roll2.total ? roll1 : roll2;
+          } else if (hasDisadvantage && !hasAdvantage) {
+            const roll1 = this.diceRoller.d20();
+            const roll2 = this.diceRoller.d20();
+            roll = roll1.total <= roll2.total ? roll1 : roll2;
+          } else {
+            roll = this.diceRoller.d20();
+          }
+
+          const totalMod = abilityMod + profMod + effectBonus;
+          const total = roll.total + totalMod;
+          const success = total >= eff.saveToEnd.dc;
+
+          console.log(`[CombatService] Save-to-end (${eff.source ?? "effect"}): d20(${roll.total}) + ${totalMod} (${saveAbility} ${abilityMod}${profMod ? ` + prof ${profMod}` : ""}${effectBonus ? ` + effects ${effectBonus}` : ""}) = ${total} vs DC ${eff.saveToEnd.dc} → ${success ? "SUCCESS (removed)" : "FAILURE (persists)"}`);
+
+          if (success) {
+            updatedEffects.splice(i, 1);
+            resourcesChanged = true;
+          }
+        }
+      }
+
+      // Phase B: Cleanup expired effects
+      const cleanedEffects: ActiveEffect[] = [];
+      for (const eff of updatedEffects) {
+        const shouldRemove = event === "end_of_turn"
+          ? shouldRemoveAtEndOfTurn(eff, round, turn, isActiveCreatureTurn)
+          : shouldRemoveAtStartOfTurn(eff, round, turn, isActiveCreatureTurn);
+
+        if (shouldRemove) {
+          console.log(`[CombatService] Removing expired effect "${eff.source ?? eff.id}" from ${record.id} at ${event}`);
+          resourcesChanged = true;
+          continue;
+        }
+
+        // Decrement rounds for round-based effects
+        const decremented = event === "end_of_turn" && isActiveCreatureTurn
+          ? decrementRounds(eff)
+          : eff;
+        if (decremented !== eff) resourcesChanged = true;
+        cleanedEffects.push(decremented);
+      }
+
+      if (resourcesChanged) {
+        const finalResources = setActiveEffects(currentResources, cleanedEffects);
+        await this.combat.updateCombatantState(record.id, {
+          resources: finalResources as any,
+        });
+      }
+    }
+  }
+
+  /**
+   * Decrement zone round counters at round boundary and remove expired zones.
+   */
+  private async cleanupExpiredZones(encounter: CombatEncounterRecord): Promise<void> {
+    const map = encounter.mapData as unknown as CombatMap | undefined;
+    if (!map) return;
+    const zones = getMapZones(map);
+    if (zones.length === 0) return;
+
+    const remaining = zones
+      .map((z) => decrementZoneRounds(z))
+      .filter((z): z is NonNullable<typeof z> => z !== null);
+
+    if (remaining.length !== zones.length) {
+      const removedCount = zones.length - remaining.length;
+      const updatedMap = setMapZones(map, remaining);
+      await this.combat.updateEncounter(encounter.id, {
+        mapData: updatedMap as unknown as Record<string, unknown>,
+      });
+      console.log(
+        `[CombatService] Round cleanup: removed ${removedCount} expired zone(s), ${remaining.length} remaining`,
+      );
+    }
+  }
+
+  /**
+   * Process zone triggers at turn start/end for a specific combatant.
+   * Checks if the combatant is inside any zones and applies:
+   * - on_start_turn / on_end_turn damage (with saves if applicable)
+   * - Condition application from zones
+   */
+  private async processZoneTurnTriggers(
+    encounter: CombatEncounterRecord,
+    combatantRecords: any[],
+    trigger: "on_start_turn" | "on_end_turn",
+    combatantId: string,
+    entityId: string | undefined,
+  ): Promise<void> {
+    if (!entityId) return;
+
+    const map = encounter.mapData as unknown as CombatMap | undefined;
+    if (!map) return;
+    const zones = getMapZones(map);
+    if (zones.length === 0) return;
+
+    // Find the combatant's position
+    const record = combatantRecords.find((c: any) => c.id === combatantId);
+    if (!record) return;
+    const resources = normalizeResources(record.resources);
+    const position = getPosition(resources);
+    if (!position) return;
+
+    const combatantIsPC = record.combatantType === "Character" || record.combatantType === "NPC";
+
+    // Get all triggered effects at this position for this combatant
+    const triggered = getTriggeredZoneEffects(
+      zones,
+      trigger,
+      position,
+      entityId,
+      (sourceCombatantId: string) => {
+        const src = combatantRecords.find((c: any) =>
+          (c.characterId ?? c.monsterId ?? c.npcId) === sourceCombatantId,
+        );
+        const srcIsPC = src
+          ? src.combatantType === "Character" || src.combatantType === "NPC"
+          : false;
+        return combatantIsPC === srcIsPC;
+      },
+    );
+
+    if (triggered.length === 0) return;
+
+    // Calculate passive zone save bonus (e.g., Paladin Aura of Protection)
+    const isSameFactionFn = (sourceCombatantId: string): boolean => {
+      const src = combatantRecords.find((c: any) =>
+        (c.characterId ?? c.monsterId ?? c.npcId) === sourceCombatantId,
+      );
+      const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
+      return combatantIsPC === srcIsPC;
+    };
+    const passiveSaveBonus = getPassiveZoneSaveBonus(zones, position, entityId, isSameFactionFn);
+
+    let totalDamage = 0;
+    for (const { zone, effect } of triggered) {
+      if (!effect.damage) continue;
+
+      // Roll saving throw if applicable
+      let saveSuccess = false;
+      if (effect.saveAbility && effect.saveDC !== undefined && this.diceRoller) {
+        const saveRoll = this.diceRoller.d20();
+        const saveTotal = saveRoll.total + passiveSaveBonus;
+        saveSuccess = saveTotal >= effect.saveDC;
+        console.log(
+          `[CombatService] Zone ${zone.source} ${trigger} save: ${saveRoll.total}${passiveSaveBonus ? ` + ${passiveSaveBonus} (aura)` : ""} = ${saveTotal} vs DC ${effect.saveDC} → ${saveSuccess ? "save" : "fail"}`,
+        );
+      }
+
+      // Roll damage
+      let rawDamage = 0;
+      if (this.diceRoller) {
+        rawDamage = this.diceRoller.rollDie(
+          effect.damage.diceSides,
+          effect.damage.diceCount,
+          effect.damage.modifier ?? 0,
+        ).total;
+      } else {
+        rawDamage =
+          Math.floor(effect.damage.diceCount * ((effect.damage.diceSides + 1) / 2)) +
+          (effect.damage.modifier ?? 0);
+      }
+
+      // Half damage on save or zero on save
+      if (saveSuccess) {
+        rawDamage = effect.halfDamageOnSave ? Math.floor(rawDamage / 2) : 0;
+      }
+
+      // Apply damage defenses
+      const defenseResult = applyDamageDefenses(rawDamage, effect.damageType, {
+        damageResistances: [],
+        damageImmunities: [],
+        damageVulnerabilities: [],
+      });
+      totalDamage += defenseResult.adjustedDamage;
+
+      console.log(
+        `[CombatService] Zone "${zone.source}" ${trigger}: ${defenseResult.adjustedDamage} ${effect.damageType ?? ""} damage to ${entityId}${saveSuccess ? " (saved)" : ""}`,
+      );
+    }
+
+    if (totalDamage > 0) {
+      const hpBefore = record.hpCurrent;
+      const newHP = Math.max(0, hpBefore - totalDamage);
+      await this.combat.updateCombatantState(record.id, {
+        hpCurrent: newHP,
+      });
+      await applyKoEffectsIfNeeded(record, hpBefore, newHP, this.combat);
+    }
   }
 }

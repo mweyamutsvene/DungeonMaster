@@ -1,0 +1,151 @@
+{
+  "name": "Rogue Sneak Attack: Ally Adjacent",
+  "description": "A Rogue deals Sneak Attack damage with a finesse weapon when an NPC ally is within 5ft of the target. Level 5 Rogue gets 3d6 Sneak Attack dice.",
+  "setup": {
+    "character": {
+      "name": "Shadow",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Guard",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 35,
+          "hp": 35,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "npcs": [
+      {
+        "name": "Guard Ally",
+        "position": { "x": 15, "y": 15 },
+        "faction": "party",
+        "aiControlled": true,
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 20,
+          "hp": 20,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Goblin Guard with my shortsword" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      },
+      "comment": "Start combat"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": {
+        "combatStarted": true
+      },
+      "comment": "Initiative roll resolves. Shadow goes first."
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Guard with my shortsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      },
+      "comment": "Declare attack with finesse shortsword. NPC ally is within 5ft of target → Sneak Attack eligible."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      },
+      "comment": "Attack roll 14 + 7 = 21 → hits AC 13. Should prompt for 1d6+3d6+4 (includes Sneak Attack)."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "Damage roll: player rolls 1d6 (weapon) + 3d6 (sneak) = 14 total dice. Server adds +4 modifier = 18. HP: 35 → 17."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Guard", "exact": 17 }
+      },
+      "comment": "Verify Sneak Attack applied: 14 (dice) + 4 (mod) = 18 damage. 35 - 18 = 17 HP remaining."
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import type { JsonValue } from "../../../types.js";
+import type { ActiveEffect } from "../../../../domain/entities/combat/effects.js";
+import { calculateFlatBonusFromEffects, hasConditionImmunity } from "../../../../domain/entities/combat/effects.js";
 
 /**
  * Action economy resource utilities for managing combatant action state.
@@ -28,6 +30,7 @@ export function readBoolean(obj: Record<string, unknown>, key: string): boolean 
 
 /**
  * Check if a combatant has already spent their action this turn.
+ * For attack actions, considers Extra Attack feature.
  */
 export function hasSpentAction(resources: JsonValue): boolean {
   const normalized = normalizeResources(resources);
@@ -40,6 +43,81 @@ export function hasSpentAction(resources: JsonValue): boolean {
 export function spendAction(resources: JsonValue): JsonValue {
   const normalized = normalizeResources(resources);
   return { ...normalized, actionSpent: true } as JsonValue;
+}
+
+/**
+ * Get the number of attacks used this turn.
+ */
+export function getAttacksUsedThisTurn(resources: JsonValue): number {
+  const normalized = normalizeResources(resources);
+  const val = normalized.attacksUsedThisTurn;
+  return typeof val === "number" && Number.isInteger(val) && val >= 0 ? val : 0;
+}
+
+/**
+ * Get the number of attacks allowed this turn (from Extra Attack, Action Surge, etc.).
+ * Defaults to 1 if not set.
+ */
+export function getAttacksAllowedThisTurn(resources: JsonValue): number {
+  const normalized = normalizeResources(resources);
+  const val = normalized.attacksAllowedThisTurn;
+  return typeof val === "number" && Number.isInteger(val) && val >= 1 ? val : 1;
+}
+
+/**
+ * Check if a combatant can make another attack this turn.
+ * Returns true if attacks used < attacks allowed and action not fully spent.
+ */
+export function canMakeAttack(resources: JsonValue): boolean {
+  const normalized = normalizeResources(resources);
+  const actionSpent = readBoolean(normalized, "actionSpent") ?? false;
+  if (actionSpent) return false;
+  
+  const used = getAttacksUsedThisTurn(resources);
+  const allowed = getAttacksAllowedThisTurn(resources);
+  return used < allowed;
+}
+
+/**
+ * Record an attack being used. Returns updated resources.
+ * If all attacks are used, marks action as spent.
+ */
+export function useAttack(resources: JsonValue): JsonValue {
+  const normalized = normalizeResources(resources);
+  const used = getAttacksUsedThisTurn(resources);
+  const allowed = getAttacksAllowedThisTurn(resources);
+  const newUsed = used + 1;
+  
+  const updated: Record<string, unknown> = { ...normalized, attacksUsedThisTurn: newUsed };
+  
+  // Mark action spent when all attacks are used
+  if (newUsed >= allowed) {
+    updated.actionSpent = true;
+  }
+  
+  return updated as JsonValue;
+}
+
+/**
+ * Set the number of attacks allowed this turn (based on Extra Attack, Action Surge, etc.).
+ */
+export function setAttacksAllowed(resources: JsonValue, attacks: number): JsonValue {
+  const normalized = normalizeResources(resources);
+  return { ...normalized, attacksAllowedThisTurn: attacks } as JsonValue;
+}
+
+/**
+ * Grant additional attacks (e.g., from Action Surge granting another Attack action).
+ * Also resets actionSpent since a new action is granted.
+ */
+export function grantAdditionalAction(resources: JsonValue, extraAttacks: number): JsonValue {
+  const normalized = normalizeResources(resources);
+  const currentAllowed = getAttacksAllowedThisTurn(resources);
+  return { 
+    ...normalized, 
+    attacksAllowedThisTurn: currentAllowed + extraAttacks,
+    actionSpent: false,
+  } as JsonValue;
 }
 
 /**
@@ -113,6 +191,19 @@ export function resetTurnResources(resources: JsonValue): JsonValue {
     bonusActionUsed: false,
     dashed: false,
     movementSpent: false,
+    attacksUsedThisTurn: 0,
+    sneakAttackUsedThisTurn: false,
+    stunningStrikeUsedThisTurn: false,
+    lastMovePath: undefined,
+    // Weapon mastery turn-scoped tracking
+    cleaveUsedThisTurn: false,
+    nickUsedThisTurn: false,
+    // Note: Vex mastery uses ActiveEffect with until_triggered duration (consumed on use)
+    // Loading property: only one shot from Loading weapon per turn
+    loadingWeaponFiredThisTurn: false,
+    // Ready action: clear readied action at start of next turn (D&D 5e 2024)
+    readiedAction: undefined,
+    // Note: attacksAllowedThisTurn should be set separately based on character features
   } as JsonValue;
 }
 
@@ -238,4 +329,168 @@ export function spendResourceFromPool(
     ...pool,
     current: pool.current - amount,
   }));
+}
+
+// ── ActiveEffect storage helpers ──────────────────────────────────────────────
+
+/**
+ * Read active effects from a combatant's resources bag.
+ * Returns an empty array if the field is absent or malformed.
+ */
+export function getActiveEffects(resources: JsonValue): ActiveEffect[] {
+  const normalized = normalizeResources(resources);
+  const raw = normalized.activeEffects;
+  if (!Array.isArray(raw)) return [];
+  // Minimal shape check — trust the data was written by our helpers
+  return raw.filter(
+    (e): e is ActiveEffect => isRecord(e) && typeof (e as Record<string, unknown>).id === "string"
+  );
+}
+
+/**
+ * Replace the entire active effects array in a resources bag.
+ */
+export function setActiveEffects(resources: JsonValue, effects: readonly ActiveEffect[]): JsonValue {
+  const normalized = normalizeResources(resources);
+  return { ...normalized, activeEffects: effects as unknown as JsonValue } as JsonValue;
+}
+
+/**
+ * Append one or more effects to a combatant's resources bag.
+ */
+export function addActiveEffectsToResources(resources: JsonValue, ...newEffects: ActiveEffect[]): JsonValue {
+  const current = getActiveEffects(resources);
+  return setActiveEffects(resources, [...current, ...newEffects]);
+}
+
+/**
+ * Remove all effects that match a specific `source` string (e.g., when concentration breaks on "Bless").
+ */
+export function removeActiveEffectsBySource(resources: JsonValue, source: string): JsonValue {
+  const effects = getActiveEffects(resources);
+  const filtered = effects.filter(e => e.source !== source);
+  return setActiveEffects(resources, filtered);
+}
+
+/**
+ * Remove all concentration effects applied by a specific caster.
+ */
+export function removeConcentrationEffectsFromResources(
+  resources: JsonValue,
+  sourceCombatantId: string
+): JsonValue {
+  const effects = getActiveEffects(resources);
+  const filtered = effects.filter(
+    e => !(e.duration === "concentration" && e.sourceCombatantId === sourceCombatantId)
+  );
+  return setActiveEffects(resources, filtered);
+}
+
+/**
+ * Remove a single effect by its ID.
+ */
+export function removeActiveEffectById(resources: JsonValue, effectId: string): JsonValue {
+  const effects = getActiveEffects(resources);
+  return setActiveEffects(resources, effects.filter(e => e.id !== effectId));
+}
+
+/**
+ * Get the effective speed for a combatant, incorporating ActiveEffect modifiers.
+ * Base speed comes from `resources.speed` (default 30).
+ * Speed modifiers from effects are added (clamped to minimum 0).
+ */
+export function getEffectiveSpeed(resources: JsonValue): number {
+  const normalized = normalizeResources(resources);
+  const baseSpeed = typeof normalized.speed === "number" ? normalized.speed : 30;
+  const effects = getActiveEffects(resources);
+  // Combine speed_modifier type effects + bonus/penalty on speed target
+  let modifier = 0;
+  for (const e of effects) {
+    if (e.type === 'speed_modifier' || (e.target === 'speed' && (e.type === 'bonus' || e.type === 'penalty'))) {
+      const val = e.value ?? 0;
+      modifier += e.type === 'penalty' ? -val : val;
+    }
+  }
+  return Math.max(0, baseSpeed + modifier);
+}
+
+/**
+ * Check if a combatant is immune to a condition due to ActiveEffects.
+ * Returns true if the condition should be blocked.
+ */
+export function isConditionImmuneByEffects(resources: JsonValue, conditionName: string): boolean {
+  const effects = getActiveEffects(resources);
+  return hasConditionImmunity(effects, conditionName);
+}
+
+// ── Drawn weapon tracking ─────────────────────────────────────────────────────
+
+/**
+ * Get the list of currently drawn (in-hand) weapon names.
+ * Returns undefined if drawnWeapons has never been initialized (legacy combatants).
+ * An empty array means the combatant has no weapons drawn.
+ */
+export function getDrawnWeapons(resources: JsonValue): string[] | undefined {
+  const normalized = normalizeResources(resources);
+  const drawn = normalized.drawnWeapons;
+  if (!Array.isArray(drawn)) return undefined;
+  return drawn.filter((n): n is string => typeof n === "string");
+}
+
+/**
+ * Check if a specific weapon is currently drawn.
+ * If drawnWeapons is not initialized (legacy), returns true (all weapons available).
+ */
+export function isWeaponDrawn(resources: JsonValue, weaponName: string): boolean {
+  const drawn = getDrawnWeapons(resources);
+  if (drawn === undefined) return true; // Legacy: all weapons available
+  return drawn.some(n => n.toLowerCase() === weaponName.toLowerCase());
+}
+
+/**
+ * Add a weapon to the drawn list.
+ * If drawnWeapons is not yet initialized, creates the array.
+ */
+export function addDrawnWeapon(resources: JsonValue, weaponName: string): JsonValue {
+  const normalized = normalizeResources(resources);
+  const drawn = getDrawnWeapons(resources) ?? [];
+  if (!drawn.some(n => n.toLowerCase() === weaponName.toLowerCase())) {
+    drawn.push(weaponName);
+  }
+  return { ...normalized, drawnWeapons: drawn } as JsonValue;
+}
+
+/**
+ * Remove a weapon from the drawn list.
+ * No-op if the weapon is not drawn or drawnWeapons is not initialized.
+ */
+export function removeDrawnWeapon(resources: JsonValue, weaponName: string): JsonValue {
+  const normalized = normalizeResources(resources);
+  const drawn = getDrawnWeapons(resources);
+  if (!drawn) return resources; // Legacy: no-op
+  const updated = drawn.filter(n => n.toLowerCase() !== weaponName.toLowerCase());
+  return { ...normalized, drawnWeapons: updated } as JsonValue;
+}
+
+// ── Inventory tracking (CharacterItemInstance[] in resources) ──────────────────
+
+import type { CharacterItemInstance } from "../../../../domain/entities/items/magic-item.js";
+
+/**
+ * Get the inventory array from combatant resources.
+ * Returns empty array if not initialized.
+ */
+export function getInventory(resources: JsonValue): CharacterItemInstance[] {
+  const normalized = normalizeResources(resources);
+  const inv = normalized.inventory;
+  if (!Array.isArray(inv)) return [];
+  return inv as CharacterItemInstance[];
+}
+
+/**
+ * Set the inventory array on combatant resources.
+ */
+export function setInventory(resources: JsonValue, inventory: CharacterItemInstance[]): JsonValue {
+  const normalized = normalizeResources(resources);
+  return { ...normalized, inventory } as JsonValue;
 }

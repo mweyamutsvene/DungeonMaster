@@ -53,6 +53,11 @@ export interface PendingActionRepository {
   update(action: PendingAction): Promise<PendingAction>;
   
   /**
+   * Update the result of a specific reaction in a pending action.
+   */
+  updateReactionResult(actionId: string, opportunityId: string, result: any): Promise<void>;
+  
+  /**
    * Clean up expired pending actions.
    */
   cleanupExpired(): Promise<void>;
@@ -131,6 +136,18 @@ export class InMemoryPendingActionRepository implements PendingActionRepository 
   async update(action: PendingAction): Promise<PendingAction> {
     this.actions.set(action.id, action);
     return action;
+  }
+
+  async updateReactionResult(actionId: string, opportunityId: string, result: any): Promise<void> {
+    const action = this.actions.get(actionId);
+    if (!action) {
+      throw new Error(`Pending action not found: ${actionId}`);
+    }
+
+    const reaction = action.resolvedReactions.find((r: ReactionResponse) => r.opportunityId === opportunityId);
+    if (reaction) {
+      reaction.result = result;
+    }
   }
 
   async cleanupExpired(): Promise<void> {

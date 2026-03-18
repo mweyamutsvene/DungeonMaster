@@ -9,8 +9,8 @@
 import type { Position } from "../../rules/movement.js";
 import type { CombatantRef } from "../../../application/services/combat/helpers/combatant-ref.js";
 
-export type PendingActionType = "move" | "spell_cast" | "attack";
-export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke";
+export type PendingActionType = "move" | "spell_cast" | "attack" | "damage_reaction";
+export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "readied_action";
 
 /**
  * Tracks an action awaiting reaction resolution.
@@ -29,7 +29,7 @@ export interface PendingAction {
   type: PendingActionType;
   
   /** Action-specific data */
-  data: PendingMoveData | PendingSpellCastData | PendingAttackData;
+  data: PendingMoveData | PendingSpellCastData | PendingAttackData | PendingDamageReactionData;
   
   /** Reaction opportunities detected */
   reactionOpportunities: ReactionOpportunity[];
@@ -66,6 +66,22 @@ export interface PendingSpellCastData {
 }
 
 /**
+ * Data for pending damage reaction (Absorb Elements, Hellish Rebuke).
+ * Created after damage is applied, when target has a damage-triggered reaction available.
+ */
+export interface PendingDamageReactionData {
+  type: "damage_reaction";
+  /** Who dealt the damage */
+  attackerId: CombatantRef;
+  /** Damage type that triggered the reaction */
+  damageType: string;
+  /** Amount of damage that was applied */
+  damageAmount: number;
+  /** Session ID for event emission */
+  sessionId?: string;
+}
+
+/**
  * Data for pending attack action (for Shield reaction).
  */
 export interface PendingAttackData {
@@ -73,6 +89,16 @@ export interface PendingAttackData {
   target: CombatantRef;
   attackName?: string;
   attackRoll: number;
+  /** Full attack info stored for damage resolution after Shield response */
+  damageSpec?: { diceCount: number; diceSides: number; modifier: number; damageType?: string };
+  /** Whether the attack was a critical hit (nat 20) */
+  critical?: boolean;
+  /** Seed used for dice rolls (to reproduce damage roll deterministically) */
+  seed?: number;
+  /** Session ID for the attack (needed for completion) */
+  sessionId?: string;
+  /** Target AC before Shield */
+  targetAC?: number;
 }
 
 /**

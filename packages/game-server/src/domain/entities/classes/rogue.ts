@@ -1,4 +1,5 @@
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import { isFinesse } from "../items/weapon-properties.js";
 
 export function sneakAttackDiceForLevel(level: number): number {
   if (!Number.isInteger(level) || level < 1 || level > 20) {
@@ -10,11 +11,57 @@ export function sneakAttackDiceForLevel(level: number): number {
   return Math.floor((level + 1) / 2);
 }
 
+/**
+ * Check eligibility for Sneak Attack (D&D 5e 2024).
+ * Requirements:
+ * - Attacker must be a Rogue
+ * - Weapon must have the Finesse property OR be Ranged
+ * - Must have advantage on the attack roll, OR an ally within 5ft of the target
+ * - Not already used Sneak Attack this turn (once per turn)
+ */
+export function isSneakAttackEligible(params: {
+  className: string;
+  weaponKind: "melee" | "ranged";
+  weaponProperties?: string[];
+  hasAdvantage: boolean;
+  allyAdjacentToTarget: boolean;
+  sneakAttackUsedThisTurn: boolean;
+}): boolean {
+  // Must be a Rogue
+  if (params.className.toLowerCase() !== "rogue") return false;
+
+  // Must not have used sneak attack already this turn
+  if (params.sneakAttackUsedThisTurn) return false;
+
+  // Weapon must be finesse or ranged
+  const finesse = isFinesse(params.weaponProperties);
+  const isRanged = params.weaponKind === "ranged";
+  if (!finesse && !isRanged) return false;
+
+  // Must have advantage OR ally within 5ft of target
+  return params.hasAdvantage || params.allyAdjacentToTarget;
+}
+
 export const Rogue: CharacterClassDefinition = {
   id: "rogue",
   name: "Rogue",
   hitDie: 8,
   proficiencies: {
     savingThrows: ["dexterity", "intelligence"],
+  },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Sneak Attack", economy: "free", requires: "Finesse/ranged weapon + advantage or ally adjacent", effect: `${sneakAttackDiceForLevel(level)}d6 extra damage (once/turn)` },
+    ];
+    if (level >= 2) {
+      caps.push({ name: "Cunning Action", economy: "bonusAction", effect: "Dash, Disengage, or Hide as bonus action", abilityId: "class:rogue:cunning-action" });
+    }
+    if (level >= 5) {
+      caps.push({ name: "Uncanny Dodge", economy: "reaction", requires: "Hit by an attack you can see", effect: "Halve the damage", abilityId: "class:rogue:uncanny-dodge" });
+    }
+    if (level >= 7) {
+      caps.push({ name: "Evasion", economy: "free", requires: "DEX save for half damage", effect: "Success = no damage, failure = half damage" });
+    }
+    return caps;
   },
 };

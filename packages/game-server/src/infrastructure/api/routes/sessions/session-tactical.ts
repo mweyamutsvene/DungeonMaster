@@ -10,7 +10,10 @@
 
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
-import { ValidationError } from "../../../../application/errors.js";
+import { NotFoundError, ValidationError } from "../../../../application/errors.js";
+import { findPath, findAdjacentPosition } from "../../../../domain/rules/pathfinding.js";
+import type { CombatMap } from "../../../../domain/rules/combat-map.js";
+import type { Position } from "../../../../domain/rules/movement.js";
 
 export function registerSessionTacticalRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
   /**
@@ -99,6 +102,7 @@ export function registerSessionTacticalRoutes(app: FastifyInstance, deps: Sessio
       context: {
         distances: context.distances.map((d) => ({
           targetId: d.targetId,
+          targetName: d.targetName,
           distance: d.distance,
         })),
         oaPrediction: {
@@ -115,6 +119,119 @@ export function registerSessionTacticalRoutes(app: FastifyInstance, deps: Sessio
             })),
         },
       },
+    };
+  });
+
+  /**
+   * POST /sessions/:id/combat/:encounterId/path-preview
+   *
+   * Preview A* pathfinding without committing a move.
+   * Returns the computed path, per-cell metadata, cost, and narration hints.
+   *
+   * Body:
+   *   from: { x: number; y: number }          — origin position
+   *   to: { x: number; y: number }            — destination position
+   *   maxCostFeet?: number                     — movement budget (default: no limit)
+   *   desiredRange?: number                    — stop this many feet from `to` (default: 0 = exact cell)
+   *   avoidHazards?: boolean                   — treat lava/pit as impassable (default: true)
+   */
+  app.post<{
+    Params: { id: string; encounterId: string };
+    Body: {
+      from: unknown;
+      to: unknown;
+      maxCostFeet?: unknown;
+      desiredRange?: unknown;
+      avoidHazards?: unknown;
+    };
+  }>("/sessions/:id/combat/:encounterId/path-preview", async (req) => {
+    const { encounterId } = req.params;
+
+    // --- Validate body ---
+    const fromRaw = req.body?.from;
+    const toRaw = req.body?.to;
+
+    if (
+      !fromRaw || typeof fromRaw !== "object" ||
+      typeof (fromRaw as any).x !== "number" || typeof (fromRaw as any).y !== "number"
+    ) {
+      throw new ValidationError("from must be { x: number, y: number }");
+    }
+    if (
+      !toRaw || typeof toRaw !== "object" ||
+      typeof (toRaw as any).x !== "number" || typeof (toRaw as any).y !== "number"
+    ) {
+      throw new ValidationError("to must be { x: number, y: number }");
+    }
+
+    const from: Position = { x: (fromRaw as any).x, y: (fromRaw as any).y };
+    const to: Position = { x: (toRaw as any).x, y: (toRaw as any).y };
+
+    const maxCostFeetRaw = req.body?.maxCostFeet;
+    const maxCostFeet = typeof maxCostFeetRaw === "number" && maxCostFeetRaw > 0 ? maxCostFeetRaw : undefined;
+
+    const desiredRangeRaw = req.body?.desiredRange;
+    const desiredRange = typeof desiredRangeRaw === "number" && desiredRangeRaw >= 0 ? desiredRangeRaw : 0;
+
+    const avoidHazardsRaw = req.body?.avoidHazards;
+    const avoidHazards = avoidHazardsRaw !== false; // default true
+
+    // --- Load encounter map ---
+    const encounter = await deps.combatRepo.getEncounterById(encounterId);
+    if (!encounter) {
+      throw new NotFoundError(`Encounter ${encounterId} not found`);
+    }
+
+    const combatMap = encounter.mapData as unknown as CombatMap | undefined;
+    if (!combatMap || !combatMap.width || !combatMap.height) {
+      throw new ValidationError("Encounter has no combat map configured");
+    }
+
+    // --- Resolve destination (apply desiredRange if > 0) ---
+    let destination = to;
+    if (desiredRange > 0) {
+      const adjacent = findAdjacentPosition(combatMap, to, from, desiredRange);
+      if (!adjacent) {
+        return {
+          blocked: true,
+          path: [],
+          cells: [],
+          totalCostFeet: 0,
+          terrainEncountered: [],
+          narrationHints: [`No reachable position within ${desiredRange}ft of target.`],
+          reachablePosition: null,
+        };
+      }
+      destination = adjacent;
+    }
+
+    // --- Collect occupied positions from combatants ---
+    const combatants = await deps.combatRepo.listCombatants(encounterId);
+    const occupiedPositions = combatants
+      .map((c) => {
+        const res = (c.resources as Record<string, unknown>) ?? {};
+        const pos = res.position as { x: number; y: number } | undefined;
+        return pos && typeof pos.x === "number" && typeof pos.y === "number" ? pos : null;
+      })
+      .filter((p): p is Position => p !== null)
+      // Exclude origin so the mover's own position isn't blocked
+      .filter((p) => !(p.x === from.x && p.y === from.y));
+
+    // --- Run A* ---
+    const pathResult = findPath(combatMap, from, destination, {
+      maxCostFeet,
+      avoidHazards,
+      occupiedPositions,
+    });
+
+    return {
+      blocked: pathResult.blocked,
+      path: pathResult.path,
+      cells: pathResult.cells,
+      totalCostFeet: pathResult.totalCostFeet,
+      terrainEncountered: pathResult.terrainEncountered,
+      narrationHints: pathResult.narrationHints,
+      reachablePosition: pathResult.reachablePosition ?? null,
     };
   });
 }

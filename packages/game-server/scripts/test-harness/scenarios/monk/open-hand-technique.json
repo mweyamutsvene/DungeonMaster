@@ -1,0 +1,182 @@
+{
+  "name": "Monk Open Hand Technique: Flurry + Topple (2024 Post-Hit Flow)",
+  "description": "A level 5 Open Hand Monk uses Flurry of Blows and opts into OHT Topple via damage text keyword on each hit. Tests the 2024 RAW post-hit enhancement flow for Open Hand Technique.",
+  "setup": {
+    "character": {
+      "name": "Kai Openhand",
+      "className": "Monk",
+      "level": 5,
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "subclass": "Open Hand",
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      },
+      "position": { "x": 10, "y": 10 }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy Golem",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 12,
+          "speed": 20,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        },
+        "position": { "x": 15, "y": 10 }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the golem" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "Player initiative 18+3=21 vs Golem seeded d20=13+(-1)=12. Player goes first. Uncanny Metabolism fires (d8=4, heal 9 wasted at full HP).",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Training Dummy Golem with an unarmed strike" },
+      "comment": "Main action: Unarmed Strike, already in melee range (5ft apart)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "14 + 6 = 20 vs AC 12 → Hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "6 + 3 = 9 bludgeoning. Golem HP: 50 → 41",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "Bonus Action: Flurry of Blows — NO technique keyword declared upfront (2024 rules). OHT choice deferred to damage text.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "Flurry strike 1: 14 + 6 = 20 vs AC 12 → Hit. Server offers OHT + stunning strike.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6 with topple" },
+      "comment": "Strike 1 damage: 6+3=9. Golem HP: 41→32. OHT Topple applied via damage text keyword.",
+      "expect": {
+        "requiresPlayerInput": true,
+        "openHandTechnique": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "Flurry strike 2: 10 + 6 = 16 vs AC 12 → Hit. Server offers OHT again (per-hit).",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 4 with topple" },
+      "comment": "Strike 2 damage: 4+3=7. Golem HP: 32→25. OHT Topple applied via damage text keyword.",
+      "expect": {
+        "actionComplete": true,
+        "openHandTechnique": {}
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn — used Action (attack) + Bonus Action (Flurry of Blows w/ OHT Topple)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Training Dummy's turn (AI attacks back)",
+      "timeout": 5000
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify combat continues after Open Hand Technique flurry",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

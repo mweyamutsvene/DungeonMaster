@@ -1,0 +1,107 @@
+{
+  "name": "Magic weapon +1 bonus applies to attack and damage",
+  "setup": {
+    "character": {
+      "name": "Magic Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "weapon-plus-1-longsword",
+            "name": "+1 Longsword",
+            "equipped": true,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "name": "Training Dummy",
+          "armorClass": 10,
+          "maxHp": 200,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack the Training Dummy with my longsword" },
+      "expect": { "rollType": "attack" },
+      "comment": "Base +6 (STR 3 + prof 3) + magic +1 = +7 attack bonus"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "rollType": "damage", "hit": true },
+      "comment": "15 + 7 = 22 vs AC 10 → hit. Damage formula should be 1d8+4 (base 3 + magic 1)."
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true },
+      "comment": "6 + 4 = 10 damage. Dummy: 200 → 190."
+    },
+    {
+      "type": "assertState",
+      "comment": "Training Dummy should have taken 10 damage (6 roll + 4 modifier = 10). Without magic +1, would be 9.",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "min": 190, "max": 190 }
+      }
+    }
+  ]
+}

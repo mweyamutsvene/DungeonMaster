@@ -1,0 +1,172 @@
+{
+  "name": "AI Decision: Battle Plan Adaptation",
+  "description": "Monster should adapt when the battle plan's focus target is dead — switch to the next best target instead of wasting actions",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Wolf's focus target (Elara) is dead — should attack the remaining enemy (Thorin) instead of wasting actions on a corpse",
+      "input": {
+        "combatantName": "Alpha Wolf",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Alpha Wolf",
+            "type": "Wolf",
+            "cr": 0.25,
+            "hp": { "current": 8, "max": 11, "percentage": 73 },
+            "conditions": [],
+            "position": { "x": 55, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 40
+            },
+            "ac": 13,
+            "speed": 40,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Bite",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+                "damageType": "piercing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 3, "turn": 6, "totalCombatants": 3 },
+          "allies": [
+            {
+              "name": "Pack Wolf",
+              "hp": { "current": 4, "max": 11, "percentage": 36 },
+              "conditions": [],
+              "position": { "x": 40, "y": 10 },
+              "distanceFeet": 15
+            }
+          ],
+          "enemies": [
+            {
+              "name": "Thorin the Fighter",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 30, "max": 42, "percentage": 71 },
+              "conditions": [],
+              "position": { "x": 35, "y": 10 },
+              "distanceFeet": 20,
+              "ac": 18,
+              "speed": 30,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge"]
+            }
+          ],
+          "battlePlan": {
+            "priority": "focus-fire",
+            "focusTarget": "Elara the Wizard",
+            "yourRole": "flanker — rush past the fighter to reach the wizard",
+            "tacticalNotes": "The wizard is the biggest threat with Fireball. Bypass the armored fighter and take her down first.",
+            "retreatCondition": "If both wolves drop below 5 HP, flee"
+          },
+          "recentNarrative": [
+            "Elara the Wizard has been slain. Her body lies motionless on the ground.",
+            "Thorin roars in fury, turning to face the Alpha Wolf."
+          ],
+          "actionHistory": ["attack Elara (hit, 6 damage)", "attack Elara (hit, 8 damage — killing blow)"],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "actionOneOf": ["attack", "moveToward", "move"],
+        "targetOneOf": ["Thorin the Fighter", "Thorin"],
+        "promptSnapshot": "battle-plan-adapt-target-down"
+      }
+    },
+    {
+      "type": "ai-decision",
+      "description": "Wolf's retreat condition is met (both wolves below 5 HP) — should disengage or flee",
+      "input": {
+        "combatantName": "Alpha Wolf",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Alpha Wolf",
+            "type": "Wolf",
+            "cr": 0.25,
+            "hp": { "current": 3, "max": 11, "percentage": 27 },
+            "conditions": [],
+            "position": { "x": 40, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 40
+            },
+            "ac": 13,
+            "speed": 40,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Bite",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+                "damageType": "piercing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": []
+          },
+          "combat": { "round": 5, "turn": 10, "totalCombatants": 3 },
+          "allies": [
+            {
+              "name": "Pack Wolf",
+              "hp": { "current": 2, "max": 11, "percentage": 18 },
+              "conditions": [],
+              "position": { "x": 45, "y": 15 },
+              "distanceFeet": 7
+            }
+          ],
+          "enemies": [
+            {
+              "name": "Thorin the Fighter",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 22, "max": 42, "percentage": 52 },
+              "conditions": [],
+              "position": { "x": 35, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "speed": 30,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack", "Action Surge"]
+            }
+          ],
+          "battlePlan": {
+            "priority": "focus-fire",
+            "focusTarget": "Elara the Wizard",
+            "yourRole": "flanker — rush past the fighter to reach the wizard",
+            "tacticalNotes": "The wizard is the biggest threat with Fireball. Bypass the armored fighter and take her down first.",
+            "retreatCondition": "If both wolves drop below 5 HP, flee"
+          },
+          "recentNarrative": [
+            "Thorin's longsword carves into the Alpha Wolf's flank. Blood spatters the ground.",
+            "The Pack Wolf yelps as Thorin's follow-up strike catches it across the muzzle."
+          ],
+          "actionHistory": ["attack Thorin (miss)", "attack Thorin (hit, 5 damage)"],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "actionOneOf": ["disengage", "dash", "move", "dodge"],
+        "promptSnapshot": "battle-plan-adapt-retreat"
+      }
+    }
+  ]
+}

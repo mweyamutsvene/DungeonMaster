@@ -50,6 +50,8 @@ export type CombatEncounterRecord = {
   round: number;
   turn: number;
   mapData?: JsonValue;
+  surprise?: JsonValue;
+  battlePlans?: JsonValue;
   createdAt: Date;
   updatedAt: Date;
 };

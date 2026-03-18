@@ -1,0 +1,141 @@
+{
+  "name": "Heal from Unconscious: Nat-20 Death Save Revival",
+  "description": "A Fighter with low HP gets knocked unconscious by a goblin attack. On their next turn, they roll a natural 20 death save, reviving with 1 HP. Verifies: Unconscious removed, Prone kept, death saves reset, HP = 1, and the revived character can act normally.",
+  "setup": {
+    "character": {
+      "name": "Valeria",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 28,
+        "currentHp": 1,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 8,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 15,
+          "hp": 15,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Morningstar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 8,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my sword" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "comment": "Low initiative so the goblin goes first and knocks us out (1 HP). Goblin attack: d20(9)+8=17 vs AC 16 → hit.",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin to attack — should deal enough damage to KO us from 1 HP"
+    },
+    {
+      "type": "assertState",
+      "comment": "Fighter should be at 0 HP with Unconscious and Prone conditions",
+      "expect": {
+        "characterHp": { "min": 0, "max": 0 },
+        "conditions": ["Unconscious", "Prone"]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Nat-20 death save → revive with 1 HP!",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "After nat-20 revival: HP=1, Unconscious removed, Prone remains, death saves reset",
+      "expect": {
+        "characterHp": { "min": 1, "max": 1 },
+        "conditions": ["Prone"]
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Brute" },
+      "comment": "Revived character can act — attack the goblin",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 5 = 23 vs AC 13 — hit even with disadvantage",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    }
+  ]
+}

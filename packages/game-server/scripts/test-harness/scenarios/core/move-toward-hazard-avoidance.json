@@ -1,0 +1,104 @@
+{
+  "name": "Move Toward: Hazard Avoidance",
+  "description": "Character uses 'move toward Goblin' with a lava strip blocking the direct path. A* pathfinding should route around the hazard, resulting in a partial move due to the detour distance.",
+  "setup": {
+    "character": {
+      "name": "Brave Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare to fight the goblin" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "18 + 2 (DEX) = 20 initiative, goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 20, "y": 5, "terrain": "lava" },
+          { "x": 20, "y": 10, "terrain": "lava" },
+          { "x": 20, "y": 15, "terrain": "lava" },
+          { "x": 25, "y": 5, "terrain": "lava" },
+          { "x": 25, "y": 10, "terrain": "lava" },
+          { "x": 25, "y": 15, "terrain": "lava" }
+        ]
+      },
+      "comment": "Lava strip at x=20-25 from y=5 to y=15. A* should route around it (north or south). With avoidHazards=true, these cells are treated as impassable."
+    },
+    {
+      "type": "action",
+      "input": { "text": "move toward Goblin Scout" },
+      "comment": "A* avoids lava, routes around. Detour distance exceeds 30ft speed, so movement is partial.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat should still be active after partial move around hazard",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

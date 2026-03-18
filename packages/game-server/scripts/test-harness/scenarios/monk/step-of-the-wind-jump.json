@@ -1,0 +1,117 @@
+{
+  "name": "Monk Step of the Wind + Jump: ×2 Jump Distance",
+  "description": "A level 5 Monk uses Step of the Wind (bonus action, 1 ki) which sets jumpDistanceMultiplier to 2. Then performs a long jump with running start. STR 10, running start = 10ft base, ×2 = 20ft. Verifies the position update to (30, 10).",
+  "setup": {
+    "character": {
+      "name": "Li Wei",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 0, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Player initiative 20 + DEX(3) = 23, monster = seeded d20(13) + 0 = 13. Player first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Move 10ft for a running start",
+      "input": { "text": "move to (10, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Step of the Wind (bonus action, 1 ki) — sets jumpDistanceMultiplier to 2",
+      "input": { "text": "use step of the wind" },
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Long jump with running start — STR 10 → 10ft base, ×2 from Step of the Wind = 20ft. Lands at snap(10+20)=30 → (30, 10).",
+      "input": { "text": "long jump" },
+      "expect": {
+        "type": "JUMP_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify monk landed at (30, 10) — 20ft jump from (10, 10) with ×2 multiplier",
+      "expect": {
+        "characterPosition": { "x": 30, "y": 10 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify ki was spent (5 max - 1 for Step of the Wind = 4 remaining)",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 }
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

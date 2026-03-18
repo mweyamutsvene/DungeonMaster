@@ -169,6 +169,12 @@ model CombatEncounter {
   // Combat map data (terrain, entities, cover, etc.)
   mapData Json?
 
+  // Surprise state (SurpriseSpec JSON) — server-managed, set before initiative
+  surprise Json?
+
+  // AI battle plans per faction (Record<string, BattlePlan> JSON)
+  battlePlans Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

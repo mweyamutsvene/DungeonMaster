@@ -1,0 +1,157 @@
+{
+  "name": "Versatile: Longsword 2-handed damage",
+  "description": "A Fighter wielding a Longsword (versatile) with no shield or offhand weapon auto-uses 2-handed grip. The damage formula should be 1d10+3 instead of 1d8+3. A second attack explicitly says 'one-handed' to verify 1h fallback (1d8+3).",
+  "setup": {
+    "character": {
+      "name": "Varis",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "versatileDamage": { "diceCount": 1, "diceSides": 10, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 }
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I draw my longsword" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Ogre with longsword" },
+      "comment": "Versatile weapon with no shield → auto 2-handed → damage should use d10",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 11 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "8 + 3 = 11 damage (1d10+3, rolled 8 which is > d8 max, proving d10 is used)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ogre took 11 damage: 59 - 11 = 48 HP",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "min": 48, "max": 48 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Ogre with longsword one-handed" },
+      "comment": "Explicit one-handed grip → 1d8 damage",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 11 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage (1d8+3 with one-handed)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ogre took 11 + 8 = 19 total: 59 - 19 = 40 HP",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "min": 40, "max": 40 }
+      }
+    }
+  ]
+}

@@ -33,10 +33,23 @@ export class PrismaEventRepository implements IEventRepository {
   ): Promise<GameEventRecord[]> {
     const limit = input?.limit ?? 100;
 
+    // When fetching with a limit (no 'since' filter), get the NEWEST events
+    // by sorting desc, then reverse to maintain ascending order for display
+    if (!input?.since) {
+      const events = await this.prisma.gameEvent.findMany({
+        where: { sessionId },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      });
+      // Reverse to return in ascending order (oldest first within the batch)
+      return events.reverse();
+    }
+
+    // When filtering by 'since', return events after that timestamp in ascending order
     return this.prisma.gameEvent.findMany({
       where: {
         sessionId,
-        ...(input?.since ? { createdAt: { gt: input.since } } : undefined),
+        createdAt: { gt: input.since },
       },
       orderBy: { createdAt: "asc" },
       take: limit,

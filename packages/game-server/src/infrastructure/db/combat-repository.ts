@@ -23,7 +23,7 @@ export class PrismaCombatRepository implements ICombatRepository {
 
   async createEncounter(
     sessionId: string,
-    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue },
+    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue; surprise?: JsonValue },
   ): Promise<CombatEncounterRecord> {
     const created = await this.prisma.combatEncounter.create({
       data: {
@@ -33,6 +33,7 @@ export class PrismaCombatRepository implements ICombatRepository {
         round: input.round,
         turn: input.turn,
         mapData: input.mapData ?? undefined,
+        surprise: input.surprise ?? undefined,
       },
     });
 
@@ -52,13 +53,15 @@ export class PrismaCombatRepository implements ICombatRepository {
 
   async updateEncounter(
     id: string,
-    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData">>,
+    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData" | "surprise" | "battlePlans">>,
   ): Promise<CombatEncounterRecord> {
     const updated = await this.prisma.combatEncounter.update({
       where: { id },
       data: {
         ...patch,
         mapData: patch.mapData === undefined ? undefined : (patch.mapData as any),
+        surprise: patch.surprise === undefined ? undefined : (patch.surprise as any),
+        battlePlans: patch.battlePlans === undefined ? undefined : (patch.battlePlans as any),
       },
     });
 
@@ -197,6 +200,31 @@ export class PrismaCombatRepository implements ICombatRepository {
     // Update encounter status
     return this.updateEncounter(encounterId, {
       status: 'Active',
+    });
+  }
+
+  async getBattlePlan(encounterId: string, faction: string): Promise<JsonValue | null> {
+    const encounter = await this.prisma.combatEncounter.findUnique({
+      where: { id: encounterId },
+      select: { battlePlans: true },
+    });
+    if (!encounter?.battlePlans || typeof encounter.battlePlans !== "object") return null;
+    const plans = encounter.battlePlans as Record<string, unknown>;
+    return (plans[faction] as JsonValue) ?? null;
+  }
+
+  async updateBattlePlan(encounterId: string, faction: string, plan: JsonValue): Promise<void> {
+    const encounter = await this.prisma.combatEncounter.findUnique({
+      where: { id: encounterId },
+      select: { battlePlans: true },
+    });
+    const existing = (encounter?.battlePlans && typeof encounter.battlePlans === "object")
+      ? encounter.battlePlans as Record<string, unknown>
+      : {};
+    const updated = { ...existing, [faction]: plan };
+    await this.prisma.combatEncounter.update({
+      where: { id: encounterId },
+      data: { battlePlans: updated as any },
     });
   }
 }

@@ -1,0 +1,39 @@
+{
+  "name": "Narration: Attack Hit",
+  "description": "Narration for a successful melee attack mentions attacker, weapon, and target",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate a Longsword hit from Thorin against Goblin",
+      "input": {
+        "events": [
+          {
+            "type": "attackHit",
+            "payload": {
+              "attackerName": "Thorin Ironfist",
+              "targetName": "Goblin Warrior",
+              "weaponName": "Longsword",
+              "attackRoll": 18,
+              "targetAC": 15,
+              "isCritical": false
+            }
+          }
+        ],
+        "storyFramework": {
+          "opening": "A fighter faces a goblin in a dim cavern.",
+          "arc": "The fighter must defeat the goblin to proceed.",
+          "ending": "Victory or defeat.",
+          "checkpoints": []
+        }
+      },
+      "expect": {
+        "containsAny": ["Thorin", "longsword", "Longsword", "sword", "strike", "slash", "hit", "blade"],
+        "doesNotContain": ["miss", "misses", "missed", "fails"],
+        "maxLength": 500,
+        "minLength": 10,
+        "promptSnapshot": "attack-hit"
+      }
+    }
+  ]
+}

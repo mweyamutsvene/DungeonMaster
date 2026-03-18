@@ -1,0 +1,181 @@
+{
+  "name": "Thrown weapon → ground → pickup → rethrow",
+  "description": "Monk throws a Dart at a Goblin. The Dart lands on the ground at the target's position. After the Goblin's turn, the Monk picks up the Dart and throws it again.",
+  "setup": {
+    "character": {
+      "name": "Kai Stormfist",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 36,
+        "currentHp": 36,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "bludgeoning"
+          },
+          {
+            "name": "Dart",
+            "kind": "ranged",
+            "range": "20/60",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 3 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Thrown"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for combat" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "throw dart at Goblin Scout" },
+      "comment": "Throw dart — should resolve as ranged attack with Thrown",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "3 + 3 = 6 damage (1d4+3 piercing)",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin took 6 damage: 50 - 6 = 44 HP. Dart should be on the ground at Goblin's position.",
+      "expect": {
+        "monsterHp": { "name": "Goblin Scout", "min": 44, "max": 44 },
+        "groundItemCount": 1,
+        "groundItemExists": { "name": "Dart", "nearPosition": { "x": 25, "y": 10 } }
+      }
+    },
+
+    {
+      "type": "endTurn",
+      "comment": "End Monk's turn. AI Goblin ends turn. Monk's new turn starts."
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "move to (25,10)" },
+      "comment": "Move to Goblin's position to pick up the dart",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "pick up dart" },
+      "comment": "Pick up the Dart from the ground (free object interaction)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Dart is no longer on the ground after pickup",
+      "expect": {
+        "groundItemCount": 0,
+        "groundItemNotExists": { "name": "Dart" }
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "throw dart at Goblin Scout" },
+      "comment": "Throw the dart again (now at melee range, auto-throw detects Thrown property)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "2" },
+      "comment": "2 + 3 = 5 damage",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin took 5 more damage: 44 - 5 = 39 HP. Dart lands on ground again.",
+      "expect": {
+        "monsterHp": { "name": "Goblin Scout", "min": 39, "max": 39 },
+        "groundItemCount": 1,
+        "groundItemExists": { "name": "Dart" }
+      }
+    }
+  ]
+}

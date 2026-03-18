@@ -1,0 +1,63 @@
+{
+  "name": "Intent: Multi-Word Targets",
+  "description": "LLM correctly matches creatures with multi-word names",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'attack the Goblin Warrior' — should match full name",
+      "input": {
+        "text": "attack the Goblin Warrior",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [
+            { "id": "mon-001", "name": "Goblin Warrior" },
+            { "id": "mon-002", "name": "Goblin Shaman" }
+          ]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin Warrior",
+        "targetType": "Monster",
+        "promptSnapshot": "multi-word-targets"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I strike the Orc War Chief'",
+      "input": {
+        "text": "I strike the Orc War Chief",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [
+            { "id": "mon-001", "name": "Orc War Chief" },
+            { "id": "mon-002", "name": "Orc Grunt" }
+          ]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Orc War Chief"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'move toward the goblin shaman' — correct multi-word moveToward",
+      "input": {
+        "text": "move toward the goblin shaman",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [
+            { "id": "mon-001", "name": "Goblin Warrior" },
+            { "id": "mon-002", "name": "Goblin Shaman" }
+          ]
+        }
+      },
+      "expect": {
+        "kind": "moveToward",
+        "targetName": "Goblin Shaman"
+      }
+    }
+  ]
+}

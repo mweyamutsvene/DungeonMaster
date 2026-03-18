@@ -1,0 +1,39 @@
+{
+  "name": "Intent: Throw Weapon",
+  "description": "LLM parses thrown weapon attack commands correctly",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'throw my javelin at the orc'",
+      "input": {
+        "text": "throw my javelin at the orc",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Orc Brute" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Orc",
+        "targetType": "Monster",
+        "promptSnapshot": "throw-weapon"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'hurl my handaxe at the goblin'",
+      "input": {
+        "text": "hurl my handaxe at the goblin",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "attack",
+        "targetName": "Goblin"
+      }
+    }
+  ]
+}

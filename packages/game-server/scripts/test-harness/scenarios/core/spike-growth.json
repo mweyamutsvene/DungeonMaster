@@ -1,0 +1,119 @@
+{
+  "name": "Spike Growth: Per-5ft Zone Movement Damage",
+  "description": "A Druid casts Spike Growth — creates a stationary zone of thorny ground (10ft radius). Monsters moving through the zone take 2d4 piercing damage per 5 feet moved, no save. Tests per_5ft_moved zone trigger, cumulative movement damage, and zone pathfinding cost.",
+  "setup": {
+    "character": {
+      "name": "Sylvan the Druid",
+      "className": "Druid",
+      "level": 3,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 14, "constitution": 14,
+          "intelligence": 12, "wisdom": 18, "charisma": 10
+        },
+        "maxHp": 26, "currentHp": 26, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          {
+            "name": "Spike Growth",
+            "level": 2,
+            "concentration": true,
+            "zone": {
+              "type": "placed",
+              "radiusFeet": 10,
+              "shape": "circle",
+              "effects": [
+                {
+                  "trigger": "per_5ft_moved",
+                  "damage": { "diceCount": 2, "diceSides": 4, "modifier": 0 },
+                  "damageType": "piercing",
+                  "affectsEnemies": true,
+                  "affectsAllies": true,
+                  "affectsSelf": true
+                }
+              ]
+            }
+          },
+          {
+            "name": "Produce Flame",
+            "level": 0,
+            "damageType": "fire",
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
+            "isRanged": true,
+            "range": 30
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Raider",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "approach"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I call upon nature's wrath!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Spike Growth centered on the Goblin — zone spell handler creates a placed zone at the goblin's position (30, 10) with 10ft radius. As goblin moves OUT of the zone toward the druid, each 5ft inside the zone triggers 2d4 piercing.",
+      "type": "action",
+      "input": { "text": "cast Spike Growth at Goblin Raider" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End PC turn — Goblin's turn starts. AI 'approach' behavior makes goblin move toward druid through/out of the spike growth zone. Goblin at (30,10) center of zone, moves toward druid at (5,10). Each 5ft cell inside the zone triggers 2d4 piercing (min 2, max 8 per cell).",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Goblin should have taken zone damage from moving through Spike Growth. 2d4 per 5ft = 2-8 per cell. Even 1 cell means goblin HP < 30. Assert HP dropped (with generous range to account for variable movement distance due to zone cost penalties).",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Raider", "min": 0, "max": 29 } }
+    },
+    {
+      "comment": "Verify Spike Growth concentration is active",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Spike Growth" }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "Narration: Multi-Event",
+  "description": "Narration for multiple events produces coherent prose covering all events",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate attack hit followed by damage dealt — should be cohesive",
+      "input": {
+        "events": [
+          {
+            "type": "attackHit",
+            "payload": {
+              "attackerName": "Thorin Ironfist",
+              "targetName": "Goblin Warrior",
+              "weaponName": "Longsword",
+              "attackRoll": 19,
+              "targetAC": 15,
+              "isCritical": false
+            }
+          },
+          {
+            "type": "damageDealt",
+            "payload": {
+              "targetName": "Goblin Warrior",
+              "attackerName": "Thorin Ironfist",
+              "damageAmount": 9,
+              "damageType": "slashing",
+              "weaponName": "Longsword",
+              "remainingHp": 0,
+              "wasLethal": true
+            }
+          }
+        ],
+        "storyFramework": {
+          "opening": "A fighter faces a goblin in a dim cavern.",
+          "arc": "The fighter must defeat the goblin to proceed.",
+          "ending": "Victory or defeat.",
+          "checkpoints": []
+        }
+      },
+      "expect": {
+        "containsAny": ["Thorin", "Goblin", "sword", "longsword", "slash", "strike", "hit", "blade"],
+        "doesNotContain": ["miss", "narrator", "dungeon master"],
+        "maxLength": 600,
+        "minLength": 20,
+        "promptSnapshot": "multi-event"
+      }
+    }
+  ]
+}

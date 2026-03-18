@@ -1,0 +1,163 @@
+{
+  "name": "Draw and sheathe weapons",
+  "description": "A Fighter with Longsword and Shortbow tests draw/sheathe action economy. Drop removes from drawn, sheathe costs free interaction, second interaction blocked without Utilize action.",
+  "setup": {
+    "character": {
+      "name": "Elara Swiftblade",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 20, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          },
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "piercing",
+            "properties": ["Ammunition", "Two-Handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin training!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Go first",
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Both weapons should be drawn at combat start",
+      "expect": {
+        "characterDrawnWeapons": {
+          "has": ["Longsword", "Shortbow"]
+        }
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "sheathe longsword" },
+      "comment": "Sheathe longsword — costs free Object Interaction",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Longsword should no longer be drawn, Shortbow still drawn",
+      "expect": {
+        "characterDrawnWeapons": {
+          "has": ["Shortbow"],
+          "doesNotHave": ["Longsword"]
+        }
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "sheathe shortbow" },
+      "comment": "Second sheathe same turn — costs Utilize action (standard action)",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Both weapons now sheathed",
+      "expect": {
+        "characterDrawnWeapons": {
+          "doesNotHave": ["Longsword", "Shortbow"]
+        }
+      }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "draw longsword" },
+      "comment": "Drawing after using both free interaction AND action — should fail",
+      "expect": {
+        "error": true,
+        "errorContains": "already used"
+      }
+    },
+
+    {
+      "type": "endTurn",
+      "expect": {}
+    },
+
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for next turn (Training Dummy does nothing)"
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "draw longsword" },
+      "comment": "New turn — free interaction available again",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Longsword drawn after new turn",
+      "expect": {
+        "characterDrawnWeapons": {
+          "has": ["Longsword"],
+          "doesNotHave": ["Shortbow"]
+        }
+      }
+    }
+  ]
+}

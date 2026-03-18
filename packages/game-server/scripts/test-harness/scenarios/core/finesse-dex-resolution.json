@@ -1,0 +1,95 @@
+{
+  "name": "Finesse: DEX modifier used when DEX > STR",
+  "description": "A DEX-focused Rogue with a rapier (finesse) attacks a target. With STR 8 (-1) and DEX 20 (+5), the system must use the DEX modifier for attack resolution. The pre-computed attackBonus of +8 reflects DEX (+5) + proficiency (+3). Validates that the finesse property check in the attack resolver correctly identifies finesse weapons and picks the higher modifier.",
+  "setup": {
+    "character": {
+      "name": "Dex Rogue",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 20,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 10
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Rapier",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 5 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy with my rapier" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy with my rapier" },
+      "comment": "Rapier is finesse — system should resolve using DEX (+5) not STR (-1)",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Roll 5 + 8 (DEX-based attackBonus) = 13 vs AC 10 — should hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "Damage 6 + 5 (DEX modifier) = 11. Dummy HP: 100 → 89",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify damage was applied correctly with DEX modifier",
+      "expect": { "monsterHp": { "name": "Training Dummy", "max": 89 } }
+    }
+  ]
+}

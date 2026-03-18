@@ -1,0 +1,107 @@
+{
+  "name": "AI Pathfinding: Navigate Around Obstacle",
+  "description": "AI-controlled goblin uses moveToward with A* pathfinding to navigate around a wall to reach the player character. Verifies that AI monsters use the same pathfinding backbone as players.",
+  "setup": {
+    "character": {
+      "name": "Brave Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 40, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 8,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "approach"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare to fight" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "comment": "1 - 1 (DEX) = 0 initiative. Goblin has DEX 14 (+2), seeded dice should give it higher initiative so it goes first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 20, "y": 5, "terrain": "wall" },
+          { "x": 20, "y": 10, "terrain": "wall" },
+          { "x": 20, "y": 15, "terrain": "wall" },
+          { "x": 25, "y": 5, "terrain": "wall" },
+          { "x": 25, "y": 10, "terrain": "wall" },
+          { "x": 25, "y": 15, "terrain": "wall" }
+        ]
+      },
+      "comment": "Wall blocking direct path between goblin at (10,10) and fighter at (40,10). A* must route around it."
+    },
+    {
+      "type": "waitForTurn",
+      "input": { "waitForCharacterTurn": true },
+      "comment": "Wait for AI goblin to take its turn using 'approach' behavior. Goblin should move toward fighter via A* detour around the wall.",
+      "expect": { "isCharacterTurn": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat should still be active after AI movement",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

@@ -12,11 +12,9 @@
 
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
-import { createDebugLogger } from "./types.js";
 import { ValidationError } from "../../../../application/errors.js";
 
 export function registerSessionTabletopRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
-  const debug = createDebugLogger();
 
   /**
    * POST /sessions/:id/combat/initiate
@@ -40,6 +38,7 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
       throw new ValidationError("actorId is required");
     }
 
+    console.log(`[CLI → initiate] "${text}"`);
     return deps.tabletopCombat.initiateAction(sessionId, text, actorId);
   });
 
@@ -52,11 +51,6 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
     Body: { text: string; actorId: string };
   }>("/sessions/:id/combat/roll-result", async (req) => {
     try {
-      debug.log("=== ROLL RESULT START ===");
-      if (debug.enabled) {
-        req.log.info({ text: req.body.text, actorId: req.body.actorId }, "Roll result endpoint start");
-      }
-
       const sessionId = req.params.id;
       const { text, actorId } = req.body;
 
@@ -67,6 +61,7 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
         throw new ValidationError("actorId is required");
       }
 
+      console.log(`[CLI → roll] "${text}"`);
       return deps.tabletopCombat.processRollResult(sessionId, text, actorId);
     } catch (err) {
       console.error("Roll result endpoint error:", err);
@@ -97,16 +92,18 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
       throw new ValidationError("encounterId is required");
     }
 
+    console.log(`[CLI → action] "${text}"`);
     return deps.tabletopCombat.parseCombatAction(sessionId, text, actorId, encounterId);
   });
 
   /**
    * POST /sessions/:id/combat/move/complete
    * Complete a move after reaction resolution (opportunity attacks).
+   * Accepts optional roll data for player opportunity attacks.
    */
   app.post<{
     Params: { id: string };
-    Body: { pendingActionId: string };
+    Body: { pendingActionId: string; roll?: number; rollType?: string };
   }>("/sessions/:id/combat/move/complete", async (req) => {
     const sessionId = req.params.id;
     await deps.sessions.getSessionOrThrow(sessionId);
@@ -116,6 +113,9 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
       throw new ValidationError("pendingActionId is required");
     }
 
-    return deps.tabletopCombat.completeMove(sessionId, pendingActionId);
+    const roll = typeof req.body?.roll === "number" ? req.body.roll : undefined;
+    const rollType = typeof req.body?.rollType === "string" ? req.body.rollType : undefined;
+
+    return deps.tabletopCombat.completeMove(sessionId, pendingActionId, roll, rollType);
   });
 }

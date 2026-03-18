@@ -1,0 +1,110 @@
+{
+  "name": "Long Jump: Movement-based jump with running start",
+  "description": "Tests that a character with STR 16 can long jump 16ft after a 10ft running start. Jump costs movement 1:1 per D&D 5e 2024 rules. Position is updated to the landing position. The character moves 10ft first (running start), then jumps 16ft (landing at (25,10)), using a total of 26ft of their 30ft movement budget.",
+  "setup": {
+    "character": {
+      "name": "Jump Tester",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Move 10ft first to get a running start for the jump",
+      "input": { "text": "move to (10, 10)" },
+      "expect": {
+        "type": "MOVE_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Long Jump with running start — STR 16 means max 16ft. Lands at (25, 10) — snap(10+16=26) → 25. Total used: 26 of 30.",
+      "input": { "text": "long jump" },
+      "expect": {
+        "type": "JUMP_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify character position updated to (25, 10) after the jump",
+      "expect": {
+        "characterPosition": { "x": 25, "y": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Only 4ft of movement remaining after 26ft used. A 5ft move should fail.",
+      "input": { "text": "move to (30, 10)" },
+      "expect": {
+        "error": true,
+        "errorContains": "move"
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

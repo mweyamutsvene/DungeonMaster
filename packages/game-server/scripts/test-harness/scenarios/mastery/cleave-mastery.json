@@ -1,0 +1,152 @@
+{
+  "name": "Weapon Mastery: Cleave (Greataxe)",
+  "description": "A Fighter with a Greataxe (Cleave mastery) hits a goblin. Cleave triggers a secondary auto-resolved attack against a second adjacent goblin. The secondary uses weapon damage dice WITHOUT ability modifier. All three combatants are positioned within 5ft of each other.",
+  "setup": {
+    "character": {
+      "name": "Cleave Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 37, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing",
+            "properties": ["heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Alpha",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Beta",
+        "position": { "x": 40, "y": 13 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblins with my greataxe" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Alpha with my greataxe" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Roll of 15 + 7 = 22 vs AC 12 = HIT. Cleave mastery triggers secondary attack.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "Damage roll: 6 + 4 = 10 damage to Goblin Alpha. Cleave auto-attacks Goblin Beta (within 5ft of Alpha and within fighter reach).",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin Alpha took 10 primary damage (6+4). HP: 30 → 20.",
+      "expect": {
+        "monsterHp": { "name": "Goblin Alpha", "min": 20, "max": 20 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin Beta should have taken Cleave damage (weapon dice only, no ability modifier). The exact damage depends on the seeded dice roller.",
+      "expect": {
+        "monsterHp": { "name": "Goblin Beta", "max": 29 }
+      }
+    }
+  ]
+}

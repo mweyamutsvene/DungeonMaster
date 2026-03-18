@@ -1,0 +1,285 @@
+{
+  "name": "Party vs Goblins: Multi-NPC Combat",
+  "description": "A Fighter leads a party of two NPCs against two Goblins. Tests multi-NPC combat with party coordination, AI turns for both allies and enemies.",
+  "setup": {
+    "character": {
+      "name": "Gareth Ironforge",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 30, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "npcs": [
+      {
+        "name": "Sister Mira",
+        "position": { "x": 25, "y": 10 },
+        "faction": "party",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 16,
+            "charisma": 14
+          },
+          "maxHp": 32,
+          "hp": 32,
+          "armorClass": 16,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Shade",
+        "position": { "x": 35, "y": 10 },
+        "faction": "party",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 18,
+            "constitution": 12,
+            "intelligence": 14,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 28,
+          "hp": 28,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Goblin Ambusher",
+        "position": { "x": 30, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Boss",
+        "position": { "x": 30, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 21,
+          "hp": 21,
+          "armorClass": 17,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "We charge the goblin ambush!" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "comment": "Fighter rolls very high initiative (20 + 2 = 22) to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn immediately - let AI (NPCs and goblins) act first"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for all AI turns (2 party NPCs + 2 goblins)",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Ambusher" },
+      "comment": "Attack the nearest goblin (should be in range after AI moved)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 7 = 21 vs AC 15 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 4 = 11 damage - kills the 7 HP Ambusher",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - NPCs and remaining goblins will act"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for all AI turns (2 party NPCs + 1 goblin)",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Boss" },
+      "comment": "Attack the Goblin Boss (should have moved into range)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "comment": "16 + 7 = 23 vs AC 17 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 damage - Goblin Boss down to 11 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn, more AI actions"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for remaining AI combatants",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Boss" },
+      "comment": "Finish off the Goblin Boss",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 7 = 25 vs AC 17 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 4 = 11 damage - kills the 11 HP Goblin Boss, combat ends",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "name": "Heavy Weapon: Small creature gets disadvantage",
+  "description": "A Small-sized Halfling Fighter attacks with a Greataxe (Heavy property). D&D 5e 2024 rules: Small and Tiny creatures have disadvantage when attacking with Heavy weapons.",
+  "setup": {
+    "character": {
+      "name": "Pip the Halfling",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "size": "Small",
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 25,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["heavy", "two-handed"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy with my greataxe" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy with my greataxe" },
+      "comment": "Attack with Heavy weapon as Small creature — should get disadvantage",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "disadvantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 10 - hit (even with disadvantage, roll is used)",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "8 + 3 = 11 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "max": 89 }
+      }
+    }
+  ]
+}

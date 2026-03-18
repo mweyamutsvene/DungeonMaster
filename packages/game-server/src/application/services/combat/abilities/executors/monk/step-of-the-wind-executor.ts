@@ -45,7 +45,7 @@ export class StepOfTheWindExecutor implements AbilityExecutor {
     }
 
     // Validate level requirement (Monk level 2+)
-    const level = (actorRef as any).level || 1;
+    const level = (params?.level as number) || (actorRef as any).level || 1;
     if (level < 2) {
       return {
         success: false,
@@ -115,13 +115,15 @@ export class StepOfTheWindExecutor implements AbilityExecutor {
 
     const actorId = actor.getId();
     
-    // Initialize movement state if it doesn't exist
-    if (!combat.getMovementState(actorId)) {
-      const actorPos = combat.getPosition(actorId) || { x: 0, y: 0 };
-      combat.initializeMovementState(actorId, actorPos, actor.getSpeed());
+    // Apply doubled jump distance if combat has movement state (not available in tabletop mock)
+    if (combat.getMovementState && combat.setJumpMultiplier) {
+      if (!combat.getMovementState(actorId) && combat.initializeMovementState) {
+        const actorPos = (combat.getPosition ? combat.getPosition(actorId) : null) || { x: 0, y: 0 };
+        const speed = actor.getSpeed ? actor.getSpeed() : 30;
+        combat.initializeMovementState(actorId, actorPos, speed);
+      }
+      combat.setJumpMultiplier(actorId, 2);
     }
-    
-    combat.setJumpMultiplier(actorId, 2);
 
     try {
       if (choice === 'disengage') {

@@ -28,7 +28,7 @@ The session API is organized into focused route modules, each handling a specifi
 | `session-crud` | Session creation and retrieval |
 | `session-characters` | Character management (add, generate) |
 | `session-creatures` | Monster and NPC management |
-| `session-combat` | Core combat flow (start, next turn, state) |
+| `session-combat` | Core combat flow (start, next turn, state, terrain, surprise) |
 | `session-tactical` | Tactical view and LLM-powered queries |
 | `session-tabletop` | Tabletop combat with manual dice rolling |
 | `session-actions` | Programmatic action execution |
@@ -314,6 +314,83 @@ List all combatants in an encounter.
 
 ---
 
+#### PATCH /sessions/:id/combat/terrain
+
+Set terrain zones on the current encounter's combat map.
+
+**Request Body:**
+```json
+{
+  "encounterId": "enc_123",
+  "terrainZones": [
+    { "x": 10, "y": 10, "terrain": "difficult" },
+    { "x": 15, "y": 10, "terrain": "wall" },
+    { "x": 20, "y": 10, "terrain": "lava" }
+  ]
+}
+```
+
+- `encounterId` (optional): defaults to the active encounter for the session.
+- `terrainZones` (required): array of cells to update. Each entry has integer grid coordinates and a terrain type.
+
+**Valid Terrain Types:**
+`normal`, `difficult`, `water`, `lava`, `wall`, `obstacle`, `cover-half`, `cover-three-quarters`, `cover-full`, `elevated`, `pit`, `hazard`
+
+**Response:**
+```json
+{
+  "success": true,
+  "zonesApplied": 3
+}
+```
+
+**Errors:**
+- 400: `terrainZones array is required`
+- 400: `No encounter found for session`
+- 400: `Encounter has no combat map`
+
+---
+
+#### PATCH /sessions/:id/combat/surprise
+
+Set surprise state on the current or next encounter. If no encounter exists, one is created in "Pending" status with a default combat map. This is used for DM-driven surprise overrides; if not called, the server auto-computes surprise from creature Hidden conditions during `initiate`.
+
+**Request Body (full-side surprise):**
+```json
+{
+  "surprise": "enemies"
+}
+```
+
+**Request Body (per-creature surprise):**
+```json
+{
+  "surprise": {
+    "surprised": ["combatant_abc", "combatant_def"]
+  }
+}
+```
+
+- `surprise` (required): Either a string (`"enemies"` or `"party"`) for full-side surprise, or an object `{ surprised: string[] }` listing specific combatant IDs that are surprised.
+
+**Response:**
+```json
+{
+  "success": true,
+  "encounterId": "enc_123",
+  "surprise": "enemies"
+}
+```
+
+**Errors:**
+- 400: `surprise is required and must be "enemies", "party", or { surprised: string[] }`
+
+**Notes:**
+- Surprise in D&D 5e 2024 means affected creatures have Disadvantage on their initiative roll.
+- If this endpoint is not called before `initiate`, the server auto-computes surprise by checking whether all enemies of a creature are Hidden with Stealth rolls exceeding that creature's Passive Perception.
+
+---
+
 ### Tactical View
 
 #### GET /sessions/:id/combat/:encounterId/tactical
@@ -337,7 +414,9 @@ Get a rich tactical view of the combat.
         "actionAvailable": true,
         "bonusActionAvailable": true,
         "reactionAvailable": true,
-        "movementRemainingFeet": 30
+        "movementRemainingFeet": 30,
+        "attacksUsed": 0,
+        "attacksAllowed": 1
       },
       "resourcePools": [
         { "name": "Ki Points", "current": 5, "max": 5 }
@@ -354,6 +433,11 @@ Get a rich tactical view of the combat.
   "map": null
 }
 ```
+
+**Field Notes:**
+- `actionEconomy.attacksUsed` / `attacksAllowed`: Track Extra Attack and Action Surge usage (e.g., a level 5 Fighter has `attacksAllowed: 2`).
+- `map`: Contains the full `CombatMap` object when a map is present for the encounter (see [CombatMap Schema](#combatmap-schema) below), or `null` if no map is configured.
+- `pendingAction`: Present when a pending action (e.g., reaction check) is awaiting resolution.
 
 ---
 
@@ -387,6 +471,47 @@ Ask the LLM tactical questions about combat.
 
 ---
 
+#### POST /sessions/:id/combat/:encounterId/path-preview
+
+Preview A\* pathfinding between two positions without committing a move. Returns the computed path, per-cell metadata, terrain costs, and narration hints. Useful for rich clients to render path previews before the player commits.
+
+**Request Body:**
+```json
+{
+  "from": { "x": 10, "y": 10 },
+  "to": { "x": 40, "y": 10 },
+  "maxCostFeet": 30,
+  "desiredRange": 5,
+  "avoidHazards": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `from` | `{ x, y }` | Yes | Origin position |
+| `to` | `{ x, y }` | Yes | Destination position |
+| `maxCostFeet` | `number` | No | Movement budget in feet (default: unlimited) |
+| `desiredRange` | `number` | No | Stop this many feet from `to` (default: 0 = exact cell) |
+| `avoidHazards` | `boolean` | No | Treat lava/pit as impassable (default: true) |
+
+**Response:**
+```json
+{
+  "blocked": false,
+  "path": [{ "x": 15, "y": 10 }, { "x": 20, "y": 10 }],
+  "cells": [
+    { "x": 15, "y": 10, "terrain": "normal", "stepCostFeet": 5, "cumulativeCostFeet": 5 },
+    { "x": 20, "y": 10, "terrain": "difficult", "stepCostFeet": 10, "cumulativeCostFeet": 15 }
+  ],
+  "totalCostFeet": 15,
+  "terrainEncountered": ["normal", "difficult"],
+  "narrationHints": ["Crossing difficult terrain — movement slowed."],
+  "reachablePosition": null
+}
+```
+
+---
+
 ### Tabletop Combat
 
 These endpoints implement tabletop-style combat with manual dice rolling. The flow is:
@@ -397,7 +522,7 @@ These endpoints implement tabletop-style combat with manual dice rolling. The fl
 
 #### POST /sessions/:id/combat/initiate
 
-Start a tabletop combat flow.
+Start a tabletop combat flow. If surprise has been set via `PATCH /combat/surprise`, it will be read from the encounter. Otherwise, the server auto-computes surprise from creature Hidden conditions and Stealth vs Passive Perception.
 
 **Request Body:**
 ```json
@@ -486,7 +611,7 @@ Process a dice roll result.
 
 #### POST /sessions/:id/combat/action
 
-Parse and execute a combat action.
+Parse and execute a combat action via natural language text. The server parses the text using regex patterns first, then falls back to LLM intent parsing if configured.
 
 **Request Body:**
 ```json
@@ -497,7 +622,7 @@ Parse and execute a combat action.
 }
 ```
 
-**Response:**
+**Response (coordinate move):**
 ```json
 {
   "requiresPlayerInput": false,
@@ -509,6 +634,63 @@ Parse and execute a combat action.
   "message": "Moved 15 feet to (15, 20)"
 }
 ```
+
+**Move Toward (creature targeting with A* pathfinding):**
+
+When text targets a creature by name instead of coordinates, the server uses A* pathfinding to compute the optimal route.
+
+*Recognized text patterns:*
+- `"move to/toward/towards/near/next to/up to/closer to <creature>"` — melee range (5ft)
+- `"approach/advance on/charge <creature>"` — melee range (5ft)
+- `"move within 30ft of <creature>"` — stops at specified distance
+- `"keep 20ft from <creature>"` — stops at specified distance
+- `"move to ranged position near <creature>"` — stops at 30ft
+- `"get within bow range of <creature>"` — stops at 30ft
+- `"get within spell range of <creature>"` — stops at 30ft
+
+*Request (creature targeting):*
+```json
+{
+  "text": "move toward the Goblin",
+  "actorId": "char_xyz789",
+  "encounterId": "enc_123"
+}
+```
+
+*Response (successful pathfinding):*
+```json
+{
+  "requiresPlayerInput": false,
+  "actionComplete": true,
+  "type": "MOVE_COMPLETE",
+  "movedTo": { "x": 20, "y": 15 },
+  "movedFeet": 25,
+  "opportunityAttacks": [],
+  "message": "Moved to (20, 15) (25ft). Kael moves east toward the Goblin.",
+  "narration": "Kael moves east toward the Goblin, detouring around a wall.",
+  "pathfinding": {
+    "totalCostFeet": 25,
+    "terrainEncountered": ["normal", "difficult"],
+    "narrationHints": ["Detours around a wall", "Difficult terrain slows movement"],
+    "wasBlocked": false
+  }
+}
+```
+
+*Response (reactions triggered — same as any move):*
+```json
+{
+  "requiresPlayerInput": false,
+  "actionComplete": false,
+  "type": "REACTION_CHECK",
+  "pendingActionId": "pending_abc123",
+  "opportunityAttacks": [...],
+  "message": "Opportunity attacks possible. Resolve reactions, then complete the move."
+}
+```
+
+**Errors:**
+- 400: Path completely blocked — `"Could not find a passable position near <target>"`
 
 ---
 
@@ -539,6 +721,10 @@ Complete a move after reaction resolution.
 
 Execute structured actions (non-tabletop interface).
 
+**Supported command kinds:** `endTurn`, `attack`
+
+> **Note:** `moveToward` is defined in the `GameCommand` type union but is not yet wired in this endpoint. Use `POST .../combat/action` with natural language text for creature-targeted movement.
+
 **End Turn:**
 ```json
 {
@@ -562,6 +748,88 @@ Execute structured actions (non-tabletop interface).
 ```
 
 **Response:** Action result with damage dealt, HP changes, etc.
+
+---
+
+### Character Inventory
+
+#### GET /sessions/:id/characters/:charId/inventory
+
+List all items in a character's inventory.
+
+**Response:**
+```json
+{
+  "characterId": "abc123",
+  "characterName": "Hero",
+  "inventory": [
+    {
+      "name": "Potion of Healing",
+      "magicItemId": "potion-of-healing",
+      "equipped": false,
+      "attuned": false,
+      "quantity": 2
+    }
+  ],
+  "attunedCount": 0,
+  "maxAttunementSlots": 3
+}
+```
+
+#### POST /sessions/:id/characters/:charId/inventory
+
+Add an item to the character's inventory. Stacks with existing items of the same name and magicItemId.
+
+**Request Body:**
+```json
+{
+  "name": "Potion of Healing",
+  "magicItemId": "potion-of-healing",
+  "equipped": false,
+  "attuned": false,
+  "quantity": 2,
+  "slot": "belt"
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| name | string | yes | — | Item display name |
+| magicItemId | string | no | — | Reference to magic item definition |
+| equipped | boolean | no | false | Whether item is equipped |
+| attuned | boolean | no | false | Whether item is attuned (max 3 total) |
+| quantity | number | no | 1 | Stack size |
+| slot | string | no | — | Equipment slot (main-hand, off-hand, armor, etc.) |
+
+**Response:** `{ "inventory": [...] }` — Updated inventory array.
+
+#### DELETE /sessions/:id/characters/:charId/inventory/:itemName
+
+Remove quantity of an item from inventory. URL-encode the item name (e.g., `Potion%20of%20Healing`).
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| amount | number | 1 | How many to remove |
+
+**Response:** `{ "inventory": [...] }` — Updated inventory array.
+
+#### PATCH /sessions/:id/characters/:charId/inventory/:itemName
+
+Update equip/attune state of an inventory item.
+
+**Request Body:**
+```json
+{
+  "equipped": true,
+  "attuned": true,
+  "slot": "main-hand"
+}
+```
+
+All fields are optional. Attunement validates against the 3-slot maximum.
+
+**Response:** `{ "inventory": [...] }` — Updated inventory array.
 
 ---
 
@@ -590,6 +858,22 @@ Parse natural language to a structured game command.
   }
 }
 ```
+
+**Valid `GameCommand` kinds:** `endTurn`, `move`, `moveToward`, `attack`, `rollResult`, `query`
+
+*`moveToward` example — returned when the LLM infers creature-targeted movement:*
+```json
+{
+  "command": {
+    "kind": "moveToward",
+    "actor": { "type": "Character", "characterId": "char_xyz789" },
+    "target": { "type": "Monster", "monsterId": "goblin_1" },
+    "desiredRange": 5
+  }
+}
+```
+
+- `desiredRange`: Stopping distance in feet. The LLM infers `5` for melee intent, `30` for ranged/bow intent, etc. Defaults to `5` if unspecified.
 
 **Requires:** LLM intent parser
 
@@ -697,6 +981,86 @@ JSON endpoint for retrieving events (useful for testing).
 
 ---
 
+## CombatMap Schema
+
+When the tactical view's `map` field is non-null, it contains a `CombatMap` object:
+
+```json
+{
+  "id": "map_abc",
+  "name": "Forest Clearing",
+  "width": 100,
+  "height": 100,
+  "gridSize": 5,
+  "cells": [
+    {
+      "position": { "x": 10, "y": 10 },
+      "terrain": "normal",
+      "blocksLineOfSight": false,
+      "passable": true
+    },
+    {
+      "position": { "x": 20, "y": 10 },
+      "terrain": "wall",
+      "blocksLineOfSight": true,
+      "passable": false
+    }
+  ],
+  "entities": [
+    {
+      "id": "combatant_abc",
+      "type": "creature",
+      "position": { "x": 10, "y": 10 },
+      "size": "Medium",
+      "faction": "party"
+    }
+  ],
+  "description": "A sun-dappled clearing surrounded by ancient oaks."
+}
+```
+
+**Terrain Types:**
+| Type | Passable | Effect |
+|------|----------|--------|
+| `normal` | Yes | Standard movement (5ft per cell) |
+| `difficult` | Yes | Costs 2x movement (10ft per cell) |
+| `water` | Yes | Requires swimming |
+| `lava` | Yes* | Damages creatures, A* avoids |
+| `wall` | No | Impassable, blocks line of sight |
+| `obstacle` | No | Impassable, provides cover |
+| `cover-half` | Yes | +2 AC for ranged attacks |
+| `cover-three-quarters` | Yes | +5 AC for ranged attacks |
+| `cover-full` | No | Total cover, can't be targeted |
+| `elevated` | Yes | Higher ground (advantage on attacks) |
+| `pit` | Yes | Lower ground or hole |
+| `hazard` | Yes* | Generic dangerous area, A* avoids |
+
+\* Pathfinding avoids lava and hazard terrain, routing around them when possible.
+
+---
+
+## GameCommand Types
+
+The `GameCommand` union defines all structured command types used by LLM intent parsing and programmatic actions:
+
+| Kind | Fields | Description |
+|------|--------|-------------|
+| `endTurn` | `actor`, `encounterId?` | End the current turn |
+| `move` | `actor`, `destination: {x, y}`, `encounterId?` | Move to exact coordinates |
+| `moveToward` | `actor`, `target`, `desiredRange?`, `encounterId?` | Move toward a creature using A* pathfinding |
+| `attack` | `attacker`, `target`, `seed?`, `spec?`, `monsterAttackName?`, `encounterId?` | Attack a target |
+| `rollResult` | `rollType`, `value?`, `values?`, `context?` | Submit a dice roll result |
+| `query` | `subject` | Query game state |
+
+**`CombatantRef` format** (used in `actor`, `attacker`, `target`):
+```json
+{ "type": "Character", "characterId": "char_xyz789" }
+{ "type": "Monster", "monsterId": "goblin_1" }
+{ "type": "NPC", "npcId": "npc_bob" }
+```
+
+---
+
 ## Error Handling
 
 All endpoints may return these error responses:
@@ -734,8 +1098,8 @@ All endpoints may return these error responses:
 | [session-crud.ts](src/infrastructure/api/routes/sessions/session-crud.ts) | POST /sessions, GET /sessions/:id |
 | [session-characters.ts](src/infrastructure/api/routes/sessions/session-characters.ts) | POST /sessions/:id/characters, POST /sessions/:id/characters/generate |
 | [session-creatures.ts](src/infrastructure/api/routes/sessions/session-creatures.ts) | POST /sessions/:id/monsters, POST /sessions/:id/npcs |
-| [session-combat.ts](src/infrastructure/api/routes/sessions/session-combat.ts) | POST /sessions/:id/combat/start, POST /sessions/:id/combat/next, GET /sessions/:id/combat, GET /sessions/:id/combat/:encounterId/combatants |
-| [session-tactical.ts](src/infrastructure/api/routes/sessions/session-tactical.ts) | GET /sessions/:id/combat/:encounterId/tactical, POST /sessions/:id/combat/query |
+| [session-combat.ts](src/infrastructure/api/routes/sessions/session-combat.ts) | POST /sessions/:id/combat/start, POST /sessions/:id/combat/next, GET /sessions/:id/combat, GET /sessions/:id/combat/:encounterId/combatants, PATCH /sessions/:id/combat/terrain |
+| [session-tactical.ts](src/infrastructure/api/routes/sessions/session-tactical.ts) | GET /sessions/:id/combat/:encounterId/tactical, POST /sessions/:id/combat/query, POST /sessions/:id/combat/:encounterId/path-preview |
 | [session-tabletop.ts](src/infrastructure/api/routes/sessions/session-tabletop.ts) | POST /sessions/:id/combat/initiate, POST /sessions/:id/combat/roll-result, POST /sessions/:id/combat/action, POST /sessions/:id/combat/move/complete |
 | [session-actions.ts](src/infrastructure/api/routes/sessions/session-actions.ts) | POST /sessions/:id/actions |
 | [session-llm.ts](src/infrastructure/api/routes/sessions/session-llm.ts) | POST /sessions/:id/llm/intent, POST /sessions/:id/llm/act, POST /sessions/:id/llm/narrate |

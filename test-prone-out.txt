@@ -1,0 +1,104 @@
+﻿≡ƒÄ▓ DungeonMaster Combat E2E Test Harness
+=========================================
+
+Γ£à Server started on http://localhost:3099
+
+≡ƒôï Loading scenario: core/prone-effects
+
+≡ƒÄ» Running: Prone Effects: Melee advantage after shove
+
+   Validates that shoving a target prone applies the Prone condition, and subsequent melee attacks against the prone target have advantage. D&D 5e: melee attacks within 5ft of a prone target have advantage.
+
+
+[1mΓöüΓöüΓöü Step 1: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating game session[0m
+   [32mΓ£ô[0m Session created: YFL2-PSK1BzUQt6mobUnc
+
+[1mΓöüΓöüΓöü Step 2: SETUP ΓöüΓöüΓöü[0m
+   [90mCreating character, monsters, and NPCs[0m
+   [32mΓ£ô[0m Character created: Grimgar the Strong (I3J7_aW7CJMN_xm690mRN)
+   [32mΓ£ô[0m Monster created: Goblin Scout (C0E55VR1wr5-1qFITDjW1)
+
+[1mΓöüΓöüΓöü Step 3: INITIATE ΓöüΓöüΓöü[0m
+   [90mI prepare for battle[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mTensions rise as battle is about to begin. Roll for initiative![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Roll for initiative! (d20 + your DEX modifier)
+   [32mΓ£ô[0m rollType=initiative, requiresPlayerInput=true
+
+[1mΓöüΓöüΓöü Step 4: ROLLRESULT ΓöüΓöüΓöü[0m
+   [90mHigh initiative to go first[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mCombat begins! Grimgar the Strong seizes the initiative.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[initiative][0m Combat started! Grimgar the Strong's turn (Initiative: 19).
+   [32mΓ£ô[0m rollType=initiative, hit=undefined, actionComplete=undefined
+      [36mCaptured encounterId: wpLxQeRG0r1VBPvtkPSOe[0m
+
+[1mΓöüΓöüΓöü Step 5: ACTION ΓöüΓöüΓöü[0m
+   [90mShove the goblin prone - should succeed (STR 20 vs STR 8)[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[SIMPLE_ACTION_COMPLETE][0m Shove prone: goblin scout knocked prone. (8 vs 8)
+   [32mΓ£ô[0m type=SIMPLE_ACTION_COMPLETE, rollType=undefined, actionComplete=true
+
+[1mΓöüΓöüΓöü Step 6: ASSERTSTATE ΓöüΓöüΓöü[0m
+   [90mVerify the Goblin Scout has the Prone condition applied[0m
+   [32mΓ£ô[0m Combat status=Active, combatants=2
+      [32mΓ£ô[0m Monster "Goblin Scout" conditions: [prone]
+
+[1mΓöüΓöüΓöü Step 7: ENDTURN ΓöüΓöüΓöü[0m
+   [90mEnd turn - Goblin's AI turn: it will stand up from Prone (costs half speed) and then may attack/move[0m
+[AiActionExecutor] Executing attack action: { target: 'Grimgar the Strong', attackName: 'Dagger' }
+[AiActionExecutor] Target may have reactions (Shield/Deflect) - using two-phase attack flow
+[AiActionExecutor] Two-phase flow: d20=18 + 4 = 22
+[AiActionExecutor] Two-phase flow: hit with no reaction, resolving damage
+   [32mΓ£ô[0m Turn ended - monster's turn begins...
+
+[1mΓöüΓöüΓöü Step 8: WAITFORTURN ΓöüΓöüΓöü[0m
+   [90mWait for Goblin's turn to pass, then our turn comes[0m
+      [90mWaiting for player turn (timeout: 5000ms)...[0m
+      [90m[poll 1] status=200[0m
+      [90mKeys: encounterId, status, activeCombatantId, combatants, map[0m
+      [90mCombatants: Grimgar the Strong(Character, HP:39/44), Goblin Scout(Monster, HP:50/50)[0m
+      [36mActive: Grimgar the Strong (combatantId: cib3e2KDB14HUe_6YblE9)[0m
+      [90mmovement: {"speed":30,"dashed":false,"movementSpent":false}[0m
+      [90mLooking for characterId: I3J7_aW7CJMN_xm690mRN[0m
+   [32mΓ£ô[0m Player's turn (Grimgar the Strong) - movement reset
+
+   [1m[33mΓöüΓöüΓöü Monster Turn Events ΓöüΓöüΓöü[0m
+   [2m[Turn ΓåÆ Next combatant][0m
+   [36m≡ƒñû [AI Decision][0m moves to (15, 10)
+   [3m[90mGoblin Scout stands up from prone.[0m
+   [36m≡ƒñû [AI Decision][0m attacks Grimgar the Strong with Dagger
+   [3m[90mGoblin Scout attacks Grimgar the Strong with Dagger![0m
+   [2m[Turn ΓåÆ Next combatant][0m
+   [2mΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü[0m
+
+[1mΓöüΓöüΓöü Step 9: ASSERTSTATE ΓöüΓöüΓöü[0m
+   [90mVerify Goblin no longer has Prone condition (AI stood up by moving during its turn)[0m
+   [32mΓ£ô[0m Combat status=Active, combatants=2
+      [32mΓ£ô[0m Monster "Goblin Scout" conditions: []
+
+[1mΓöüΓöüΓöü Step 10: ACTION ΓöüΓöüΓöü[0m
+   [90mMelee attack vs standing target - no advantage[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mPreparing to strike at Goblin Scout. Roll for attack![0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[REQUEST_ROLL][0m Roll a d20 for attack against Goblin Scout (no modifiers; server applies bonuses).
+   [32mΓ£ô[0m type=REQUEST_ROLL, rollType=attack, actionComplete=false
+
+[1mΓöüΓöüΓöü Step 11: ROLLRESULT ΓöüΓöüΓöü[0m
+   [90m12 + 8 = 20 vs AC 13 - hit (with advantage noted)[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3mThe attack strikes true against Goblin Scout! Roll for damage.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[Hit!][0m 12 + 8 = 20 vs AC 13. Hit! Roll 1d8+5 for damage.
+   [32mΓ£ô[0m rollType=damage, hit=true, actionComplete=false
+
+[1mΓöüΓöüΓöü Step 12: ROLLRESULT ΓöüΓöüΓöü[0m
+   [90m6 + 5 = 11 damage[0m
+
+   [1m[36m≡ƒôû Narration:[0m [3m11 damage! Goblin Scout staggers from the blow.[0m
+   [1m[35m≡ƒÄ▓ DM:[0m [33m[damage][0m 6 + 5 = 11 damage to Goblin Scout! HP: 50 ΓåÆ 39
+   [32mΓ£ô[0m rollType=damage, hit=undefined, actionComplete=true
+
+=========================================
+Γ£à PASSED: 12/12 steps
+=========================================
+

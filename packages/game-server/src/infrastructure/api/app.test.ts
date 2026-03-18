@@ -85,6 +85,14 @@ class MemoryCharacterRepository implements ICharacterRepository {
   async listBySession(sessionId: string): Promise<SessionCharacterRecord[]> {
     return [...this.characters.values()].filter((c) => c.sessionId === sessionId);
   }
+
+  async updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord> {
+    const existing = this.characters.get(id);
+    if (!existing) throw new Error("Character not found: " + id);
+    const updated: SessionCharacterRecord = { ...existing, sheet, updatedAt: now() };
+    this.characters.set(id, updated);
+    return updated;
+  }
 }
 
 class MemoryMonsterRepository implements IMonsterRepository {
@@ -129,7 +137,7 @@ class MemoryCombatRepository implements ICombatRepository {
 
   async createEncounter(
     sessionId: string,
-    input: { id: string; status: string; round: number; turn: number },
+    input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue },
   ): Promise<CombatEncounterRecord> {
     const created: CombatEncounterRecord = {
       id: input.id,
@@ -137,6 +145,7 @@ class MemoryCombatRepository implements ICombatRepository {
       status: input.status,
       round: input.round,
       turn: input.turn,
+      mapData: input.mapData,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -156,7 +165,7 @@ class MemoryCombatRepository implements ICombatRepository {
 
   async updateEncounter(
     id: string,
-    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn">>,
+    patch: Partial<Pick<CombatEncounterRecord, "status" | "round" | "turn" | "mapData">>,
   ): Promise<CombatEncounterRecord> {
     const existing = this.encounters.get(id);
     if (!existing) throw new Error("missing");
@@ -1154,10 +1163,11 @@ describe("game-server api", () => {
     expect(actBody.rollType).toBe("attack");
 
     // Resolve attack roll -> should request damage with dice from spec.
+    // Use a non-20 roll to avoid critical hit doubling the dice formula.
     const rollAtk = await app.inject({
       method: "POST",
       url: `/sessions/${sessionId}/combat/roll-result`,
-      payload: { text: "I rolled 20", actorId: characterId },
+      payload: { text: "I rolled 15", actorId: characterId },
     });
     expect(rollAtk.statusCode).toBe(200);
     const atkBody = rollAtk.json() as any;
@@ -1308,6 +1318,7 @@ describe("game-server api", () => {
     expect(typeof oa.opportunityId).toBe("string");
 
     // Decline the OA to keep the test deterministic
+    // Server auto-completes the move when all reactions are declined
     const respond = await app.inject({
       method: "POST",
       url: `/encounters/${encounterId}/reactions/${moveBody.pendingActionId}/respond`,
@@ -1318,16 +1329,10 @@ describe("game-server api", () => {
       },
     });
     expect(respond.statusCode).toBe(200);
-
-    const complete = await app.inject({
-      method: "POST",
-      url: `/sessions/${sessionId}/combat/move/complete`,
-      payload: { pendingActionId: moveBody.pendingActionId },
-    });
-    expect(complete.statusCode).toBe(200);
-    const completeBody = complete.json() as any;
-    expect(completeBody.success).toBe(true);
-    expect(completeBody.to).toEqual({ x: 20, y: 0 });
+    const respondBody = respond.json() as any;
+    expect(respondBody.status).toBe("completed");
+    expect(respondBody.moveResult).toBeTruthy();
+    expect(respondBody.moveResult.to).toEqual({ x: 20, y: 0 });
 
     await app.close();
   });
@@ -2221,7 +2226,16 @@ describe("game-server api", () => {
       url: `/sessions/${sessionId}/combat/start`,
       payload: {
         combatants: [
-          { combatantType: "Character", characterId, hpCurrent: 38, hpMax: 38, initiative: 18 },
+          { 
+            combatantType: "Character", 
+            characterId, 
+            hpCurrent: 38, 
+            hpMax: 38, 
+            initiative: 18, 
+            resources: { 
+              resourcePools: [{ name: "ki", current: 5, max: 5 }] 
+            } 
+          },
           { combatantType: "Monster", monsterId, hpCurrent: 20, hpMax: 20, initiative: 8 },
         ],
       },
@@ -2288,8 +2302,9 @@ describe("game-server api", () => {
     expect(attack1Result.hit).toBe(true);
     expect(attack1Result.rollType).toBe("damage");
 
-    // CRITICAL: Damage dice should be 1d8+3 (not 1d4+3 or 1d6+3)
-    expect(attack1Result.diceNeeded).toMatch(/1d8[+-]/);
+    // CRITICAL: Damage dice should be 1d8 (martial arts die at level 5, not 1d4 or 1d6)
+    // The modifier is applied server-side, diceNeeded shows just the die
+    expect(attack1Result.diceNeeded).toMatch(/1d8/);
 
     // Roll first damage (6 + 3 = 9 damage, 20 - 9 = 11 HP remaining)
     const damage1Resp = await app.inject({
@@ -2326,8 +2341,8 @@ describe("game-server api", () => {
     const attack2Result = attack2Resp.json();
     expect(attack2Result.hit).toBe(true);
 
-    // Second strike should ALSO use 1d8+3
-    expect(attack2Result.diceNeeded).toMatch(/1d8[+-]/);
+    // Second strike should ALSO use 1d8 (martial arts die)
+    expect(attack2Result.diceNeeded).toMatch(/1d8/);
 
     // Roll second damage (5 + 3 = 8 damage, 11 - 8 = 3 HP remaining)
     const damage2Resp = await app.inject({
@@ -2347,6 +2362,164 @@ describe("game-server api", () => {
     // After second strike completes, action should be complete
     expect(damage2Result.actionComplete).toBe(true);
     expect(damage2Result.requiresPlayerInput).toBe(false);
+
+    await app.close();
+  });
+
+  // ── Inventory API tests ──────────────────────────────────────────────
+
+  it("GET /sessions/:id/characters/:charId/inventory returns empty inventory", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const res = await app.inject({ method: "GET", url: `/sessions/${sessionId}/characters/${charId}/inventory` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.inventory).toEqual([]);
+    expect(body.attunedCount).toBe(0);
+    expect(body.maxAttunementSlots).toBe(3);
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/characters/:charId/inventory adds item", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const addRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters/${charId}/inventory`,
+      payload: { name: "Potion of Healing", quantity: 2 },
+    });
+    expect(addRes.statusCode).toBe(200);
+    const body = addRes.json() as any;
+    expect(body.inventory).toHaveLength(1);
+    expect(body.inventory[0].name).toBe("Potion of Healing");
+    expect(body.inventory[0].quantity).toBe(2);
+
+    await app.close();
+  });
+
+  it("POST inventory stacks items with same name", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    await app.inject({ method: "POST", url: invUrl, payload: { name: "Potion of Healing", quantity: 1 } });
+    const res = await app.inject({ method: "POST", url: invUrl, payload: { name: "Potion of Healing", quantity: 2 } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.inventory).toHaveLength(1);
+    expect(body.inventory[0].quantity).toBe(3);
+
+    await app.close();
+  });
+
+  it("DELETE /sessions/:id/characters/:charId/inventory/:itemName removes item", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    await app.inject({ method: "POST", url: invUrl, payload: { name: "Potion of Healing", quantity: 3 } });
+
+    const delRes = await app.inject({ method: "DELETE", url: `${invUrl}/Potion%20of%20Healing?amount=1` });
+    expect(delRes.statusCode).toBe(200);
+    const body = delRes.json() as any;
+    expect(body.inventory).toHaveLength(1);
+    expect(body.inventory[0].quantity).toBe(2);
+
+    await app.close();
+  });
+
+  it("PATCH /sessions/:id/characters/:charId/inventory/:itemName equips item", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    await app.inject({ method: "POST", url: invUrl, payload: { name: "+1 Longsword", magicItemId: "weapon-plus-1-longsword", quantity: 1 } });
+
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: `${invUrl}/%2B1%20Longsword`,
+      payload: { equipped: true, attuned: true },
+    });
+    expect(patchRes.statusCode).toBe(200);
+    const body = patchRes.json() as any;
+    expect(body.inventory[0].equipped).toBe(true);
+    expect(body.inventory[0].attuned).toBe(true);
+
+    await app.close();
+  });
+
+  it("inventory attunement respects max 3 slots", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "Hero", level: 1, className: "fighter", sheet: { maxHp: 10 } },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    // Add 3 attuned items
+    for (let i = 1; i <= 3; i++) {
+      await app.inject({ method: "POST", url: invUrl, payload: { name: `Item ${i}`, attuned: true, quantity: 1 } });
+    }
+
+    // 4th attuned item should fail
+    const res = await app.inject({ method: "POST", url: invUrl, payload: { name: "Item 4", attuned: true, quantity: 1 } });
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as any;
+    expect(body.message).toContain("maximum");
 
     await app.close();
   });

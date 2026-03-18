@@ -1,0 +1,32 @@
+{
+  "name": "Narration: Movement",
+  "description": "Narration for movement describes movement without inventing combat actions",
+  "category": "narration",
+  "steps": [
+    {
+      "type": "narration",
+      "description": "Narrate a simple movement event",
+      "input": {
+        "events": [
+          {
+            "type": "movementComplete",
+            "payload": {
+              "combatantName": "Thorin Ironfist",
+              "from": { "x": 10, "y": 10 },
+              "to": { "x": 25, "y": 10 },
+              "distanceFeet": 15
+            }
+          }
+        ],
+        "storyFramework": null
+      },
+      "expect": {
+        "containsAny": ["Thorin", "move", "step", "advance", "stride", "walk", "rush", "position"],
+        "doesNotContain": ["attack", "damage", "hit", "slash", "kills", "spell"],
+        "maxLength": 400,
+        "minLength": 10,
+        "promptSnapshot": "movement"
+      }
+    }
+  ]
+}

@@ -9,16 +9,12 @@ import {
   type AttackKind,
   type WeaponContext,
 } from "../rules/feat-modifiers.js";
+import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
+import { hasProperty } from "../entities/items/weapon-properties.js";
 
 type D20ModeProvider = {
   getD20TestModeForAbility?: (ability: Ability, baseMode: RollMode) => RollMode;
 };
-
-function hasProperty(props: readonly string[] | undefined, property: string): boolean {
-  if (!props) return false;
-  const p = property.trim().toLowerCase();
-  return props.some((x) => x.trim().toLowerCase() === p);
-}
 
 function getAdjustedMode(attacker: Creature, ability: Ability, baseMode: RollMode): RollMode {
   const maybe = attacker as unknown as D20ModeProvider;
@@ -50,6 +46,12 @@ export interface AttackSpec {
   damage: DamageSpec;
 
   /**
+   * Damage type (e.g. "slashing", "fire", "bludgeoning").
+   * Used for resistance/immunity/vulnerability calculations.
+   */
+  damageType?: string;
+
+  /**
    * Optional weapon context used for feat interactions (e.g. Great Weapon Fighting).
    */
   weapon?: WeaponContext;
@@ -67,6 +69,10 @@ export interface AttackResult {
   damage: {
     applied: number;
     roll: DiceRoll;
+    /** Defense that was applied (resistance/vulnerability/immunity/none) */
+    defenseApplied?: DamageDefenseResult["defenseApplied"];
+    /** Damage type of the attack */
+    damageType?: string;
   };
 }
 
@@ -75,6 +81,7 @@ export function resolveAttack(
   attacker: Creature,
   target: Creature,
   spec: AttackSpec,
+  options?: { targetDefenses?: DamageDefenses },
 ): AttackResult {
   // Stage 2.2: basic attack resolution.
   // Advantage/disadvantage and special effects come later (Stage 3).
@@ -124,7 +131,17 @@ export function resolveAttack(
     damageRoll = applyDamageDieMinimum(damageRoll, featMods.greatWeaponFightingDamageDieMinimum);
   }
 
-  const applied = hit ? Math.max(0, damageRoll.total) : 0;
+  const rawApplied = hit ? Math.max(0, damageRoll.total) : 0;
+
+  // Apply damage resistance/immunity/vulnerability
+  let applied = rawApplied;
+  let defenseApplied: DamageDefenseResult["defenseApplied"] | undefined;
+  if (hit && rawApplied > 0 && options?.targetDefenses && spec.damageType) {
+    const defenseResult = applyDamageDefenses(rawApplied, spec.damageType, options.targetDefenses);
+    applied = defenseResult.adjustedDamage;
+    defenseApplied = defenseResult.defenseApplied;
+  }
+
   if (hit) {
     target.takeDamage(applied);
   }
@@ -136,6 +153,8 @@ export function resolveAttack(
     damage: {
       applied,
       roll: damageRoll,
+      defenseApplied,
+      damageType: spec.damageType,
     },
   };
 }

@@ -1,0 +1,109 @@
+{
+  "name": "Weapon Mastery: Graze (Greatsword)",
+  "description": "A Fighter with a Greatsword (Graze mastery) misses an attack but still deals ability modifier damage. The goblin has 7 HP; a miss with Graze should still deal 4 (STR mod) damage.",
+  "setup": {
+    "character": {
+      "name": "Greatsword Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greatsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+            "damageType": "slashing",
+            "properties": ["heavy", "two-handed"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Tough Goblin",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 20,
+          "hp": 20,
+          "armorClass": 18,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin with my greatsword" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Tough Goblin with my greatsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 2" },
+      "comment": "Roll of 2 + 7 = 9 vs AC 18 = MISS. Graze mastery should deal 4 damage (STR modifier).",
+      "expect": {
+        "hit": false,
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin should have taken 4 damage from Graze (STR mod 4). HP: 20 → 16.",
+      "expect": {
+        "monsterHp": { "name": "Tough Goblin", "min": 16, "max": 16 }
+      }
+    }
+  ]
+}

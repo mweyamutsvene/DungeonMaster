@@ -18,27 +18,8 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  packages/cli:
-    dependencies:
-      '@dungeonmaster/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.3
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
   packages/game-server:
     dependencies:
-      '@dungeonmaster/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@prisma/client':
         specifier: ^6.1.0
         version: 6.19.1(prisma@6.19.1(typescript@5.9.3))(typescript@5.9.3)
@@ -68,44 +49,17 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.3)
 
-  packages/server:
-    dependencies:
-      '@dungeonmaster/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@prisma/client':
-        specifier: ^6.1.0
-        version: 6.19.1(prisma@6.19.1(typescript@5.9.3))(typescript@5.9.3)
-      ajv:
-        specifier: ^8.17.1
-        version: 8.17.1
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-      fastify:
-        specifier: ^5.2.1
-        version: 5.6.2
-      nanoid:
-        specifier: ^5.1.0
-        version: 5.1.6
-      pino:
-        specifier: ^9.6.0
-        version: 9.14.0
+  packages/player-cli:
     devDependencies:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.3
-      prisma:
-        specifier: ^6.1.0
-        version: 6.19.1(typescript@5.9.3)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
-
-  packages/shared: {}
 
 packages:
 

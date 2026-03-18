@@ -1,0 +1,146 @@
+{
+  "name": "Cleric Healing: Cure Wounds (self-heal)",
+  "description": "A Cleric takes damage from a goblin, then casts Cure Wounds on herself. Tests the healing spell delivery mode: spell slot consumption, dice rolling, HP restoration, and message formatting.",
+  "setup": {
+    "character": {
+      "name": "Sister Mira",
+      "className": "Cleric",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 10, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 12
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          {
+            "name": "Cure Wounds", "level": 1,
+            "healing": { "diceCount": 2, "diceSides": 8 }
+          },
+          {
+            "name": "Healing Word", "level": 1,
+            "healing": { "diceCount": 2, "diceSides": 4 },
+            "isBonusAction": true
+          },
+          { "name": "Sacred Flame", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Mace", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 40, "hp": 40, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my mace and shield" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "Low initiative so goblin goes first and damages us",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through goblin's turn (it will attack)"
+    },
+    {
+      "type": "assertState",
+      "comment": "After goblin attack, HP should be at most 24 (maybe less if hit)",
+      "expect": {
+        "characterHp": { "min": 1, "max": 24 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Cure Wounds on Sister Mira" },
+      "comment": "Self-heal with Cure Wounds (2d8 + 4 WIS mod)",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "CastSpell"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "After healing, HP should be at least partially restored (minimum heal is 2d8+4=6)",
+      "expect": {
+        "characterHp": { "min": 7, "max": 24 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Healing Word on Sister Mira" },
+      "comment": "Self-heal with Healing Word as bonus action (2d4 + 4 WIS mod)",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "CastSpell"
+      }
+    },
+    {
+      "comment": "After bonus action heal, still have action available — attack the goblin",
+      "type": "action",
+      "input": { "text": "attack Goblin with Mace" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "rollType": "damage"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": {
+        "actionComplete": true
+      }
+    }
+  ]
+}

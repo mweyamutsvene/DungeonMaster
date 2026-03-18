@@ -14,6 +14,8 @@ import { CombatantResolver } from "../../application/services/combat/helpers/com
 import { BasicCombatVictoryPolicy } from "../../application/services/combat/combat-victory-policy.js";
 import { AbilityRegistry } from "../../application/services/combat/abilities/ability-registry.js";
 import { 
+  ActionSurgeExecutor,
+  SecondWindExecutor,
   NimbleEscapeExecutor, 
   CunningActionExecutor, 
   OffhandAttackExecutor, 
@@ -21,11 +23,11 @@ import {
   PatientDefenseExecutor, 
   StepOfTheWindExecutor, 
   MartialArtsExecutor,
-  StunningStrikeExecutor,
   WholenessOfBodyExecutor,
-  UncannyMetabolismExecutor,
-  DeflectAttacksExecutor,
-  OpenHandTechniqueExecutor
+  RageExecutor,
+  RecklessAttackExecutor,
+  LayOnHandsExecutor,
+  TurnUndeadExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../../application/repositories/pending-action-repository.js";
@@ -51,6 +53,8 @@ import type { INarrativeGenerator } from "../llm/narrative-generator.js";
 import type { ICharacterGenerator } from "../llm/character-generator.js";
 import type { IAiDecisionMaker } from "../../application/services/combat/ai/ai-types.js";
 import { LlmAiDecisionMaker } from "../llm/ai-decision-maker.js";
+import { LlmBattlePlanner } from "../llm/battle-planner.js";
+import { BattlePlanService } from "../../application/services/combat/ai/battle-plan-service.js";
 import type { LlmProvider } from "../llm/types.js";
 import type { DiceRoller } from "../../domain/rules/dice-roller.js";
 
@@ -86,12 +90,53 @@ declare module "fastify" {
   }
 }
 
-export function buildApp(deps: AppDeps): FastifyInstance {
-  const inferredLogger: AppDeps["logger"] =
-    deps.logger ??
-    ((process.env.NODE_ENV === "test" || process.env.VITEST) ? { level: "warn" } : true);
+/**
+ * Endpoints that generate noisy logs during polling - suppress their request logging
+ */
+const QUIET_ENDPOINTS = [
+  "/events-json",
+  "/events",
+  "/combat/tactical",
+  "/combat?",
+];
 
-  const app = Fastify({ logger: inferredLogger });
+function shouldLogRequest(url: string | undefined): boolean {
+  if (!url) return true;
+  return !QUIET_ENDPOINTS.some((ep) => url.includes(ep));
+}
+
+export function buildApp(deps: AppDeps): FastifyInstance {
+  const isTest = process.env.NODE_ENV === "test" || process.env.VITEST;
+
+  // Build logger configuration
+  let loggerConfig: any;
+  if (deps.logger === false) {
+    loggerConfig = false;
+  } else if (isTest) {
+    loggerConfig = { level: "warn" };
+  } else if (deps.logger && typeof deps.logger === "object") {
+    loggerConfig = deps.logger;
+  } else {
+    loggerConfig = { level: "warn" }; // Suppress pino JSON; we log requests ourselves
+  }
+
+  const app = Fastify({
+    logger: loggerConfig,
+    disableRequestLogging: true, // We handle request logging ourselves
+  });
+
+  // Human-readable request logging (skips noisy polling endpoints)
+  if (loggerConfig !== false && !isTest) {
+    app.addHook("onResponse", (request, reply, done) => {
+      if (shouldLogRequest(request.url)) {
+        const time = new Date().toLocaleTimeString();
+        const ms = Math.round(reply.elapsedTime);
+        const status = reply.statusCode;
+        console.log(`${time}  ${request.method} ${request.url} → ${status} (${ms}ms)`);
+      }
+      done();
+    });
+  }
 
   app.decorate("sseBroker", sseBroker);
 
@@ -159,9 +204,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     ?? (deps.llmProvider && deps.llmConfig
       ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)
       : undefined);
+
+  // Battle plan service for faction-level tactical planning
+  const battlePlanner = deps.llmProvider && deps.llmConfig
+    ? new LlmBattlePlanner(deps.llmProvider, deps.llmConfig)
+    : undefined;
+  const battlePlanService = new BattlePlanService(
+    deps.combatRepo,
+    factionService,
+    combatants,
+    battlePlanner,
+  );
   
   // Configure ability registry with executors
   const abilityRegistry = new AbilityRegistry();
+  abilityRegistry.register(new ActionSurgeExecutor());
+  abilityRegistry.register(new SecondWindExecutor());
   abilityRegistry.register(new NimbleEscapeExecutor());
   abilityRegistry.register(new CunningActionExecutor());
   abilityRegistry.register(new OffhandAttackExecutor());
@@ -169,11 +227,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new PatientDefenseExecutor());
   abilityRegistry.register(new StepOfTheWindExecutor());
   abilityRegistry.register(new MartialArtsExecutor());
-  abilityRegistry.register(new StunningStrikeExecutor());
   abilityRegistry.register(new WholenessOfBodyExecutor());
-  abilityRegistry.register(new UncannyMetabolismExecutor());
-  abilityRegistry.register(new DeflectAttacksExecutor());
-  abilityRegistry.register(new OpenHandTechniqueExecutor());
+  abilityRegistry.register(new RageExecutor());
+  abilityRegistry.register(new RecklessAttackExecutor());
+  abilityRegistry.register(new LayOnHandsExecutor());
+  abilityRegistry.register(new TurnUndeadExecutor());
   
   const aiOrchestrator = new AiTurnOrchestrator(
     deps.combatRepo,
@@ -187,8 +245,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     abilityRegistry,
     twoPhaseActions,
     pendingActionsRepo,
+    deps.diceRoller,
     aiDecisionMaker,
     deps.eventsRepo,
+    battlePlanService,
   );
   
   // New services for refactored route modules
@@ -216,13 +276,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     narrativeGenerator: deps.narrativeGenerator,
     victoryPolicy,
     abilityRegistry,
+    diceRoller: deps.diceRoller,
   });
 
   registerHealthRoutes(app);
   registerReactionRoutes(app, {
     pendingActions: pendingActionsRepo,
     events: deps.eventsRepo,
+    combat: deps.combatRepo,
     combatants,
+    twoPhaseActions,
+    aiOrchestrator,
+    diceRoller: deps.diceRoller,
   });
   registerSessionRoutes(app, {
     sessions,
@@ -293,10 +358,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)
         : undefined;
       
-      // Configure ability registry with executors
+      // Configure ability registry with executors (must match outer registry at L202-216)
       const abilityRegistryInner = new AbilityRegistry();
+      abilityRegistryInner.register(new ActionSurgeExecutor());
+      abilityRegistryInner.register(new SecondWindExecutor());
       abilityRegistryInner.register(new NimbleEscapeExecutor());
       abilityRegistryInner.register(new CunningActionExecutor());
+      abilityRegistryInner.register(new OffhandAttackExecutor());
+      abilityRegistryInner.register(new FlurryOfBlowsExecutor());
+      abilityRegistryInner.register(new PatientDefenseExecutor());
+      abilityRegistryInner.register(new StepOfTheWindExecutor());
+      abilityRegistryInner.register(new MartialArtsExecutor());
+      abilityRegistryInner.register(new WholenessOfBodyExecutor());
       
       // Two-phase action service
       const pendingActionsRepoInner = new InMemoryPendingActionRepository();
@@ -306,6 +379,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         combatantsInner,
         pendingActionsRepoInner,
         repos.eventsRepo,
+      );
+      
+      const battlePlannerInner = deps.llmProvider && deps.llmConfig
+        ? new LlmBattlePlanner(deps.llmProvider, deps.llmConfig)
+        : undefined;
+      const battlePlanServiceInner = new BattlePlanService(
+        repos.combatRepo,
+        factionServiceInner,
+        combatantsInner,
+        battlePlannerInner,
       );
       
       const aiOrchestratorInner = new AiTurnOrchestrator(
@@ -320,8 +403,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         abilityRegistryInner,
         twoPhaseService,
         pendingActionsRepoInner,
+        deps.diceRoller,
         aiDecisionMakerInner,
         repos.eventsRepo,
+        battlePlanServiceInner,
       );
       return {
         sessions: sessionsService,

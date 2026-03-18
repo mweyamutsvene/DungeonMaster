@@ -1,0 +1,97 @@
+{
+  "name": "Critical Hit & Miss: Natural 20 and Natural 1",
+  "description": "Validates critical hit (nat 20 = auto-hit, doubled damage dice) and critical miss (nat 1 = auto-miss regardless of total vs AC).",
+  "setup": {
+    "character": {
+      "name": "Crit Master",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": { "str": 18, "dex": 14, "con": 16, "int": 10, "wis": 12, "cha": 8 },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Two attacks per Attack action at level 5" }
+        ],
+        "resourcePools": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 5, "y": 0 },
+        "statBlock": {
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 5,
+          "speed": 0,
+          "abilityScores": { "str": 10, "dex": 1, "con": 10, "int": 1, "wis": 1, "cha": 1 },
+          "actions": [
+            { "name": "Slam", "toHit": 0, "damage": "1d4", "damageType": "bludgeoning", "reach": "5 ft." }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the dummy" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "expect": { "rollType": "attack" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "expect": {
+        "hit": true,
+        "isCritical": true,
+        "rollType": "damage",
+        "actionComplete": false
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "expect": { "rollType": "attack" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "expect": {
+        "hit": false,
+        "isCritical": false,
+        "actionComplete": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "name": "Ready Action: Fighter readies attack, action spent correctly",
+  "description": "A Fighter readies an attack against a Goblin 25ft away. The ready action spends the main action. The goblin's AI approaches and attacks. Tests readied action parsing, action economy, and basic flow. The readied attack reaction auto-resolves during the AI turn via the waitForTurn auto-decline handler.",
+  "setup": {
+    "character": {
+      "name": "Sentinel",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile (1d10)"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Thug",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat",
+      "input": { "text": "I ready my weapon against the goblin" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Roll initiative high to go first",
+      "input": { "text": "I rolled a 20" },
+      "expect": { "rollType": "initiative", "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Ready an attack — spends the action, stores readied state",
+      "input": { "text": "ready an attack when the goblin moves within range" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn — goblin's turn next (25ft away, will approach)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin AI turn. Goblin approaches and attacks. Readied reaction may trigger and get auto-handled.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat should still be active after goblin's turn. Fighter may have taken damage from goblin's attack.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 1, "max": 44 }
+      }
+    }
+  ]
+}

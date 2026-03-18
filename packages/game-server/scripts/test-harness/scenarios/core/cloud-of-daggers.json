@@ -1,0 +1,116 @@
+{
+  "name": "Cloud of Daggers: Placed Zone Damage",
+  "description": "A Wizard casts Cloud of Daggers — creates a stationary 5ft zone. Creatures starting their turn in the zone take 5d4 slashing damage with no save. Tests placed zone creation and turn-start damage without saves.",
+  "setup": {
+    "character": {
+      "name": "Alaric the Wizard",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 13,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          {
+            "name": "Cloud of Daggers",
+            "level": 2,
+            "concentration": true,
+            "zone": {
+              "type": "placed",
+              "radiusFeet": 5,
+              "shape": "circle",
+              "effects": [
+                {
+                  "trigger": "on_start_turn",
+                  "damage": { "diceCount": 5, "diceSides": 4, "modifier": 0 },
+                  "damageType": "slashing",
+                  "affectsEnemies": true,
+                  "affectsAllies": true,
+                  "affectsSelf": true
+                }
+              ]
+            }
+          },
+          {
+            "name": "Fire Bolt",
+            "level": 0,
+            "damageType": "fire",
+            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 0 },
+            "isRanged": true,
+            "range": 120
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger", "kind": "melee", "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Archer",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 12, "hp": 12, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I conjure spinning daggers" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Cloud of Daggers targeting the Goblin's position — zone placed at target location",
+      "type": "action",
+      "input": { "text": "cast Cloud of Daggers at Goblin Archer" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "End turn — Goblin's turn starts. It is at (15,10) which is the zone center. Should take 5d4 slashing on start of turn (no save). Max possible: 20, min: 5.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Goblin should have taken some zone damage (5d4 = 5-20 slashing). With 12 HP max, it could be dead or alive.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Archer", "min": 0, "max": 11 } }
+    }
+  ]
+}

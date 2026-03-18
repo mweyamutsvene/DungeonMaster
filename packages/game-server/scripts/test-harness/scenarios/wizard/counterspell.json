@@ -1,0 +1,112 @@
+{
+  "name": "Wizard Counterspell: Counter Monster Spell",
+  "description": "A Wizard with Counterspell prepared faces a spellcasting monster. When the monster casts a spell (via AI castSpell behavior), the server detects the Counterspell opportunity and pauses for player reaction. Player uses Counterspell. The monster has very low CON (1, modifier -5) vs the wizard's spell save DC 16, ensuring the CON save always fails and the spell is countered. Tests: two-phase spell cast flow, Counterspell detection, CON save resolution, spell slot consumption (level 3), and reaction marking.",
+  "setup": {
+    "character": {
+      "name": "Merlin the Archmage",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 20, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 32, "currentHp": 32, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 16,
+        "spellAttackBonus": 8,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Counterspell", "level": 3 },
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Shield", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Dark Mage",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 12, "constitution": 1,
+            "intelligence": 16, "wisdom": 14, "charisma": 10
+          },
+          "maxHp": 40, "hp": 40, "armorClass": 12, "speed": 30,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Staff", "kind": "melee", "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "spells": [
+            { "name": "Hold Person", "level": 2 }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "castSpell"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare to counter whatever the dark mage throws at me" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative so Wizard goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "End turn without acting - monster will cast a spell on its turn",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster to cast a spell and trigger Counterspell reaction prompt",
+      "type": "waitForReaction",
+      "input": { "reactionType": "counterspell" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Counterspell reaction - spends level 3 spell slot + reaction",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for monster turn to finish and control to return to player",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "Verify wizard still alive and at full HP (monster spell was countered, no damage taken)",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 32, "max": 32 }
+      }
+    },
+    {
+      "comment": "Verify level 3 spell slot was consumed (started with 2, now 1 after Counterspell)",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1 }
+      }
+    }
+  ]
+}

@@ -6,3 +6,8 @@ export * from "./faction-service.js";
 export * from "./resource-utils.js";
 export * from "./combat-hydration.js";
 export * from "./creature-hydration.js";
+export * from "./sync-map-entity.js";
+export * from "./ko-handler.js";
+export * from "./zone-damage-resolver.js";
+export * from "./movement-trigger-resolver.js";
+export * from "./aura-sync.js";

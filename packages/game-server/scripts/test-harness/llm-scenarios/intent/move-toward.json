@@ -1,0 +1,54 @@
+{
+  "name": "Intent: Move Toward Target",
+  "description": "LLM parses movement commands directed toward a named creature into moveToward",
+  "category": "intent",
+  "steps": [
+    {
+      "type": "intent",
+      "description": "Parse 'move toward the orc' into moveToward command",
+      "input": {
+        "text": "move toward the orc",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Orc Brute" }]
+        }
+      },
+      "expect": {
+        "kind": "moveToward",
+        "targetName": "Orc",
+        "targetType": "Monster",
+        "promptSnapshot": "move-toward"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'I approach the goblin' into moveToward",
+      "input": {
+        "text": "I approach the goblin",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Goblin Warrior" }]
+        }
+      },
+      "expect": {
+        "kind": "moveToward",
+        "targetName": "Goblin"
+      }
+    },
+    {
+      "type": "intent",
+      "description": "Parse 'run to the skeleton' into moveToward",
+      "input": {
+        "text": "run to the skeleton",
+        "roster": {
+          "characters": [{ "id": "char-001", "name": "Thorin Ironfist" }],
+          "monsters": [{ "id": "mon-001", "name": "Skeleton Guard" }]
+        }
+      },
+      "expect": {
+        "kind": "moveToward",
+        "targetName": "Skeleton"
+      }
+    }
+  ]
+}

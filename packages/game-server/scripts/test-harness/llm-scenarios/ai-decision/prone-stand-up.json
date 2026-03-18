@@ -1,0 +1,73 @@
+{
+  "name": "AI Decision: Prone Stand Up",
+  "description": "Prone creature should stand up before taking other actions",
+  "category": "ai-decision",
+  "steps": [
+    {
+      "type": "ai-decision",
+      "description": "Prone goblin with adjacent enemy — should prioritize standing up then attacking",
+      "input": {
+        "combatantName": "Goblin Warrior",
+        "combatantType": "Monster",
+        "context": {
+          "combatant": {
+            "name": "Goblin Warrior",
+            "type": "Goblin",
+            "cr": 0.25,
+            "hp": { "current": 5, "max": 7, "percentage": 71 },
+            "conditions": ["prone"],
+            "position": { "x": 15, "y": 10 },
+            "economy": {
+              "actionSpent": false,
+              "bonusActionSpent": false,
+              "reactionSpent": false,
+              "movementSpent": false,
+              "movementRemaining": 30
+            },
+            "ac": 15,
+            "speed": 30,
+            "initiative": 14,
+            "attacks": [
+              {
+                "name": "Scimitar",
+                "kind": "melee",
+                "attackBonus": 4,
+                "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+                "damageType": "slashing",
+                "range": "melee"
+              }
+            ],
+            "bonusActions": [
+              { "name": "Nimble Escape", "description": "Disengage or Hide as bonus action" }
+            ]
+          },
+          "combat": { "round": 2, "turn": 4, "totalCombatants": 2 },
+          "allies": [],
+          "enemies": [
+            {
+              "name": "Thorin Ironfist",
+              "class": "Fighter",
+              "level": 5,
+              "hp": { "current": 38, "max": 42, "percentage": 90 },
+              "conditions": [],
+              "position": { "x": 10, "y": 10 },
+              "distanceFeet": 5,
+              "ac": 18,
+              "initiative": 12,
+              "knownAbilities": ["Extra Attack"]
+            }
+          ],
+          "recentNarrative": ["The goblin was knocked prone by a heavy blow."],
+          "actionHistory": ["attack Thorin (hit, 5 damage)"],
+          "turnResults": [],
+          "lastActionResult": null
+        }
+      },
+      "expect": {
+        "action": "move",
+        "actionOneOf": ["move", "attack", "dash"],
+        "promptSnapshot": "prone-stand-up"
+      }
+    }
+  ]
+}

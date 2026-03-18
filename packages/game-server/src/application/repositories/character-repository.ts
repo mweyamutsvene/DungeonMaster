@@ -15,4 +15,6 @@ export interface ICharacterRepository {
   getById(id: string): Promise<SessionCharacterRecord | null>;
   getManyByIds(ids: string[]): Promise<SessionCharacterRecord[]>;
   listBySession(sessionId: string): Promise<SessionCharacterRecord[]>;
+
+  updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord>;
 }

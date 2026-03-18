@@ -10,11 +10,8 @@
 
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
-import { createDebugLogger } from "./types.js";
 
 export function registerSessionEventsRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
-  const debug = createDebugLogger();
-
   /**
    * GET /sessions/:id/events
    * Server-Sent Events (SSE) stream for real-time game events.
@@ -74,19 +71,10 @@ export function registerSessionEventsRoutes(app: FastifyInstance, deps: SessionR
    */
   app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
     "/sessions/:id/events-json",
-    async (req, reply) => {
+    async (req) => {
       const sessionId = req.params.id;
-      if (debug.enabled) {
-        app.log.info({ sessionId }, "Getting events as JSON");
-      }
-
       const limit = req.query.limit ? Number(req.query.limit) : 50;
-      const events = await deps.events.listBySession(sessionId, { limit });
-
-      if (debug.enabled) {
-        app.log.info({ sessionId, eventCount: events.length }, "Returning events");
-      }
-      return events;
+      return deps.events.listBySession(sessionId, { limit });
     },
   );
 }

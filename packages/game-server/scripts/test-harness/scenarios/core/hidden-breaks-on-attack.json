@@ -1,0 +1,124 @@
+{
+  "name": "Hidden Broken on Attack: Stealth removed after attacking",
+  "description": "A Rogue uses Cunning Action to Hide, gains the Hidden condition, then attacks. After the attack resolves (hit or miss), the Hidden condition should be automatically removed. Tests that attacking breaks stealth per D&D 5e 2024 rules.",
+  "setup": {
+    "character": {
+      "name": "Shadow Striker",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": { "stealth": 10 },
+        "attacks": [
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing"
+          }
+        ],
+        "features": [
+          { "name": "Sneak Attack", "description": "3d6 extra damage with advantage" },
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as bonus action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Oblivious Guard",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 16, "speed": 30,
+          "passivePerception": 10,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I lurk in the shadows" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High init to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "hide" },
+      "comment": "Cunning Action: Hide → Hidden condition",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "Hide"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Should now have the Hidden condition",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Hidden"] }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shoot the Oblivious Guard with my shortbow" },
+      "comment": "Attack with advantage due to Hidden. After attack resolves, Hidden should be removed.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14+7=21 vs AC 16 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Damage roll (includes sneak attack dice)",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "After attack, Hidden condition should be REMOVED — attacking reveals your position.",
+      "expect": {
+        "characterConditions": { "doesNotHaveConditions": ["Hidden"] }
+      }
+    }
+  ]
+}
