@@ -1,0 +1,48 @@
+﻿{
+  "taskId": "cover-13.1",
+  "condition": "single-agent",
+  "timestamp": "2026-03-18T01:31:00Z",
+  "toolCalls": {
+    "total": 68,
+    "byType": {
+      "read_file": 28,
+      "grep_search": 19,
+      "file_search": 3,
+      "edit_file": 4,
+      "run_terminal": 14,
+      "semantic_search": 0,
+      "create_file": 0,
+      "other": 0
+    }
+  },
+  "fileOperations": {
+    "uniqueFilesRead": 12,
+    "uniqueFilesModified": 4,
+    "offScopeModifications": 0,
+    "reworkCycles": 1
+  },
+  "quality": {
+    "compilationErrors": 0,
+    "testsPassed": 509,
+    "testsFailed": 0,
+    "testsSkipped": 36,
+    "e2eScenariosPass": 142,
+    "e2eScenariosFail": 0
+  },
+  "efficiency": {
+    "conversationTurns": 2,
+    "totalAgentInvocations": 1,
+    "estimatedTokens": null,
+    "premiumRequests": {
+      "actual": 1,
+      "projectedWithBugFixes": 3,
+      "note": "2 bugs missed (missing castSpell() in total-cover early return, missing null guards on map/position data) would each require ~1 additional premium request to diagnose and fix."
+    }
+  },
+  "correctness": {
+    "planAdherence": "full",
+    "missingRequirements": [],
+    "extraChanges": []
+  },
+  "notes": "Single-agent (default Copilot agent) completed all 4 tasks from the spec. The agent also modified spell-action-handler.ts which was in the 'Files to Read' scope but not 'Files to Modify' — however this was a necessary design decision since the cover check for DEX saves needs to happen at the spell-handler level. 1 rework cycle: the response message format in spell-action-handler.ts was edited twice (first in the batch edit, then a follow-up replace to add cover note to the message). 14 terminal runs includes several retries to capture E2E output (truncation issues with PowerShell output buffering). The task-spec markdown edit was undone by the user (not counted as a source file modification)."
+}

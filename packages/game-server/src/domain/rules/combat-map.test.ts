@@ -4,6 +4,7 @@ import {
   createCombatMap,
   getCellAt,
   getCoverLevel,
+  getCoverSaveBonus,
   getCreatures,
   getEntitiesAt,
   getEntitiesInRadius,
@@ -322,6 +323,24 @@ describe("Combat Map", () => {
 
       expect(allies).toHaveLength(1); // ally2
       expect(enemies).toHaveLength(1); // enemy1
+    });
+  });
+
+  describe("getCoverSaveBonus", () => {
+    it("should return +2 for half cover", () => {
+      expect(getCoverSaveBonus("half")).toBe(2);
+    });
+
+    it("should return +5 for three-quarters cover", () => {
+      expect(getCoverSaveBonus("three-quarters")).toBe(5);
+    });
+
+    it("should return 0 for no cover", () => {
+      expect(getCoverSaveBonus("none")).toBe(0);
+    });
+
+    it("should return 0 for full cover", () => {
+      expect(getCoverSaveBonus("full")).toBe(0);
     });
   });
 

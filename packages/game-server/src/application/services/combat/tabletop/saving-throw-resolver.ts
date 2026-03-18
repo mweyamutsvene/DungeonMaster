@@ -68,6 +68,8 @@ export interface SavingThrowResolution {
   total: number;
   /** DC checked against */
   dc: number;
+  /** Cover bonus applied to the save (DEX saves only) */
+  coverBonus?: number;
   /** The outcome that was applied */
   appliedOutcome: SaveOutcome;
   /** Conditions added */
@@ -157,6 +159,16 @@ export class SavingThrowResolver {
       }
     }
     totalModifier += effectSaveDiceBonus;
+
+    // ── Cover bonus for DEX saves (D&D 5e 2024) ──
+    let coverBonusApplied = 0;
+    if (action.ability === 'dexterity' && typeof action.context?.coverBonus === 'number') {
+      coverBonusApplied = action.context.coverBonus as number;
+      totalModifier += coverBonusApplied;
+      if (this.debugLogsEnabled) {
+        console.log(`[SavingThrowResolver] Cover bonus +${coverBonusApplied} on DEX save`);
+      }
+    }
 
     // Check advantage/disadvantage on saving throws from effects
     const hasEffectAdvantage = hasAdvantageFromEffects(targetEffects, 'saving_throws', saveAbility);
@@ -286,6 +298,7 @@ export class SavingThrowResolver {
       modifier: totalModifier,
       total,
       dc: action.dc,
+      coverBonus: coverBonusApplied > 0 ? coverBonusApplied : undefined,
       appliedOutcome: outcome,
       conditionsApplied,
       conditionsRemoved,
@@ -320,7 +333,13 @@ export class SavingThrowResolver {
       conditionsRemoved: resolution.conditionsRemoved.length > 0 ? resolution.conditionsRemoved : undefined,
       actionComplete: opts?.actionComplete ?? true,
       requiresPlayerInput: opts?.requiresPlayerInput ?? false,
-      message: `${action.reason}: d20(${resolution.rawRoll}) + ${resolution.modifier} = ${resolution.total} vs DC ${action.dc} → ${resolution.success ? "Success" : "Failure"}. ${resolution.appliedOutcome.summary}`,
+      message: (() => {
+        const coverPart = resolution.coverBonus && resolution.coverBonus > 0
+          ? ` + ${resolution.coverBonus} (${(action.context?.coverLevel as string) ?? 'cover'})`
+          : '';
+        const baseModifier = resolution.modifier - (resolution.coverBonus ?? 0);
+        return `${action.reason}: d20(${resolution.rawRoll}) + ${baseModifier}${coverPart} = ${resolution.total} vs DC ${action.dc} → ${resolution.success ? "Success" : "Failure"}. ${resolution.appliedOutcome.summary}`;
+      })(),
       narration: opts?.narration,
       type: opts?.type,
       diceNeeded: opts?.diceNeeded,

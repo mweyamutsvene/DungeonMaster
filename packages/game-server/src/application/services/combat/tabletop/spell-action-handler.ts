@@ -58,7 +58,7 @@ import {
   type CombatZone,
 } from "../../../../domain/entities/combat/zones.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
-import { addZone, getMapZones } from "../../../../domain/rules/combat-map.js";
+import { addZone, getMapZones, getCoverLevel, getCoverSaveBonus } from "../../../../domain/rules/combat-map.js";
 import { nanoid } from "nanoid";
 
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
@@ -376,12 +376,53 @@ export class SpellActionHandler {
     const targetAbilityScore = targetStats?.abilityScores?.[saveAbility] ?? 10;
     const saveMod = Math.floor((targetAbilityScore - 10) / 2);
 
+    // Hoist encounter + combatants fetch so map/position data is available for cover calculation
+    const encounters = await this.deps.combatRepo.listEncountersBySession(sessionId);
+    const encounter = encounters.find((e: any) => e.status === "Active") ?? encounters[0];
+    const combatants = encounter ? await this.deps.combatRepo.listCombatants(encounter.id) : [];
+
+    // D&D 5e 2024: DEX saving throw cover bonus
+    let coverBonus = 0;
+    if (saveAbility === "dexterity") {
+      const map = encounter?.mapData as unknown as CombatMap | undefined;
+      if (map && map.cells && map.cells.length > 0) {
+        const casterCombatant = combatants.find(
+          (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+        );
+        const targetCombatant = combatants.find(
+          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
+        );
+        const casterPos = casterCombatant ? getPosition(normalizeResources(casterCombatant.resources ?? {})) : null;
+        const targetPos = targetCombatant ? getPosition(normalizeResources(targetCombatant.resources ?? {})) : null;
+        if (casterPos && targetPos) {
+          const coverLevel = getCoverLevel(map, casterPos, targetPos);
+          if (coverLevel === "full") {
+            // Total cover — target is unaffected. Consume action economy and return.
+            await this.deps.actions.castSpell(sessionId, {
+              encounterId,
+              actor,
+              spellName: castInfo.spellName,
+            });
+            const slotNote = spellLevel > 0 ? ` (level ${spellLevel} slot spent)` : "";
+            return {
+              requiresPlayerInput: false,
+              actionComplete: true,
+              type: "SIMPLE_ACTION_COMPLETE" as const,
+              action: "CastSpell",
+              message: `Cast ${castInfo.spellName} at ${targetName}.${slotNote} ${targetName} has total cover and is unaffected.`,
+            };
+          }
+          coverBonus = getCoverSaveBonus(coverLevel);
+        }
+      }
+    }
+
     // Auto-roll save for target
     const saveRoll = this.deps.diceRoller!.d20();
-    const saveTotal = saveRoll.total + saveMod;
+    const saveTotal = saveRoll.total + saveMod + coverBonus;
     const saveSuccess = saveTotal >= spellSaveDC;
 
-    if (this.debugLogsEnabled) console.log(`[SpellActionHandler] ${targetName} ${saveAbility} save: d20(${saveRoll.total}) + ${saveMod} = ${saveTotal} vs DC ${spellSaveDC} → ${saveSuccess ? "SUCCESS" : "FAILURE"}`);
+    if (this.debugLogsEnabled) console.log(`[SpellActionHandler] ${targetName} ${saveAbility} save: d20(${saveRoll.total}) + ${saveMod}${coverBonus > 0 ? ` + ${coverBonus} (cover)` : ""} = ${saveTotal} vs DC ${spellSaveDC} → ${saveSuccess ? "SUCCESS" : "FAILURE"}`);
 
     // Calculate damage
     const spellDamage = spellMatch.damage;
@@ -399,11 +440,8 @@ export class SpellActionHandler {
       }
 
       if (totalDamage > 0) {
-        // Apply damage to target
-        const encounters = await this.deps.combatRepo.listEncountersBySession(sessionId);
-        const encounter = encounters.find((e: any) => e.status === "Active") ?? encounters[0];
+        // Reuse hoisted encounter + combatants
         if (encounter) {
-          const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
           const targetCombatant = combatants.find(
             (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
           );

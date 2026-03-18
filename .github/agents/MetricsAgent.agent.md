@@ -1,7 +1,7 @@
 ---
 name: MetricsAgent
 description: "Use after completing a study task to capture effectiveness metrics. Reads git diff, test output, and conversation context to produce structured JSON metrics for multi-agent vs single-agent comparison."
-tools: [vscode, execute, read, agent, search]
+tools: [vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscode/newWorkspace, vscode/runCommand, vscode/vscodeAPI, vscode/extensions, vscode/askQuestions, execute/runNotebookCell, execute/testFailure, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/getNotebookSummary, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages]
 user-invocable: true
 argument-hint: "Task ID and condition — e.g., 'cover-13.1 single-agent' or 'barbarian-rage multi-agent'"
 agents: []

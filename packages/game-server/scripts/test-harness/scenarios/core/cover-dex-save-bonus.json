@@ -1,0 +1,100 @@
+{
+  "name": "Cover: Half cover DEX save bonus",
+  "description": "A goblin behind half cover gets +2 to DEX saves. Wizard casts Burning Hands (DEX save, DC 14). Seeded save d20=9, goblin DEX mod=+3. Without cover: 9+3=12 < 14 → FAIL. With half cover: 9+3+2=14 >= 14 → SUCCESS. Half damage on save: floor(13/2)=6. Goblin HP: 30 → 24.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4 },
+        "preparedSpells": [
+          {
+            "name": "Burning Hands", "level": 1,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 3, "diceSides": 6, "modifier": 0 },
+            "damageType": "fire",
+            "halfDamageOnSave": true
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 16, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I cast Burning Hands" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Player initiative: 18 + 2 (DEX 14 mod) = 20. Monster: seeded d20(13) + 3 (DEX 16 mod) = 16. Player goes first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 15, "y": 10, "terrain": "cover-half" }
+        ]
+      },
+      "comment": "Place half cover between wizard (5,10) and goblin (20,10) — adjacent to goblin at gridSize offset"
+    },
+    {
+      "comment": "--- Burning Hands (DEX save) with half cover ---\nSeeded rolls: d20=9 (save), 3d6=6+5+2=13 (damage).\nGoblin DEX save: 9 + 3 (DEX mod) + 2 (half cover) = 14 vs DC 14 → SUCCESS.\nWithout cover: 9 + 3 = 12 < 14 → would FAIL.\nHalf damage on save: floor(13/2) = 6. Goblin HP: 30 → 24.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify goblin took half damage (6) from cover-boosted successful save, not full damage (13)",
+      "expect": {
+        "monsterHp": { "name": "Goblin", "exact": 24 }
+      }
+    }
+  ]
+}

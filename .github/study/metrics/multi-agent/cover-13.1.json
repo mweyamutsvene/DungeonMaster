@@ -1,0 +1,78 @@
+﻿{
+  "taskId": "cover-13.1",
+  "condition": "multi-agent",
+  "timestamp": "2026-03-18T10:15:00Z",
+  "toolCalls": {
+    "total": 231,
+    "byType": {
+      "read_file": 106,
+      "grep_search": 56,
+      "file_search": 10,
+      "edit_file": 12,
+      "run_terminal": 22,
+      "semantic_search": 0,
+      "create_file": 4,
+      "other": 21
+    },
+    "note": "Total includes orchestrator (65 calls) + 14 subagent invocations with ~166 internal tool calls across all subagents. 'other' = manage_todo_list + list_dir + memory. edit_file includes replace_string_in_file, multi_replace_string_in_file across all agents."
+  },
+  "fileOperations": {
+    "uniqueFilesRead": 28,
+    "uniqueFilesModified": 6,
+    "offScopeModifications": 0,
+    "reworkCycles": 3,
+    "details": {
+      "filesModified": [
+        "packages/game-server/src/domain/rules/combat-map.ts",
+        "packages/game-server/src/application/services/combat/tabletop/saving-throw-resolver.ts",
+        "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts",
+        "packages/game-server/src/domain/rules/combat-map.test.ts"
+      ],
+      "filesCreated": [
+        "packages/game-server/scripts/test-harness/scenarios/core/cover-dex-save-bonus.json",
+        "packages/game-server/src/application/services/combat/tabletop/saving-throw-resolver.test.ts"
+      ],
+      "planFiles": [
+        ".github/plans/current-plan.md",
+        ".github/plans/sme-research-CombatRules.md",
+        ".github/plans/sme-research-CombatOrchestration.md",
+        ".github/plans/sme-research-SpellSystem.md",
+        ".github/plans/sme-feedback-CombatRules.md",
+        ".github/plans/sme-feedback-CombatOrchestration.md",
+        ".github/plans/sme-feedback-SpellSystem.md"
+      ],
+      "reworkDetails": "3 rework cycles: (1) E2E scenario JSON edited 3 times by E2EScenarioWriter to fix grid/map config, (2) saving-throw-resolver.test.ts had 1 fix by VitestWriter, (3) plan updated from R1->R2 after SME feedback"
+    }
+  },
+  "quality": {
+    "compilationErrors": 0,
+    "testsPassed": 521,
+    "testsFailed": 0,
+    "testsSkipped": 36,
+    "e2eScenariosPass": 142,
+    "e2eScenariosFail": 0
+  },
+  "efficiency": {
+    "conversationTurns": 2,
+    "totalAgentInvocations": 14,
+    "estimatedTokens": null,
+    "premiumRequests": {
+      "actual": 1,
+      "projectedWithBugFixes": 1,
+      "note": "Both bugs (castSpell early return, null guards) caught during SME review phase before implementation. No additional premium requests needed."
+    },
+    "subagentBreakdown": {
+      "smeResearch": 3,
+      "smeReviewR1": 4,
+      "smeReviewR2": 2,
+      "implementers": 3,
+      "testWriters": 2
+    }
+  },
+  "correctness": {
+    "planAdherence": "full",
+    "missingRequirements": [],
+    "extraChanges": ["spell-action-handler.ts modified (listed as read-only in spec, but necessary for correct implementation — same as single-agent)"]
+  },
+  "notes": "Multi-agent condition used 14 subagent invocations (13 successful, 1 rate-limited and retried). The orchestrator dispatched 3 SME research agents, 4 SME review agents (R1: 3 + 1 retry), 2 SME review agents (R2), 3 implementer agents, and 2 test writer agents. Plan went through 2 rounds of SME review before approval. CombatRules-SME approved R1; CombatOrchestration-SME and SpellSystem-SME required R2. The 231 total tool calls is a 3.4x increase over single-agent (68 calls). Significant overhead from: (a) each subagent re-reading files already read by other subagents, (b) plan/feedback file creation and reading, (c) multiple review rounds. The multi-agent approach did catch 2 bugs the single-agent missed: (1) missing castSpell() in total-cover early return, (2) null guards needed for map/position data. However, these were caught during review before implementation, not in code."
+}

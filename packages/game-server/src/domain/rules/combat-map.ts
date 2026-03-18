@@ -313,6 +313,24 @@ export function getCoverACBonus(cover: CoverLevel): number {
 }
 
 /**
+ * Convert a CoverLevel to its D&D 5e 2024 DEX saving throw bonus.
+ * Half cover: +2, Three-quarters cover: +5.
+ * Full cover returns 0 — callers handle "full = unaffected" as an early return.
+ */
+export function getCoverSaveBonus(cover: CoverLevel): number {
+  switch (cover) {
+    case "half":
+      return 2;
+    case "three-quarters":
+      return 5;
+    case "full":
+    case "none":
+    default:
+      return 0;
+  }
+}
+
+/**
  * Get all entities within a radius of a position.
  */
 export function getEntitiesInRadius(
