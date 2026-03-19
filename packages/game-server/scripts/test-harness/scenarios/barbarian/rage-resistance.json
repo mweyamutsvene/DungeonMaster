@@ -1,0 +1,126 @@
+{
+  "name": "Barbarian Rage Resistance: B/P/S damage halved while raging",
+  "description": "A raging Barbarian takes bludgeoning damage from a monster attack. The monster deals 9-10 bludgeoning damage (1d2+8, +20 attack = near-guaranteed hit). With rage resistance, damage is halved: floor(9/2)=4 or floor(10/2)=5. Barbarian HP: 55 → 50-51.",
+  "setup": {
+    "character": {
+      "name": "Korgath",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 55,
+        "currentHp": 55,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain resistance to B/P/S damage and +2 melee damage." },
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Iron Golem",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 20,
+            "dexterity": 8,
+            "constitution": 20,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 200,
+          "hp": 200,
+          "armorClass": 18,
+          "speed": 30,
+          "challengeRating": 5,
+          "experienceValue": 1800,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 20,
+              "damage": { "diceCount": 1, "diceSides": 2, "modifier": 8 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the golem" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "rage" },
+      "comment": "Enter Rage — bonus action. Activates B/P/S resistance and +2 melee damage.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 }
+      },
+      "comment": "Verify rage pool decremented: 3 → 2 after entering rage"
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn without attacking. Let the monster attack the raging barbarian."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster attacks with Slam (+20, near-guaranteed hit, 1d2+8 = 9-10 bludgeoning). With rage resistance: floor(9/2)=4 or floor(10/2)=5 damage."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 50, "max": 55 }
+      },
+      "comment": "Verify rage resistance: 9-10 bludgeoning → 4-5 after resistance. HP: 55 - 4/5 = 50-51. (max 55 accounts for 5% natural-1 miss). Without resistance, HP would drop to 45-46, failing the min: 50 assertion."
+    }
+  ]
+}

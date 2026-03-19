@@ -1,0 +1,130 @@
+{
+  "name": "Barbarian Unarmored Defense: AC = 10 + DEX + CON",
+  "description": "A Barbarian with no armor uses Unarmored Defense. With DEX 14 (+2) and CON 16 (+3), AC = 10 + 2 + 3 = 15. A monster with +4 attack needs 11+ on d20 to hit (50% miss rate). After the monster's turn, the barbarian's HP confirms AC 15 is being used — damage is 6 on hit or 0 on miss.",
+  "setup": {
+    "character": {
+      "name": "Torgar",
+      "className": "Barbarian",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 34,
+        "currentHp": 34,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Unarmored Defense", "description": "While not wearing armor, AC = 10 + DEX modifier + CON modifier. You can use a shield and still benefit." },
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain resistance to B/P/S damage and +2 melee damage." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Scout" },
+      "comment": "Attack the goblin with Greataxe",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Attack roll: 15 + 5 = 20 vs AC 13 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Damage roll: 10 + 3 (STR) = 13 damage. Goblin HP: 7 → 0 (dead)",
+      "expect": {
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 34, "max": 34 }
+      },
+      "comment": "Barbarian took no damage (killed goblin before it could attack). AC 15 from Unarmored Defense (10 + DEX 2 + CON 3) was the active defense. Goblin's +4 attack would need 11+ to hit."
+    }
+  ]
+}

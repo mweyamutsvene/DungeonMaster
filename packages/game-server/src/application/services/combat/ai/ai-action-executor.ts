@@ -503,6 +503,16 @@ export class AiActionExecutor {
           attackRoll: attackTotal,
         });
 
+        // D&D 5e 2024: Rage attack tracking — any attack roll counts (hit or miss)
+        {
+          const atkRes = normalizeResources(aiCombatant.resources);
+          if (atkRes.raging === true) {
+            await this.combat.updateCombatantState(aiCombatant.id, {
+              resources: { ...atkRes, rageAttackedThisTurn: true } as any,
+            });
+          }
+        }
+
         if (initiateResult.status === "miss") {
           // Clean miss - no reaction needed
           console.log("[AiActionExecutor] Two-phase flow: attack missed, no reaction opportunity");
@@ -594,6 +604,7 @@ export class AiActionExecutor {
         // Status is "hit" (no reaction triggered) - proceed with damage
         if (initiateResult.status === "hit") {
           console.log("[AiActionExecutor] Two-phase flow: hit with no reaction, resolving damage");
+
           const effectiveDiceCount = critical ? diceCount * 2 : diceCount;
           const damageRoll = this.diceRoller.rollDie(diceSides, effectiveDiceCount, modifier);
           let damageApplied = Math.max(0, damageRoll.total);
@@ -674,6 +685,16 @@ export class AiActionExecutor {
                 this.combat,
                 (msg) => this.aiLog(`[KO] ${msg}`),
               );
+            }
+
+            // D&D 5e 2024: Rage damage-taken tracking
+            {
+              const tgtRes = normalizeResources(targetCombatant.resources);
+              if (tgtRes.raging === true) {
+                await this.combat.updateCombatantState(targetCombatant.id, {
+                  resources: { ...tgtRes, rageDamageTakenThisTurn: true } as any,
+                });
+              }
             }
           }
 

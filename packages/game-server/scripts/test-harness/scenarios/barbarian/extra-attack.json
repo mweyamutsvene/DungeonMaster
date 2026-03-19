@@ -1,0 +1,175 @@
+{
+  "name": "Barbarian Extra Attack: Two attacks per Attack action at level 5",
+  "description": "A level 5 Barbarian uses Extra Attack to make two melee attacks with one Attack action. The third attack should fail (action already spent). Same pattern as Fighter Extra Attack but for Barbarian class.",
+  "setup": {
+    "character": {
+      "name": "Grimjaw",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 55,
+        "currentHp": 55,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain resistance to B/P/S damage and +2 melee damage." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 8,
+            "constitution": 18,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 200,
+          "hp": 200,
+          "armorClass": 5,
+          "speed": 0,
+          "challengeRating": 0,
+          "experienceValue": 0,
+          "attacks": [
+            {
+              "name": "None",
+              "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "First attack of Extra Attack (1/2)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Attack roll: 15 + 7 = 22 vs AC 5 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Damage roll: 10 + 4 (STR) = 14 damage. Dummy: 200 → 186",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "exact": 186 }
+      },
+      "comment": "First attack dealt 14 damage (10 + 4 STR). Dummy: 200 - 14 = 186"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Second attack of Extra Attack (2/2) — should succeed",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "Attack roll: 12 + 7 = 19 vs AC 5 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "Damage roll: 8 + 4 (STR) = 12 damage. Dummy: 186 → 174",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "exact": 174 }
+      },
+      "comment": "Both Extra Attacks complete. Total damage: 14 + 12 = 26. Dummy: 200 - 26 = 174"
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "comment": "Third attack — SHOULD FAIL (Extra Attack only grants 2 attacks total per Attack action)",
+      "expect": {
+        "error": true,
+        "errorContains": "already spent"
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn after using both Extra Attack attacks"
+    }
+  ]
+}

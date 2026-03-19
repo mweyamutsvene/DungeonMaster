@@ -8,6 +8,7 @@
 import { getMartialArtsDieSize } from "../../rules/martial-arts-die.js";
 import type { ClassCapability } from "./class-definition.js";
 import { isCharacterClassId } from "./class-definition.js";
+import { hasDangerSense as barbarianHasDangerSense, hasFeralInstinct as barbarianHasFeralInstinct } from "./barbarian.js";
 import { kiPointsForLevel } from "./monk.js";
 import { getClassDefinition } from "./registry.js";
 
@@ -149,6 +150,26 @@ export class ClassFeatureResolver {
     if (!ClassFeatureResolver.isRogue(sheet, className)) return false;
     const effectiveLevel = ClassFeatureResolver.getLevel(sheet, level);
     return effectiveLevel >= 2;
+  }
+
+  /**
+   * Check if a character has Danger Sense (Barbarian level 2+).
+   * Advantage on DEX saving throws against effects you can see.
+   */
+  static hasDangerSense(sheet: CharacterSheetLike | null | undefined, className?: string | null, level?: number): boolean {
+    if (!ClassFeatureResolver.isBarbarian(sheet, className)) return false;
+    const effectiveLevel = ClassFeatureResolver.getLevel(sheet, level);
+    return barbarianHasDangerSense(effectiveLevel);
+  }
+
+  /**
+   * Check if a character has Feral Instinct (Barbarian level 7+).
+   * Advantage on initiative; can't be surprised unless incapacitated.
+   */
+  static hasFeralInstinct(sheet: CharacterSheetLike | null | undefined, className?: string | null, level?: number): boolean {
+    if (!ClassFeatureResolver.isBarbarian(sheet, className)) return false;
+    const effectiveLevel = ClassFeatureResolver.getLevel(sheet, level);
+    return barbarianHasFeralInstinct(effectiveLevel);
   }
 
   /**

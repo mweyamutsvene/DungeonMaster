@@ -194,6 +194,8 @@ export function resetTurnResources(resources: JsonValue): JsonValue {
     attacksUsedThisTurn: 0,
     sneakAttackUsedThisTurn: false,
     stunningStrikeUsedThisTurn: false,
+    rageAttackedThisTurn: false,
+    rageDamageTakenThisTurn: false,
     lastMovePath: undefined,
     // Weapon mastery turn-scoped tracking
     cleaveUsedThisTurn: false,

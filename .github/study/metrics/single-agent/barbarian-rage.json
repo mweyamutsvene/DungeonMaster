@@ -1,0 +1,97 @@
+{
+  "taskId": "barbarian-rage",
+  "condition": "single-agent",
+  "timestamp": "2026-03-18T00:00:00Z",
+  "taskComplexity": "high",
+  "toolCalls": {
+    "total": 129,
+    "byType": {
+      "read_file": 52,
+      "grep_search": 20,
+      "file_search": 4,
+      "edit_file": 25,
+      "run_terminal": 14,
+      "semantic_search": 0,
+      "create_file": 4,
+      "other": 10
+    },
+    "note": "Estimates reconstructed from compacted conversation summary — full transcript was lost to token budget during metrics collection. 'other' includes list_dir (~6), get_errors (~2), memory (~2). edit_file includes replace_string_in_file and multi_replace_string_in_file. Spread across 2 premium requests: ~96 calls (P1: context gathering + implementation + initial E2E) + ~33 calls (P2: Feral Instinct call sites, E2E scenario fixes, re-runs)."
+  },
+  "fileOperations": {
+    "uniqueFilesRead": 25,
+    "uniqueFilesModified": 10,
+    "uniqueFilesCreated": 4,
+    "scopeAnalysis": {
+      "inScopeModifications": 2,
+      "necessaryScopeExpansions": [
+        "class-feature-resolver.ts — new feature detection functions (hasBarbarianUnarmoredDefense, hasDangerSense, hasFeral Instinct, hasMartialExtraAttack already existed)",
+        "combat-service.ts — rage end-of-turn check and tracking flag reset",
+        "resource-utils.ts — new rage tracking helpers (isRaging, markRageAttacked, markRageTookDamage, shouldRageEnd, endRageOnResources, resetRageTrackingFlags)",
+        "ko-handler.ts — rage ends when character drops to 0 HP",
+        "ai-action-executor.ts — rage damage tracking in AI combat path",
+        "tabletop-combat-service.ts — Feral Instinct initiative advantage integration",
+        "saving-throw-resolver.ts — Danger Sense advantage on DEX saves",
+        "mocks/index.ts — Unarmored Defense AC calculation in mock character generator"
+      ],
+      "accidentalScopeCreep": []
+    },
+    "reworkCycles": {
+      "planRework": 0,
+      "codeRework": 0,
+      "authoringRework": 2,
+      "details": "2 E2E scenario authoring fixes: (1) extra-attack.json assumed continuous roll results for Extra Attack but each attack needs a separate 'action' step in the scenario, (2) rage-ends.json had a speed-0 monster placed at (20,10) which was outside melee range of barbarian at (10,10) — redesigned scenario with monster far away and zero speed so barbarian is never in melee range. Both were scenario design issues, not code bugs."
+    }
+  },
+  "quality": {
+    "compilationErrors": 0,
+    "testsPassed": 521,
+    "testsFailed": 0,
+    "testsSkipped": 0,
+    "e2eScenariosPass": 145,
+    "e2eScenariosFail": 1,
+    "defectsPrevented": []
+  },
+  "efficiency": {
+    "premiumRequests": {
+      "actual": 2,
+      "projectedWithBugFixes": 2,
+      "note": "No code bugs found. The 2 rework cycles were E2E scenario JSON authoring issues fixed within premium request 2. The 1 E2E failure (core/ai-grapple-condition) is a pre-existing issue unrelated to this task. Rage tracking in opportunity attack damage path is flagged as a TODO but was consciously out-of-scope; this would require ~1 additional premium request if addressed later."
+    },
+    "conversationTurns": 2,
+    "totalAgentInvocations": 1,
+    "wallClockMinutes": null,
+    "subagentBreakdown": {
+      "smeResearch": 0,
+      "smeReview": 0,
+      "implementers": 0,
+      "testWriters": 0
+    }
+  },
+  "correctness": {
+    "planAdherence": "full",
+    "missingRequirements": [],
+    "extraChanges": [
+      "MetricsAgent.agent.md was modified (agent definition file, not task code — excluded from file counts)",
+      "plan-class-features-phase8.prompt.md updated with completion notes"
+    ]
+  },
+  "contextWindow": {
+    "note": "Captured at end of premium request 2 (after automatic compaction between P1 and P2)",
+    "model": "Claude Opus 4.6",
+    "maxTokens": 192000,
+    "usedTokens": 126200,
+    "utilization": "66%",
+    "breakdown": {
+      "systemInstructions": "5.9%",
+      "toolDefinitions": "4.6%",
+      "reservedOutput": "34.2%",
+      "messages": "7.2%",
+      "files": "0.7%",
+      "toolResults": "12.5%",
+      "other": "0.7%"
+    },
+    "compactionOccurred": true,
+    "compactionImpact": "Agent lost access to raw tool call history from P1. Had to reconstruct tool call counts from compacted summary rather than exact transcript. Context gathered in P1 (~96 tool calls of reading domain files, service files, existing patterns) was compressed into a narrative summary, requiring some re-reads in P2."
+  },
+  "notes": "Single-agent completed all 6 tasks from the Phase 8.1 spec. Tasks 1 (Rage Resistance) and 4 (Extra Attack) were already implemented before the agent started — the agent correctly identified this and skipped them. The remaining 4 tasks (Unarmored Defense, Danger Sense, Rage End Mechanics, Feral Instinct) were fully implemented. 4 new E2E scenarios created, all passing. The task spec listed 7 'Files to Modify' but several (barbarian.ts, rage-executor.ts, damage-defenses.ts, attack-resolver.ts) didn't need changes because Tasks 1 & 4 were pre-existing. Instead, the agent modified 8 files not in the 'Files to Modify' list — all were necessary scope expansions driven by where the implementation logic naturally belonged (class-feature-resolver for feature detection, combat-service for turn management, resource-utils for tracking helpers, etc.). No unit test files were created — all verification was via existing unit tests (521 pass) and new E2E scenarios. Tool call counts are estimates from compacted conversation summary; exact counts unavailable due to token budget compaction during metrics collection session."
+}

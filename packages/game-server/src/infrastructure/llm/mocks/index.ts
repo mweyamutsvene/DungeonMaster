@@ -23,6 +23,7 @@ import type { ICharacterGenerator, GeneratedCharacterSheet } from "../character-
 import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "../../../application/services/combat/ai/ai-types.js";
 import type { JsonValue } from "../../../application/types.js";
 import { getClassDefinition, isCharacterClassId } from "../../../domain/entities/classes/index.js";
+import { barbarianUnarmoredDefenseAC } from "../../../domain/entities/classes/barbarian.js";
 
 // ============================================================================
 // MockIntentParser
@@ -592,6 +593,23 @@ export class MockCharacterGenerator implements ICharacterGenerator {
         { name: "Thieves' Tools", quantity: 1, type: "tool" },
       ],
     },
+    barbarian: {
+      abilityScores: { strength: 16, dexterity: 14, constitution: 16, intelligence: 8, wisdom: 12, charisma: 10 },
+      background: "Outlander",
+      species: "Human",
+      skills: ["Athletics", "Intimidation"],
+      proficiencies: {
+        armor: ["Light", "Medium", "Shields"],
+        weapons: ["Simple", "Martial"],
+        tools: [],
+        savingThrows: ["Strength", "Constitution"],
+      },
+      equipment: [
+        { name: "Greataxe", quantity: 1, type: "weapon" },
+        { name: "Javelin", quantity: 4, type: "weapon" },
+        { name: "Explorer's Pack", quantity: 1, type: "gear" },
+      ],
+    },
     cleric: {
       abilityScores: { strength: 14, dexterity: 10, constitution: 14, intelligence: 10, wisdom: 16, charisma: 12 },
       background: "Acolyte",
@@ -643,6 +661,12 @@ export class MockCharacterGenerator implements ICharacterGenerator {
       const dexMod = Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2);
       const wisMod = Math.floor(((template.abilityScores?.wisdom ?? 10) - 10) / 2);
       armorClass = 10 + dexMod + wisMod;
+    }
+
+    // Barbarian Unarmored Defense: 10 + DEX mod + CON mod (domain rule)
+    if (className === "barbarian" && !hasChainMail && !hasScaleMail && !hasLeatherArmor) {
+      const dexMod = Math.floor(((template.abilityScores?.dexterity ?? 10) - 10) / 2);
+      armorClass = barbarianUnarmoredDefenseAC(dexMod, conMod);
     }
 
     if (hasShield) armorClass += 2;

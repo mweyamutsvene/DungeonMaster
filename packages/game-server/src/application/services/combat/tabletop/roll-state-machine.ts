@@ -41,6 +41,8 @@ import {
 } from "../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import { hasFeralInstinct } from "../../../../domain/entities/classes/barbarian.js";
+import { hasDangerSense } from "../../../../domain/entities/classes/barbarian.js";
 import { divineSmiteDice } from "../../../../domain/entities/classes/paladin.js";
 import { buildCombatResources } from "../../../../domain/entities/classes/combat-resource-builder.js";
 import { isFinesse } from "../../../../domain/entities/items/weapon-properties.js";
@@ -133,12 +135,14 @@ function computeInitiativeRollMode(
   surprise: SurpriseSpec | undefined,
   side: "party" | "enemy",
   conditions?: unknown[],
+  classInfo?: { className: string; level: number },
 ): "normal" | "advantage" | "disadvantage" {
   let adv = 0;
   let disadv = 0;
 
   if (isCreatureSurprised(creatureId, surprise, side)) disadv++;
 
+  let isIncapacitated = false;
   if (conditions && Array.isArray(conditions)) {
     const condLower = conditions.map((c: unknown) =>
       typeof c === "string" ? c.toLowerCase()
@@ -146,7 +150,17 @@ function computeInitiativeRollMode(
         : "",
     );
     if (condLower.includes("invisible")) adv++;
-    if (condLower.includes("incapacitated")) disadv++;
+    if (condLower.includes("incapacitated")) isIncapacitated = true;
+    if (isIncapacitated) disadv++;
+  }
+
+  // D&D 5e 2024: Feral Instinct (Barbarian 7+) grants advantage on initiative
+  // and negates surprise disadvantage if not incapacitated
+  if (classInfo && classInfo.className.toLowerCase() === "barbarian" && hasFeralInstinct(classInfo.level)) {
+    adv++;
+    if (isCreatureSurprised(creatureId, surprise, side) && !isIncapacitated && disadv > 0) {
+      disadv--;
+    }
   }
 
   if (adv > 0 && disadv > 0) return "normal";
@@ -526,6 +540,16 @@ export class RollStateMachine {
         (charResources as any).hasHellishRebukePrepared = true;
       }
 
+      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
+      if (charClassName.toLowerCase() === "barbarian" && hasDangerSense(charLevel)) {
+        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
+          ability: "dexterity",
+          source: "Danger Sense",
+          description: "Advantage on DEX saving throws (Danger Sense)",
+        });
+        addActiveEffectsToResources(charResources, dangerSenseEffect);
+      }
+
       // D&D 5e 2024: Track which weapons are currently drawn (in-hand).
       // At combat start, all character weapons are drawn and ready.
       const sheetAttacks = Array.isArray(sheet?.attacks) ? sheet.attacks as Array<{ name?: string }> : [];
@@ -558,20 +582,23 @@ export class RollStateMachine {
         otherDexMod = Math.floor((otherSheet.abilityScores.dexterity - 10) / 2);
       }
 
+      // Extract class info early (needed for Feral Instinct initiative check)
+      const otherClassName = otherChar.className ?? otherSheet?.className ?? "";
+      const otherLevel = ClassFeatureResolver.getLevel(otherSheet ?? {}, (otherChar as any).level);
+
       // Alert feat bonus for non-initiator characters
       let otherAlertBonus = 0;
       const otherFeatIds: string[] = (otherSheet?.featIds as string[] | undefined) ?? (otherSheet?.feats as string[] | undefined) ?? [];
       if (otherFeatIds.length > 0) {
         const otherFeatMods = computeFeatModifiers(otherFeatIds);
         if (otherFeatMods.initiativeAddProficiency) {
-          const otherLevel = ClassFeatureResolver.getLevel(otherSheet ?? {}, (otherChar as any).level);
           otherAlertBonus = ClassFeatureResolver.getProficiencyBonus(otherSheet ?? {}, otherLevel);
           if (this.debugLogsEnabled) console.log(`[RollStateMachine] Alert feat (multi-PC): +${otherAlertBonus} proficiency bonus for "${otherChar.name}"`);
         }
       }
 
       // Auto-roll initiative for non-initiator characters (with surprise/condition modifiers)
-      const otherInitMode = computeInitiativeRollMode(otherChar.id, action.surprise, "party", otherSheet?.conditions);
+      const otherInitMode = computeInitiativeRollMode(otherChar.id, action.surprise, "party", otherSheet?.conditions, otherClassName && otherLevel > 0 ? { className: otherClassName, level: otherLevel } : undefined);
       const otherRoll = rollInitiativeD20(this.deps.diceRoller, otherInitMode);
       if (otherInitMode !== "normal" && this.debugLogsEnabled) {
         console.log(`[RollStateMachine] Character "${otherChar.name}" initiative with ${otherInitMode}: roll=${otherRoll}`);
@@ -579,8 +606,6 @@ export class RollStateMachine {
       const otherInitiative = otherRoll + otherDexMod + otherAlertBonus;
 
       // Build combat resources for this character
-      const otherClassName = otherChar.className ?? otherSheet?.className ?? "";
-      const otherLevel = ClassFeatureResolver.getLevel(otherSheet ?? {}, (otherChar as any).level);
       const otherCombatRes = buildCombatResources({
         className: otherClassName,
         level: otherLevel,
@@ -605,6 +630,16 @@ export class RollStateMachine {
       }
       if (otherCombatRes.hasHellishRebukePrepared) {
         (otherResources as any).hasHellishRebukePrepared = true;
+      }
+
+      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
+      if (otherClassName.toLowerCase() === "barbarian" && hasDangerSense(otherLevel)) {
+        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
+          ability: "dexterity",
+          source: "Danger Sense",
+          description: "Advantage on DEX saving throws (Danger Sense)",
+        });
+        addActiveEffectsToResources(otherResources, dangerSenseEffect);
       }
 
       // D&D 5e 2024: Initialize drawn weapons for multi-PC characters
@@ -640,8 +675,12 @@ export class RollStateMachine {
           ? Math.floor((statBlock.abilityScores.dexterity - 10) / 2)
           : 0;
 
+        // Extract class info early (needed for Feral Instinct initiative check)
+        const monsterClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
+        const monsterLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
+
         // D&D 5e 2024: Use d20 roll for monster initiative (with surprise/condition modifiers)
-        const monsterInitMode = computeInitiativeRollMode(targetId, action.surprise, "enemy", statBlock?.conditions);
+        const monsterInitMode = computeInitiativeRollMode(targetId, action.surprise, "enemy", statBlock?.conditions, monsterClassName && monsterLevel > 0 ? { className: monsterClassName, level: monsterLevel } : undefined);
         const monsterRoll = rollInitiativeD20(this.deps.diceRoller, monsterInitMode);
         if (monsterInitMode !== "normal" && this.debugLogsEnabled) {
           console.log(`[RollStateMachine] Monster "${monster.name}" initiative with ${monsterInitMode}: roll=${monsterRoll}`);
@@ -655,8 +694,6 @@ export class RollStateMachine {
         }
 
         // Auto-initialize class resource pools for monsters with class levels
-        const monsterClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
-        const monsterLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
         if (monsterClassName && monsterLevel > 0) {
           const monsterCombatRes = buildCombatResources({
             className: monsterClassName,
@@ -698,9 +735,13 @@ export class RollStateMachine {
         ? Math.floor((statBlock.abilityScores.dexterity - 10) / 2)
         : 0;
 
+      // Extract class info early (needed for Feral Instinct initiative check)
+      const npcClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
+      const npcLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
+
       // D&D 5e 2024: Use d20 roll for NPC initiative (with surprise/condition modifiers)
       // NPCs are party allies, so they use "party" side for surprise
-      const npcInitMode = computeInitiativeRollMode(npc.id, action.surprise, "party", statBlock?.conditions);
+      const npcInitMode = computeInitiativeRollMode(npc.id, action.surprise, "party", statBlock?.conditions, npcClassName && npcLevel > 0 ? { className: npcClassName, level: npcLevel } : undefined);
       const npcRoll = rollInitiativeD20(this.deps.diceRoller, npcInitMode);
       if (npcInitMode !== "normal" && this.debugLogsEnabled) {
         console.log(`[RollStateMachine] NPC "${npc.name}" initiative with ${npcInitMode}: roll=${npcRoll}`);
@@ -714,8 +755,6 @@ export class RollStateMachine {
       }
 
       // Auto-initialize class resource pools for NPCs with class levels
-      const npcClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
-      const npcLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
       if (npcClassName && npcLevel > 0) {
         const npcCombatRes = buildCombatResources({
           className: npcClassName,
@@ -1104,6 +1143,24 @@ export class RollStateMachine {
 
     // Emit events
     await this.eventEmitter.emitAttackEvents(sessionId, encounter.id, actorId, targetId, characters, monsters, hit, rollValue, total);
+
+    // D&D 5e 2024: Rage attack tracking — any attack roll counts (hit or miss)
+    // Use entity ID matching (characterId/monsterId/npcId) since actorId is an entity ID, not a combatant record ID
+    {
+      const allCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
+      const attackerForRage = allCombatants.find(
+        (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+      );
+      if (attackerForRage) {
+        const atkRes = normalizeResources(attackerForRage.resources);
+        if (atkRes.raging === true) {
+          await this.deps.combatRepo.updateCombatantState(attackerForRage.id, {
+            resources: { ...atkRes, rageAttackedThisTurn: true } as any,
+          });
+          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Rage attack tracked for ${actorId}`);
+        }
+      }
+    }
 
     // Consume StunningStrikePartial after this attack (only grants advantage on ONE attack)
     {
@@ -1654,11 +1711,38 @@ export class RollStateMachine {
       await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
       await this.eventEmitter.emitDamageEvents(sessionId, encounter.id, actorId, action.targetId, characters, monsters, totalDamage, hpAfter);
 
+      // D&D 5e 2024: Rage damage-taken tracking — track when a raging creature takes damage
+      if (totalDamage > 0) {
+        const targetRes = normalizeResources(targetCombatant.resources);
+        if (targetRes.raging === true) {
+          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+            resources: { ...targetRes, rageDamageTakenThisTurn: true } as any,
+          });
+          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Rage damage taken tracked for ${action.targetId}`);
+        }
+      }
+
       // If a CHARACTER drops to 0 HP from above 0 HP, initialize death saves + Unconscious
       const wasKod = await applyKoEffectsIfNeeded(
         targetCombatant, hpBefore, hpAfter, this.deps.combatRepo,
         this.debugLogsEnabled ? (msg) => console.log(`[RollStateMachine] ${msg}`) : undefined,
       );
+
+      // D&D 5e 2024: Rage ends immediately when a creature drops to 0 HP (unconscious)
+      if (hpAfter === 0) {
+        const koTargetForRage = (await this.deps.combatRepo.listCombatants(encounter.id))
+          .find((c: any) => c.id === targetCombatant.id);
+        if (koTargetForRage) {
+          const koRes = normalizeResources(koTargetForRage.resources);
+          if (koRes.raging === true) {
+            const effects = getActiveEffects(koTargetForRage.resources ?? {});
+            const nonRageEffects = effects.filter((e: ActiveEffect) => e.source !== "Rage");
+            const updatedRes = setActiveEffects({ ...koRes, raging: false }, nonRageEffects);
+            await this.deps.combatRepo.updateCombatantState(koTargetForRage.id, { resources: updatedRes as any });
+            if (this.debugLogsEnabled) console.log(`[RollStateMachine] Rage ended on KO for ${action.targetId}`);
+          }
+        }
+      }
 
       // Auto-break concentration on KO (Unconscious = Incapacitated → concentration ends)
       if (hpAfter === 0 && targetCombatant) {

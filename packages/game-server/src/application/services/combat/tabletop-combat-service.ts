@@ -64,6 +64,7 @@ import { TabletopEventEmitter } from "./tabletop/tabletop-event-emitter.js";
 import { RollStateMachine, loadRoster } from "./tabletop/roll-state-machine.js";
 import { SpellActionHandler } from "./tabletop/spell-action-handler.js";
 import { ActionDispatcher } from "./tabletop/action-dispatcher.js";
+import { hasFeralInstinct } from "../../../domain/entities/classes/barbarian.js";
 
 /**
  * Check if a specific creature is surprised given the surprise spec.
@@ -105,6 +106,7 @@ function computeInitiativeModifiers(
   }
 
   // Condition checks from character sheet (pre-combat conditions)
+  let isIncapacitated = false;
   if (sheet && typeof sheet === "object") {
     const conditions = (sheet as any).conditions;
     if (Array.isArray(conditions)) {
@@ -112,7 +114,23 @@ function computeInitiativeModifiers(
         typeof c === "string" ? c.toLowerCase() : typeof c === "object" && c !== null && "condition" in c ? String((c as any).condition).toLowerCase() : "",
       );
       if (condLower.includes("invisible")) advSources++;
-      if (condLower.includes("incapacitated")) disadvSources++;
+      if (condLower.includes("incapacitated")) {
+        isIncapacitated = true;
+        disadvSources++;
+      }
+    }
+  }
+
+  // D&D 5e 2024: Feral Instinct (Barbarian 7+) grants advantage on initiative
+  // and negates surprise disadvantage if not incapacitated
+  if (sheet && typeof sheet === "object") {
+    const className = ((sheet as any).className ?? "").toLowerCase();
+    const level = (sheet as any).level ?? 0;
+    if (className === "barbarian" && hasFeralInstinct(level)) {
+      advSources++;
+      if (isCreatureSurprised(creatureId, surprise, "party") && !isIncapacitated && disadvSources > 0) {
+        disadvSources--;
+      }
     }
   }
 

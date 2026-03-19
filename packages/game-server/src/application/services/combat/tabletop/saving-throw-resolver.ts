@@ -171,8 +171,23 @@ export class SavingThrowResolver {
     }
 
     // Check advantage/disadvantage on saving throws from effects
-    const hasEffectAdvantage = hasAdvantageFromEffects(targetEffects, 'saving_throws', saveAbility);
-    const hasEffectDisadvantage = hasDisadvantageFromEffects(targetEffects, 'saving_throws', saveAbility);
+    // D&D 5e 2024: Danger Sense is negated if the creature is Blinded, Deafened, or Incapacitated
+    let filteredEffects = targetEffects;
+    if (targetCombatantForEffects) {
+      const targetCondNames = normalizeConditions(targetCombatantForEffects.conditions as unknown[])
+        .map(c => c.condition.toLowerCase());
+      const dangerSenseNegated = targetCondNames.some(c =>
+        c === "blinded" || c === "deafened" || c === "incapacitated",
+      );
+      if (dangerSenseNegated) {
+        filteredEffects = targetEffects.filter(e => e.source !== "Danger Sense");
+        if (filteredEffects.length !== targetEffects.length && this.debugLogsEnabled) {
+          console.log(`[SavingThrowResolver] Danger Sense negated by condition — filtering out advantage`);
+        }
+      }
+    }
+    const hasEffectAdvantage = hasAdvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
+    const hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
 
     // Roll the d20 (with advantage/disadvantage from effects)
     let roll;

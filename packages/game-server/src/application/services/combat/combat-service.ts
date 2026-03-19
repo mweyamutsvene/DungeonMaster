@@ -17,6 +17,7 @@ import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantIdByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
 import { clearActionSpent, resetTurnResources, getActiveEffects, setActiveEffects, normalizeResources, getPosition } from "./helpers/resource-utils.js";
+import { shouldRageEnd } from "../../../domain/entities/classes/barbarian.js";
 import {
   shouldRemoveAtEndOfTurn,
   shouldRemoveAtStartOfTurn,
@@ -462,6 +463,27 @@ export class CombatService {
 
     // Reset action availability at start of a combatant's turn.
     // Resets: actionSpent, reactionUsed, disengaged flags
+
+    // ── Rage End Check (fallback path): check incoming combatant at START of their turn ──
+    // D&D 5e 2024: Rage ends "since the end of your last turn" — check at turn start.
+    const incomingFallback = combatants[updated.turn];
+    if (incomingFallback) {
+      const inRes = normalizeResources(incomingFallback.resources);
+      if (inRes.raging === true) {
+        const attacked = inRes.rageAttackedThisTurn === true;
+        const tookDamage = inRes.rageDamageTakenThisTurn === true;
+        const isUnconscious = incomingFallback.hpCurrent <= 0;
+        if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
+          const effects = getActiveEffects(incomingFallback.resources ?? {});
+          const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
+          let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
+          updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
+          await this.combat.updateCombatantState(incomingFallback.id, { resources: updatedRes as any });
+          console.log(`[CombatService] Rage ended (fallback) for combatant ${incomingFallback.id}`);
+        }
+      }
+    }
+
     if (wraps) {
       // New round: clear for everyone.
       await Promise.all(
@@ -695,6 +717,35 @@ export class CombatService {
     // (the original combatantRecords may have stale activeEffects that were
     // removed during end-of-turn processing above)
     const freshRecords = await this.combat.listCombatants(encounter.id);
+
+    // ── Rage End Check (incoming combatant — start of their turn) ──
+    // D&D 5e 2024: Rage ends "if you haven't made an attack roll or taken damage
+    // since the end of your last turn." The check must happen at the START of the
+    // raging barbarian's turn, giving the gap between turns (other creatures' turns)
+    // for the barbarian to take damage or make opportunity attacks.
+    // Must read flags BEFORE extractActionEconomy resets them (isFreshEconomy=true).
+    {
+      const incomingCreatureId = combat.getActiveCreature().getId();
+      const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
+      if (incomingRecord) {
+        const inRes = normalizeResources(incomingRecord.resources);
+        if (inRes.raging === true) {
+          const attacked = inRes.rageAttackedThisTurn === true;
+          const tookDamage = inRes.rageDamageTakenThisTurn === true;
+          const isUnconscious = incomingRecord.hpCurrent <= 0;
+          if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
+            const effects = getActiveEffects(incomingRecord.resources ?? {});
+            const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
+            let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
+            updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
+            await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
+            // Update in-memory record so extractActionEconomy doesn't overwrite with stale data
+            (incomingRecord as any).resources = updatedRes;
+            console.log(`[CombatService] Rage ended for combatant ${incomingRecord.id} (attacked=${attacked}, tookDamage=${tookDamage}, unconscious=${isUnconscious})`);
+          }
+        }
+      }
+    }
 
     // Persist action economy for all creatures
     // Note: In a new round, all action economies are reset by endTurn()

@@ -722,6 +722,16 @@ export class TwoPhaseActionService {
         // Apply KO effects if character dropped to 0 HP from opportunity attack
         await applyKoEffectsIfNeeded(actor, oaHpBefore, newHP, this.combat);
 
+        // D&D 5e 2024: Rage damage-taken tracking for OA target
+        {
+          const actorRes = normalizeResources(actor.resources);
+          if (actorRes.raging === true) {
+            await this.combat.updateCombatantState(actor.id, {
+              resources: { ...actorRes, rageDamageTakenThisTurn: true } as any,
+            });
+          }
+        }
+
         // ── ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) ──
         // OAs are always melee, so if the target has retaliatory damage effects, they fire
         const targetRetEffects = getActiveEffects(actor.resources ?? {}).filter(e => e.type === 'retaliatory_damage');
@@ -1676,6 +1686,16 @@ export class TwoPhaseActionService {
 
         // Apply KO effects if target dropped to 0 HP
         await applyKoEffectsIfNeeded(target, hpBefore, hpAfter, this.combat);
+
+        // D&D 5e 2024: Rage damage-taken tracking for attack target
+        {
+          const tgtRes = normalizeResources(target.resources);
+          if (tgtRes.raging === true) {
+            await this.combat.updateCombatantState(target.id, {
+              resources: { ...tgtRes, rageDamageTakenThisTurn: true } as any,
+            });
+          }
+        }
 
         // Emit damage event
         if (this.events) {

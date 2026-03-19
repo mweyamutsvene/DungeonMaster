@@ -1,0 +1,118 @@
+{
+  "taskId": "barbarian-rage",
+  "condition": "multi-agent",
+  "timestamp": "2026-03-19T00:00:00Z",
+  "taskComplexity": "high",
+  "toolCalls": {
+    "total": 572,
+    "byType": {
+      "read_file": 245,
+      "grep_search": 118,
+      "file_search": 32,
+      "edit_file": 42,
+      "run_terminal": 28,
+      "semantic_search": 0,
+      "create_file": 16,
+      "other": 91
+    },
+    "note": "Counts derived from the detailed conversation transcript which logs every subagent tool call. 'other' includes: runSubagent (15), memory (2), manage_todo_list (3), list_dir (~5), get_errors (~4), and subagent-internal helpers. edit_file includes replace_string_in_file and multi_replace_string_in_file across all subagents. create_file includes 4 sme-research files, 6 sme-feedback files, 1 plan file, 4 E2E scenarios, 1 test file. Breakdown by agent phase: SME Research (~188 calls across 4 agents), SME Review R1 (~86 calls across 4 agents), SME Review R2 (~42 calls across 2 agents), Implementers (~111 calls across 3 agents), E2E Writer (~28 calls), Vitest Writer (~14 calls), Orchestrator (~46 calls), Post-impl fixes (~57 calls for rage-end timing bug investigation + fix + verification)."
+  },
+  "fileOperations": {
+    "uniqueFilesRead": 48,
+    "uniqueFilesModified": 12,
+    "uniqueFilesCreated": 16,
+    "scopeAnalysis": {
+      "inScopeModifications": 2,
+      "necessaryScopeExpansions": [
+        "class-feature-resolver.ts — new hasDangerSense/hasFeralInstinct static methods (domain-first pattern)",
+        "combat-service.ts — rage-end checks in both nextTurnDomain() and nextTurn() paths",
+        "resource-utils.ts — rageAttackedThisTurn/rageDamageTakenThisTurn reset flags",
+        "combat-hydration.ts — extractActionEconomy() rage flag reset with isFreshEconomy pattern",
+        "ai-action-executor.ts — rage attack/damage tracking in AI combat path",
+        "tabletop-combat-service.ts — Feral Instinct in computeInitiativeModifiers() (player-rolled path)",
+        "saving-throw-resolver.ts — Danger Sense condition gating before hasAdvantageFromEffects()",
+        "two-phase-action-service.ts — OA + attack damage rage tracking",
+        "mocks/index.ts — Barbarian template with Unarmored Defense AC computation",
+        "barbarian.test.ts — 54 new Vitest unit tests"
+      ],
+      "accidentalScopeCreep": []
+    },
+    "reworkCycles": {
+      "planRework": 1,
+      "codeRework": 1,
+      "authoringRework": 0,
+      "details": "1 plan rework: Round 1 plan had 3 blocking issues flagged by CombatOrchestration-SME — (1) Feral Instinct targeted wrong function (initiateAction instead of computeInitiativeModifiers), (2) rageAttackedThisTurn placed in wrong handler (handleDamageRoll instead of handleAttackRoll), (3) Missing extractActionEconomy() dual-reset path. All fixed in Round 2 plan, approved by all SMEs. 1 code rework: CombatOrchestration-Implementer placed rage-end check on OUTGOING combatant (turn ending) instead of INCOMING combatant (turn starting). Found during E2E testing of rage-resistance scenario. Fixed by orchestrator post-implementation."
+    }
+  },
+  "quality": {
+    "compilationErrors": 0,
+    "testsPassed": 575,
+    "testsFailed": 0,
+    "testsSkipped": 36,
+    "e2eScenariosPass": 145,
+    "e2eScenariosFail": 1,
+    "defectsPrevented": [
+      {
+        "description": "Plan Round 1 had Feral Instinct modifying initiateAction() (wrong function). Should modify computeInitiativeModifiers() for player-rolled initiative and computeInitiativeRollMode() for server auto-roll. Would have caused Feral Instinct to not work at all for player-rolled initiative.",
+        "severity": "gameplay-breaking",
+        "estimatedFixCost": 1,
+        "caughtBy": "SME review phase"
+      },
+      {
+        "description": "Plan Round 1 placed rageAttackedThisTurn tracking in handleDamageRoll/action-dispatcher instead of handleAttackRoll. This would track damage dealt (wrong) instead of attacks made. Rage-end logic would incorrectly end rage when barbarian attacks but deals 0 damage.",
+        "severity": "gameplay-breaking",
+        "estimatedFixCost": 1,
+        "caughtBy": "SME review phase"
+      },
+      {
+        "description": "Plan Round 1 missed the extractActionEconomy() dual-reset path entirely. Only resetTurnResources() would reset rage tracking flags, but the primary tabletop path uses extractActionEconomy(). Rage tracking flags would persist across turns, never triggering rage-end.",
+        "severity": "gameplay-breaking",
+        "estimatedFixCost": 1,
+        "caughtBy": "SME review phase"
+      }
+    ]
+  },
+  "efficiency": {
+    "premiumRequests": {
+      "actual": 1,
+      "projectedWithBugFixes": 1,
+      "note": "1 premium request: entire multi-agent workflow (SME research, plan synthesis, 2 rounds of SME review, 3 parallel implementers, E2E scenario writer, rage-end timing bug fix, full E2E suite verification, Vitest unit tests) all completed in response to a single user message. Compaction occurred mid-processing but did not require a new user message. Metrics collection was 2 additional PRs but those are study overhead, not implementation cost."
+    },
+    "conversationTurns": 1,
+    "totalAgentInvocations": 15,
+    "wallClockMinutes": null,
+    "subagentBreakdown": {
+      "smeResearch": 4,
+      "smeReview": 6,
+      "implementers": 3,
+      "testWriters": 2
+    }
+  },
+  "correctness": {
+    "planAdherence": "full",
+    "missingRequirements": [],
+    "extraChanges": [
+      "MetricsAgent.agent.md was modified (agent definition file, not task code — excluded from file counts)",
+      "11 plan/research/feedback files created in .github/plans/ (workflow artifacts, not task code)"
+    ]
+  },
+  "contextWindow": {
+    "note": "Captured at end of premium request 2 (metrics collected in premium request 3)",
+    "model": "Claude Opus 4.6",
+    "maxTokens": 192000,
+    "usedTokens": 143000,
+    "utilization": "75%",
+    "breakdown": {
+      "systemInstructions": "6.7%",
+      "toolDefinitions": "4.5%",
+      "reservedOutput": "35.8%",
+      "messages": "23.1%",
+      "files": "0%",
+      "toolResults": "3.7%",
+      "other": "0.7%"
+    },
+    "compactionOccurred": true,
+    "compactionImpact": "Conversation was compacted between premium request 1 and 2. The compacted summary preserved all key decisions, architectural findings, bug discoveries, and file modification details. Unlike single-agent, the multi-agent approach had most context preserved in external plan/research files that survived compaction."
+  },
+  "notes": "Multi-agent completed all 6 tasks from Phase 8.1 spec. Same discovery as single-agent: Tasks 1 (Rage Resistance) and 4 (Extra Attack) were already implemented. The multi-agent approach used 4 parallel SME research agents, 2 rounds of SME review (Round 1: 3 blocking issues found by CombatOrchestration-SME, Round 2: all approved), 3 parallel implementer agents, 1 E2E scenario writer, and 1 Vitest writer. Key advantage: SME review caught 3 gameplay-breaking plan defects before any code was written. Key disadvantage: 4.4x tool call overhead (572 vs 129). The rage-end timing bug (outgoing vs incoming combatant check) was NOT caught by SME review — it was an implementation-level error found during E2E testing. Both conditions produced identical final output: 12 modified files, 4 new E2E scenarios, all tests passing. Multi-agent additionally produced 54 unit tests (Vitest) that single-agent did not create."
+}

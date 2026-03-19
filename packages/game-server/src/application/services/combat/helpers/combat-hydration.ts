@@ -137,6 +137,8 @@ export function extractActionEconomy(
     attacksUsedThisTurn: isFreshEconomy ? 0 : (resources as any).attacksUsedThisTurn ?? 0,
     sneakAttackUsedThisTurn: isFreshEconomy ? false : (resources as any).sneakAttackUsedThisTurn ?? false,
     stunningStrikeUsedThisTurn: isFreshEconomy ? false : (resources as any).stunningStrikeUsedThisTurn ?? false,
+    rageAttackedThisTurn: isFreshEconomy ? false : (resources as any).rageAttackedThisTurn ?? false,
+    rageDamageTakenThisTurn: isFreshEconomy ? false : (resources as any).rageDamageTakenThisTurn ?? false,
     // Also reset the "Used" variants (set by resource-utils useBonusAction/useReaction)
     // to match the domain economy's fresh state
     bonusActionUsed: isFreshEconomy ? false : (resources as any).bonusActionUsed ?? false,
