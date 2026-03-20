@@ -150,7 +150,7 @@
 
 <p>This report presents a preliminary case study comparing three approaches to implementing features in a deterministic D&amp;D 5e rules engine: (1) a single AI coding agent (GitHub Copilot with Claude Opus 4.6), (2) a multi-agent orchestration system with domain-specialized sub-agents, and (3) an experienced human developer following test-driven development (TDD) practices. Two implementation tasks of escalating complexity were evaluated: a moderate-complexity cover mechanics feature (DEX saving throw cover bonus) and a high-complexity class feature set (Barbarian Phase 8.1&nbsp;&mdash; six sub-features spanning domain rules, application services, and infrastructure adapters).</p>
 
-<p>Results suggest that both AI approaches dramatically reduce wall-clock development time relative to the human baseline&nbsp;&mdash; by approximately 98% for the moderate task and 99% for the high-complexity task&nbsp;&mdash; while producing fewer post-implementation defects. The multi-agent approach demonstrated superior defect prevention through pre-implementation architectural review (catching 5 gameplay-breaking defects across both tasks) and better context window management for complex tasks, at the cost of 3.4&ndash;4.4&times; higher internal tool call volume. The single-agent approach produced faster initial output but required 3&ndash;5 premium requests per task in practice due to missed bugs and incorrect behaviors that surfaced during subsequent testing and play, necessitating iterative follow-up correction cycles.</p>
+<p>Results suggest that both AI approaches dramatically reduce wall-clock development time relative to the human baseline&nbsp;&mdash; by approximately 98% for the moderate task and 99% for the high-complexity task&nbsp;&mdash; while producing fewer post-implementation defects. The multi-agent approach demonstrated superior defect prevention through pre-implementation architectural review (catching 5 gameplay-breaking defects across both tasks) and better context window management for complex tasks, at the cost of 3.4&ndash;4.4&times; higher internal tool call volume. The single-agent approach produced faster initial output but left latent bugs in the moderate task (which would have required additional premium requests to resolve) and required 3&ndash;5 premium requests for the high-complexity task due to missed behaviors that surfaced during subsequent testing, necessitating iterative follow-up correction cycles.</p>
 
 <p>These findings are preliminary. The study&rsquo;s small sample size (n=2 tasks, n=1 human developer, n=1 run per condition), ordering bias, and domain specificity preclude generalization. The report is intended for internal evaluation of AI-assisted development workflows, not as a publishable empirical study.</p>
 
@@ -289,7 +289,7 @@
     <tr><td><strong>Wall-clock time</strong></td><td>8 hours</td><td>~5 minutes*</td><td>~12 minutes*</td></tr>
     <tr><td><strong>Compile/run errors</strong></td><td>25</td><td>0</td><td>0</td></tr>
     <tr><td><strong>Post-impl bugs</strong></td><td>6</td><td>2 (latent)</td><td>0</td></tr>
-    <tr><td><strong>Premium requests (actual)</strong></td><td>N/A</td><td>3&ndash;5 (iterative bug-fix cycles)</td><td>1</td></tr>
+    <tr><td><strong>Premium requests (actual)</strong></td><td>N/A</td><td>1 (2 latent bugs unresolved)</td><td>1</td></tr>
     <tr><td><strong>Internal tool calls</strong></td><td>N/A</td><td>68</td><td>231</td></tr>
     <tr><td><strong>Unit tests passed</strong></td><td>&mdash;</td><td>509</td><td>521 (+12 new)</td></tr>
     <tr><td><strong>E2E scenarios passed</strong></td><td>&mdash;</td><td>142/142</td><td>142/142</td></tr>
@@ -303,7 +303,7 @@
 
 <p>The <strong>human developer</strong> encountered 25 compile/run errors during the TDD cycle (a normal iterative cost) and introduced 6 bugs that survived the initial test suite&nbsp;&mdash; discovered later through integration testing or manual play testing.</p>
 
-<p>The <strong>single-agent</strong> produced an initial implementation in one premium request with zero compilation errors. However, subsequent testing and integration revealed latent bugs&nbsp;&mdash; including a missing <code>castSpell()</code> call in the total-cover early-return path (spell slot would not be consumed) and missing null guards on map/position data (server crash on non-mapped encounters). Resolving these and other behavioral issues required 3&ndash;5 total premium requests through iterative bug-fix cycles, as each correction surfaced additional edge cases.</p>
+<p>The <strong>single-agent</strong> produced a complete implementation in one premium request with zero compilation errors. However, the implementation contained 2 latent bugs that passed all existing tests: a missing <code>castSpell()</code> call in the total-cover early-return path (spell slot would not be consumed) and missing null guards on map/position data (server crash on non-mapped encounters). These bugs were not discovered during the single-agent session&nbsp;&mdash; they would have required additional premium requests to diagnose and fix if discovered through later integration testing or play testing.</p>
 
 <p>The <strong>multi-agent</strong> system caught both of these bugs during SME review <em>before any code was written</em>. The CombatOrchestration-SME and SpellSystem-SME identified these issues in Round 1 review, leading to a plan revision. The final implementation had zero latent defects and additionally produced 12 unit tests that single-agent did not create.</p>
 
@@ -313,8 +313,8 @@
   <thead><tr><th>Efficiency Metric</th><th>Human</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
   <tbody>
     <tr><td>Time to initial implementation</td><td>8 hours</td><td>~5 min</td><td>~12 min</td></tr>
-    <tr><td>Time to <em>correct</em> implementation</td><td>8+ hours (bugs required additional debugging)</td><td>~25&ndash;40 min (3&ndash;5 premium requests with bug-fix cycles)</td><td>~12 min</td></tr>
-    <tr><td>Rework cycles</td><td>Continuous (TDD)</td><td>3&ndash;5 (iterative bug discovery + fix)</td><td>3 (E2E config, test fix, plan revision)</td></tr>
+    <tr><td>Time to <em>correct</em> implementation</td><td>8+ hours (bugs required additional debugging)</td><td>~5 min (but 2 latent bugs remained)</td><td>~12 min</td></tr>
+    <tr><td>Rework cycles</td><td>Continuous (TDD)</td><td>0 (bugs undiscovered)</td><td>3 (E2E config, test fix, plan revision)</td></tr>
   </tbody>
 </table>
 
@@ -475,7 +475,7 @@
 
 <p>The most architecturally significant finding is the context window divergence on the high-complexity task. Single-agent needed 2 premium requests because its context window accumulated raw tool outputs until compaction was triggered, losing working history. Multi-agent completed in 1 premium request because the subagent architecture naturally compresses context&nbsp;&mdash; each subagent works, reports, and releases.</p>
 
-<p>This suggests that multi-agent&rsquo;s advantage is not constant but <em>scales with task complexity</em>. For the moderate task, single-agent appeared to complete in 1 premium request but required 3&ndash;5 total to resolve emergent bugs. For the high-complexity task, the compounding effect of lost context and iterative debugging was even more pronounced. Multi-agent&rsquo;s architectural advantage in context management&nbsp;&mdash; completing both tasks in 1 premium request each&nbsp;&mdash; becomes the dominant efficiency factor as complexity increases.</p>
+<p>This suggests that multi-agent&rsquo;s advantage is not constant but <em>scales with task complexity</em>. For the moderate task, single-agent completed in 1 premium request but left 2 latent bugs that would have required additional requests to resolve. For the high-complexity task, the compounding effect of lost context and iterative debugging required 3&ndash;5 premium requests. Multi-agent&rsquo;s architectural advantage in context management&nbsp;&mdash; completing both tasks in 1 premium request each with zero latent defects&nbsp;&mdash; becomes the dominant efficiency factor as complexity increases.</p>
 
 <h3 id="s4-4">4.4 The TDD Paradox</h3>
 
@@ -580,14 +580,14 @@
 <table>
   <thead><tr><th>Dimension</th><th>Human (Baseline)</th><th>AI Agent Range</th><th>Magnitude</th></tr></thead>
   <tbody>
-    <tr><td>Wall-clock time (moderate task)</td><td>8 hours</td><td>15&ndash;40 min (3&ndash;5 PRs) to 12 min (multi)</td><td>~12&ndash;32&times; faster</td></tr>
+    <tr><td>Wall-clock time (moderate task)</td><td>8 hours</td><td>~5 min (1 PR, but 2 latent bugs) to 12 min (multi)</td><td>~40&ndash;96&times; faster</td></tr>
     <tr><td>Wall-clock time (high task)</td><td>16 hours</td><td>30&ndash;75 min (3&ndash;5 PRs) to 45 min (multi)</td><td>~13&ndash;32&times; faster</td></tr>
     <tr><td>Compile/run errors</td><td>93 total</td><td>0</td><td>Eliminated</td></tr>
     <tr><td>Post-implementation bugs (per task)</td><td>6&ndash;12</td><td>0 (after all cycles)</td><td>100% reduction</td></tr>
   </tbody>
 </table>
 
-<p>AI agents demonstrate substantial advantages in both speed and defect rate for this domain. When accounting for single-agent&rsquo;s iterative bug-fix premium requests (3&ndash;5 per task), the realistic time-to-correct-implementation is 15&ndash;75 minutes for single-agent and 12&ndash;45 minutes for multi-agent&nbsp;&mdash; still an order of magnitude faster than the human baseline. The speed advantage comes primarily from eliminating compile-run-debug cycle friction and context-switching costs. The quality advantage comes from simultaneous access to type definitions, rule documentation, and existing code patterns.</p>
+<p>AI agents demonstrate substantial advantages in both speed and defect rate for this domain. For the moderate task, single-agent completed in 1 premium request (~5 min) but left 2 latent bugs; for the high-complexity task, iterative bug-fix cycles required 3&ndash;5 premium requests (30&ndash;75 min). Multi-agent completed both tasks in 1 premium request each (12&ndash;45 min) with zero latent defects&nbsp;&mdash; still an order of magnitude faster than the human baseline. The speed advantage comes primarily from eliminating compile-run-debug cycle friction and context-switching costs. The quality advantage comes from simultaneous access to type definitions, rule documentation, and existing code patterns.</p>
 
 <h3>6.2 RQ2: Multi-Agent vs. Single-Agent Defect Prevention</h3>
 
@@ -595,25 +595,25 @@
   <thead><tr><th>Metric</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
   <tbody>
     <tr><td>Bugs in final output (after all cycles)</td><td>0</td><td>0</td></tr>
-    <tr><td>Bugs encountered during development</td><td>Multiple (required 3&ndash;5 PRs per task)</td><td>0 (5 prevented pre-impl)</td></tr>
-    <tr><td>Premium requests (moderate)</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Bugs encountered during development</td><td>2 latent (cover) + multiple iterative (barbarian)</td><td>0 (5 prevented pre-impl)</td></tr>
+    <tr><td>Premium requests (moderate)</td><td>1 (2 latent bugs unresolved)</td><td>1</td></tr>
     <tr><td>Premium requests (high)</td><td>3&ndash;5</td><td>1</td></tr>
   </tbody>
 </table>
 
-<p>Multi-agent&rsquo;s SME review phase is effective at catching dual-path architectural defects&nbsp;&mdash; the most dangerous class of bugs in this codebase. The review phase adds tool call overhead but reduces total premium requests by 3&ndash;5&times; by preventing defects that would otherwise require separate debugging sessions. Single-agent&rsquo;s iterative bug-fix pattern (fix one bug &rarr; discover the next) consumed 3&ndash;5 premium requests per task, while multi-agent&rsquo;s upfront review investment completed each task in 1.</p>
+<p>Multi-agent&rsquo;s SME review phase is effective at catching dual-path architectural defects&nbsp;&mdash; the most dangerous class of bugs in this codebase. The review phase adds tool call overhead but prevents defects that would otherwise require separate debugging sessions. For the cover task, single-agent completed in 1 premium request but shipped 2 latent gameplay-breaking bugs that would have required additional requests to fix. For the barbarian task, iterative bug discovery consumed 3&ndash;5 premium requests. Multi-agent&rsquo;s upfront review investment completed each task in 1 premium request with zero latent defects.</p>
 
 <h3>6.3 RQ3: Overhead vs. Quality Tradeoff</h3>
 
 <table>
   <thead><tr><th>Task Complexity</th><th>Tool Call Ratio (Multi/Single)</th><th>Premium Request Ratio (Multi/Single)</th><th>Quality Advantage</th></tr></thead>
   <tbody>
-    <tr><td>Moderate</td><td>3.4&times; (initial request)</td><td>0.20&ndash;0.33&times; (1 vs 3&ndash;5)</td><td>2 bugs prevented</td></tr>
+    <tr><td>Moderate</td><td>3.4&times; (initial request)</td><td>1.0&times; (1 vs 1)&nbsp;&mdash; but single-agent left 2 latent bugs</td><td>2 bugs prevented</td></tr>
     <tr><td>High</td><td>4.4&times; (initial request)</td><td>0.20&ndash;0.33&times; (1 vs 3&ndash;5)</td><td>3 bugs prevented + 54 extra tests</td></tr>
   </tbody>
 </table>
 
-<p>The tool call ratio per initial request grows with complexity (3.4&times; &rarr; 4.4&times;), but the premium request efficiency ratio strongly favors multi-agent at both complexity levels. Single-agent required 3&ndash;5 premium requests per task due to iterative bug-fix cycles, while multi-agent completed each task in 1. This represents a <strong>3&ndash;5&times; premium request efficiency advantage</strong> for multi-agent&nbsp;&mdash; the dominant cost metric for enterprise adoption.</p>
+<p>The tool call ratio per initial request grows with complexity (3.4&times; &rarr; 4.4&times;). For the moderate task, both conditions used 1 premium request, but single-agent&rsquo;s output contained 2 latent gameplay-breaking bugs while multi-agent&rsquo;s was defect-free&nbsp;&mdash; a quality advantage that would translate to premium request savings when those bugs were eventually discovered. For the high-complexity task, single-agent required 3&ndash;5 premium requests vs. multi-agent&rsquo;s 1, representing a <strong>3&ndash;5&times; premium request efficiency advantage</strong>&nbsp;&mdash; the dominant cost metric for enterprise adoption.</p>
 
 <div class="callout">
   <p><strong>The structural insight</strong>: Multi-agent&rsquo;s upfront investment in research and review (which drives higher tool call counts within a single premium request) prevents the iterative debug-fix-retest cycle that inflates single-agent&rsquo;s premium request count. The overhead is paid once, internally, rather than spread across multiple user-visible billing events.</p>
@@ -667,7 +667,7 @@
     <tr><td>Wall-clock time</td><td>8 hours</td><td>~5 min (est.)</td><td>~12 min (est.)</td></tr>
     <tr><td>Compile/run errors</td><td>25</td><td>0</td><td>0</td></tr>
     <tr><td>Post-impl bugs</td><td>6</td><td>2 (latent)</td><td>0</td></tr>
-    <tr><td>Premium requests (actual to bug-free)</td><td>N/A</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Premium requests (actual used)</td><td>N/A</td><td>1 (2 latent bugs remained)</td><td>1</td></tr>
     <tr><td>Tool calls (initial request)</td><td>N/A</td><td>68</td><td>231</td></tr>
     <tr><td>Files modified</td><td>&mdash;</td><td>4</td><td>6</td></tr>
     <tr><td>Unit tests added</td><td>&mdash;</td><td>0</td><td>12</td></tr>
