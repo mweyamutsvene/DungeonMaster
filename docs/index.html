@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-Assisted Code Generation Study — Multi-Agent Effectiveness</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a2e;
+      --muted: #555;
+      --accent: #2563eb;
+      --accent-light: #dbeafe;
+      --border: #e2e8f0;
+      --table-stripe: #f8fafc;
+      --code-bg: #f1f5f9;
+      --heading: #0f172a;
+      --blockquote-border: #60a5fa;
+      --blockquote-bg: #eff6ff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #60a5fa;
+        --accent-light: #1e3a5f;
+        --border: #334155;
+        --table-stripe: #1e293b;
+        --code-bg: #1e293b;
+        --heading: #f1f5f9;
+        --blockquote-border: #3b82f6;
+        --blockquote-bg: #1e293b;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--bg);
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    h1 {
+      font-size: 1.85rem;
+      color: var(--heading);
+      margin-bottom: 0.25rem;
+      line-height: 1.3;
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 0.75rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+      font-weight: 600;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      color: var(--heading);
+      margin-top: 2.5rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      color: var(--heading);
+      margin-top: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    h4 {
+      font-size: 1rem;
+      color: var(--heading);
+      margin-top: 1.25rem;
+      margin-bottom: 0.4rem;
+    }
+
+    p { margin-bottom: 1rem; }
+
+    strong { color: var(--heading); }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    ul, ol {
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+
+    li { margin-bottom: 0.35rem; }
+
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.88em;
+    }
+
+    blockquote {
+      border-left: 4px solid var(--blockquote-border);
+      background: var(--blockquote-bg);
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      display: block;
+    }
+
+    thead { background: var(--accent); color: #fff; }
+
+    th {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:nth-child(even) { background: var(--table-stripe); }
+    tbody tr:hover { background: var(--accent-light); }
+
+    .toc {
+      background: var(--table-stripe);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0 2rem;
+    }
+
+    .toc h3 { margin-top: 0; }
+    .toc ol { margin-bottom: 0; }
+    .toc li { margin-bottom: 0.2rem; }
+
+    .key-finding {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .key-finding strong { color: var(--accent); }
+
+    .chart-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .chart-card {
+      background: var(--table-stripe);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .chart-card h4 { margin-top: 0; text-align: center; }
+
+    .bar-chart { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .bar-label {
+      width: 90px;
+      font-size: 0.8rem;
+      text-align: right;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 24px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding-left: 8px;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: width 1s ease;
+    }
+
+    .bar-fill.human { background: #ef4444; }
+    .bar-fill.single { background: #f59e0b; }
+    .bar-fill.multi { background: #22c55e; }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .appendix { font-size: 0.92rem; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      h1 { font-size: 1.4rem; }
+      .chart-container { grid-template-columns: 1fr; }
+      .bar-label { width: 70px; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>AI-Assisted Code Generation for Complex Rule Systems</h1>
+<p class="subtitle">A Preliminary Comparative Study of Single-Agent, Multi-Agent, and Human Developer Approaches<br>Internal Technical Report &mdash; March 2026</p>
+
+<nav class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#methodology">Methodology</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#discussion">Discussion</a></li>
+    <li><a href="#limitations">Limitations</a></li>
+    <li><a href="#summary">Summary of Findings</a></li>
+    <li><a href="#recommendations">Recommendations</a></li>
+    <li><a href="#appendix-a">Appendix A: Raw Metrics</a></li>
+    <li><a href="#appendix-b">Appendix B: Defect Catalog</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="abstract">Abstract</h2>
+
+<p>This report presents a preliminary case study comparing three approaches to implementing features in a deterministic D&amp;D 5e rules engine: (1) a <strong>single AI coding agent</strong> (GitHub Copilot with Claude Opus 4.6), (2) a <strong>multi-agent orchestration system</strong> with domain-specialized sub-agents, and (3) an experienced <strong>human developer</strong> following test-driven development (TDD) practices. Two implementation tasks of escalating complexity were evaluated: a moderate-complexity cover mechanics feature and a high-complexity class feature set (Barbarian Phase 8.1 &mdash; six sub-features spanning domain rules, application services, and infrastructure adapters).</p>
+
+<div class="key-finding">
+  <strong>Key Findings:</strong> Both AI approaches reduce wall-clock development time by approximately <strong>12&ndash;32&times;</strong> relative to the human baseline while eliminating compile/run errors entirely. The multi-agent approach completed each task in <strong>1 premium request</strong> versus 3&ndash;5 for single-agent, and prevented <strong>5 gameplay-breaking defects</strong> via pre-implementation SME review.
+</div>
+
+<p>These findings are preliminary. The study&rsquo;s small sample size (n=2 tasks, n=1 human developer, n=1 run per condition), ordering bias, and domain specificity preclude generalization. The report is intended for internal evaluation of AI-assisted development workflows.</p>
+
+<hr>
+
+<h2 id="introduction">1. Introduction</h2>
+
+<h3>1.1 Motivation</h3>
+
+<p>Enterprise software teams face a persistent challenge: implementing complex, rule-heavy business logic correctly the first time. Game rules engines &mdash; particularly those implementing tabletop RPG systems like Dungeons &amp; Dragons 5th Edition (2024) &mdash; represent an extreme case. They require:</p>
+
+<ul>
+  <li><strong>Deep domain knowledge</strong>: Hundreds of interacting rules with subtle edge cases</li>
+  <li><strong>Cross-cutting concerns</strong>: A single feature touches domain entities, combat resolution, damage calculation, turn management, action economy, and AI decision-making</li>
+  <li><strong>Deterministic correctness</strong>: Rules must be implemented exactly as specified; &ldquo;close enough&rdquo; creates compounding errors</li>
+</ul>
+
+<h3>1.2 System Under Study</h3>
+
+<p>The target system is a TypeScript/Node.js game server implementing D&amp;D 5e 2024 rules as a deterministic engine. Key architectural characteristics:</p>
+
+<ul>
+  <li><strong>Domain-Driven Design</strong>: Pure rules logic in <code>domain/</code>, orchestration in <code>application/</code>, adapters in <code>infrastructure/</code></li>
+  <li><strong>Dual-path patterns</strong>: Multiple code paths for the same operation (e.g., player-rolled vs. server-auto-rolled initiative)</li>
+  <li><strong>Comprehensive E2E harness</strong>: 145+ scenario-driven integration tests with deterministic mock dice</li>
+</ul>
+
+<p>These dual-path patterns are particularly relevant &mdash; they create a class of defects where a feature works in one code path but silently fails in another.</p>
+
+<h3>1.3 Research Questions</h3>
+
+<ol>
+  <li><strong>RQ1</strong>: How do AI agents compare to a human developer in time-to-completion and defect rate?</li>
+  <li><strong>RQ2</strong>: Does multi-agent orchestration with domain-specialized review reduce defects compared to a single agent?</li>
+  <li><strong>RQ3</strong>: What is the efficiency tradeoff &mdash; does multi-agent overhead justify its quality benefits?</li>
+</ol>
+
+<hr>
+
+<h2 id="methodology">2. Methodology</h2>
+
+<h3>2.1 Experimental Design</h3>
+
+<p>A within-subjects case study with three conditions applied to two tasks:</p>
+
+<table>
+  <thead><tr><th>Condition</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Human Developer</strong> (baseline)</td><td>Senior developer, primary author of the codebase, following TDD practices</td></tr>
+    <tr><td><strong>Single-Agent</strong></td><td>GitHub Copilot (Claude Opus 4.6) with full task specification and codebase instructions</td></tr>
+    <tr><td><strong>Multi-Agent</strong></td><td>Orchestrator dispatching to domain-specialized SME research, review, implementer, and test-writer agents</td></tr>
+  </tbody>
+</table>
+
+<h3>2.2 Task Selection</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Description</th><th>Complexity</th><th>Cross-Domain Scope</th></tr></thead>
+  <tbody>
+    <tr><td><code>cover-13.1</code></td><td>DEX saving throw cover bonus</td><td>Moderate</td><td>Minimal &mdash; 2 primary files, 1 E2E scenario</td></tr>
+    <tr><td><code>barbarian-rage</code></td><td>Barbarian Phase 8.1 &mdash; 6 features</td><td>High</td><td>Heavy &mdash; domain rules, class entities, executors, combat services, turn mgmt, AI paths, 4 E2E scenarios</td></tr>
+  </tbody>
+</table>
+
+<h3>2.3 Multi-Agent Architecture</h3>
+
+<table>
+  <thead><tr><th>Role</th><th>Count per Task</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td>SME Research</td><td>3&ndash;4</td><td>Read codebase files within a specific domain and document patterns</td></tr>
+    <tr><td>SME Review</td><td>4&ndash;6 (across rounds)</td><td>Review plan against domain knowledge; flag architectural issues</td></tr>
+    <tr><td>Implementer</td><td>3</td><td>Execute plan changes in specific files (parallelized)</td></tr>
+    <tr><td>Test Writer</td><td>1&ndash;2</td><td>Create E2E scenarios and unit tests</td></tr>
+  </tbody>
+</table>
+
+<p>SME review operated in rounds: Round 1 review &rarr; feedback &rarr; plan revision &rarr; Round 2 review &rarr; approval &rarr; implementation.</p>
+
+<hr>
+
+<h2 id="results">3. Results</h2>
+
+<h3>3.1 Task 1: Cover Mechanics (Moderate Complexity)</h3>
+
+<table>
+  <thead><tr><th>Metric</th><th>Human</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Wall-clock time</strong></td><td>8 hours</td><td>~5 min*</td><td>~12 min*</td></tr>
+    <tr><td><strong>Compile/run errors</strong></td><td>25</td><td>0</td><td>0</td></tr>
+    <tr><td><strong>Post-impl bugs</strong></td><td>6</td><td>2 (latent)</td><td>0</td></tr>
+    <tr><td><strong>Premium requests</strong></td><td>N/A</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td><strong>Internal tool calls</strong></td><td>N/A</td><td>68</td><td>231</td></tr>
+    <tr><td><strong>Unit tests added</strong></td><td>&mdash;</td><td>0</td><td>+12</td></tr>
+  </tbody>
+</table>
+
+<p class="muted" style="font-size:0.85rem;color:var(--muted)">*AI wall-clock times are estimates. Not directly measured.</p>
+
+<h3>3.2 Task 2: Barbarian Phase 8.1 (High Complexity)</h3>
+
+<table>
+  <thead><tr><th>Metric</th><th>Human</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Wall-clock time</strong></td><td>16 hours</td><td>~15 min*</td><td>~45 min*</td></tr>
+    <tr><td><strong>Compile/run errors</strong></td><td>68</td><td>0</td><td>0</td></tr>
+    <tr><td><strong>Post-impl bugs</strong></td><td>12</td><td>0</td><td>0 (3 prevented)</td></tr>
+    <tr><td><strong>Premium requests</strong></td><td>N/A</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td><strong>Internal tool calls</strong></td><td>N/A</td><td>129 (initial)</td><td>572</td></tr>
+    <tr><td><strong>Unit tests added</strong></td><td>&mdash;</td><td>0</td><td>+54</td></tr>
+    <tr><td><strong>Defects prevented</strong></td><td>N/A</td><td>0</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h3>3.3 Visual Comparisons</h3>
+
+<div class="chart-container">
+  <div class="chart-card">
+    <h4>Premium Requests to Bug-Free</h4>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Cover</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:80%">Single: 3–5</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:20%">Multi: 1</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Barbarian</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:80%">Single: 3–5</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:20%">Multi: 1</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> Single-Agent</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Multi-Agent</span>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h4>Compile/Run Errors</h4>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Human</span>
+        <div class="bar-track">
+          <div class="bar-fill human" style="width:100%">93 errors</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Single-Agent</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:1%"></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Multi-Agent</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:1%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Human</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> Single</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Multi</span>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h4>Bugs per Task (Post-Implementation)</h4>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Cover</span>
+        <div class="bar-track">
+          <div class="bar-fill human" style="width:50%">Human: 6</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:17%">SA: 2</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:1%"></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Barbarian</span>
+        <div class="bar-track">
+          <div class="bar-fill human" style="width:100%">Human: 12</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:1%"></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:1%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h4>Wall-Clock Time (log scale)</h4>
+    <div class="bar-chart">
+      <div class="bar-row">
+        <span class="bar-label">Cover</span>
+        <div class="bar-track">
+          <div class="bar-fill human" style="width:100%">Human: 8 hrs</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:8%">SA: ~25m</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:3%">MA: ~12m</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Barbarian</span>
+        <div class="bar-track">
+          <div class="bar-fill human" style="width:100%">Human: 16 hrs</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill single" style="width:6%">SA: ~50m</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">&nbsp;</span>
+        <div class="bar-track">
+          <div class="bar-fill multi" style="width:5%">MA: ~45m</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>3.4 Context Window Management</h3>
+
+<table>
+  <thead><tr><th>Context Metric</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td>Premium requests (high task)</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Context compaction</td><td>Forced continuation + lost history</td><td>No impact</td></tr>
+    <tr><td>Context utilization</td><td>66% (at compaction)</td><td>75%</td></tr>
+  </tbody>
+</table>
+
+<div class="key-finding">
+  <strong>Structural Insight:</strong> Multi-agent&rsquo;s subagent boundaries act as natural context compression. Each subagent works deeply, returns a summary, and releases its context. The orchestrator never accumulates raw file contents &mdash; preventing the compaction cascade that forces single-agent into multiple premium requests.
+</div>
+
+<hr>
+
+<h2 id="discussion">4. Discussion</h2>
+
+<h3>4.1 Why the Human Developer Is Slower</h3>
+
+<p>The time differential is not about typing speed. Three structural factors dominate:</p>
+
+<p><strong>Context switching cost:</strong> The human must hold the mental model of the entire system while editing one file. AI agents load file contents as needed and read 10+ files in parallel &mdash; context switching has near-zero cost.</p>
+
+<p><strong>Compile-run-debug cycle time:</strong> 93 compile/run errors represent 93 interruptions to flow state. AI agents generate valid code on the first attempt by having type definitions and patterns in context simultaneously.</p>
+
+<p><strong>Test specification errors:</strong> The most consequential finding is 12 bugs caused by <em>incorrect tests</em>. TDD assumes correct tests, but for complex rule systems, the test author faces the same knowledge gaps as the implementer.</p>
+
+<h3>4.2 Multi-Agent vs. Single-Agent: When Review Pays Off</h3>
+
+<p>Multi-agent caught 5 gameplay-breaking defects that single-agent missed. These fell into two categories:</p>
+
+<p><strong>Dual-path architectural defects (3 of 5):</strong> The codebase has multiple code paths for the same operation. Features that modify one path but not the other silently fail. These defects:</p>
+<ul>
+  <li>Pass all tests that exercise only one path</li>
+  <li>Produce correct behavior in common cases</li>
+  <li>Fail silently &mdash; no crash, no error, just wrong game mechanics</li>
+</ul>
+
+<p><strong>Edge-case logic defects (2 of 5):</strong> Missing <code>castSpell()</code> early return and null guard issues &mdash; standard defensive programming concerns.</p>
+
+<h3>4.3 The TDD Paradox</h3>
+
+<p>The human developer&rsquo;s TDD practice introduced <em>more</em> bugs, not fewer, in the high-complexity task. The mechanism: tests encoded wrong assumptions about D&amp;D 5e rules and codebase interaction patterns. Code that passed these flawed tests exhibited incorrect behavior in practice.</p>
+
+<p>This is not an argument against TDD. It is an observation that TDD&rsquo;s effectiveness is bounded by the test author&rsquo;s domain knowledge.</p>
+
+<hr>
+
+<h2 id="limitations">5. Limitations</h2>
+
+<p>This study has significant methodological limitations that preclude generalization.</p>
+
+<table>
+  <thead><tr><th>Limitation</th><th>Impact</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Sample size</strong> (n=2 tasks, n=1 run)</td><td>No statistical analysis possible; results could be driven by random variance</td></tr>
+    <tr><td><strong>Single human developer</strong></td><td>Primary codebase author = best-case human performance; self-reported metrics subject to recall bias</td></tr>
+    <tr><td><strong>Ordering bias</strong></td><td>Single-agent always ran first; task specs may have been inadvertently improved</td></tr>
+    <tr><td><strong>AI wall-clock estimates</strong></td><td>Not directly measured; order-of-magnitude only</td></tr>
+    <tr><td><strong>Domain specificity</strong></td><td>Deterministic rules engine with documented rules &mdash; may disproportionately favor AI agents</td></tr>
+    <tr><td><strong>Cost model simplification</strong></td><td>Ignores token consumption, rate limiting, orchestrator setup cost, task spec writing time</td></tr>
+    <tr><td><strong>No downstream validation</strong></td><td>&ldquo;Zero bugs&rdquo; means zero detectable by current tests &mdash; not zero in absolute terms</td></tr>
+    <tr><td><strong>Hawthorne effect</strong></td><td>Human developer knew their work was being compared</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2 id="summary">6. Summary of Findings</h2>
+
+<h3>RQ1: AI vs. Human Developer</h3>
+
+<table>
+  <thead><tr><th>Dimension</th><th>Human (Baseline)</th><th>AI Agent Range</th><th>Magnitude</th></tr></thead>
+  <tbody>
+    <tr><td>Wall-clock time (moderate)</td><td>8 hours</td><td>12&ndash;40 min</td><td>~12&ndash;32&times; faster</td></tr>
+    <tr><td>Wall-clock time (high)</td><td>16 hours</td><td>45&ndash;75 min</td><td>~13&ndash;32&times; faster</td></tr>
+    <tr><td>Compile/run errors</td><td>93 total</td><td>0</td><td>Eliminated</td></tr>
+    <tr><td>Post-implementation bugs</td><td>6&ndash;12 per task</td><td>0 (after all cycles)</td><td>100% reduction</td></tr>
+  </tbody>
+</table>
+
+<h3>RQ2: Multi-Agent vs. Single-Agent</h3>
+
+<table>
+  <thead><tr><th>Metric</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td>Bugs encountered</td><td>Multiple (3&ndash;5 PRs/task)</td><td>0 (5 prevented pre-impl)</td></tr>
+    <tr><td>Premium requests (moderate)</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Premium requests (high)</td><td>3&ndash;5</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<div class="key-finding">
+  <strong>3&ndash;5&times; premium request efficiency advantage</strong> for multi-agent. The upfront investment in research and review prevents the iterative debug-fix-retest cycle that inflates single-agent&rsquo;s premium request count.
+</div>
+
+<h3>RQ3: Overhead vs. Quality Tradeoff</h3>
+
+<table>
+  <thead><tr><th>Complexity</th><th>Tool Call Ratio</th><th>Premium Request Ratio (Multi/Single)</th><th>Quality Advantage</th></tr></thead>
+  <tbody>
+    <tr><td>Moderate</td><td>3.4&times;</td><td>0.20&ndash;0.33&times;</td><td>2 bugs prevented</td></tr>
+    <tr><td>High</td><td>4.4&times;</td><td>0.20&ndash;0.33&times;</td><td>3 bugs prevented + 54 tests</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2 id="recommendations">7. Recommendations for Internal Use</h2>
+
+<table>
+  <thead><tr><th>Task Profile</th><th>Recommended Approach</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td>Small, single-file changes</td><td>Single-agent</td><td>Multi-agent overhead not justified; defect risk minimal</td></tr>
+    <tr><td>Moderate, well-scoped features</td><td>Single-agent + code review</td><td>Fast completion; human review catches edge cases</td></tr>
+    <tr><td>High-complexity, cross-cutting</td><td>Multi-agent with SME review</td><td>Dual-path defects caught pre-impl; context scales; tests are a bonus</td></tr>
+    <tr><td>Novel / unclear requirements</td><td>Human developer + AI assist</td><td>Domain ambiguity requires human judgment first</td></tr>
+  </tbody>
+</table>
+
+<h3>Suggested Follow-Up Studies</h3>
+
+<ol>
+  <li>Increase sample size (5+ tasks &times; 3+ runs per condition)</li>
+  <li>Randomize ordering across conditions</li>
+  <li>Include 3&ndash;5 developers of varying experience levels</li>
+  <li>Instrument AI sessions with precise wall-clock timestamps</li>
+  <li>Track defect rates over weeks/months of downstream use</li>
+  <li>Replicate on non-game-rules codebases (financial, medical)</li>
+  <li>Full cost-benefit analysis including setup and spec-writing time</li>
+</ol>
+
+<hr>
+
+<h2 id="appendix-a" class="appendix">Appendix A: Raw Metrics</h2>
+
+<h3>A.1 Cover Mechanics (Moderate)</h3>
+
+<table>
+  <thead><tr><th>Metric</th><th>Human</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td>Wall-clock time</td><td>8 hours</td><td>~5 min (est.)</td><td>~12 min (est.)</td></tr>
+    <tr><td>Compile/run errors</td><td>25</td><td>0</td><td>0</td></tr>
+    <tr><td>Post-impl bugs</td><td>6</td><td>2 (latent)</td><td>0</td></tr>
+    <tr><td>Premium requests</td><td>N/A</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Tool calls</td><td>N/A</td><td>68</td><td>231</td></tr>
+    <tr><td>Unit tests added</td><td>&mdash;</td><td>0</td><td>12</td></tr>
+  </tbody>
+</table>
+
+<h3>A.2 Barbarian Phase 8.1 (High)</h3>
+
+<table>
+  <thead><tr><th>Metric</th><th>Human</th><th>Single-Agent</th><th>Multi-Agent</th></tr></thead>
+  <tbody>
+    <tr><td>Wall-clock time</td><td>16 hours</td><td>~15 min (est.)</td><td>~45 min (est.)</td></tr>
+    <tr><td>Compile/run errors</td><td>68</td><td>0</td><td>0</td></tr>
+    <tr><td>Post-impl bugs</td><td>12</td><td>0</td><td>0 (3 prevented)</td></tr>
+    <tr><td>Premium requests</td><td>N/A</td><td>3&ndash;5</td><td>1</td></tr>
+    <tr><td>Tool calls</td><td>N/A</td><td>129</td><td>572</td></tr>
+    <tr><td>Unit tests added</td><td>&mdash;</td><td>0</td><td>54</td></tr>
+    <tr><td>Defects caught by review</td><td>N/A</td><td>0</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h3>A.3 Multi-Agent Subagent Breakdown</h3>
+
+<table>
+  <thead><tr><th>Phase</th><th>Cover</th><th>Barbarian</th></tr></thead>
+  <tbody>
+    <tr><td>SME Research</td><td>3</td><td>4</td></tr>
+    <tr><td>SME Review (R1)</td><td>4</td><td>4</td></tr>
+    <tr><td>SME Review (R2)</td><td>2</td><td>2</td></tr>
+    <tr><td>Implementers</td><td>3</td><td>3</td></tr>
+    <tr><td>Test Writers</td><td>2</td><td>2</td></tr>
+    <tr><td><strong>Total</strong></td><td><strong>14</strong></td><td><strong>15</strong></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2 id="appendix-b" class="appendix">Appendix B: Defect Catalog</h2>
+
+<h3>B.1 Human Developer Defects</h3>
+
+<p><strong>Cover task (6 bugs)</strong>: Logic defects that survived TDD test suite, discovered through later integration testing.</p>
+
+<p><strong>Barbarian task (12 bugs)</strong>: Caused by incorrect test specifications encoding wrong assumptions about rage-end timing, damage resistance scope, and dual-path turn management.</p>
+
+<h3>B.2 Single-Agent Defects</h3>
+
+<table>
+  <thead><tr><th>ID</th><th>Task</th><th>Description</th><th>Severity</th></tr></thead>
+  <tbody>
+    <tr><td>SA-1</td><td>Cover</td><td>Missing <code>castSpell()</code> in total-cover early return &mdash; spell not consumed</td><td>Gameplay-breaking</td></tr>
+    <tr><td>SA-2</td><td>Cover</td><td>Missing null guards on map/position data &mdash; server crash</td><td>Critical</td></tr>
+  </tbody>
+</table>
+
+<h3>B.3 Defects Prevented by Multi-Agent SME Review</h3>
+
+<table>
+  <thead><tr><th>ID</th><th>Task</th><th>Description</th><th>Severity</th><th>Caught By</th></tr></thead>
+  <tbody>
+    <tr><td>MA-1</td><td>Cover</td><td>castSpell early return (same as SA-1)</td><td>Gameplay-breaking</td><td>SpellSystem-SME</td></tr>
+    <tr><td>MA-2</td><td>Cover</td><td>Null guards (same as SA-2)</td><td>Critical</td><td>CombatOrchestration-SME</td></tr>
+    <tr><td>MA-3</td><td>Barbarian</td><td>Feral Instinct wrong function target</td><td>Gameplay-breaking</td><td>CombatOrchestration-SME</td></tr>
+    <tr><td>MA-4</td><td>Barbarian</td><td>Rage tracking in wrong handler</td><td>Gameplay-breaking</td><td>CombatOrchestration-SME</td></tr>
+    <tr><td>MA-5</td><td>Barbarian</td><td>Missing extractActionEconomy() dual-reset</td><td>Gameplay-breaking</td><td>CombatOrchestration-SME</td></tr>
+  </tbody>
+</table>
+
+<h3>B.4 Defects Not Caught by SME Review</h3>
+
+<table>
+  <thead><tr><th>ID</th><th>Task</th><th>Description</th><th>Caught By</th></tr></thead>
+  <tbody>
+    <tr><td>MA-X1</td><td>Barbarian</td><td>Rage-end check on outgoing combatant instead of incoming</td><td>E2E testing</td></tr>
+  </tbody>
+</table>
+
+<p>This implementation-level timing error confirms that SME review is effective at the design level but does not replace runtime verification.</p>
+
+<footer>
+  <p>Report generated March 2026. Data sources: git diff analysis, test output files, conversation transcripts, developer self-report.<br>
+  AI metrics collected from GitHub Copilot with Claude Opus 4.6.<br>
+  <a href="https://github.com/mweyamutsvene/DungeonMaster/tree/master/.github/study">View raw data on GitHub</a></p>
+</footer>
+
+</body>
+</html>
