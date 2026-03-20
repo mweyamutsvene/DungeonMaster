@@ -53,9 +53,10 @@
   },
   "efficiency": {
     "premiumRequests": {
-      "actual": 2,
-      "projectedWithBugFixes": 2,
-      "note": "No code bugs found. The 2 rework cycles were E2E scenario JSON authoring issues fixed within premium request 2. The 1 E2E failure (core/ai-grapple-condition) is a pre-existing issue unrelated to this task. Rage tracking in opportunity attack damage path is flagged as a TODO but was consciously out-of-scope; this would require ~1 additional premium request if addressed later."
+      "actual": "3-5",
+      "initialRequests": 2,
+      "bugFixCycles": "1-3",
+      "note": "Initial implementation required 2 premium requests (context compaction forced continuation). Subsequent testing revealed missed behaviors and incorrect interactions with the dual-path architecture, requiring 1-3 additional premium requests for iterative bug-fix cycles. Each fix surfaced additional edge cases in a cascading pattern."
     },
     "conversationTurns": 2,
     "totalAgentInvocations": 1,

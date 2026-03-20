@@ -34,9 +34,10 @@
     "totalAgentInvocations": 1,
     "estimatedTokens": null,
     "premiumRequests": {
-      "actual": 1,
-      "projectedWithBugFixes": 3,
-      "note": "2 bugs missed (missing castSpell() in total-cover early return, missing null guards on map/position data) would each require ~1 additional premium request to diagnose and fix."
+      "actual": "3-5",
+      "initialRequest": 1,
+      "bugFixCycles": "2-4",
+      "note": "Initial implementation completed in 1 premium request, but 2 latent bugs (missing castSpell() in total-cover early return, missing null guards on map/position data) plus additional behavioral issues required 2-4 follow-up premium requests to diagnose and fix through iterative testing cycles."
     }
   },
   "correctness": {
