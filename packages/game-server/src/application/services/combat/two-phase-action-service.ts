@@ -473,7 +473,7 @@ export class TwoPhaseActionService {
         await this.events.append(sessionId, {
           id: nanoid(),
           type: "ReactionPrompt",
-          payload: payload as JsonValue,
+          payload,
         });
       }
     }
@@ -785,7 +785,7 @@ export class TwoPhaseActionService {
               hit: true,
               critical,
               damage: totalDamage,
-            } as JsonValue,
+            },
           });
         }
 
@@ -877,7 +877,7 @@ export class TwoPhaseActionService {
           to: finalPosition, // Shows where they actually ended (might be where they started if died)
           distanceMoved: calculateDistance(moveData.from, finalPosition),
           interrupted: !targetStillAlive, // Flag to show movement was interrupted by death
-        } as JsonValue,
+        },
       });
     }
 
@@ -1050,7 +1050,7 @@ export class TwoPhaseActionService {
         await this.events.append(sessionId, {
           id: nanoid(),
           type: "ReactionPrompt",
-          payload: payload as JsonValue,
+          payload,
         });
       }
     }
@@ -1180,7 +1180,7 @@ export class TwoPhaseActionService {
             spellSaveDC,
             saveRoll: saveTotal,
             success,
-          } as JsonValue,
+          },
         });
       }
 
@@ -1378,7 +1378,7 @@ export class TwoPhaseActionService {
         await this.events.append(sessionId, {
           id: nanoid(),
           type: "ReactionPrompt",
-          payload: payload as JsonValue,
+          payload,
         });
       }
     }
@@ -1500,7 +1500,7 @@ export class TwoPhaseActionService {
             casterName: targetName,
             previousAC: finalAC - 5,
             newAC: finalAC,
-          } as JsonValue,
+          },
         });
       }
     }
@@ -1564,7 +1564,7 @@ export class TwoPhaseActionService {
               monkLevel,
               totalReduction,
               damageAfterReduction: damageApplied,
-            } as JsonValue,
+            },
           });
         }
 
@@ -1639,7 +1639,7 @@ export class TwoPhaseActionService {
                       hpCurrent: attackerHpAfter,
                       damageType: "force",
                       source: "DeflectAttacksRedirect",
-                    } as JsonValue,
+                    },
                   });
                 }
               }
@@ -1664,7 +1664,7 @@ export class TwoPhaseActionService {
                     martialArtsDieSize: maDieSize,
                     dexMod,
                     proficiencyBonus: profBonus,
-                  } as JsonValue,
+                  },
                 });
               }
 
@@ -1709,7 +1709,7 @@ export class TwoPhaseActionService {
               targetName,
               amount: damageApplied,
               hpCurrent: hpAfter,
-            } as JsonValue,
+            },
           });
         }
 
@@ -1728,7 +1728,7 @@ export class TwoPhaseActionService {
               hit: true,
               critical: attackData.critical ?? false,
               damageApplied,
-            } as JsonValue,
+            },
           });
         }
       }
@@ -1749,7 +1749,7 @@ export class TwoPhaseActionService {
             critical: false,
             damageApplied: 0,
             shieldUsed,
-          } as JsonValue,
+          },
         });
       }
     }
@@ -1895,7 +1895,7 @@ export class TwoPhaseActionService {
       await this.events.append(sessionId, {
         id: nanoid(),
         type: "ReactionPrompt",
-        payload: payload as JsonValue,
+        payload,
       });
     }
 
@@ -2009,7 +2009,7 @@ export class TwoPhaseActionService {
                 ? normalizeResources(reactorState.resources).hpMax as number : 999,
               reactorState.hpCurrent + healBack,
             ),
-          } as JsonValue,
+          },
         });
       }
     } else if (reactionType === "hellish_rebuke") {
@@ -2061,7 +2061,7 @@ export class TwoPhaseActionService {
                 hpCurrent: attackerHpAfter,
                 damageType: "fire",
                 source: "HellishRebuke",
-              } as JsonValue,
+              },
             });
           }
         }
@@ -2097,7 +2097,7 @@ export class TwoPhaseActionService {
             targetId: drData.attackerId,
             damage: retaliationDamage ?? 0,
             saved: retaliationSaved ?? false,
-          } as JsonValue,
+          },
         });
       }
     }

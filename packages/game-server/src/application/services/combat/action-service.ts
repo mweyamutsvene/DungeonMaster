@@ -1,4 +1,4 @@
-﻿
+
 import { nanoid } from "nanoid";
 
 import { resolveAttack, type AttackSpec } from "../../../domain/combat/attack-resolver.js";
@@ -13,7 +13,7 @@ import {
 } from "./helpers/concentration-helper.js";
 import { attemptMovement, crossesThroughReach, calculateDistance, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
 import { canMakeOpportunityAttack } from "../../../domain/rules/opportunity-attack.js";
-import { resolveShove, resolveGrapple, isTargetTooLarge } from "../../../domain/rules/grapple-shove.js";
+import { shoveTarget, grappleTarget, escapeGrapple, isTargetTooLarge } from "../../../domain/rules/grapple-shove.js";
 import { attemptHide } from "../../../domain/rules/hide.js";
 import { attemptSearch } from "../../../domain/rules/search-use-object.js";
 
@@ -39,7 +39,12 @@ import {
   addActiveEffectsToResources,
   getActiveEffects,
   isConditionImmuneByEffects,
+  canMakeAttack,
+  useAttack,
+  setAttacksAllowed,
+  getAttacksAllowedThisTurn,
 } from "./helpers/resource-utils.js";
+import { ClassFeatureResolver } from "../../../domain/entities/classes/class-feature-resolver.js";
 import {
   createEffect,
   hasAdvantageFromEffects,
@@ -58,6 +63,7 @@ import type { ICombatantResolver } from "./helpers/combatant-resolver.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantStateByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
+import { isRecord, readNumber } from "./helpers/json-helpers.js";
 
 type AbilityScoresData = Record<Ability, number>;
 
@@ -71,15 +77,6 @@ type CreatureAdapter = {
     baseMode: "normal" | "advantage" | "disadvantage",
   ) => "normal" | "advantage" | "disadvantage";
 };
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null;
-}
-
-function readNumber(obj: Record<string, unknown>, key: string): number | null {
-  const v = obj[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
 
 function extractAbilityScores(raw: unknown): AbilityScoresData | null {
   if (!isRecord(raw)) return null;
@@ -406,7 +403,7 @@ export class ActionService {
           action,
           ...(extra?.spellName ? { spellName: extra.spellName } : {}),
           ...(extra?.target ? { target: extra.target } : {}),
-        } satisfies JsonValue,
+        },
       });
 
       // TODO: Re-enable action narration when INarrativeGenerator is wired to ActionService
@@ -518,7 +515,7 @@ export class ActionService {
 
     const diceRoller = new SeededDiceRoller(seed);
 
-    // ── ActiveEffect integration: advantage/disadvantage + AC bonus + attack bonus + extra damage + defenses ──
+    // -- ActiveEffect integration: advantage/disadvantage + AC bonus + attack bonus + extra damage + defenses --
     const attackerActiveEffects = getActiveEffects(attackerState.resources ?? {});
     const targetActiveEffects = getActiveEffects(targetState.resources ?? {});
     const attackKind: "melee" | "ranged" = spec.kind === "ranged" ? "ranged" : "melee";
@@ -535,7 +532,7 @@ export class ActionService {
     if (attackKind === 'melee' && hasDisadvantageFromEffects(attackerActiveEffects, 'melee_attack_rolls')) effectDisadvantage++;
     if (attackKind === 'ranged' && hasDisadvantageFromEffects(attackerActiveEffects, 'ranged_attack_rolls')) effectDisadvantage++;
 
-    // Target's effects on incoming attacks (e.g., Dodge → disadvantage, Reckless Attack → advantage)
+    // Target's effects on incoming attacks (e.g., Dodge ? disadvantage, Reckless Attack ? advantage)
     for (const eff of targetActiveEffects) {
       if (eff.target !== 'attack_rolls' && eff.target !== 'melee_attack_rolls' && eff.target !== 'ranged_attack_rolls') continue;
       if (eff.target === 'melee_attack_rolls' && attackKind !== 'melee') continue;
@@ -640,7 +637,7 @@ export class ActionService {
     // Apply KO effects if target dropped to 0 HP
     await applyKoEffectsIfNeeded(targetState, targetState.hpCurrent, newHp, this.combat);
 
-    // ── ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) ──
+    // -- ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) --
     const damageApplied = targetState.hpCurrent - newHp;
     if (damageApplied > 0 && attackKind === "melee") {
       const retaliatory = targetActiveEffects.filter(e => e.type === 'retaliatory_damage');
@@ -661,7 +658,7 @@ export class ActionService {
           const atkHpAfter = Math.max(0, atkHpBefore - totalRetaliatoryDamage);
           await this.combat.updateCombatantState(attackerState.id, { hpCurrent: atkHpAfter });
           await applyKoEffectsIfNeeded(attackerState, atkHpBefore, atkHpAfter, this.combat);
-          console.log(`[ActionService.attack] Retaliatory damage: ${totalRetaliatoryDamage} to attacker (HP: ${atkHpBefore} → ${atkHpAfter})`);
+          console.log(`[ActionService.attack] Retaliatory damage: ${totalRetaliatoryDamage} to attacker (HP: ${atkHpBefore} ? ${atkHpAfter})`);
         }
       }
     }
@@ -676,8 +673,8 @@ export class ActionService {
         type: "AttackResolved",
         payload: {
           encounterId: encounter.id,
-          attacker: { ...input.attacker, weapon: attackerEquippedWeapon, armor: attackerEquippedArmor },
-          target: { ...input.target, ac: targetAC, weapon: targetEquippedWeapon, armor: targetEquippedArmor },
+          attacker: input.attacker,
+          target: input.target,
           attackName: spec.name || attackerEquippedWeapon,
           // Flattened fields for easier consumption
           attackRoll: result.attack.d20,
@@ -689,7 +686,7 @@ export class ActionService {
           damageApplied: result.damage.applied,
           // Full result for backward compatibility
           result,
-        } satisfies JsonValue,
+        },
       });
 
       if ((result as any).hit && (result as any).damage?.applied > 0) {
@@ -701,7 +698,7 @@ export class ActionService {
             target: input.target,
             amount: (result as any).damage.applied,
             hpCurrent: newHp,
-          } satisfies JsonValue,
+          },
         });
 
         // Check concentration if target is concentrating
@@ -742,7 +739,7 @@ export class ActionService {
               dc: checkResult.dc,
               roll: checkResult.check.total,
               damage: appliedDamage,
-            } satisfies JsonValue,
+            },
           });
         }
       }
@@ -871,7 +868,7 @@ export class ActionService {
           success: hideResult.success,
           stealthRoll: hideResult.stealthRoll,
           reason: hideResult.reason,
-        } satisfies JsonValue,
+        },
       });
     }
 
@@ -987,7 +984,7 @@ export class ActionService {
           action: "Search",
           perceptionRoll,
           found,
-        } satisfies JsonValue,
+        },
       });
     }
 
@@ -1017,8 +1014,14 @@ export class ActionService {
     result: {
       success: boolean;
       shoveType: "push" | "prone";
-      attackerRoll: number;
-      targetRoll: number;
+      attackRoll: number;
+      attackTotal: number;
+      targetAC: number;
+      hit: boolean;
+      dc: number;
+      saveRoll: number;
+      total: number;
+      abilityUsed: "strength" | "dexterity";
       reason?: string;
       pushedTo?: Position;
     };
@@ -1030,7 +1033,20 @@ export class ActionService {
     const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
       encounterId: input.encounterId,
       actor: input.actor,
+      skipActionCheck: true,
     });
+
+    // D&D 5e 2024: Shove replaces one attack within a multi-attack action (Unarmed Strike).
+    // Set up attacksAllowedThisTurn based on Extra Attack, then check canMakeAttack.
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+    let currentResources = actorState.resources;
+    const attacksPerAction = ClassFeatureResolver.getAttacksPerAction(null, actorStats.className, actorStats.level);
+    if (attacksPerAction > 1 && getAttacksAllowedThisTurn(currentResources) === 1) {
+      currentResources = setAttacksAllowed(currentResources, attacksPerAction);
+    }
+    if (!canMakeAttack(currentResources)) {
+      throw new ValidationError("Actor has no attacks remaining this turn");
+    }
 
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
@@ -1062,39 +1078,36 @@ export class ActionService {
         `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:Shove:${JSON.stringify(input.actor)}:${JSON.stringify(input.target)}:${shoveType}`,
       );
 
-    const actorStats = await this.combatants.getCombatStats(input.actor);
     const targetStats = await this.combatants.getCombatStats(input.target);
 
-    const attackerAthleticsModifier = modifier(actorStats.abilityScores.strength);
-    const targetContestModifier = Math.max(
-      modifier(targetStats.abilityScores.strength),
-      modifier(targetStats.abilityScores.dexterity),
-    );
+    const attackerStrMod = modifier(actorStats.abilityScores.strength);
+    const targetStrMod = modifier(targetStats.abilityScores.strength);
+    const targetDexMod = modifier(targetStats.abilityScores.dexterity);
+
+    // Check size - target can be at most one size larger
+    const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
 
     const dice = new SeededDiceRoller(seed);
 
-    // ActiveEffect bonuses on ability checks (e.g., Guidance, Hex disadvantage)
-    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'strength');
-    const targetCheckMods = abilityCheckEffectMods(targetState.resources, dice);
+    const result = shoveTarget(
+      attackerStrMod,
+      actorStats.proficiencyBonus,
+      targetStats.armorClass,
+      targetStrMod,
+      targetDexMod,
+      targetTooLarge,
+      dice,
+    );
 
-    const contested = resolveShove(dice, {
-      attackerAthleticsModifier: attackerAthleticsModifier + actorCheckMods.bonus,
-      targetContestModifier: targetContestModifier + targetCheckMods.bonus,
-      targetTooLarge: false,
-      shoveType,
-      attackerMode: actorCheckMods.mode,
-      targetMode: targetCheckMods.mode,
-    });
-
-    // Spend action.
+    // Consume one attack from the multi-attack pool (marks action spent when all attacks used).
     const updatedActor = await this.combat.updateCombatantState(actorState.id, {
-      resources: spendAction(actorState.resources),
+      resources: useAttack(currentResources),
     });
 
     let updatedTarget = targetState;
     let pushedTo: Position | undefined;
 
-    if (contested.success && shoveType === "push") {
+    if (result.success && shoveType === "push") {
       const len = dist > 0.0001 ? dist : 1;
       const ux = dx / len;
       const uy = dy / len;
@@ -1116,7 +1129,7 @@ export class ActionService {
       });
     }
 
-    if (contested.success && shoveType === "prone") {
+    if (result.success && shoveType === "prone") {
       if (!isConditionImmuneByEffects(targetState.resources, "Prone")) {
         let conditions = normalizeConditions(targetState.conditions);
         conditions = addCondition(conditions, createCondition("Prone" as Condition, "until_removed"));
@@ -1136,11 +1149,17 @@ export class ActionService {
           action: "Shove",
           target: input.target,
           shoveType,
-          success: contested.success,
-          attackerRoll: contested.attackerRoll,
-          targetRoll: contested.targetRoll,
+          success: result.success,
+          attackRoll: result.attackRoll,
+          attackTotal: result.attackTotal,
+          targetAC: result.targetAC,
+          hit: result.hit,
+          dc: result.dc,
+          saveRoll: result.saveRoll,
+          total: result.total,
+          abilityUsed: result.abilityUsed,
           ...(pushedTo ? { pushedTo } : {}),
-        } satisfies JsonValue,
+        },
       });
     }
 
@@ -1148,11 +1167,17 @@ export class ActionService {
       actor: updatedActor,
       target: updatedTarget,
       result: {
-        success: contested.success,
+        success: result.success,
         shoveType,
-        attackerRoll: contested.attackerRoll,
-        targetRoll: contested.targetRoll,
-        reason: contested.reason,
+        attackRoll: result.attackRoll,
+        attackTotal: result.attackTotal,
+        targetAC: result.targetAC,
+        hit: result.hit,
+        dc: result.dc,
+        saveRoll: result.saveRoll,
+        total: result.total,
+        abilityUsed: result.abilityUsed,
+        reason: result.reason,
         ...(pushedTo ? { pushedTo } : {}),
       },
     };
@@ -1163,8 +1188,14 @@ export class ActionService {
     target: CombatantStateRecord;
     result: {
       success: boolean;
-      attackerRoll: number;
-      targetRoll: number;
+      attackRoll: number;
+      attackTotal: number;
+      targetAC: number;
+      hit: boolean;
+      dc: number;
+      saveRoll: number;
+      total: number;
+      abilityUsed: "strength" | "dexterity";
       reason?: string;
     };
   }> {
@@ -1175,7 +1206,20 @@ export class ActionService {
     const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
       encounterId: input.encounterId,
       actor: input.actor,
+      skipActionCheck: true,
     });
+
+    // D&D 5e 2024: Grapple replaces one attack within a multi-attack action (Unarmed Strike).
+    // Set up attacksAllowedThisTurn based on Extra Attack, then check canMakeAttack.
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+    let currentResources = actorState.resources;
+    const attacksPerAction = ClassFeatureResolver.getAttacksPerAction(null, actorStats.className, actorStats.level);
+    if (attacksPerAction > 1 && getAttacksAllowedThisTurn(currentResources) === 1) {
+      currentResources = setAttacksAllowed(currentResources, attacksPerAction);
+    }
+    if (!canMakeAttack(currentResources)) {
+      throw new ValidationError("Actor has no attacks remaining this turn");
+    }
 
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
@@ -1206,49 +1250,45 @@ export class ActionService {
         `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:Grapple:${JSON.stringify(input.actor)}:${JSON.stringify(input.target)}`,
       );
 
-    const actorStats = await this.combatants.getCombatStats(input.actor);
     const targetStats = await this.combatants.getCombatStats(input.target);
 
-    const attackerAthleticsModifier = modifier(actorStats.abilityScores.strength);
-    const targetContestModifier = Math.max(
-      modifier(targetStats.abilityScores.strength),
-      modifier(targetStats.abilityScores.dexterity),
-    );
+    const attackerStrMod = modifier(actorStats.abilityScores.strength);
+    const targetStrMod = modifier(targetStats.abilityScores.strength);
+    const targetDexMod = modifier(targetStats.abilityScores.dexterity);
 
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
 
     // Check free hand - character needs at least one free hand to grapple
-    // A two-handed weapon occupies both hands, so no free hand available
     const hasFreeHand = !actorStats.hasTwoHandedWeapon;
 
     const dice = new SeededDiceRoller(seed);
 
-    // ActiveEffect bonuses on ability checks (e.g., Guidance, Hex disadvantage)
-    const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'strength');
-    const targetCheckMods = abilityCheckEffectMods(targetState.resources, dice);
-
-    const contested = resolveGrapple(dice, {
-      attackerAthleticsModifier: attackerAthleticsModifier + actorCheckMods.bonus,
-      targetContestModifier: targetContestModifier + targetCheckMods.bonus,
+    const result = grappleTarget(
+      attackerStrMod,
+      actorStats.proficiencyBonus,
+      targetStats.armorClass,
+      targetStrMod,
+      targetDexMod,
       targetTooLarge,
       hasFreeHand,
-      attackerMode: actorCheckMods.mode,
-      targetMode: targetCheckMods.mode,
-    });
+      dice,
+    );
 
-    // Spend action.
+    // Consume one attack from the multi-attack pool (marks action spent when all attacks used).
     const updatedActor = await this.combat.updateCombatantState(actorState.id, {
-      resources: spendAction(actorState.resources),
+      resources: useAttack(currentResources),
     });
 
     let updatedTarget = targetState;
 
-    if (contested.success) {
-      // Apply Grappled condition to target
+    if (result.success) {
+      // Apply Grappled condition to target, storing grappler identity for escape contests
       if (!isConditionImmuneByEffects(targetState.resources, "Grappled")) {
         let conditions = normalizeConditions(targetState.conditions);
-        conditions = addCondition(conditions, createCondition("Grappled" as Condition, "until_removed"));
+        conditions = addCondition(conditions, createCondition("Grappled" as Condition, "until_removed", {
+          source: actorState.id,
+        }));
         updatedTarget = await this.combat.updateCombatantState(targetState.id, {
           conditions: conditions as any,
         });
@@ -1264,10 +1304,16 @@ export class ActionService {
           actor: input.actor,
           action: "Grapple",
           target: input.target,
-          success: contested.success,
-          attackerRoll: contested.attackerRoll,
-          targetRoll: contested.targetRoll,
-        } satisfies JsonValue,
+          success: result.success,
+          attackRoll: result.attackRoll,
+          attackTotal: result.attackTotal,
+          targetAC: result.targetAC,
+          hit: result.hit,
+          dc: result.dc,
+          saveRoll: result.saveRoll,
+          total: result.total,
+          abilityUsed: result.abilityUsed,
+        },
       });
     }
 
@@ -1275,10 +1321,145 @@ export class ActionService {
       actor: updatedActor,
       target: updatedTarget,
       result: {
-        success: contested.success,
-        attackerRoll: contested.attackerRoll,
-        targetRoll: contested.targetRoll,
-        reason: contested.reason,
+        success: result.success,
+        attackRoll: result.attackRoll,
+        attackTotal: result.attackTotal,
+        targetAC: result.targetAC,
+        hit: result.hit,
+        dc: result.dc,
+        saveRoll: result.saveRoll,
+        total: result.total,
+        abilityUsed: result.abilityUsed,
+        reason: result.reason,
+      },
+    };
+  }
+
+  /**
+   * Escape from a grapple (2024 rules).
+   * DC = 8 + grappler's STR mod + grappler's proficiency bonus.
+   * Escapee rolls Athletics (STR) or Acrobatics (DEX) � picks higher.
+   * On success the Grappled condition is removed.
+   */
+  async escapeGrapple(sessionId: string, input: SimpleActionBaseInput): Promise<{
+    actor: CombatantStateRecord;
+    result: {
+      success: boolean;
+      dc: number;
+      saveRoll: number;
+      total: number;
+      abilityUsed: "strength" | "dexterity";
+      reason?: string;
+    };
+  }> {
+    if (input.seed !== undefined && !Number.isInteger(input.seed)) {
+      throw new ValidationError("seed must be an integer");
+    }
+
+    const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
+      encounterId: input.encounterId,
+      actor: input.actor,
+    });
+
+    // Verify actor is actually grappled
+    const actorConditions = normalizeConditions(actorState.conditions);
+    const isGrappled = actorConditions.some(c => c.condition === "Grappled");
+    if (!isGrappled) {
+      throw new ValidationError("Actor is not grappled");
+    }
+
+    const seed =
+      (input.seed as number | undefined) ??
+      hashStringToInt32(
+        `${sessionId}:${encounter.id}:${encounter.round}:${encounter.turn}:EscapeGrapple:${JSON.stringify(input.actor)}`,
+      );
+
+    const actorStats = await this.combatants.getCombatStats(input.actor);
+
+    const escapeeStrMod = modifier(actorStats.abilityScores.strength);
+    const escapeeDexMod = modifier(actorStats.abilityScores.dexterity);
+
+    // Look up skill proficiencies for Athletics (STR) and Acrobatics (DEX)
+    const skills = actorStats.skills;
+    const skillProficiency = skills ? {
+      athleticsBonus: typeof skills.athletics === "number" ? actorStats.proficiencyBonus : 0,
+      acrobaticsBonus: typeof skills.acrobatics === "number" ? actorStats.proficiencyBonus : 0,
+    } : undefined;
+
+    // Find who grappled the actor � look for grapple source on the condition,
+    // or fallback to STR +0 / prof +2 if grappler can't be identified
+    let grapplerStrMod = 0;
+    let grapplerProfBonus = 2;
+    const grapplerCondition = actorConditions.find(c => c.condition === "Grappled" && c.source);
+    if (grapplerCondition?.source) {
+      const grappler = combatants.find(c => c.id === grapplerCondition.source);
+      if (grappler) {
+        const grapplerRef: CombatantRef =
+          grappler.combatantType === "Character"
+            ? { type: "Character", characterId: grappler.characterId ?? grappler.id }
+            : grappler.combatantType === "NPC"
+              ? { type: "NPC", npcId: grappler.npcId ?? grappler.id }
+              : { type: "Monster", monsterId: grappler.monsterId ?? grappler.id };
+        const grapplerStats = await this.combatants.getCombatStats(grapplerRef);
+        grapplerStrMod = modifier(grapplerStats.abilityScores.strength);
+        grapplerProfBonus = grapplerStats.proficiencyBonus;
+      }
+    }
+
+    const dice = new SeededDiceRoller(seed);
+
+    const result = escapeGrapple(
+      grapplerStrMod,
+      grapplerProfBonus,
+      escapeeStrMod,
+      escapeeDexMod,
+      dice,
+      skillProficiency,
+    );
+
+    // Spend action
+    const updatedResources = spendAction(actorState.resources);
+
+    let updatedActor: CombatantStateRecord;
+    if (result.success) {
+      // Remove Grappled condition on success
+      const conditions = removeCondition(actorConditions, "Grappled" as Condition);
+      updatedActor = await this.combat.updateCombatantState(actorState.id, {
+        resources: updatedResources,
+        conditions: conditions as any,
+      });
+    } else {
+      updatedActor = await this.combat.updateCombatantState(actorState.id, {
+        resources: updatedResources,
+      });
+    }
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "ActionResolved",
+        payload: {
+          encounterId: encounter.id,
+          actor: input.actor,
+          action: "EscapeGrapple",
+          success: result.success,
+          dc: result.dc,
+          saveRoll: result.saveRoll,
+          total: result.total,
+          abilityUsed: result.abilityUsed,
+        },
+      });
+    }
+
+    return {
+      actor: updatedActor,
+      result: {
+        success: result.success,
+        dc: result.dc,
+        saveRoll: result.saveRoll,
+        total: result.total,
+        abilityUsed: result.abilityUsed,
+        reason: result.reason,
       },
     };
   }
@@ -1551,7 +1732,7 @@ export class ActionService {
             targetId: opp.targetId,
             attackName: spec.name || "Melee Attack",
             result: attackResult,
-          } satisfies JsonValue,
+          },
         });
 
         if ((attackResult as any).hit && (attackResult as any).damage?.applied > 0) {
@@ -1563,7 +1744,7 @@ export class ActionService {
               target: input.actor,
               amount: (attackResult as any).damage.applied,
               hpCurrent: newHp,
-            } satisfies JsonValue,
+            },
           });
         }
       }
@@ -1580,7 +1761,7 @@ export class ActionService {
           from: currentPos,
           to: input.destination,
           distanceMoved: movementResult.distanceMoved,
-        } satisfies JsonValue,
+        },
       });
     }
 

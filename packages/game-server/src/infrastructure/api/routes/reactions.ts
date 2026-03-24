@@ -134,7 +134,7 @@ export function registerReactionRoutes(
     await deps.events.append(encounter.sessionId, {
       id: nanoid(),
       type: "ReactionResolved",
-      payload: payload as JsonValue,
+      payload,
     });
 
     // Check if all reactions are now resolved

@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import type { IEventRepository } from "../../application/repositories/event-repository.js";
-import type { GameEventRecord, JsonValue } from "../../application/types.js";
+import type { IEventRepository, GameEventInput } from "../../application/repositories/event-repository.js";
+import type { GameEventRecord } from "../../application/types.js";
 
 /**
  * Prisma-backed append-only game event store.
@@ -13,7 +13,7 @@ export class PrismaEventRepository implements IEventRepository {
 
   async append(
     sessionId: string,
-    input: { id: string; type: string; payload: JsonValue },
+    input: { id: string } & GameEventInput,
   ): Promise<GameEventRecord> {
     const created = await this.prisma.gameEvent.create({
       data: {

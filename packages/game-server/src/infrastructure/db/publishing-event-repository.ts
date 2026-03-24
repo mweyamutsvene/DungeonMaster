@@ -1,5 +1,5 @@
-import type { IEventRepository } from "../../application/repositories/event-repository.js";
-import type { GameEventRecord, JsonValue } from "../../application/types.js";
+import type { IEventRepository, GameEventInput } from "../../application/repositories/event-repository.js";
+import type { GameEventRecord } from "../../application/types.js";
 import type { SSEEvent } from "../api/realtime/sse-broker.js";
 import { sseBroker } from "../api/realtime/sse-broker.js";
 
@@ -13,7 +13,7 @@ export class PublishingEventRepository implements IEventRepository {
 
   async append(
     sessionId: string,
-    input: { id: string; type: string; payload: JsonValue },
+    input: { id: string } & GameEventInput,
   ): Promise<GameEventRecord> {
     const created = await this.inner.append(sessionId, input);
 
