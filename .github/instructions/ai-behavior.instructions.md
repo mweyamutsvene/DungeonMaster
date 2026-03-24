@@ -68,6 +68,7 @@ classDiagram
 5. **Multiple backends** — Ollama (local), OpenAI, GitHub Models. Factory pattern via env vars. Always test with mock provider
 6. **SpyLlmProvider** wraps real providers for snapshot testing — prompt format changes require `test:llm:e2e:snapshot-update`
 7. **Mock providers** in `infrastructure/llm/mocks/` — used by all deterministic tests, must return structurally valid responses
+8. **`moveAwayFrom` uses `getReachableCells` internally** — `MoveAwayFromHandler` calls `findRetreatPosition()` which runs a Dijkstra flood-fill to find cells truly reachable within the speed budget. Do NOT replace this with Euclidean distance — that would allow picking cells behind walls or only reachable via detours that exceed the budget.
 
 ## Battle Plan Replan Heuristics
 

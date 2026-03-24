@@ -75,6 +75,9 @@ classDiagram
 | `DeathSaveState` | `death-saves.ts` | Death save success/failure tracking |
 | `TerrainType` (12 types) | `combat-map-types.ts` | Grid cell terrain classification |
 | `CombatMap` interface | `combat-map-types.ts` | Full battlefield state (cells, entities, zones, ground items) |
+| `findPath()` | `pathfinding.ts` | A* shortest path with movement budget, terrain costs, zone penalties |
+| `getReachableCells()` | `pathfinding.ts` | Dijkstra flood-fill — all cells truly reachable within a movement budget |
+| `findRetreatPosition()` | `pathfinding.ts` | Best retreat destination using `getReachableCells` (not Euclidean estimate) |
 
 ## Combat Map Module Family
 
@@ -99,3 +102,4 @@ classDiagram
 4. **D&D 5e 2024 rules** — not 2014. Verify against 2024 edition for any mechanic
 5. **Dependency direction**: Rules → entities (never reversed, except `character.ts` → rest/hp rules)
 6. **Cover uses ray-marching** — `getCoverLevel()` in `combat-map-sight.ts` samples the attacker→target line at `ceil(distance/gridSize)` intervals (same as `hasLineOfSight`). Cover cells at attacker and target positions are excluded — only intermediate cells count. `terrainToCoverLevel()` maps all terrain types: `"wall"` and `"cover-full"` → full, `"cover-three-quarters"` → three-quarters, `"cover-half"` and `"obstacle"` → half. Adding new terrain that should grant cover: add a case to `terrainToCoverLevel()` in `combat-map-sight.ts`.
+7. **Pathfinding reachability vs. Euclidean distance** — always use `getReachableCells(map, from, maxCostFeet, options)` when you need to know which cells are genuinely within a creature's movement budget. Euclidean distance (`calculateDistance`) is NOT a valid proxy for movement cost — it ignores walls, difficult terrain, and diagonal alternating cost. `findRetreatPosition` uses `getReachableCells` internally for this reason.
