@@ -28,6 +28,7 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeResources } from "../helpers/resource-utils.js";
 import type { BattlePlanService } from "./battle-plan-service.js";
 
 /**
@@ -93,6 +94,7 @@ export class AiTurnOrchestrator {
       this.aiLog.bind(this),
       diceRoller,
       events,
+      characters, // for spell slot + concentration bookkeeping
     );
   }
 
@@ -349,6 +351,23 @@ export class AiTurnOrchestrator {
 
     while (!turnComplete && iterations < maxIterations) {
       iterations++;
+
+      // Check for deferred bonus action (stored when attack was paused by a reaction)
+      const currentRes = normalizeResources(currentAiCombatant.resources);
+      if (typeof (currentRes as any).pendingBonusAction === "string" && (currentRes as any).pendingBonusAction) {
+        const deferredBonus = (currentRes as any).pendingBonusAction as string;
+        // Clear it first to avoid re-execution on any subsequent loops
+        await this.combat.updateCombatantState(currentAiCombatant.id, {
+          resources: { ...currentRes, pendingBonusAction: undefined } as any,
+        });
+        // Execute the deferred bonus action then end turn (main action was already spent)
+        const actorRef = this.buildActorRef(aiCombatant);
+        const syntheticDecision: AiDecision = { action: "endTurn", bonusAction: deferredBonus, endTurn: true };
+        await this.actionExecutor.executeBonusAction(
+          sessionId, encounter.id, currentAiCombatant, syntheticDecision, actorRef,
+        );
+        break; // End the turn — main action was already spent before the reaction
+      }
 
       // Build combat context for LLM
       const context = await this.contextBuilder.build(

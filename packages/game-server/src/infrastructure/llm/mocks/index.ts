@@ -723,7 +723,7 @@ export interface CapturedAiContext {
 
 export class MockAiDecisionMaker implements IAiDecisionMaker {
   private queuedDecisions: AiDecision[] = [];
-  private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide" = "attack";
+  private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" = "attack";
   private defaultBonusAction?: string;
 
   /** Captured contexts from every decide() call, for test assertions. */
@@ -763,7 +763,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
   /**
    * Set the default behavior when queue is empty.
    */
-  setDefaultBehavior(behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide"): void {
+  setDefaultBehavior(behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"): void {
     this.defaultBehavior = behavior;
   }
 
@@ -830,6 +830,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
         return {
           action: "grapple",
           target: livingEnemy.name,
+          seed: 42, // fixed seed: atk d20=13 (hits most AC), save d20=9 (fails most DCs)
           endTurn: true,
           intentNarration: `${input.combatantName} tries to grab ${livingEnemy.name}!`,
         } satisfies AiDecision;
@@ -842,6 +843,25 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
         action: "hide",
         endTurn: true,
         intentNarration: `${input.combatantName} tries to hide!`,
+      } satisfies AiDecision;
+    }
+
+    // Escape Grapple behavior: attempt to break free from grapple
+    if (this.defaultBehavior === "escapeGrapple") {
+      return {
+        action: "escapeGrapple",
+        seed: 100, // fixed seed: d20=5, low roll ensures escape fails vs typical DC 15
+        endTurn: true,
+        intentNarration: `${input.combatantName} tries to break free from the grapple!`,
+      } satisfies AiDecision;
+    }
+
+    // Use Potion behavior: drink a healing potion
+    if (this.defaultBehavior === "usePotion") {
+      return {
+        action: "useObject",
+        endTurn: true,
+        intentNarration: `${input.combatantName} reaches for a healing potion!`,
       } satisfies AiDecision;
     }
     

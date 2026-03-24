@@ -10,61 +10,31 @@ import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { ActionService as CombatActionService } from "../action-service.js";
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
 import type { ICombatRepository } from "../../../repositories/index.js";
+import type { ICharacterRepository } from "../../../repositories/character-repository.js";
 import type { IEventRepository } from "../../../repositories/event-repository.js";
 import type { PendingActionRepository } from "../../../repositories/pending-action-repository.js";
 import type { AbilityRegistry } from "../abilities/ability-registry.js";
 import type { AiDecision, TurnStepResult, ActorRef } from "./ai-types.js";
 import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { CombatantRef } from "../helpers/combatant-ref.js";
-import { nanoid } from "nanoid";
-import { normalizeResources, hasResourceAvailable, readBoolean, getActiveEffects, getEffectiveSpeed, getPosition } from "../helpers/resource-utils.js";
-import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
+import { normalizeResources, hasResourceAvailable, getEffectiveSpeed, getPosition, spendAction } from "../helpers/resource-utils.js";
+import { findPreparedSpellInSheet, prepareSpellCast } from "../helpers/spell-slot-manager.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { findPath, findAdjacentPosition, findRetreatPosition } from "../../../../domain/rules/pathfinding.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
 import { getMapZones } from "../../../../domain/rules/combat-map.js";
-import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
-import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
-import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { normalizeConditions, hasCondition } from "../../../../domain/entities/combat/conditions.js";
-import {
-  hasAdvantageFromEffects,
-  hasDisadvantageFromEffects,
-  calculateFlatBonusFromEffects,
-  calculateBonusFromEffects,
-  getDamageDefenseEffects,
-} from "../../../../domain/entities/combat/effects.js";
-import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { buildPathNarration } from "../tabletop/path-narrator.js";
-import { syncEntityPosition } from "../helpers/sync-map-entity.js";
-import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
-import { syncAuraZones } from "../helpers/aura-sync.js";
+import { resolveAiMovement, generateLinearPath, type AiMovementDeps } from "./ai-movement-resolver.js";
+import { AiAttackResolver } from "./ai-attack-resolver.js";
+import { getInventory } from "../helpers/resource-utils.js";
+import { findInventoryItem, useConsumableItem } from "../../../../domain/entities/items/inventory.js";
+import { POTION_HEALING_FORMULAS } from "../../../../domain/entities/items/magic-item-catalog.js";
+import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
 
 /** Logger signature for diagnostic output */
 type AiLogger = (msg: string) => void;
-
-/** Generate a cell-by-cell straight-line path between two grid positions (5ft cells).
- *  Uses DDA-style line rasterisation aligned to a 5ft grid. */
-function generateLinearPath(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): { x: number; y: number }[] {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 5) return [to]; // same or adjacent cell
-  const steps = Math.max(1, Math.round(dist / 5));
-  const cells: { x: number; y: number }[] = [];
-  for (let i = 1; i <= steps; i++) {
-    const ratio = i / steps;
-    cells.push({
-      x: Math.round(from.x + dx * ratio),
-      y: Math.round(from.y + dy * ratio),
-    });
-  }
-  return cells;
-}
 
 /**
  * AI reaction decision callback type.
@@ -88,6 +58,8 @@ export class AiActionExecutor {
     private readonly aiLog: AiLogger,
     private readonly diceRoller?: DiceRoller,
     private readonly events?: IEventRepository,
+    /** Character repository for spell slot + concentration bookkeeping. Optional for backward compat. */
+    private readonly characters?: ICharacterRepository,
   ) {}
 
   /**
@@ -175,6 +147,18 @@ export class AiActionExecutor {
     };
   }
 
+  /** Build deps bundle for resolveAiMovement. */
+  private getMovementDeps(): AiMovementDeps {
+    return {
+      combat: this.combat,
+      twoPhaseActions: this.twoPhaseActions,
+      pendingActions: this.pendingActions,
+      combatantResolver: this.combatantResolver,
+      aiDecideReaction: this.aiDecideReaction,
+      aiLog: this.aiLog,
+    };
+  }
+
   /**
    * Execute an AI decision and return the result.
    */
@@ -236,6 +220,10 @@ export class AiActionExecutor {
         return this.executeGrapple(sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef);
       }
 
+      if (decision.action === "escapeGrapple") {
+        return this.executeEscapeGrapple(sessionId, encounterId, aiCombatant, decision, actorRef);
+      }
+
       if (decision.action === "hide") {
         return this.executeHide(sessionId, encounterId, aiCombatant, decision, actorRef);
       }
@@ -245,12 +233,7 @@ export class AiActionExecutor {
       }
 
       if (decision.action === "useObject") {
-        return {
-          action: decision.action,
-          ok: false,
-          summary: "No usable objects available. Use 'attack', 'move', or 'endTurn' instead.",
-          data: { reason: "no_usable_objects" },
-        };
+        return this.executeUseObject(sessionId, encounterId, aiCombatant, decision, actorRef);
       }
 
       if (decision.action === "endTurn") {
@@ -402,450 +385,83 @@ export class AiActionExecutor {
     if ((targetHasShield || targetHasDeflectReaction) && this.diceRoller) {
       console.log("[AiActionExecutor] Target may have reactions (Shield/Deflect) - using two-phase attack flow");
 
-      // Build attack spec from monster's stat block
-      const attackerStats = await this.combatantResolver.getCombatStats(actorRef as CombatantRef);
-      const monsterAttacks = actorRef.type === "Monster" ? await this.combatantResolver.getMonsterAttacks(actorRef.monsterId) : [];
-      const desiredName = (decision.attackName ?? "").trim().toLowerCase();
-      const picked = monsterAttacks.find(
-        (a: any) => typeof a?.name === "string" && a.name.trim().toLowerCase() === desiredName,
-      ) as Record<string, unknown> | undefined;
+      const monsterAttacks = actorRef.type === "Monster"
+        ? await this.combatantResolver.getMonsterAttacks(actorRef.monsterId)
+        : [];
 
-      if (!picked) {
+      const attackOutcome = await new AiAttackResolver({
+        combat: this.combat,
+        twoPhaseActions: this.twoPhaseActions,
+        pendingActions: this.pendingActions,
+        combatantResolver: this.combatantResolver,
+        events: this.events,
+        diceRoller: this.diceRoller,
+        aiLog: this.aiLog,
+      }).resolve({
+        sessionId, encounterId,
+        aiCombatant, targetCombatant,
+        actorRef, targetRef,
+        attackName: decision.attackName,
+        monsterAttacks,
+      });
+
+      if (attackOutcome.status === "not_applicable") {
         console.log("[AiActionExecutor] Two-phase flow: attack not found, falling back to normal flow");
         // Fall through to normal path below
-      } else {
-        const attackBonusBase = typeof picked.attackBonus === "number" ? picked.attackBonus : 0;
-        const dmg = typeof picked.damage === "object" && picked.damage !== null ? picked.damage as Record<string, unknown> : null;
-        const diceCount = dmg && typeof dmg.diceCount === "number" ? dmg.diceCount : 1;
-        const diceSides = dmg && typeof dmg.diceSides === "number" ? dmg.diceSides : 6;
-        const modifier = dmg && typeof dmg.modifier === "number" ? dmg.modifier : 0;
-
-        // ── ActiveEffect integration: advantage/disadvantage + attack bonus + AC bonus ──
-        const attackerActiveEffects = getActiveEffects(aiCombatant.resources ?? {});
-        const targetActiveEffects = getActiveEffects(targetCombatant.resources ?? {});
-        const attackKind: "melee" | "ranged" = (picked as any).kind === "ranged" ? "ranged" : "melee";
-
-        // Count advantage/disadvantage from ActiveEffects
-        let effectAdvantage = 0;
-        let effectDisadvantage = 0;
-
-        // Attacker's self-effects
-        if (hasAdvantageFromEffects(attackerActiveEffects, 'attack_rolls')) effectAdvantage++;
-        if (attackKind === 'melee' && hasAdvantageFromEffects(attackerActiveEffects, 'melee_attack_rolls')) effectAdvantage++;
-        if (attackKind === 'ranged' && hasAdvantageFromEffects(attackerActiveEffects, 'ranged_attack_rolls')) effectAdvantage++;
-        if (hasDisadvantageFromEffects(attackerActiveEffects, 'attack_rolls')) effectDisadvantage++;
-        if (attackKind === 'melee' && hasDisadvantageFromEffects(attackerActiveEffects, 'melee_attack_rolls')) effectDisadvantage++;
-        if (attackKind === 'ranged' && hasDisadvantageFromEffects(attackerActiveEffects, 'ranged_attack_rolls')) effectDisadvantage++;
-
-        // Target's effects on incoming attacks (e.g., Dodge → disadvantage, Reckless Attack → advantage)
-        for (const eff of targetActiveEffects) {
-          if (eff.target !== 'attack_rolls' && eff.target !== 'melee_attack_rolls' && eff.target !== 'ranged_attack_rolls') continue;
-          if (eff.target === 'melee_attack_rolls' && attackKind !== 'melee') continue;
-          if (eff.target === 'ranged_attack_rolls' && attackKind !== 'ranged') continue;
-          if (!eff.targetCombatantId || eff.targetCombatantId !== targetCombatant.id) continue;
-          if (eff.type === 'advantage') effectAdvantage++;
-          if (eff.type === 'disadvantage') effectDisadvantage++;
-        }
-
-        // Resolve advantage/disadvantage from conditions + effects
-        const attackerCondNames = normalizeConditions(aiCombatant.conditions as unknown[]).map(c => c.condition);
-        const targetCondNames = normalizeConditions(targetCombatant.conditions as unknown[]).map(c => c.condition);
-        const rollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdvantage, effectDisadvantage);
-
-        // Roll d20 with resolved advantage/disadvantage mode
-        let d20: number;
-        if (rollMode === "advantage") {
-          const r1 = this.diceRoller.d20().total;
-          const r2 = this.diceRoller.d20().total;
-          d20 = Math.max(r1, r2);
-        } else if (rollMode === "disadvantage") {
-          const r1 = this.diceRoller.d20().total;
-          const r2 = this.diceRoller.d20().total;
-          d20 = Math.min(r1, r2);
-        } else {
-          d20 = this.diceRoller.d20().total;
-        }
-        const critical = d20 === 20;
-
-        // Attack bonus from ActiveEffects (Bless, etc.)
-        const atkBonusResult = calculateBonusFromEffects(attackerActiveEffects, 'attack_rolls');
-        let effectAtkBonus = atkBonusResult.flatBonus;
-        for (const dr of atkBonusResult.diceRolls) {
-          const count = Math.abs(dr.count);
-          const sign = dr.count < 0 ? -1 : 1;
-          for (let i = 0; i < count; i++) {
-            effectAtkBonus += sign * this.diceRoller.rollDie(dr.sides).total;
-          }
-        }
-        const attackBonus = attackBonusBase + effectAtkBonus;
-        const attackTotal = d20 + attackBonus;
-
-        console.log(`[AiActionExecutor] Two-phase flow: d20=${d20} + ${attackBonusBase} + effect(${effectAtkBonus}) = ${attackTotal}${rollMode !== "normal" ? ` [${rollMode}]` : ""}`);
-
-        // Get target AC from combat stats (character sheet), not resources
-        let targetAC: number;
-        try {
-          const targetStats = await this.combatantResolver.getCombatStats(targetRef as CombatantRef);
-          targetAC = targetStats.armorClass;
-        } catch {
-          targetAC = typeof targetResources.armorClass === "number" ? targetResources.armorClass as number : 10;
-        }
-        // AC bonus from target's ActiveEffects (Shield of Faith, etc.)
-        const acBonusFromEffects = calculateFlatBonusFromEffects(targetActiveEffects, 'armor_class');
-        targetAC += acBonusFromEffects;
-
-        // Call initiateAttack to check Shield eligibility
-        const initiateResult = await this.twoPhaseActions.initiateAttack(sessionId, {
-          encounterId,
-          actor: actorRef as CombatantRef,
-          target: targetRef as CombatantRef,
-          attackName: decision.attackName,
-          attackRoll: attackTotal,
-        });
-
-        // D&D 5e 2024: Rage attack tracking — any attack roll counts (hit or miss)
-        {
-          const atkRes = normalizeResources(aiCombatant.resources);
-          if (atkRes.raging === true) {
-            await this.combat.updateCombatantState(aiCombatant.id, {
-              resources: { ...atkRes, rageAttackedThisTurn: true } as any,
-            });
-          }
-        }
-
-        if (initiateResult.status === "miss") {
-          // Clean miss - no reaction needed
-          console.log("[AiActionExecutor] Two-phase flow: attack missed, no reaction opportunity");
-          
-          // Emit AttackResolved event so CLI can display miss
-          if (this.events) {
-            await this.events.append(sessionId, {
-              id: nanoid(),
-              type: "AttackResolved",
-              payload: {
-                encounterId,
-                attacker: actorRef,
-                target: targetRef,
-                attackName: decision.attackName,
-                attackRoll: d20,
-                attackBonus: attackBonus,
-                attackTotal,
-                targetAC,
-                hit: false,
-                critical: false,
-                damageApplied: 0,
-              },
-            });
-          }
-
-          // Still need to mark action as spent
-          const { spendAction } = await import("../helpers/resource-utils.js");
+      } else if (attackOutcome.status === "miss") {
+        const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+        const mainSummary = `Attack missed ${decision.target}`;
+        const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
+        return {
+          action: decision.action,
+          ok: true,
+          summary: fullSummary,
+          data: { hit: false, damage: 0, target: decision.target, attackName: decision.attackName },
+        };
+      } else if (attackOutcome.status === "awaiting_reactions") {
+        // Before returning: persist bonus action for after reaction resolves
+        if (decision.bonusAction) {
+          const currentRes = normalizeResources(aiCombatant.resources);
           await this.combat.updateCombatantState(aiCombatant.id, {
-            resources: spendAction(aiCombatant.resources),
+            resources: { ...currentRes, pendingBonusAction: decision.bonusAction } as any,
           });
-
-          const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-          const mainSummary = `Attack missed ${decision.target}`;
-          const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
-
-          return {
-            action: decision.action,
-            ok: true,
-            summary: fullSummary,
-            data: { hit: false, damage: 0, target: decision.target, attackName: decision.attackName },
-          };
         }
-
-        if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
-          console.log("[AiActionExecutor] Two-phase flow: awaiting player reaction");
-
-          // Update the pending action data with damage spec for later completion
-          const pendingAction = await this.pendingActions.getById(initiateResult.pendingActionId);
-          if (pendingAction) {
-            const attackData = pendingAction.data as any;
-            const shieldDmgType = typeof (picked as any).damageType === "string" ? (picked as any).damageType : undefined;
-            attackData.damageSpec = { diceCount, diceSides, modifier, damageType: shieldDmgType };
-            attackData.critical = critical;
-            attackData.sessionId = sessionId;
-            attackData.targetAC = targetAC;
-            await this.pendingActions.update(pendingAction);
-          }
-
-          // Store pending action on encounter for polling
-          await this.combat.setPendingAction(encounterId, {
-            id: initiateResult.pendingActionId,
-            type: "reaction_pending",
-            pendingActionId: initiateResult.pendingActionId,
-            attackerName: decision.attackName,
-            target: targetRef,
-            attackRoll: attackTotal,
-          });
-
-          // Mark action as spent
-          const { spendAction } = await import("../helpers/resource-utils.js");
-          await this.combat.updateCombatantState(aiCombatant.id, {
-            resources: spendAction(aiCombatant.resources),
-          });
-
-          return {
-            action: decision.action,
-            ok: true,
-            summary: `Attack on ${decision.target} - awaiting player reaction`,
-            data: {
-              awaitingPlayerInput: true,
-              pendingActionId: initiateResult.pendingActionId,
-              target: decision.target,
-              attackName: decision.attackName,
-              attackRoll: attackTotal,
-            },
-          };
-        }
-
-        // Status is "hit" (no reaction triggered) - proceed with damage
-        if (initiateResult.status === "hit") {
-          console.log("[AiActionExecutor] Two-phase flow: hit with no reaction, resolving damage");
-
-          const effectiveDiceCount = critical ? diceCount * 2 : diceCount;
-          const damageRoll = this.diceRoller.rollDie(diceSides, effectiveDiceCount, modifier);
-          let damageApplied = Math.max(0, damageRoll.total);
-
-          // ── ActiveEffect: extra damage from attacker effects (Rage, Hunter's Mark, etc.) ──
-          {
-            const dmgEffects = attackerActiveEffects.filter(
-              e => (e.type === 'bonus' || e.type === 'penalty')
-                && (e.target === 'damage_rolls'
-                  || (e.target === 'melee_damage_rolls' && attackKind === 'melee')
-                  || (e.target === 'ranged_damage_rolls' && attackKind === 'ranged'))
-                && (!e.targetCombatantId || e.targetCombatantId === targetCombatant.id)
-            );
-            let effectDmgTotal = 0;
-            for (const eff of dmgEffects) {
-              if (eff.type === 'bonus') effectDmgTotal += eff.value ?? 0;
-              if (eff.type === 'penalty') effectDmgTotal -= eff.value ?? 0;
-              if (eff.diceValue) {
-                const sign = eff.type === 'penalty' ? -1 : 1;
-                const count = Math.abs(eff.diceValue.count);
-                for (let i = 0; i < count; i++) {
-                  effectDmgTotal += sign * this.diceRoller.rollDie(eff.diceValue.sides).total;
-                }
-              }
-            }
-            if (effectDmgTotal !== 0) {
-              damageApplied = Math.max(0, damageApplied + effectDmgTotal);
-            }
-          }
-
-          // Apply damage resistance/immunity/vulnerability (stat-block + ActiveEffects)
-          const pickedDmgType = typeof (picked as any).damageType === "string" ? (picked as any).damageType : undefined;
-          if (damageApplied > 0 && pickedDmgType && targetRef) {
-            try {
-              const tgtStats = await this.combatantResolver.getCombatStats(targetRef as CombatantRef);
-              const defenses = tgtStats.damageDefenses ? { ...tgtStats.damageDefenses } : {} as any;
-
-              // Merge ActiveEffect damage defenses (Rage resistance, etc.)
-              const effDef = getDamageDefenseEffects(targetActiveEffects, pickedDmgType);
-              if (effDef.resistances) {
-                defenses.damageResistances = [...new Set([...(defenses.damageResistances ?? []), pickedDmgType.toLowerCase()])];
-              }
-              if (effDef.vulnerabilities) {
-                defenses.damageVulnerabilities = [...new Set([...(defenses.damageVulnerabilities ?? []), pickedDmgType.toLowerCase()])];
-              }
-              if (effDef.immunities) {
-                defenses.damageImmunities = [...new Set([...(defenses.damageImmunities ?? []), pickedDmgType.toLowerCase()])];
-              }
-
-              if (defenses.damageResistances || defenses.damageImmunities || defenses.damageVulnerabilities) {
-                const defResult = applyDamageDefenses(damageApplied, pickedDmgType, defenses);
-                damageApplied = defResult.adjustedDamage;
-              }
-            } catch { /* proceed without defenses */ }
-          }
-
-          if (damageApplied > 0) {
-            const hpBefore = targetCombatant.hpCurrent;
-            const hpAfter = Math.max(0, hpBefore - damageApplied);
-            await this.combat.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
-
-            // Apply KO effects (Unconscious + Prone + death saves) if character dropped to 0 HP
-            await applyKoEffectsIfNeeded(
-              targetCombatant,
-              hpBefore,
-              hpAfter,
-              this.combat,
-              (msg) => this.aiLog(`[KO] ${msg}`),
-            );
-
-            // Apply damage-while-unconscious (auto-fail death saves) if already at 0 HP
-            if (hpBefore === 0 && targetCombatant.combatantType === "Character") {
-              const isCritical = critical ?? false;
-              await applyDamageWhileUnconscious(
-                targetCombatant,
-                damageApplied,
-                isCritical,
-                this.combat,
-                (msg) => this.aiLog(`[KO] ${msg}`),
-              );
-            }
-
-            // D&D 5e 2024: Rage damage-taken tracking
-            {
-              const tgtRes = normalizeResources(targetCombatant.resources);
-              if (tgtRes.raging === true) {
-                await this.combat.updateCombatantState(targetCombatant.id, {
-                  resources: { ...tgtRes, rageDamageTakenThisTurn: true } as any,
-                });
-              }
-            }
-          }
-
-          // ── ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) ──
-          if (damageApplied > 0 && attackKind === "melee") {
-            const retaliatory = targetActiveEffects.filter(e => e.type === 'retaliatory_damage');
-            if (retaliatory.length > 0 && aiCombatant.hpCurrent > 0) {
-              let totalRetaliatoryDamage = 0;
-              for (const eff of retaliatory) {
-                let retDmg = eff.value ?? 0;
-                if (eff.diceValue) {
-                  for (let i = 0; i < eff.diceValue.count; i++) {
-                    retDmg += this.diceRoller.rollDie(eff.diceValue.sides).total;
-                  }
-                }
-                totalRetaliatoryDamage += retDmg;
-                this.aiLog(`Retaliatory damage (${eff.source ?? 'effect'}): ${retDmg} ${eff.damageType ?? ''}`);
-              }
-              if (totalRetaliatoryDamage > 0) {
-                const atkHpBefore = aiCombatant.hpCurrent;
-                const atkHpAfter = Math.max(0, atkHpBefore - totalRetaliatoryDamage);
-                await this.combat.updateCombatantState(aiCombatant.id, { hpCurrent: atkHpAfter });
-                await applyKoEffectsIfNeeded(
-                  aiCombatant, atkHpBefore, atkHpAfter, this.combat,
-                  (msg) => this.aiLog(`[KO] ${msg}`),
-                );
-                this.aiLog(`Retaliatory damage: ${totalRetaliatoryDamage} to AI attacker (HP: ${atkHpBefore} → ${atkHpAfter})`);
-              }
-            }
-          }
-
-          // Mark action as spent
-          const { spendAction } = await import("../helpers/resource-utils.js");
-          await this.combat.updateCombatantState(aiCombatant.id, {
-            resources: spendAction(aiCombatant.resources),
-          });
-
-          // Emit AttackResolved + DamageApplied events so CLI can display the result
-          if (this.events) {
-            const hpAfterForEvent = damageApplied > 0
-              ? Math.max(0, targetCombatant.hpCurrent - damageApplied)
-              : targetCombatant.hpCurrent;
-            await this.events.append(sessionId, {
-              id: nanoid(),
-              type: "AttackResolved",
-              payload: {
-                encounterId,
-                attacker: actorRef,
-                target: targetRef,
-                attackName: decision.attackName,
-                attackRoll: d20,
-                attackBonus: attackBonus,
-                attackTotal,
-                targetAC,
-                hit: true,
-                critical,
-                damageApplied,
-              },
-            });
-            if (damageApplied > 0) {
-              await this.events.append(sessionId, {
-                id: nanoid(),
-                type: "DamageApplied",
-                payload: {
-                  encounterId,
-                  amount: damageApplied,
-                  hpCurrent: hpAfterForEvent,
-                  source: decision.attackName,
-                },
-              });
-            }
-          }
-
-          // --- Damage reaction detection (Absorb Elements, Hellish Rebuke) ---
-          if (damageApplied > 0 && pickedDmgType && targetCombatant.combatantType === "Character") {
-            const freshTargetResources = normalizeResources(
-              (await this.combat.listCombatants(encounterId))
-                .find((c) => c.id === targetCombatant.id)?.resources ?? targetCombatant.resources,
-            );
-            const stillHasReaction = hasReactionAvailable({ reactionUsed: false, ...freshTargetResources } as any)
-              && !readBoolean(freshTargetResources, "reactionUsed");
-
-            if (stillHasReaction && targetCombatant.hpCurrent - damageApplied > 0) {
-              try {
-                const tgtStats = await this.combatantResolver.getCombatStats(targetRef as CombatantRef);
-                const dmgInput = {
-                  className: tgtStats.className?.toLowerCase() ?? "",
-                  level: tgtStats.level ?? 1,
-                  abilityScores: (tgtStats.abilityScores ?? {}) as Record<string, number>,
-                  resources: freshTargetResources,
-                  hasReaction: true,
-                  isCharacter: true,
-                  damageType: pickedDmgType,
-                  damageAmount: damageApplied,
-                  attackerId: actorRef.type === "Monster" ? (actorRef as any).monsterId : (actorRef as any).characterId ?? "",
-                };
-
-                const dmgReactions = detectDamageReactions(dmgInput, getAllCombatTextProfiles());
-                if (dmgReactions.length > 0) {
-                  const dr = dmgReactions[0]!;
-                  const drResult = await this.twoPhaseActions.initiateDamageReaction(sessionId, {
-                    encounterId,
-                    target: targetRef as CombatantRef,
-                    attackerId: actorRef as CombatantRef,
-                    damageType: pickedDmgType,
-                    damageAmount: damageApplied,
-                    detectedReaction: dr,
-                    targetCombatantId: targetCombatant.id,
-                  });
-
-                  if (drResult.status === "awaiting_reactions" && drResult.pendingActionId) {
-                    // Store pending action on encounter for polling
-                    await this.combat.setPendingAction(encounterId, {
-                      id: drResult.pendingActionId,
-                      type: "reaction_pending",
-                      pendingActionId: drResult.pendingActionId,
-                      reactionType: dr.reactionType,
-                      target: targetRef,
-                    });
-
-                    console.log(`[AiActionExecutor] Damage reaction (${dr.reactionType}) pending — pausing for player`);
-                    return {
-                      action: decision.action,
-                      ok: true,
-                      summary: `Attack hit ${decision.target} for ${damageApplied} damage - awaiting damage reaction`,
-                      data: {
-                        awaitingPlayerInput: true,
-                        pendingActionId: drResult.pendingActionId,
-                        hit: true,
-                        damage: damageApplied,
-                        target: decision.target,
-                        attackName: decision.attackName,
-                      },
-                    };
-                  }
-                }
-              } catch { /* skip damage reaction detection if stats unavailable */ }
-            }
-          }
-
-          const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-          const mainSummary = `Attack hit ${decision.target} for ${damageApplied} damage`;
-          const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
-
-          return {
-            action: decision.action,
-            ok: true,
-            summary: fullSummary,
-            data: { hit: true, damage: damageApplied, target: decision.target, attackName: decision.attackName },
-          };
-        }
+        return {
+          action: decision.action,
+          ok: true,
+          summary: `Attack on ${decision.target} - awaiting player reaction`,
+          data: {
+            awaitingPlayerInput: true,
+            pendingActionId: attackOutcome.pendingActionId,
+            target: decision.target,
+            attackName: decision.attackName,
+            attackRoll: attackOutcome.attackTotal,
+          },
+        };
+      } else if (attackOutcome.status === "awaiting_damage_reaction") {
+        return {
+          action: decision.action,
+          ok: true,
+          summary: `Attack hit ${decision.target} for ${attackOutcome.damageApplied} damage - awaiting damage reaction`,
+          data: {
+            awaitingPlayerInput: true,
+            pendingActionId: attackOutcome.pendingActionId,
+            hit: true,
+            damage: attackOutcome.damageApplied,
+            target: decision.target,
+            attackName: decision.attackName,
+          },
+        };
+      } else if (attackOutcome.status === "hit") {
+        const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+        const mainSummary = `Attack hit ${decision.target} for ${attackOutcome.damageApplied} damage`;
+        const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
+        return {
+          action: decision.action,
+          ok: true,
+          summary: fullSummary,
+          data: { hit: true, damage: attackOutcome.damageApplied, target: decision.target, attackName: decision.attackName },
+        };
       }
     }
 
@@ -910,14 +526,13 @@ export class AiActionExecutor {
       };
     }
 
-    // Get current position and available speed
     const resources = (aiCombatant.resources as Record<string, unknown>) ?? {};
     const currentPos = resources.position as { x: number; y: number } | undefined;
     const speed = getEffectiveSpeed(aiCombatant.resources);
     const hasDashed = (resources.dashed as boolean) ?? false;
     let effectiveSpeed = hasDashed ? speed * 2 : speed;
 
-    // Account for Prone stand-up cost: standing costs half base speed
+    // Account for Prone stand-up cost
     const aiConditions = normalizeConditions(aiCombatant.conditions as unknown[]);
     const isProne = hasCondition(aiConditions, "Prone");
     if (isProne) {
@@ -939,8 +554,6 @@ export class AiActionExecutor {
     if (currentPos) {
       const requestedDistance = calculateDistance(currentPos, decision.destination);
       if (requestedDistance > effectiveSpeed) {
-        // Clamp to max distance along the same direction
-        // Use 0.99 factor to avoid floating point precision issues at the boundary
         const ratio = (effectiveSpeed * 0.99) / requestedDistance;
         const dx = decision.destination.x - currentPos.x;
         const dy = decision.destination.y - currentPos.y;
@@ -953,91 +566,52 @@ export class AiActionExecutor {
       }
     }
 
-    // Initiate two-phase move to detect opportunity attacks
-    const moveInit = await this.twoPhaseActions.initiateMove(sessionId, {
+    const outcome = await resolveAiMovement(this.getMovementDeps(), {
+      sessionId,
       encounterId,
-      actor: actorRef,
-      destination: finalDestination,
+      aiCombatant,
+      actorRef,
+      allCombatants,
+      currentPos,
+      finalDestination,
+      effectiveSpeed,
+      resources,
+      zoneDamagePath: currentPos ? generateLinearPath(currentPos, finalDestination) : undefined,
     });
 
-    let movedFeet = 0;
-    const aiDecisions: Array<{ attackerId: string; used: boolean; reason: string }> = [];
-
-    // Handle on_voluntary_move trigger (e.g., Booming Blade) — creature KO'd before moving
-    if (moveInit.status === "aborted_by_trigger") {
-      const triggerMsg = moveInit.voluntaryMoveTriggerMessages?.join(" ") ?? "Movement trigger damage!";
+    if (outcome.kind === "aborted_by_trigger") {
       return {
         action: decision.action,
         ok: false,
-        summary: `${triggerMsg} Knocked out before moving.`,
+        summary: `${outcome.message} Knocked out before moving.`,
         data: { reason: "knocked_out_by_movement_trigger" },
       };
     }
 
-    // Handle the simple case: no opportunity attacks, just move directly
-    if (moveInit.status === "no_reactions") {
-      // Calculate distance moved
-      movedFeet = currentPos ? Math.round(calculateDistance(currentPos, finalDestination)) : 0;
+    if (outcome.kind === "player_oa_pending") {
+      return {
+        action: decision.action,
+        ok: true,
+        summary: `Moved toward (${finalDestination.x}, ${finalDestination.y}) - awaiting ${outcome.playerOAsCount} player OA(s)`,
+        data: {
+          awaitingPlayerInput: true,
+          playerOAsCount: outcome.playerOAsCount,
+          pendingActionId: outcome.pendingActionId,
+        },
+      };
+    }
 
-      // Calculate remaining movement after this move
-      const currentRemaining = typeof resources.movementRemaining === "number"
-        ? resources.movementRemaining
-        : effectiveSpeed;
-      const newMovementRemaining = Math.max(0, currentRemaining - movedFeet);
+    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
 
-      // Update position directly
-      await this.combat.updateCombatantState(aiCombatant.id, {
-        resources: {
-          ...resources,
-          position: finalDestination,
-          movementSpent: newMovementRemaining <= 0,
-          movementRemaining: newMovementRemaining,
-        } as any,
-      });
-
-      // Keep CombatMap entities[] in sync with the position update
-      await syncEntityPosition(this.combat, encounterId, aiCombatant.id, finalDestination);
-
-      // Sync aura zones for this combatant
-      const aiEntityId = aiCombatant.characterId ?? aiCombatant.monsterId ?? aiCombatant.npcId ?? aiCombatant.id;
-      await syncAuraZones(this.combat, encounterId, aiEntityId, finalDestination);
-
-      // --- Zone damage during AI movement ---
-      const aiEncounter = await this.combat.getEncounterById(encounterId);
-      if (aiEncounter && currentPos) {
-        const combatMap = aiEncounter.mapData as unknown as import("../../../../domain/rules/combat-map.js").CombatMap | undefined;
-        if (combatMap && (combatMap.zones?.length ?? 0) > 0) {
-          const aiIsPC = aiCombatant.combatantType === "Character" || aiCombatant.combatantType === "NPC";
-          const aiCombatants = await this.combat.listCombatants(encounterId);
-          const movePath = generateLinearPath(currentPos, finalDestination);
-          await resolveZoneDamageForPath(
-            movePath,
-            currentPos,
-            aiCombatant,
-            combatMap,
-            (srcId: string) => {
-              const src = aiCombatants.find((c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId);
-              const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
-              return aiIsPC === srcIsPC;
-            },
-            { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-            { combatRepo: this.combat },
-          );
-        }
-      }
-
-      // Process bonus action if included
-      const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-
-      const mainSummary = `Moved ${movedFeet}ft to (${finalDestination.x}, ${finalDestination.y})`;
+    if (outcome.kind === "no_reactions") {
+      const mainSummary = `Moved ${outcome.movedFeet}ft to (${finalDestination.x}, ${finalDestination.y})`;
       const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
-
       return {
         action: decision.action,
         ok: true,
         summary: fullSummary,
         data: {
-          movedFeet,
+          movedFeet: outcome.movedFeet,
           destination: finalDestination,
           opportunityAttacks: [],
           ...(bonusResult ? { bonusAction: bonusResult } : {}),
@@ -1045,124 +619,15 @@ export class AiActionExecutor {
       };
     }
 
-    // If there are reactions, resolve them automatically
-    if (moveInit.status === "awaiting_reactions" && moveInit.pendingActionId) {
-      const pendingAction = await this.pendingActions.getById(moveInit.pendingActionId);
-      if (!pendingAction) {
-        return {
-          action: decision.action,
-          ok: false,
-          summary: "Failed: Pending action not found",
-          data: { reason: "pending_action_missing" },
-        };
-      }
-
-      // Resolve each reaction opportunity
-      for (const opp of moveInit.opportunityAttacks) {
-        if (!opp.canAttack) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "cannot_attack" });
-          continue;
-        }
-
-        // Get the attacker's state
-        const attackerState = allCombatants.find((c) => c.id === opp.combatantId);
-        if (!attackerState) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "attacker_not_found" });
-          continue;
-        }
-
-        // Player characters don't auto-resolve - their OAs are handled via /combat/roll-result
-        if (attackerState.combatantType === "Character") {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "player_prompted" });
-          continue;
-        }
-
-        // AI decides whether to use reaction for AI/Monster attackers
-        const shouldUseReaction = await this.aiDecideReaction(attackerState, "opportunity_attack", {
-          targetName: await this.combatantResolver.getName(actorRef, aiCombatant),
-          hpPercent: attackerState.hpCurrent / attackerState.hpMax,
-        });
-
-        aiDecisions.push({
-          attackerId: opp.combatantId,
-          used: shouldUseReaction,
-          reason: shouldUseReaction ? "ai_used" : "ai_declined",
-        });
-
-        // Update pending action with AI's decision
-        if (shouldUseReaction && opp.opportunityId) {
-          const updatedResolvedReactions = [
-            ...pendingAction.resolvedReactions,
-            {
-              opportunityId: opp.opportunityId,
-              combatantId: opp.combatantId,
-              choice: "use" as const,
-              respondedAt: new Date(),
-            },
-          ];
-          await this.pendingActions.update({
-            ...pendingAction,
-            resolvedReactions: updatedResolvedReactions,
-          });
-        }
-      }
-    }
-
-    // Check if there are player OAs that need prompting
-    const playerOAsNeedingInput = aiDecisions.filter((d) => d.reason === "player_prompted");
-    if (playerOAsNeedingInput.length > 0 && moveInit.pendingActionId) {
-      // Get the pending action to include opportunity info
-      const pendingAction = await this.pendingActions.getById(moveInit.pendingActionId);
-      
-      // Store the pending action details in the encounter so the CLI can detect the OA
-      await this.combat.setPendingAction(encounterId, {
-        id: moveInit.pendingActionId,
-        type: "opportunity_attack_pending",
-        pendingActionId: moveInit.pendingActionId,
-        opportunities: moveInit.opportunityAttacks.map((opp) => ({
-          combatantId: opp.combatantId,
-          combatantName: opp.combatantName,
-          canAttack: opp.canAttack,
-          hasReaction: opp.hasReaction,
-          opportunityId: opp.opportunityId,
-        })),
-        target: actorRef,
-        destination: finalDestination,
-      });
-
-      // Return success but indicate we're awaiting player input
-      const mainSummary = `Moved toward (${finalDestination.x}, ${finalDestination.y}) - awaiting ${playerOAsNeedingInput.length} player OA(s)`;
-
-      return {
-        action: decision.action,
-        ok: true,
-        summary: mainSummary,
-        data: {
-          awaitingPlayerInput: true,
-          playerOAsCount: playerOAsNeedingInput.length,
-          pendingActionId: moveInit.pendingActionId,
-        },
-      };
-    }
-
-    // No player OAs, or all reactions resolved - complete the move
-    const moveComplete = await this.twoPhaseActions.completeMove(sessionId, {
-      pendingActionId: moveInit.pendingActionId || "",
-    });
-
-    movedFeet = moveComplete.movedFeet;
-
-    // Process bonus action if included
-    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-
-    const usedCount = aiDecisions.filter((d) => d.used).length;
-    const playerPromptCount = aiDecisions.filter((d) => d.reason === "player_prompted").length;
+    // outcome.kind === "completed"
+    const usedCount = outcome.aiDecisions.filter((d) => d.used).length;
+    const playerPromptCount = outcome.aiDecisions.filter((d) => d.reason === "player_prompted").length;
     const oaSummary =
-      moveInit.opportunityAttacks.length > 0
-        ? `, triggered ${usedCount}/${moveInit.opportunityAttacks.length} OA(s)` +
+      outcome.opportunityAttacks.length > 0
+        ? `, triggered ${usedCount}/${outcome.opportunityAttacks.length} OA(s)` +
           (playerPromptCount > 0 ? ` (${playerPromptCount} awaiting player input)` : "")
         : "";
-    const mainSummary = `Moved ${movedFeet}ft to (${finalDestination.x}, ${finalDestination.y})${oaSummary}`;
+    const mainSummary = `Moved ${outcome.movedFeet}ft to (${finalDestination.x}, ${finalDestination.y})${oaSummary}`;
     const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
 
     return {
@@ -1170,15 +635,14 @@ export class AiActionExecutor {
       ok: true,
       summary: fullSummary,
       data: {
-        movedFeet,
+        movedFeet: outcome.movedFeet,
         destination: decision.destination,
-        opportunityAttacks: moveComplete.opportunityAttacks,
-        aiReactionDecisions: aiDecisions,
+        opportunityAttacks: outcome.opportunityAttacks,
+        aiReactionDecisions: outcome.aiDecisions,
         ...(bonusResult ? { bonusAction: bonusResult } : {}),
       },
     };
   }
-
   /**
    * Execute a "moveToward" decision: resolve target position, A* pathfind, clamp to speed, two-phase move.
    */
@@ -1342,103 +806,71 @@ export class AiActionExecutor {
       };
     }
 
-    // Initiate two-phase move (with pathfinding data if available)
-    const moveInit = await this.twoPhaseActions.initiateMove(sessionId, {
-      encounterId,
-      actor: actorRef,
-      destination: finalDestination,
-      pathCells,
-      pathCostFeet,
-      pathNarrationHints,
-    });
-
+    // Resolve names for summaries
     const targetName = await this.combatantResolver.getName(
       this.toCombatantRef(targetCombatant) ?? actorRef,
       targetCombatant,
     );
     const actorName = await this.combatantResolver.getName(actorRef, aiCombatant);
 
-    let movedFeet = 0;
-    const aiDecisions: Array<{ attackerId: string; used: boolean; reason: string }> = [];
+    const outcome = await resolveAiMovement(this.getMovementDeps(), {
+      sessionId,
+      encounterId,
+      aiCombatant,
+      actorRef,
+      allCombatants,
+      currentPos,
+      finalDestination,
+      effectiveSpeed,
+      resources,
+      pathCells,
+      pathCostFeet,
+      pathNarrationHints,
+    });
 
-    if (moveInit.status === "aborted_by_trigger") {
-      const triggerMsg = moveInit.voluntaryMoveTriggerMessages?.join(" ") ?? "Movement trigger damage!";
+    if (outcome.kind === "aborted_by_trigger") {
       return {
         action: decision.action,
         ok: false,
-        summary: `${triggerMsg} Knocked out before moving.`,
+        summary: `${outcome.message} Knocked out before moving.`,
         data: { reason: "knocked_out_by_movement_trigger" },
       };
     }
 
-    if (moveInit.status === "no_reactions") {
-      movedFeet = currentPos ? Math.round(calculateDistance(currentPos, finalDestination)) : 0;
+    if (outcome.kind === "player_oa_pending") {
+      return {
+        action: decision.action,
+        ok: true,
+        summary: `Moved toward ${targetName} - awaiting ${outcome.playerOAsCount} player OA(s)`,
+        data: {
+          awaitingPlayerInput: true,
+          playerOAsCount: outcome.playerOAsCount,
+          pendingActionId: outcome.pendingActionId,
+        },
+      };
+    }
 
-      const currentRemaining = typeof resources.movementRemaining === "number"
-        ? resources.movementRemaining
-        : effectiveSpeed;
-      const newMovementRemaining = Math.max(0, currentRemaining - (pathCostFeet ?? movedFeet));
+    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
 
-      await this.combat.updateCombatantState(aiCombatant.id, {
-        resources: {
-          ...resources,
-          position: finalDestination,
-          movementSpent: newMovementRemaining <= 0,
-          movementRemaining: newMovementRemaining,
-        } as any,
-      });
-
-      // Keep CombatMap entities[] in sync with the position update
-      await syncEntityPosition(this.combat, encounterId, aiCombatant.id, finalDestination);
-
-      // Sync aura zones for this combatant
-      const mtEntityId = aiCombatant.characterId ?? aiCombatant.monsterId ?? aiCombatant.npcId ?? aiCombatant.id;
-      await syncAuraZones(this.combat, encounterId, mtEntityId, finalDestination);
-
-      // --- Zone damage during AI moveToward ---
-      const mtEncounter = await this.combat.getEncounterById(encounterId);
-      if (mtEncounter && currentPos) {
-        const mtCombatMap = mtEncounter.mapData as unknown as import("../../../../domain/rules/combat-map.js").CombatMap | undefined;
-        if (mtCombatMap && (mtCombatMap.zones?.length ?? 0) > 0) {
-          const mtIsPC = aiCombatant.combatantType === "Character" || aiCombatant.combatantType === "NPC";
-          const mtCombatants = await this.combat.listCombatants(encounterId);
-          await resolveZoneDamageForPath(
-            pathCells ?? [finalDestination],
-            currentPos,
-            aiCombatant,
-            mtCombatMap,
-            (srcId: string) => {
-              const src = mtCombatants.find((c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId);
-              const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
-              return mtIsPC === srcIsPC;
-            },
-            { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-            { combatRepo: this.combat },
-          );
-        }
-      }
-
-      const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+    if (outcome.kind === "no_reactions") {
       const pathNarration = buildPathNarration({
         actorName,
         targetName,
         pathCells,
-        pathCostFeet,
+        pathCostFeet: outcome.pathCostFeet,
         desiredRange,
         narrationHints: pathNarrationHints,
-        partial: pathCostFeet != null && pathCostFeet < calculateDistance(currentPos, finalDestination),
+        partial: pathCostFeet != null && outcome.pathCostFeet < calculateDistance(currentPos, finalDestination),
         startPosition: currentPos,
         endPosition: finalDestination,
       });
-      const mainSummary = pathNarration;
-      const fullSummary = bonusResult ? `${mainSummary} ${bonusResult.summary}` : mainSummary;
-
+      const fullSummary = bonusResult ? `${pathNarration} ${bonusResult.summary}` : pathNarration;
       return {
         action: decision.action,
         ok: true,
         summary: fullSummary,
         data: {
-          movedFeet: pathCostFeet ?? movedFeet,
+          movedFeet: outcome.pathCostFeet,
           destination: finalDestination,
           targetName,
           desiredRange,
@@ -1450,113 +882,16 @@ export class AiActionExecutor {
       };
     }
 
-    // If there are reactions, resolve them (same flow as executeMove)
-    if (moveInit.status === "awaiting_reactions" && moveInit.pendingActionId) {
-      const pendingAction = await this.pendingActions.getById(moveInit.pendingActionId);
-      if (!pendingAction) {
-        return {
-          action: decision.action,
-          ok: false,
-          summary: "Failed: Pending action not found",
-          data: { reason: "pending_action_missing" },
-        };
-      }
-
-      for (const opp of moveInit.opportunityAttacks) {
-        if (!opp.canAttack) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "cannot_attack" });
-          continue;
-        }
-
-        const attackerState = allCombatants.find((c) => c.id === opp.combatantId);
-        if (!attackerState) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "attacker_not_found" });
-          continue;
-        }
-
-        if (attackerState.combatantType === "Character") {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "player_prompted" });
-          continue;
-        }
-
-        const shouldUseReaction = await this.aiDecideReaction(attackerState, "opportunity_attack", {
-          targetName: await this.combatantResolver.getName(actorRef, aiCombatant),
-          hpPercent: attackerState.hpCurrent / attackerState.hpMax,
-        });
-
-        aiDecisions.push({
-          attackerId: opp.combatantId,
-          used: shouldUseReaction,
-          reason: shouldUseReaction ? "ai_used" : "ai_declined",
-        });
-
-        if (shouldUseReaction && opp.opportunityId) {
-          const updatedResolvedReactions = [
-            ...pendingAction.resolvedReactions,
-            {
-              opportunityId: opp.opportunityId,
-              combatantId: opp.combatantId,
-              choice: "use" as const,
-              respondedAt: new Date(),
-            },
-          ];
-          await this.pendingActions.update({
-            ...pendingAction,
-            resolvedReactions: updatedResolvedReactions,
-          });
-        }
-      }
-    }
-
-    // Check if there are player OAs that need prompting
-    const playerOAsNeedingInput = aiDecisions.filter((d) => d.reason === "player_prompted");
-    if (playerOAsNeedingInput.length > 0 && moveInit.pendingActionId) {
-      await this.combat.setPendingAction(encounterId, {
-        id: moveInit.pendingActionId,
-        type: "opportunity_attack_pending",
-        pendingActionId: moveInit.pendingActionId,
-        opportunities: moveInit.opportunityAttacks.map((opp) => ({
-          combatantId: opp.combatantId,
-          combatantName: opp.combatantName,
-          canAttack: opp.canAttack,
-          hasReaction: opp.hasReaction,
-          opportunityId: opp.opportunityId,
-        })),
-        target: actorRef,
-        destination: finalDestination,
-      });
-
-      return {
-        action: decision.action,
-        ok: true,
-        summary: `Moved toward ${targetName} - awaiting ${playerOAsNeedingInput.length} player OA(s)`,
-        data: {
-          awaitingPlayerInput: true,
-          playerOAsCount: playerOAsNeedingInput.length,
-          pendingActionId: moveInit.pendingActionId,
-        },
-      };
-    }
-
-    // No player OAs — complete the move
-    const moveComplete = await this.twoPhaseActions.completeMove(sessionId, {
-      pendingActionId: moveInit.pendingActionId || "",
-    });
-
-    movedFeet = moveComplete.movedFeet;
-
-    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-
-    const usedCount = aiDecisions.filter((d) => d.used).length;
-    const oaSummary =
-      moveInit.opportunityAttacks.length > 0
-        ? ` Triggered ${usedCount}/${moveInit.opportunityAttacks.length} OA(s).`
-        : "";
+    // outcome.kind === "completed"
+    const usedCount = outcome.aiDecisions.filter((d) => d.used).length;
+    const oaSummary = outcome.opportunityAttacks.length > 0
+      ? ` Triggered ${usedCount}/${outcome.opportunityAttacks.length} OA(s).`
+      : "";
     const pathNarration = buildPathNarration({
       actorName,
       targetName,
       pathCells,
-      pathCostFeet: movedFeet,
+      pathCostFeet: outcome.movedFeet,
       desiredRange,
       narrationHints: pathNarrationHints,
       partial: false,
@@ -1571,14 +906,14 @@ export class AiActionExecutor {
       ok: true,
       summary: fullSummary,
       data: {
-        movedFeet,
+        movedFeet: outcome.movedFeet,
         destination: finalDestination,
         targetName,
         desiredRange,
         pathNarration,
         pathNarrationHints,
-        opportunityAttacks: moveComplete.opportunityAttacks,
-        aiReactionDecisions: aiDecisions,
+        opportunityAttacks: outcome.opportunityAttacks,
+        aiReactionDecisions: outcome.aiDecisions,
         ...(bonusResult ? { bonusAction: bonusResult } : {}),
       },
     };
@@ -1728,80 +1063,55 @@ export class AiActionExecutor {
       }
     }
 
-    // Initiate two-phase move
-    const moveInit = await this.twoPhaseActions.initiateMove(sessionId, {
-      encounterId,
-      actor: actorRef,
-      destination: retreatDest,
-      pathCells,
-      pathCostFeet,
-      pathNarrationHints,
-    });
-
+    // Resolve names for summaries
     const actorName = await this.combatantResolver.getName(actorRef, aiCombatant);
     const targetName = await this.combatantResolver.getName(
       this.toCombatantRef(targetCombatant) ?? actorRef,
       targetCombatant,
     );
 
-    if (moveInit.status === "aborted_by_trigger") {
-      const triggerMsg = moveInit.voluntaryMoveTriggerMessages?.join(" ") ?? "Movement trigger damage!";
+    const outcome = await resolveAiMovement(this.getMovementDeps(), {
+      sessionId,
+      encounterId,
+      aiCombatant,
+      actorRef,
+      allCombatants,
+      currentPos,
+      finalDestination: retreatDest,
+      effectiveSpeed,
+      resources,
+      pathCells,
+      pathCostFeet,
+      pathNarrationHints,
+    });
+
+    if (outcome.kind === "aborted_by_trigger") {
       return {
         action: decision.action,
         ok: false,
-        summary: `${triggerMsg} Knocked out before retreating.`,
+        summary: `${outcome.message} Knocked out before retreating.`,
         data: { reason: "knocked_out_by_movement_trigger" },
       };
     }
 
-    if (moveInit.status === "no_reactions") {
-      const movedFeet = Math.round(calculateDistance(currentPos, retreatDest));
+    if (outcome.kind === "player_oa_pending") {
+      return {
+        action: decision.action,
+        ok: true,
+        summary: `Retreating from ${targetName} — awaiting ${outcome.playerOAsCount} player OA(s)`,
+        data: {
+          awaitingPlayerInput: true,
+          playerOAsCount: outcome.playerOAsCount,
+          pendingActionId: outcome.pendingActionId,
+        },
+      };
+    }
 
-      const currentRemaining = typeof resources.movementRemaining === "number"
-        ? resources.movementRemaining
-        : effectiveSpeed;
-      const newMovementRemaining = Math.max(0, currentRemaining - (pathCostFeet ?? movedFeet));
+    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
 
-      await this.combat.updateCombatantState(aiCombatant.id, {
-        resources: {
-          ...resources,
-          position: retreatDest,
-          movementSpent: newMovementRemaining <= 0,
-          movementRemaining: newMovementRemaining,
-        } as any,
-      });
-
-      await syncEntityPosition(this.combat, encounterId, aiCombatant.id, retreatDest);
-
-      const mtEntityId = aiCombatant.characterId ?? aiCombatant.monsterId ?? aiCombatant.npcId ?? aiCombatant.id;
-      await syncAuraZones(this.combat, encounterId, mtEntityId, retreatDest);
-
-      // Zone damage along retreat path
-      const mtEncounter = await this.combat.getEncounterById(encounterId);
-      if (mtEncounter && currentPos) {
-        const mtCombatMap = mtEncounter.mapData as unknown as CombatMap | undefined;
-        if (mtCombatMap && (mtCombatMap.zones?.length ?? 0) > 0) {
-          const mtIsPC = aiCombatant.combatantType === "Character" || aiCombatant.combatantType === "NPC";
-          const mtCombatants = await this.combat.listCombatants(encounterId);
-          await resolveZoneDamageForPath(
-            pathCells ?? [retreatDest],
-            currentPos,
-            aiCombatant,
-            mtCombatMap,
-            (srcId: string) => {
-              const src = mtCombatants.find((c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId);
-              const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
-              return mtIsPC === srcIsPC;
-            },
-            { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-            { combatRepo: this.combat },
-          );
-        }
-      }
-
-      const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+    if (outcome.kind === "no_reactions") {
       const newDist = Math.round(calculateDistance(retreatDest, targetPos));
-      const mainSummary = `${actorName} retreats ${pathCostFeet ?? movedFeet}ft from ${targetName} (now ${newDist}ft away)`;
+      const mainSummary = `${actorName} retreats ${outcome.pathCostFeet}ft from ${targetName} (now ${newDist}ft away)`;
       const fullSummary = bonusResult ? `${mainSummary}. ${bonusResult.summary}` : mainSummary;
 
       return {
@@ -1809,7 +1119,7 @@ export class AiActionExecutor {
         ok: true,
         summary: fullSummary,
         data: {
-          movedFeet: pathCostFeet ?? movedFeet,
+          movedFeet: outcome.pathCostFeet,
           destination: retreatDest,
           targetName,
           retreatedFromDistance: Math.round(calculateDistance(currentPos, targetPos)),
@@ -1819,108 +1129,13 @@ export class AiActionExecutor {
       };
     }
 
-    // Reactions pending (opportunity attacks) — same handling as moveToward
-    const aiDecisions: Array<{ attackerId: string; used: boolean; reason: string }> = [];
-
-    if (moveInit.status === "awaiting_reactions" && moveInit.pendingActionId) {
-      const pendingAction = await this.pendingActions.getById(moveInit.pendingActionId);
-      if (!pendingAction) {
-        return {
-          action: decision.action,
-          ok: false,
-          summary: "Failed: Pending action not found",
-          data: { reason: "pending_action_missing" },
-        };
-      }
-
-      for (const opp of moveInit.opportunityAttacks) {
-        if (!opp.canAttack) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "cannot_attack" });
-          continue;
-        }
-
-        const attackerState = allCombatants.find((c) => c.id === opp.combatantId);
-        if (!attackerState) {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "attacker_not_found" });
-          continue;
-        }
-
-        if (attackerState.combatantType === "Character") {
-          aiDecisions.push({ attackerId: opp.combatantId, used: false, reason: "player_prompted" });
-          continue;
-        }
-
-        const shouldUseReaction = await this.aiDecideReaction(attackerState, "opportunity_attack", {
-          targetName: await this.combatantResolver.getName(actorRef, aiCombatant),
-          hpPercent: attackerState.hpCurrent / attackerState.hpMax,
-        });
-
-        aiDecisions.push({
-          attackerId: opp.combatantId,
-          used: shouldUseReaction,
-          reason: shouldUseReaction ? "ai_used" : "ai_declined",
-        });
-
-        if (shouldUseReaction && opp.opportunityId) {
-          const updatedResolvedReactions = [
-            ...pendingAction.resolvedReactions,
-            {
-              opportunityId: opp.opportunityId,
-              combatantId: opp.combatantId,
-              choice: "use" as const,
-              respondedAt: new Date(),
-            },
-          ];
-          await this.pendingActions.update({
-            ...pendingAction,
-            resolvedReactions: updatedResolvedReactions,
-          });
-        }
-      }
-    }
-
-    // Player OAs need prompting
-    const playerOAsNeedingInput = aiDecisions.filter((d) => d.reason === "player_prompted");
-    if (playerOAsNeedingInput.length > 0 && moveInit.pendingActionId) {
-      await this.combat.setPendingAction(encounterId, {
-        id: moveInit.pendingActionId,
-        type: "opportunity_attack_pending",
-        pendingActionId: moveInit.pendingActionId,
-        opportunities: moveInit.opportunityAttacks.map((opp) => ({
-          combatantId: opp.combatantId,
-          combatantName: opp.combatantName,
-          canAttack: opp.canAttack,
-          hasReaction: opp.hasReaction,
-          opportunityId: opp.opportunityId,
-        })),
-        target: actorRef,
-        destination: retreatDest,
-      });
-
-      return {
-        action: decision.action,
-        ok: true,
-        summary: `Retreating from ${targetName} — awaiting ${playerOAsNeedingInput.length} player OA(s)`,
-        data: {
-          awaitingPlayerInput: true,
-          playerOAsCount: playerOAsNeedingInput.length,
-          pendingActionId: moveInit.pendingActionId,
-        },
-      };
-    }
-
-    // Complete the move after reactions resolve
-    const moveComplete = await this.twoPhaseActions.completeMove(sessionId, {
-      pendingActionId: moveInit.pendingActionId || "",
-    });
-
-    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+    // outcome.kind === "completed"
     const newDist = Math.round(calculateDistance(retreatDest, targetPos));
-    const usedCount = aiDecisions.filter((d) => d.used).length;
-    const oaSummary = moveInit.opportunityAttacks.length > 0
-      ? ` Triggered ${usedCount}/${moveInit.opportunityAttacks.length} OA(s).`
+    const usedCount = outcome.aiDecisions.filter((d) => d.used).length;
+    const oaSummary = outcome.opportunityAttacks.length > 0
+      ? ` Triggered ${usedCount}/${outcome.opportunityAttacks.length} OA(s).`
       : "";
-    const mainSummary = `${actorName} retreats ${moveComplete.movedFeet}ft from ${targetName} (now ${newDist}ft away).${oaSummary}`;
+    const mainSummary = `${actorName} retreats ${outcome.movedFeet}ft from ${targetName} (now ${newDist}ft away).${oaSummary}`;
     const fullSummary = bonusResult ? `${mainSummary} ${bonusResult.summary}` : mainSummary;
 
     return {
@@ -1928,12 +1143,12 @@ export class AiActionExecutor {
       ok: true,
       summary: fullSummary,
       data: {
-        movedFeet: moveComplete.movedFeet,
+        movedFeet: outcome.movedFeet,
         destination: retreatDest,
         targetName,
         newDistance: newDist,
-        opportunityAttacks: moveComplete.opportunityAttacks,
-        aiReactionDecisions: aiDecisions,
+        opportunityAttacks: outcome.opportunityAttacks,
+        aiReactionDecisions: outcome.aiDecisions,
         ...(bonusResult ? { bonusAction: bonusResult } : {}),
       },
     };
@@ -2070,6 +1285,28 @@ export class AiActionExecutor {
     const spellLevelRaw = (decision as Record<string, unknown>).spellLevel;
     const spellLevel = typeof spellLevelRaw === "number" ? spellLevelRaw : 1;
 
+    // ── Spell metadata lookup ──────────────────────────────────────────
+    // Only Character-type casters have spell slots tracked in combatant resources.
+    // Monsters use statBlock.spells (informational only, no slot pool in resources).
+    const isCharacterCaster = aiCombatant.combatantType === "Character" && !!aiCombatant.characterId;
+
+    // Resolve concentration flag from the caster's character sheet (if available).
+    // Monster/NPC casters without a character sheet fall back to isConcentration=false.
+    let isConcentration = false;
+    if (isCharacterCaster && this.characters) {
+      try {
+        const characterRecord = await this.characters.getById(aiCombatant.characterId!);
+        if (characterRecord) {
+          const spellDef = findPreparedSpellInSheet(characterRecord.sheet, spellName);
+          if (spellDef) {
+            isConcentration = spellDef.concentration ?? false;
+          }
+        }
+      } catch {
+        // Non-fatal: fall back to isConcentration=false
+      }
+    }
+
     // Use two-phase spell cast flow to detect Counterspell opportunities
     const initiateResult = await this.twoPhaseActions.initiateSpellCast(sessionId, {
       encounterId,
@@ -2087,6 +1324,20 @@ export class AiActionExecutor {
     if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
       console.log("[AiActionExecutor] Spell cast awaiting Counterspell reaction from player");
 
+      // Spend spell slot + manage concentration BEFORE storing the pending action.
+      // D&D 5e 2024: slot is expended when the spell is cast, even if Counterspelled.
+      // Only for Character casters — monsters don't track spell slots in resources.
+      if (isCharacterCaster) {
+        await prepareSpellCast(
+          aiCombatant.id,
+          encounterId,
+          spellName,
+          spellLevel,
+          isConcentration,
+          this.combat,
+        );
+      }
+
       // Store pending action on encounter for reaction route polling
       await this.combat.setPendingAction(encounterId, {
         id: initiateResult.pendingActionId,
@@ -2097,10 +1348,11 @@ export class AiActionExecutor {
         spellLevel,
       });
 
-      // Mark action as spent
-      const { spendAction } = await import("../helpers/resource-utils.js");
+      // Mark action as spent — re-fetch fresh resources to avoid overwriting slot change
+      const freshCombatants = await this.combat.listCombatants(encounterId);
+      const freshActor = freshCombatants.find((c) => c.id === aiCombatant.id);
       await this.combat.updateCombatantState(aiCombatant.id, {
-        resources: spendAction(aiCombatant.resources),
+        resources: spendAction((freshActor ?? aiCombatant).resources),
       });
 
       return {
@@ -2116,8 +1368,24 @@ export class AiActionExecutor {
       };
     }
 
-    // No Counterspell opportunities — spell resolves immediately
-    // Use cosmetic castSpell to mark action spent + emit event
+    // No Counterspell opportunities — spell resolves immediately.
+    // Spend slot + manage concentration using shared helper (Character casters only).
+    if (isCharacterCaster) {
+      await prepareSpellCast(
+        aiCombatant.id,
+        encounterId,
+        spellName,
+        spellLevel,
+        isConcentration,
+        this.combat,
+      );
+    }
+
+    // TODO: [SpellDelivery] AI spell mechanical effects (damage, healing, saving throws,
+    // buffs, zone effects) are NOT applied in the AI path. Full delivery requires the
+    // interactive tabletop dice flow (SpellAttackDeliveryHandler returns requiresPlayerInput=true).
+    // Tracked in plan-spell-path-unification.prompt.md.
+    // Use cosmetic castSpell to mark action spent + emit ActionResolved event.
     await this.actionService.castSpell(sessionId, { encounterId, actor: actorRef, spellName });
 
     // Process bonus action if included
@@ -2193,8 +1461,14 @@ export class AiActionExecutor {
     const data: Record<string, unknown> = {
       target: decision.target,
       success: result.result.success,
-      attackerRoll: result.result.attackerRoll,
-      targetRoll: result.result.targetRoll,
+      attackRoll: result.result.attackRoll,
+      attackTotal: result.result.attackTotal,
+      targetAC: result.result.targetAC,
+      hit: result.result.hit,
+      dc: result.result.dc,
+      saveRoll: result.result.saveRoll,
+      total: result.result.total,
+      abilityUsed: result.result.abilityUsed,
       ...(result.result.pushedTo ? { pushedTo: result.result.pushedTo } : {}),
       ...(seed !== undefined ? { seed } : {}),
     };
@@ -2213,7 +1487,9 @@ export class AiActionExecutor {
       return { action: decision.action, ok: true, summary: fullSummary, data };
     }
 
-    const mainSummary = `Shove failed against ${decision.target} (attacker ${result.result.attackerRoll} vs target ${result.result.targetRoll})`;
+    const mainSummary = result.result.hit
+      ? `Shove failed against ${decision.target} (save DC ${result.result.dc}, target rolled ${result.result.total})`
+      : `Shove failed against ${decision.target} (Unarmed Strike missed: ${result.result.attackTotal} vs AC ${result.result.targetAC})`;
     const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
     return {
       action: decision.action,
@@ -2282,8 +1558,14 @@ export class AiActionExecutor {
     const data: Record<string, unknown> = {
       target: decision.target,
       success: result.result.success,
-      attackerRoll: result.result.attackerRoll,
-      targetRoll: result.result.targetRoll,
+      attackRoll: result.result.attackRoll,
+      attackTotal: result.result.attackTotal,
+      targetAC: result.result.targetAC,
+      hit: result.result.hit,
+      dc: result.result.dc,
+      saveRoll: result.result.saveRoll,
+      total: result.result.total,
+      abilityUsed: result.result.abilityUsed,
       ...(seed !== undefined ? { seed } : {}),
     };
 
@@ -2294,12 +1576,14 @@ export class AiActionExecutor {
     }
 
     if (result.result.success) {
-      const mainSummary = `Grapple succeeded: ${decision.target} is grappled (attacker ${result.result.attackerRoll} vs target ${result.result.targetRoll})`;
+      const mainSummary = `Grapple succeeded: ${decision.target} is grappled (attack ${result.result.attackTotal} vs AC ${result.result.targetAC}, save DC ${result.result.dc}, target rolled ${result.result.total})`;
       const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
       return { action: decision.action, ok: true, summary: fullSummary, data };
     }
 
-    const mainSummary = `Grapple failed against ${decision.target} (attacker ${result.result.attackerRoll} vs target ${result.result.targetRoll})`;
+    const mainSummary = result.result.hit
+      ? `Grapple failed against ${decision.target} (save DC ${result.result.dc}, target rolled ${result.result.total})`
+      : `Grapple failed against ${decision.target} (Unarmed Strike missed: ${result.result.attackTotal} vs AC ${result.result.targetAC})`;
     const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
     return {
       action: decision.action,
@@ -2307,6 +1591,65 @@ export class AiActionExecutor {
       summary: fullSummary,
       data,
     };
+  }
+
+  private async executeEscapeGrapple(
+    sessionId: string,
+    encounterId: string,
+    aiCombatant: CombatantStateRecord,
+    decision: AiDecision,
+    actorRef: ActorRef | null,
+  ): Promise<Omit<TurnStepResult, "step">> {
+    if (!actorRef) {
+      return {
+        action: decision.action,
+        ok: false,
+        summary: "Failed: Invalid combatant reference",
+        data: { reason: "invalid_combatant_reference" },
+      };
+    }
+
+    // Use explicit seed from decision, or compute a deterministic round/turn-based seed
+    // (matching the tabletop handler convention) to avoid non-deterministic hash seeds
+    // that incorporate random nanoid session/encounter IDs.
+    let seed: number;
+    if (typeof (decision as Record<string, unknown>).seed === "number") {
+      seed = (decision as Record<string, unknown>).seed as number;
+    } else {
+      const encounter = await this.combat.getEncounterById(encounterId);
+      seed = (encounter?.round ?? 1) * 1000 + (encounter?.turn ?? 0) * 10 + 2;
+    }
+
+    const result = await this.actionService.escapeGrapple(sessionId, {
+      encounterId,
+      actor: actorRef,
+      seed,
+    });
+
+    const data: Record<string, unknown> = {
+      success: result.result.success,
+      dc: result.result.dc,
+      saveRoll: result.result.saveRoll,
+      total: result.result.total,
+      abilityUsed: result.result.abilityUsed,
+      seed,
+    };
+
+    // Process bonus action if included
+    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+    if (bonusResult) {
+      data.bonusAction = bonusResult;
+    }
+
+    if (result.result.success) {
+      const mainSummary = `Escape Grapple succeeded (DC ${result.result.dc}, rolled ${result.result.total})`;
+      const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
+      return { action: decision.action, ok: true, summary: fullSummary, data };
+    }
+
+    const mainSummary = `Escape Grapple failed (DC ${result.result.dc}, rolled ${result.result.total})`;
+    const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
+    return { action: decision.action, ok: true, summary: fullSummary, data };
   }
 
   private async executeHide(
@@ -2400,6 +1743,117 @@ export class AiActionExecutor {
     };
   }
 
+  private async executeUseObject(
+    sessionId: string,
+    encounterId: string,
+    aiCombatant: CombatantStateRecord,
+    decision: AiDecision,
+    actorRef: ActorRef | null,
+  ): Promise<Omit<TurnStepResult, "step">> {
+    if (!actorRef) {
+      return {
+        action: decision.action,
+        ok: false,
+        summary: "Failed: Invalid combatant reference",
+        data: { reason: "invalid_combatant_reference" },
+      };
+    }
+
+    const resources = normalizeResources(aiCombatant.resources);
+    if (resources.actionSpent) {
+      return {
+        action: decision.action,
+        ok: false,
+        summary: "Failed: Action already spent this turn",
+        data: { reason: "action_already_spent" },
+      };
+    }
+
+    // Check inventory for healing potions
+    const inventory = getInventory(aiCombatant.resources);
+    const healingPotion = inventory.find(item => {
+      const formula = POTION_HEALING_FORMULAS[item.magicItemId ?? ""];
+      if (formula) return item.quantity > 0;
+      const itemDef = lookupMagicItem(item.name);
+      return itemDef && POTION_HEALING_FORMULAS[itemDef.id] && item.quantity > 0;
+    });
+
+    if (!healingPotion) {
+      return {
+        action: decision.action,
+        ok: false,
+        summary: "No usable objects available. Use 'attack', 'move', or 'endTurn' instead.",
+        data: { reason: "no_usable_objects" },
+      };
+    }
+
+    // Use the healing potion
+    const potionFormula = POTION_HEALING_FORMULAS[healingPotion.magicItemId ?? ""]
+      ?? POTION_HEALING_FORMULAS[lookupMagicItem(healingPotion.name)?.id ?? ""];
+    if (!potionFormula) {
+      return {
+        action: decision.action,
+        ok: false,
+        summary: "No usable healing potions available.",
+        data: { reason: "no_usable_objects" },
+      };
+    }
+
+    // Consume the item
+    const { updatedInventory } = useConsumableItem(inventory, healingPotion.name);
+
+    // Roll healing dice
+    let healAmount = 0;
+    let healMessage = "";
+    if (this.diceRoller) {
+      const diceResult = this.diceRoller.rollDie(potionFormula.diceSides, potionFormula.diceCount, potionFormula.modifier);
+      healAmount = diceResult.total;
+      healMessage = `${potionFormula.diceCount}d${potionFormula.diceSides}+${potionFormula.modifier} = ${healAmount}`;
+    }
+
+    // Apply healing
+    const hpBefore = aiCombatant.hpCurrent;
+    const hpMax = aiCombatant.hpMax;
+    const hpAfter = Math.min(hpMax, hpBefore + healAmount);
+    const actualHeal = hpAfter - hpBefore;
+
+    // Update resources: consume item + spend action
+    const updatedResources = {
+      ...resources,
+      actionSpent: true,
+      inventory: updatedInventory,
+    };
+
+    await this.combat.updateCombatantState(aiCombatant.id, {
+      hpCurrent: hpAfter,
+      resources: updatedResources as any,
+    });
+
+    const data: Record<string, unknown> = {
+      item: healingPotion.name,
+      healAmount: actualHeal,
+      hpBefore,
+      hpAfter,
+      hpMax,
+    };
+
+    // Process bonus action if included
+    const bonusResult = await this.executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
+    if (bonusResult) {
+      data.bonusAction = bonusResult;
+    }
+
+    const mainSummary = `Drinks ${healingPotion.name} and heals ${actualHeal} HP (${healMessage}). HP: ${hpAfter}/${hpMax}`;
+    const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
+
+    return {
+      action: decision.action,
+      ok: true,
+      summary: fullSummary,
+      data,
+    };
+  }
+
   private async executeEndTurn(
     sessionId: string,
     encounterId: string,
@@ -2423,7 +1877,7 @@ export class AiActionExecutor {
    * Falls back to legacy string matching for backward compatibility.
    * Returns summary of bonus action result, or null if none.
    */
-  private async executeBonusAction(
+  async executeBonusAction(
     sessionId: string,
     encounterId: string,
     aiCombatant: CombatantStateRecord,
@@ -2496,8 +1950,12 @@ export class AiActionExecutor {
         if (result.success && result.data?.spendResource) {
           const spendResource = result.data.spendResource as { poolName: string; amount: number };
           const { spendResourceFromPool } = await import("../helpers/resource-utils.js");
+          // Re-read fresh state to preserve any flags set by the executor (e.g., disengaged)
+          const freshCombatants = await this.combat.listCombatants(encounterId);
+          const freshCombatant = freshCombatants.find((c) => c.id === aiCombatant.id);
+          const freshResources = freshCombatant?.resources ?? aiCombatant.resources;
           const updatedResources = spendResourceFromPool(
-            aiCombatant.resources,
+            freshResources,
             spendResource.poolName,
             spendResource.amount,
           );
