@@ -130,10 +130,14 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-cover-detection.prompt.md`
 - **Affected flows**: CombatRules
 
-### 4.5 `findRetreatPosition` Path Reachability
-- **Priority**: LOW
-- **Fix**: Verify retreat position path is actually traversable (currently picks position by distance without pathfinding validation).
-- **Affected flows**: AIBehavior
+### 4.5 `findRetreatPosition` Path Reachability ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
+- **Fix**: Replaced the Euclidean-distance grid-scan in `findRetreatPosition` with a proper Dijkstra flood-fill (`getReachableCells`). The old implementation filtered candidates by `calculateDistance(origin, pos) > speedFeet` (Euclidean straight-line) without verifying the path was actually traversable — cells behind walls or reachable only via costly detours were incorrectly included. The new implementation enumerates only cells that A\* can actually reach within the movement budget, respecting walls, difficult terrain, diagonal alternating cost, and zone penalties.
+- **Secondary fix**: `MoveAwayFromHandler` now explicitly guards the completely-blocked `findPath` case (returns early with `movedFeet: 0, blocked: true` instead of passing an unreachable destination downstream).
+- **New export**: `getReachableCells(map, from, maxCostFeet, options)` — public Dijkstra flood-fill matching the architecture diagram in `combat-rules.instructions.md`.
+- **Tests**: 10 new unit tests in `pathfinding.test.ts` (5 for `getReachableCells`, 5 for `findRetreatPosition`).
+- **Plan**: See `plan-retreat-reachability.prompt.md`
+- **Affected flows**: CombatRules, AIBehavior
 
 ---
 

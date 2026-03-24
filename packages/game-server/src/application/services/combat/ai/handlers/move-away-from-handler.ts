@@ -136,13 +136,25 @@ export class MoveAwayFromHandler implements AiActionHandler {
         occupiedPositions,
         zones,
       });
-      if (!pathResult.blocked || pathResult.path.length > 0) {
-        retreatDest.x = (pathResult.reachablePosition ?? retreatDest).x;
-        retreatDest.y = (pathResult.reachablePosition ?? retreatDest).y;
-        pathCells = pathResult.path;
-        pathCostFeet = pathResult.totalCostFeet;
-        pathNarrationHints = pathResult.narrationHints;
+      if (pathResult.blocked && pathResult.path.length === 0 && !pathResult.reachablePosition) {
+        // No path exists at all — destination is completely unreachable.
+        // After the findRetreatPosition domain fix this should never happen, but
+        // guard defensively against edge-cases (e.g., race conditions in map state).
+        return {
+          action: decision.action,
+          ok: true,
+          summary: `Cannot retreat from ${decision.target} — path completely blocked`,
+          data: { movedFeet: 0, blocked: true },
+        };
       }
+      if (pathResult.reachablePosition) {
+        // Partial path: update destination to the actual reachable endpoint.
+        retreatDest.x = pathResult.reachablePosition.x;
+        retreatDest.y = pathResult.reachablePosition.y;
+      }
+      pathCells = pathResult.path;
+      pathCostFeet = pathResult.totalCostFeet;
+      pathNarrationHints = pathResult.narrationHints;
     }
 
     const actorName = await combatantResolver.getName(actorRef, aiCombatant);

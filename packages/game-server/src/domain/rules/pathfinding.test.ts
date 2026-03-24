@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPath, findAdjacentPosition } from "./pathfinding.js";
+import { findPath, findAdjacentPosition, findRetreatPosition, getReachableCells } from "./pathfinding.js";
 import { createCombatMap, setTerrainAt, type CombatMap } from "./combat-map.js";
 
 /**
@@ -290,5 +290,175 @@ describe("Pathfinding — findAdjacentPosition", () => {
     expect(dist).toBeLessThanOrEqual(15.1);
     // Should pick the cell closest to approach origin
     expect(result!.x).toBeLessThan(30);
+  });
+});
+
+// ----------------------------------------------------------------
+// getReachableCells
+// ----------------------------------------------------------------
+
+describe("Pathfinding — getReachableCells", () => {
+  it("should include the origin cell at cost 0", () => {
+    const map = makeMap();
+    const cells = getReachableCells(map, { x: 0, y: 0 }, 30);
+
+    const origin = cells.find(c => c.pos.x === 0 && c.pos.y === 0);
+    expect(origin).toBeDefined();
+    expect(origin!.costFeet).toBe(0);
+  });
+
+  it("should return cells within the movement budget on an open map", () => {
+    const map = makeMap();
+    const budget = 20;
+    const cells = getReachableCells(map, { x: 0, y: 0 }, budget);
+
+    // All returned cells must have actual path cost ≤ budget
+    for (const cell of cells) {
+      expect(cell.costFeet).toBeLessThanOrEqual(budget);
+    }
+
+    // Cells within 20ft straight east should be reachable
+    expect(cells.some(c => c.pos.x === 20 && c.pos.y === 0)).toBe(true);
+
+    // Cell at 25ft east should NOT be reachable within 20ft budget
+    expect(cells.some(c => c.pos.x === 25 && c.pos.y === 0)).toBe(false);
+  });
+
+  it("should NOT include cells behind a wall that would require a detour exceeding the budget", () => {
+    // Wall column at x=10 from y=0 to y=20 (blocks direct eastward path)
+    let map = makeMap(100, 100);
+    for (let y = 0; y <= 20; y += 5) {
+      map = setTerrainAt(map, { x: 10, y }, "wall");
+    }
+    // From (0,0) with a 15ft budget, cell at (15,10) requires going around the wall
+    // — minimum path cost exceeds 15ft, so it should NOT appear in the reachable set.
+    const cells = getReachableCells(map, { x: 0, y: 0 }, 15);
+    const beyondWall = cells.find(c => c.pos.x === 15 && c.pos.y === 10);
+    expect(beyondWall).toBeUndefined();
+  });
+
+  it("should include cells reachable by routing around a wall when budget allows", () => {
+    let map = makeMap(100, 100);
+    // Wall column at x=10 from y=0..y=10 (partial wall, can go around from y=15)
+    for (let y = 0; y <= 10; y += 5) {
+      map = setTerrainAt(map, { x: 10, y }, "wall");
+    }
+    // With a 60ft budget, cell at (15,0) should be reachable via detour
+    const cells = getReachableCells(map, { x: 0, y: 0 }, 60);
+    expect(cells.some(c => c.pos.x === 15 && c.pos.y === 0)).toBe(true);
+  });
+
+  it("should not include occupied positions", () => {
+    const map = makeMap();
+    const occupied = [{ x: 5, y: 0 }, { x: 0, y: 5 }];
+    const cells = getReachableCells(map, { x: 0, y: 0 }, 30, { occupiedPositions: occupied });
+
+    expect(cells.find(c => c.pos.x === 5 && c.pos.y === 0)).toBeUndefined();
+    expect(cells.find(c => c.pos.x === 0 && c.pos.y === 5)).toBeUndefined();
+  });
+
+  it("should account for difficult terrain cost", () => {
+    let map = makeMap();
+    // Difficult terrain at (5,0) — costs 10ft instead of 5ft
+    map = setTerrainAt(map, { x: 5, y: 0 }, "difficult");
+
+    const cells = getReachableCells(map, { x: 0, y: 0 }, 10);
+    // (5,0) costs 10ft — exactly at budget, should be included
+    const difficultCell = cells.find(c => c.pos.x === 5 && c.pos.y === 0);
+    expect(difficultCell).toBeDefined();
+    expect(difficultCell!.costFeet).toBe(10);
+    // (10,0) costs 10 + 5 = 15ft via (5,0), but direct from (0,0) costs 10ft — wait,
+    // (10,0) from origin without going through (5,0) directly isn't possible.
+    // Path must go through (5,0) = 10ft, then to (10,0) = 10+5 = 15ft.
+    // 15ft > 10ft budget → (10,0) should NOT be reachable.
+    expect(cells.find(c => c.pos.x === 10 && c.pos.y === 0)).toBeUndefined();
+  });
+});
+
+// ----------------------------------------------------------------
+// findRetreatPosition
+// ----------------------------------------------------------------
+
+describe("Pathfinding — findRetreatPosition", () => {
+  it("should move away from the threat on an open map", () => {
+    const map = makeMap(200, 100);
+    // Creature at (50,25), threat at (75,25) — retreat westward
+    const result = findRetreatPosition(map, { x: 50, y: 25 }, { x: 75, y: 25 }, 30);
+
+    // Result should be further west (lower x) and at least as far as origin
+    const distOrigin = Math.abs(75 - 50); // 25ft
+    const distResult = Math.abs(75 - result.x);
+    expect(distResult).toBeGreaterThan(distOrigin);
+    // Result must be within 30ft movement (pathfinding cost — not Euclidean)
+    expect(result.x).toBeGreaterThanOrEqual(20); // not further than 30ft west
+  });
+
+  it("should NOT pick a cell behind a wall that would require a detour exceeding speed", () => {
+    // Wall column at x=40 blocks direct westward retreat
+    let map = makeMap(200, 100);
+    for (let y = 0; y <= 95; y += 5) {
+      map = setTerrainAt(map, { x: 40, y }, "wall");
+    }
+    // Creature at (50,25), threat at (80,25), speed=15ft
+    // With a 15ft budget, cannot cross the wall at x=40 (would need 10ft to reach wall side + 5ft through = impossible)
+    // The best reachable retreat within 15ft should be on the east side of the wall (x≥45)
+    const result = findRetreatPosition(map, { x: 50, y: 25 }, { x: 80, y: 25 }, 15);
+
+    // Result must NOT be west of the wall (x<40)
+    expect(result.x).toBeGreaterThanOrEqual(40);
+    // Result must be different from origin (we can still move within 15ft on the east side)
+    // (could go north/south to increase distance from (80,25))
+  });
+
+  it("should return current position when surrounded (no better cell reachable)", () => {
+    // Small 2x2 room (all surrounding cells are walls)
+    let map = makeMap(50, 50);
+    const room = [
+      { x: 20, y: 20 }, // origin
+    ];
+    // Surround origin with walls on all 8 sides
+    for (const dx of [-5, 0, 5]) {
+      for (const dy of [-5, 0, 5]) {
+        if (dx === 0 && dy === 0) continue;
+        map = setTerrainAt(map, { x: 20 + dx, y: 20 + dy }, "wall");
+      }
+    }
+    void room; // suppress unused warning
+
+    // Creature at (20,20), completely surrounded by walls, threat at (30,20)
+    const result = findRetreatPosition(map, { x: 20, y: 20 }, { x: 30, y: 20 }, 30);
+
+    // Can't go anywhere — should stay at origin
+    expect(result).toEqual({ x: 20, y: 20 });
+  });
+
+  it("should fall back to linear interpolation when no map is provided", () => {
+    // No map — uses linear interpolation
+    const result = findRetreatPosition(undefined, { x: 50, y: 25 }, { x: 75, y: 25 }, 30);
+
+    // Linear retreat: dx = 50-75=-25, dy=0, dist=25, ratio=30/25=1.2
+    // result.x = round(50 + (-25)*1.2) = round(50-30) = 20
+    expect(result.x).toBe(20);
+    expect(result.y).toBe(25);
+  });
+
+  it("should use pathfinding cost (not Euclidean) for reachability on difficult terrain", () => {
+    // Fill a band with difficult terrain at x=10..20 across all y
+    let map = makeMap(200, 100);
+    for (let y = 0; y <= 95; y += 5) {
+      map = setTerrainAt(map, { x: 10, y }, "difficult");
+      map = setTerrainAt(map, { x: 15, y }, "difficult");
+      map = setTerrainAt(map, { x: 20, y }, "difficult");
+    }
+    // Creature at (25,25), threat at (50,25), speed=15ft
+    // Cells at x=0,5 require going through 3 difficult cells (each 10ft) = 30ft total
+    // That exceeds 15ft budget, so those cells should NOT be returned as retreat destination.
+    const result = findRetreatPosition(map, { x: 25, y: 25 }, { x: 50, y: 25 }, 15);
+
+    // Result must NOT be in the unreachable zone west of difficult band (x<10)
+    // because 3 difficult cells × 10ft = 30ft > 15ft budget
+    // (cells at x=10,15,20 are difficult but might be within budget depending on path)
+    // Most importantly, x=0 or x=5 should NOT be the result
+    expect(result.x).toBeGreaterThan(5);
   });
 });

@@ -71,6 +71,15 @@ export interface PathResult {
   reachablePosition?: Position;
 }
 
+/**
+ * A single cell returned by {@link getReachableCells}.
+ */
+export interface ReachableCell {
+  pos: Position;
+  /** Actual movement cost (in feet) from the origin to this cell. */
+  costFeet: number;
+}
+
 // ----------------------------------------------------------------
 // Internal A* node
 // ----------------------------------------------------------------
@@ -419,12 +428,136 @@ export function findAdjacentPosition(
 }
 
 /**
+ * Flood-fill all cells reachable from `from` within `maxCostFeet` using Dijkstra.
+ *
+ * Uses the same movement rules as {@link findPath}: difficult terrain ×2,
+ * diagonal alternating cost, hazard avoidance, occupied position blocking,
+ * and zone cost penalties. Returns EVERY cell reachable within the budget —
+ * including the origin cell at cost 0.
+ *
+ * This is the foundation for {@link findRetreatPosition} and any other AI
+ * logic that needs the actual set of reachable cells (not a Euclidean estimate).
+ *
+ * @param map         Combat map with terrain cells.
+ * @param from        Start position (grid-aligned).
+ * @param maxCostFeet Movement budget in feet.
+ * @param options     Hazard avoidance, occupied positions, zones.
+ * @returns           All cells reachable within budget, in expansion order.
+ */
+export function getReachableCells(
+  map: CombatMap,
+  from: Position,
+  maxCostFeet: number,
+  options: Omit<PathOptions, "maxCostFeet"> = {},
+): ReachableCell[] {
+  const gridSize = map.gridSize || 5;
+  const start = snapToGrid(from, gridSize);
+  const avoidHazards = options.avoidHazards ?? true;
+
+  const occupiedSet = new Set<string>();
+  if (options.occupiedPositions) {
+    for (const op of options.occupiedPositions) {
+      occupiedSet.add(posKey(snapToGrid(op, gridSize)));
+    }
+  }
+  // Start cell is never blocked by the occupied check (creature is already there).
+  occupiedSet.delete(posKey(start));
+
+  interface FloodNode {
+    pos: Position;
+    g: number;
+    diagonalCount: number;
+  }
+
+  const openMap = new Map<string, FloodNode>();
+  const closedSet = new Set<string>();
+  const result: ReachableCell[] = [];
+
+  openMap.set(posKey(start), { pos: start, g: 0, diagonalCount: 0 });
+
+  while (openMap.size > 0) {
+    // Pick node with lowest g-cost (Dijkstra — no heuristic needed for flood-fill)
+    let current: FloodNode | null = null;
+    for (const node of openMap.values()) {
+      if (!current || node.g < current.g) {
+        current = node;
+      }
+    }
+    if (!current) break;
+
+    const currentKey = posKey(current.pos);
+    openMap.delete(currentKey);
+    if (closedSet.has(currentKey)) continue;
+    closedSet.add(currentKey);
+    result.push({ pos: current.pos, costFeet: current.g });
+
+    for (const dir of DIRECTIONS) {
+      const neighbor: Position = { x: current.pos.x + dir.x, y: current.pos.y + dir.y };
+      const nKey = posKey(neighbor);
+
+      if (closedSet.has(nKey)) continue;
+      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet)) continue;
+
+      // Diagonal corner-cutting check: both orthogonal neighbours must be passable
+      const diag = isDiagonal(dir.x, dir.y);
+      if (diag) {
+        const adj1: Position = { x: current.pos.x + dir.x, y: current.pos.y };
+        const adj2: Position = { x: current.pos.x, y: current.pos.y + dir.y };
+        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet) ||
+            !isCellWalkable(map, adj2, avoidHazards, occupiedSet)) {
+          continue;
+        }
+      }
+
+      const neighborCell = getCellAt(map, neighbor);
+      const terrain = neighborCell?.terrain ?? "normal";
+      const terrainMult = terrainCostMultiplier(terrain);
+      if (terrainMult === Infinity) continue;
+
+      let stepCost: number;
+      let newDiagCount = current.diagonalCount;
+      if (diag) {
+        const dc = diagonalStepCost(current.diagonalCount);
+        stepCost = dc.cost * terrainMult;
+        newDiagCount = dc.newCount;
+      } else {
+        stepCost = gridSize * terrainMult;
+      }
+
+      // Zone cost penalty — cells inside damaging zones are penalised
+      if (options.zones && options.zones.length > 0) {
+        const penalty = options.zoneCostPenalty ?? 15;
+        for (const zone of options.zones) {
+          if (isPositionInZone(zone, neighbor)) {
+            stepCost += penalty;
+            break;
+          }
+        }
+      }
+
+      const newG = current.g + stepCost;
+      if (newG > maxCostFeet) continue;
+
+      const existing = openMap.get(nKey);
+      if (!existing || newG < existing.g) {
+        openMap.set(nKey, { pos: neighbor, g: newG, diagonalCount: newDiagCount });
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Find the best retreat destination: the passable cell within movement range
  * that maximises distance from `fleeFrom`.
  *
- * Uses A* to evaluate reachable cells within `speedFeet`, then picks the one
- * farthest from the threat. Falls back to linear interpolation when no combat
- * map is available (caller passes `map: undefined`).
+ * Uses Dijkstra flood-fill (via {@link getReachableCells}) to enumerate all
+ * cells truly reachable within `speedFeet`, then picks the one farthest from
+ * the threat. Cells in damaging zones are excluded as end positions. Falls
+ * back to the current position (stay put) when no better cell can be reached.
+ * Falls back to linear interpolation when no combat map is available
+ * (`map: undefined`).
  */
 export function findRetreatPosition(
   map: CombatMap | undefined,
@@ -453,40 +586,32 @@ export function findRetreatPosition(
   const gridSize = map.gridSize || 5;
   const origin = snapToGrid(currentPos, gridSize);
   const threat = snapToGrid(fleeFrom, gridSize);
-  const occupiedSet = new Set((occupiedPositions ?? []).map(posKey));
 
-  // BFS/flood-fill: collect all passable cells reachable within speedFeet
-  const searchRadius = Math.ceil(speedFeet / gridSize) + 1;
+  // Use Dijkstra flood-fill to get cells truly reachable within speedFeet.
+  // This respects walls, difficult terrain, and diagonal cost rules — unlike
+  // a plain Euclidean-distance filter which incorrectly marks cells behind
+  // walls or reachable only via expensive detours as "in range".
+  const reachable = getReachableCells(map, origin, speedFeet, { occupiedPositions, zones });
+
   let bestPos = origin;
   let bestDist = calculateDistance(origin, threat);
 
-  for (let dx = -searchRadius; dx <= searchRadius; dx++) {
-    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
-      const pos: Position = {
-        x: origin.x + dx * gridSize,
-        y: origin.y + dy * gridSize,
-      };
-      if (!isOnMap(map, pos)) continue;
-      if (!isPositionPassable(map, pos)) continue;
-      if (occupiedSet.has(posKey(pos))) continue;
+  for (const { pos } of reachable) {
+    if (pos.x === origin.x && pos.y === origin.y) continue; // Don't count staying put
 
-      // Check zone penalties: skip cells in damaging zones
-      if (zones) {
-        const inDangerousZone = zones.some(z =>
-          z.effects.some(e => e.trigger === "on_enter" || e.trigger === "per_5ft_moved") &&
-          isPositionInZone(z, pos),
-        );
-        if (inDangerousZone) continue;
-      }
+    // Skip cells in damaging zones — don't end a retreat inside a hazard area
+    if (zones) {
+      const inDangerousZone = zones.some(z =>
+        z.effects.some(e => e.trigger === "on_enter" || e.trigger === "per_5ft_moved") &&
+        isPositionInZone(z, pos),
+      );
+      if (inDangerousZone) continue;
+    }
 
-      const distFromOrigin = calculateDistance(origin, pos);
-      if (distFromOrigin > speedFeet) continue; // Out of movement range
-
-      const distFromThreat = calculateDistance(pos, threat);
-      if (distFromThreat > bestDist) {
-        bestDist = distFromThreat;
-        bestPos = pos;
-      }
+    const distFromThreat = calculateDistance(pos, threat);
+    if (distFromThreat > bestDist) {
+      bestDist = distFromThreat;
+      bestPos = pos;
     }
   }
 
