@@ -8,7 +8,7 @@
 
 import type { Position } from "./movement.js";
 import { calculateDistance, isWithinRange } from "./movement.js";
-import type { CombatMap, CoverLevel } from "./combat-map-types.js";
+import type { CombatMap, CoverLevel, TerrainType } from "./combat-map-types.js";
 import { getCellAt, getEntity } from "./combat-map-core.js";
 import type { MapEntity } from "./combat-map-types.js";
 
@@ -42,44 +42,63 @@ export function hasLineOfSight(
 }
 
 /**
- * Calculate cover level for a target from attacker's position.
+ * Map a terrain type to the cover level it grants when interposed between
+ * an attacker and a target. Pure lookup — no positional logic.
+ *
+ * D&D 5e 2024 cover rules:
+ *   Half cover        (+2 AC / DEX save) — low walls, furniture, obstacles
+ *   Three-quarters    (+5 AC / DEX save) — portcullises, arrow slits
+ *   Full cover        (cannot be targeted) — solid walls, total concealment
+ */
+function terrainToCoverLevel(terrain: TerrainType): CoverLevel {
+  switch (terrain) {
+    case "wall":
+    case "cover-full":
+      return "full";
+    case "cover-three-quarters":
+      return "three-quarters";
+    case "cover-half":
+    case "obstacle":
+      // Impassable obstacles block at least half of a Medium creature's body.
+      return "half";
+    default:
+      return "none";
+  }
+}
+
+/**
+ * Calculate cover level for a target from an attacker's position.
+ *
+ * Ray-marches the straight line from attackerPos to targetPos using the same
+ * step count as hasLineOfSight(). Each intermediate grid cell is inspected via
+ * terrainToCoverLevel(). The strongest cover found anywhere on the path is
+ * returned. Cells at the attacker's and target's own positions are excluded —
+ * cover must be an obstacle *between* two combatants.
  */
 export function getCoverLevel(
   map: CombatMap,
   attackerPos: Position,
   targetPos: Position,
 ): CoverLevel {
-  // Check cells near target for cover
-  const nearbyPositions = [
-    { x: targetPos.x + map.gridSize, y: targetPos.y },
-    { x: targetPos.x - map.gridSize, y: targetPos.y },
-    { x: targetPos.x, y: targetPos.y + map.gridSize },
-    { x: targetPos.x, y: targetPos.y - map.gridSize },
-  ];
+  const distance = calculateDistance(attackerPos, targetPos);
+  const steps = Math.max(Math.ceil(distance / map.gridSize), 1);
 
-  let bestCover: CoverLevel = "none";
+  let bestCover: "none" | "half" | "three-quarters" = "none";
 
-  for (const pos of nearbyPositions) {
-    const cell = getCellAt(map, pos);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const checkPos: Position = {
+      x: attackerPos.x + (targetPos.x - attackerPos.x) * t,
+      y: attackerPos.y + (targetPos.y - attackerPos.y) * t,
+    };
+
+    const cell = getCellAt(map, checkPos);
     if (!cell) continue;
 
-    // Check if this cover is between attacker and target
-    const distToTarget = calculateDistance(pos, targetPos);
-    const distAttackerToCover = calculateDistance(attackerPos, pos);
-    const distAttackerToTarget = calculateDistance(attackerPos, targetPos);
-
-    // Cover must be closer to target than attacker
-    if (distToTarget < distAttackerToCover && distAttackerToCover < distAttackerToTarget) {
-      if (cell.terrain === "cover-full") return "full";
-      if (cell.terrain === "cover-three-quarters") {
-        if (bestCover === "none" || bestCover === "half") {
-          bestCover = "three-quarters";
-        }
-      }
-      if (cell.terrain === "cover-half" && bestCover === "none") {
-        bestCover = "half";
-      }
-    }
+    const cellCover = terrainToCoverLevel(cell.terrain);
+    if (cellCover === "full") return "full";
+    if (cellCover === "three-quarters") bestCover = "three-quarters";
+    if (cellCover === "half" && bestCover === "none") bestCover = "half";
   }
 
   return bestCover;

@@ -122,9 +122,12 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-battle-plan-replan.prompt.md`
 - **Affected flows**: AIBehavior
 
-### 4.4 Cover Detection Simplified Heuristic
-- **Priority**: LOW (documented known limitation)
-- **Fix**: Improve cover geometry when gameplay demands it. Current implementation uses simple line-of-sight without obstacle size/shape.
+### 4.4 Cover Detection Simplified Heuristic ✅ DONE
+- **Priority**: ~~LOW (documented known limitation)~~ COMPLETED
+- **Files**: `domain/rules/combat-map-sight.ts`, `domain/rules/combat-map.test.ts`
+- **Issue**: `getCoverLevel()` only checked 4 cardinal cells adjacent to the target, missed walls/cover cells anywhere else on the attacker→target line, and ignored `"wall"` and `"obstacle"` terrain types entirely.
+- **Resolution**: Replaced 4-adjacent-cell heuristic with a ray-march algorithm (identical to `hasLineOfSight`). Added `terrainToCoverLevel()` helper that maps all 12 terrain types to their D&D 5e 2024 cover level. Walls now correctly grant full cover. `"obstacle"` terrain grants half cover. Cover anywhere on the attacker→target line is detected, not just adjacent to the target. 9 precise unit tests replace the 2 weak tests. 644 unit tests pass, 153/153 E2E pass.
+- **Plan**: See `plan-cover-detection.prompt.md`
 - **Affected flows**: CombatRules
 
 ### 4.5 `findRetreatPosition` Path Reachability

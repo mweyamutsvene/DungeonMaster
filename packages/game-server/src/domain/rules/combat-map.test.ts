@@ -244,7 +244,7 @@ describe("Combat Map", () => {
       expect(cover).toBe("none");
     });
 
-    it("should detect cover from nearby obstacles", () => {
+    it("should detect half cover from cover-half cell on the attacker→target line", () => {
       let map = createCombatMap({
         id: "test",
         name: "Test",
@@ -252,13 +252,134 @@ describe("Combat Map", () => {
         height: 50,
       });
 
-      // Place cover near target
-      map = setTerrainAt(map, { x: 25, y: 25 }, "cover-half");
+      // Attacker (0,0) → Target (30,0): midpoint is (15,0) — place half cover there
+      map = setTerrainAt(map, { x: 15, y: 0 }, "cover-half");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("half");
+    });
+
+    it("should detect three-quarters cover when that terrain is on the line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = setTerrainAt(map, { x: 15, y: 0 }, "cover-three-quarters");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("three-quarters");
+    });
+
+    it("should return full cover when a wall is on the attacker→target line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = setTerrainAt(map, { x: 15, y: 0 }, "wall");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("full");
+    });
+
+    it("should return full cover from explicit cover-full terrain on the line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = setTerrainAt(map, { x: 15, y: 0 }, "cover-full");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("full");
+    });
+
+    it("should detect half cover from obstacle terrain on the line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = setTerrainAt(map, { x: 15, y: 0 }, "obstacle");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("half");
+    });
+
+    it("should ignore cover cells that are not on the attacker→target line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      // Perpendicular to the line — should NOT grant cover
+      map = setTerrainAt(map, { x: 15, y: 10 }, "cover-half");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("none");
+    });
+
+    it("should return the strongest cover when multiple cover cells are on the line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = setTerrainAt(map, { x: 10, y: 0 }, "cover-half");
+      map = setTerrainAt(map, { x: 20, y: 0 }, "cover-three-quarters");
+
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 30, y: 0 });
+
+      expect(cover).toBe("three-quarters");
+    });
+
+    it("should return none when adjacent combatants have no cells between them", () => {
+      const map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      // Only 1 step apart — no intermediate cells to check
+      const cover = getCoverLevel(map, { x: 0, y: 0 }, { x: 5, y: 0 });
+
+      expect(cover).toBe("none");
+    });
+
+    it("should detect half cover from diagonal line through a cover cell", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      // Diagonal: (10,10) → (30,30) passes through approximately (20,20)
+      map = setTerrainAt(map, { x: 20, y: 20 }, "cover-half");
 
       const cover = getCoverLevel(map, { x: 10, y: 10 }, { x: 30, y: 30 });
 
-      // Cover detection depends on positioning logic
-      expect(["none", "half"]).toContain(cover);
+      expect(cover).toBe("half");
     });
   });
 

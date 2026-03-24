@@ -98,3 +98,4 @@ classDiagram
 3. **Rules are pure functions** — if you need state, you're probably in the wrong layer
 4. **D&D 5e 2024 rules** — not 2014. Verify against 2024 edition for any mechanic
 5. **Dependency direction**: Rules → entities (never reversed, except `character.ts` → rest/hp rules)
+6. **Cover uses ray-marching** — `getCoverLevel()` in `combat-map-sight.ts` samples the attacker→target line at `ceil(distance/gridSize)` intervals (same as `hasLineOfSight`). Cover cells at attacker and target positions are excluded — only intermediate cells count. `terrainToCoverLevel()` maps all terrain types: `"wall"` and `"cover-full"` → full, `"cover-three-quarters"` → three-quarters, `"cover-half"` and `"obstacle"` → half. Adding new terrain that should grant cover: add a case to `terrainToCoverLevel()` in `combat-map-sight.ts`.
