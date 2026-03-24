@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { SavingThrowResolver } from "./saving-throw-resolver.js";
-import { MemoryCombatRepository } from "../../../../infrastructure/testing/memory-repos.js";
-import { FixedDiceRoller } from "../../../../domain/rules/dice-roller.js";
-import type { SavingThrowPendingAction } from "./tabletop-types.js";
+import { MemoryCombatRepository } from "../../../../../infrastructure/testing/memory-repos.js";
+import { FixedDiceRoller } from "../../../../../domain/rules/dice-roller.js";
+import type { SavingThrowPendingAction } from "../tabletop-types.js";
 
 describe("SavingThrowResolver", () => {
   let combatRepo: MemoryCombatRepository;

@@ -42,7 +42,7 @@ pnpm -C packages/game-server dev                   # Run server in watch mode
 | **CombatRules** | `domain/rules/`, `domain/combat/`, `domain/effects/` |
 | **ClassAbilities** | `domain/entities/classes/`, `domain/abilities/`, `abilities/executors/` |
 | **SpellSystem** | `tabletop/spell-action-handler.ts`, `domain/entities/spells/`, `domain/rules/concentration.ts` |
-| **CombatOrchestration** | `combat/tabletop/*`, `tabletop-combat-service.ts`, `combat-service.ts` |
+| **CombatOrchestration** | `combat/tabletop/*`, `combat/action-handlers/*`, `combat/two-phase/*`, `tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts` |
 | **AIBehavior** | `combat/ai/*`, `infrastructure/llm/*` |
 | **EntityManagement** | `services/entities/*`, `domain/entities/creatures/*`, repositories |
 

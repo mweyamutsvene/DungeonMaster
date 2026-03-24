@@ -1,6 +1,6 @@
 ---
 description: "Architecture and conventions for the SpellSystem flow: SpellActionHandler delivery modes, zone effects, concentration mechanics, saving throw resolution, spell entity definitions."
-applyTo: "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/saving-throw-resolver.ts,packages/game-server/src/application/services/combat/tabletop/spell-delivery/**,packages/game-server/src/domain/entities/spells/**,packages/game-server/src/domain/rules/concentration.ts,packages/game-server/src/application/services/entities/spell-lookup-service.ts"
+applyTo: "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/rolls/saving-throw-resolver.ts,packages/game-server/src/application/services/combat/tabletop/spell-delivery/**,packages/game-server/src/domain/entities/spells/**,packages/game-server/src/domain/rules/concentration.ts,packages/game-server/src/application/services/entities/spell-lookup-service.ts"
 ---
 
 # SpellSystem Flow
@@ -51,7 +51,7 @@ classDiagram
 | Type/Function | File | Purpose |
 |---------------|------|---------|
 | `SpellActionHandler` | `tabletop/spell-action-handler.ts` | Central handler (~850 lines), 4 delivery modes |
-| `SavingThrowResolver` | `tabletop/saving-throw-resolver.ts` | Per-target save resolution, replaces old MonkTechniqueResolver |
+| `SavingThrowResolver` | `tabletop/rolls/saving-throw-resolver.ts` | Per-target save resolution, replaces old MonkTechniqueResolver |
 | `ConcentrationState` | `domain/rules/concentration.ts` | State machine: create → start → check on damage → end |
 | `Spell` entity | `domain/entities/spells/` | Spell data model (level 0-9, school, components) |
 | `SpellLookupService` | `services/entities/spell-lookup-service.ts` | Spell definition lookup and availability |

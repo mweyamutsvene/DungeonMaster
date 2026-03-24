@@ -1,12 +1,12 @@
 ---
-description: "Architecture and conventions for the CombatOrchestration flow: TabletopCombatService facade, ActionDispatcher, RollStateMachine, CombatTextParser, pending action state machine, two-phase action flow."
-applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packages/game-server/src/application/services/combat/tabletop-combat-service.ts,packages/game-server/src/application/services/combat/combat-service.ts"
+description: "Architecture and conventions for the CombatOrchestration flow: three facade services (TabletopCombatService, ActionService, TwoPhaseActionService), ActionDispatcher parser chain, RollStateMachine, reaction handlers, programmatic action handlers."
+applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packages/game-server/src/application/services/combat/tabletop-combat-service.ts,packages/game-server/src/application/services/combat/combat-service.ts,packages/game-server/src/application/services/combat/action-service.ts,packages/game-server/src/application/services/combat/action-handlers/**,packages/game-server/src/application/services/combat/two-phase-action-service.ts,packages/game-server/src/application/services/combat/two-phase/**,packages/game-server/src/application/services/combat/tactical-view-service.ts,packages/game-server/src/application/services/combat/combat-victory-policy.ts"
 ---
 
 # CombatOrchestration Flow
 
 ## Purpose
-Combat orchestration layer — thin facade delegating to focused sub-modules. Manages the pending action state machine, two-phase dice flow, text-to-action parsing, and action routing for all combat interactions.
+Combat orchestration layer — three thin facade services delegating to focused handler modules. Manages the pending action state machine, two-phase dice flow, text-to-action parsing, reaction resolution, and programmatic action execution.
 
 ## Architecture
 
@@ -20,60 +20,120 @@ classDiagram
     }
     class ActionDispatcher {
         +dispatch()
-        -parserChain: ActionParserEntry[]
         -buildParserChain()
-        -handleMoveAction()
-        -handleAttackAction()
-        -handleClassAbility()
-        -handleBonusAbility()
     }
-    class ActionParserEntry~T~ {
-        +id: string
-        +tryParse(text, roster): T | null
-        +handle(parsed, ctx): ActionParseResult
-    }
+    class MovementHandlers { +handleMoveAction() }
+    class AttackHandlers { +handleAttackAction() }
+    class ClassAbilityHandlers { +handleClassAbility() }
+    class GrappleHandlers { +handleShove() }
+    class SocialHandlers { +handleDash() }
+    class InteractionHandlers { +handlePickup() }
+
     class RollStateMachine {
         +handleInitiativeRoll()
         +handleAttackRoll()
         +handleDamageRoll()
         +handleDeathSaveRoll()
-        +loadRoster()
     }
-    class CombatTextParser {
-        +tryParseMoveText()$
-        +tryParseAttackText()$
-        +tryParseSimpleActionText()$
-        +inferActorRef()$
-    }
-    class SavingThrowResolver {
-        +resolveForTargets()
-    }
-    class TabletopEventEmitter {
-        +emitNarration()
-        +emitEvent()
-    }
+    class InitiativeHandler { +handle() }
+    class HitRiderResolver { +resolve() }
+    class WeaponMasteryResolver { +resolve() }
 
-    TabletopCombatService --> ActionDispatcher : delegates
-    TabletopCombatService --> RollStateMachine : delegates
-    ActionDispatcher --> ActionParserEntry~T~ : iterates chain
-    ActionDispatcher --> CombatTextParser : uses (via parsers)
-    ActionDispatcher --> SavingThrowResolver : uses
-    ActionDispatcher --> TabletopEventEmitter : uses
+    class ActionService {
+        +executeAction()
+    }
+    class AttackActionHandler { +execute() }
+    class GrappleActionHandler { +execute() }
+    class SkillActionHandler { +execute() }
+
+    class TwoPhaseActionService {
+        +initiateMove()
+        +completeMove()
+        +initiateAttack()
+        +completeAttack()
+    }
+    class MoveReactionHandler { +initiate()+complete() }
+    class AttackReactionHandler { +initiate()+complete() }
+    class SpellReactionHandler { +initiate()+complete() }
+
+    class CombatTextParser { +tryParseMoveText()$ }
+    class SavingThrowResolver { +resolveForTargets() }
+    class TabletopEventEmitter { +emitNarration() }
+
+    TabletopCombatService --> ActionDispatcher : parseCombatAction
+    TabletopCombatService --> RollStateMachine : processRollResult
+    TabletopCombatService --> TwoPhaseActionService : completeMove
+
+    ActionDispatcher --> MovementHandlers
+    ActionDispatcher --> AttackHandlers
+    ActionDispatcher --> ClassAbilityHandlers
+    ActionDispatcher --> GrappleHandlers
+    ActionDispatcher --> SocialHandlers
+    ActionDispatcher --> InteractionHandlers
+    ActionDispatcher --> CombatTextParser
+
+    RollStateMachine --> InitiativeHandler
+    RollStateMachine --> HitRiderResolver
+    RollStateMachine --> WeaponMasteryResolver
+    RollStateMachine --> SavingThrowResolver
+
+    ActionService --> AttackActionHandler
+    ActionService --> GrappleActionHandler
+    ActionService --> SkillActionHandler
+
+    TwoPhaseActionService --> MoveReactionHandler
+    TwoPhaseActionService --> AttackReactionHandler
+    TwoPhaseActionService --> SpellReactionHandler
 ```
+
+## Three Facade Services
+
+| Facade | File | Purpose | Delegates To |
+|--------|------|---------|-------------|
+| **TabletopCombatService** | `tabletop-combat-service.ts` | Text-based dice flow (4 public methods) | `tabletop/` modules |
+| **ActionService** | `action-service.ts` | Programmatic action execution | `action-handlers/` |
+| **TwoPhaseActionService** | `two-phase-action-service.ts` | Reaction resolution (OA, Shield, Counterspell) | `two-phase/` |
 
 ## Module Decomposition
 
-| Module | Responsibility | Lines |
-|--------|---------------|-------|
-| `tabletop-combat-service.ts` | Thin facade, 4 public methods | ~370 |
-| `action-dispatcher.ts` | Parser chain + action handlers | ~1800 |
-| `action-parser-chain.ts` | `ActionParserEntry<T>` + `DispatchContext` types | ~55 |
-| `roll-state-machine.ts` | All dice roll resolution | ~1700 |
-| `combat-text-parser.ts` | 20+ pure text parsing functions | ~1200 |
-| `tabletop-types.ts` | All shared types and interfaces | ~400 |
-| `spell-action-handler.ts` | Spell delivery (4 modes) | ~850 |
-| `saving-throw-resolver.ts` | Save-based effect resolution | ~200 |
-| `tabletop-event-emitter.ts` | Narration + event helpers | ~150 |
+| Module | Responsibility | Lines | Owner |
+|--------|---------------|-------|-------|
+| **Tabletop subsystem** | | | |
+| `tabletop-combat-service.ts` | Thin facade, 4 public methods | ~435 | — |
+| `tabletop/action-dispatcher.ts` | Parser chain facade, delegates to handler classes | ~575 | — |
+| `tabletop/dispatch/movement-handlers.ts` | Move, moveToward, jump dispatch handlers | ~480 | ActionDispatcher |
+| `tabletop/dispatch/attack-handlers.ts` | Attack, offhand, TWF dispatch handlers | ~789 | ActionDispatcher |
+| `tabletop/dispatch/class-ability-handlers.ts` | Class ability + bonus action dispatch handlers | ~549 | ActionDispatcher |
+| `tabletop/dispatch/interaction-handlers.ts` | Pickup, drop, draw, sheathe, use-item handlers | ~471 | ActionDispatcher |
+| `tabletop/dispatch/grapple-handlers.ts` | Shove, grapple, escape-grapple handlers | ~123 | ActionDispatcher |
+| `tabletop/dispatch/social-handlers.ts` | Dash, dodge, disengage, ready, help, hide, search | ~197 | ActionDispatcher |
+| `tabletop/roll-state-machine.ts` | All dice roll resolution | ~1555 | — |
+| `tabletop/rolls/initiative-handler.ts` | Initiative roll, resource init, Alert feat | ~600 | RollStateMachine |
+| `tabletop/rolls/hit-rider-resolver.ts` | Post-damage enhancement effects | ~148 | RollStateMachine |
+| `tabletop/rolls/weapon-mastery-resolver.ts` | Weapon mastery effect resolution | ~308 | RollStateMachine |
+| `tabletop/combat-text-parser.ts` | 20+ pure text parsing functions | ~616 | Multiple |
+| `tabletop/rolls/saving-throw-resolver.ts` | Save-based effect resolution | ~337 | Multiple |
+| `tabletop/spell-action-handler.ts` | Spell delivery facade | ~157 | ActionDispatcher |
+| `tabletop/tabletop-types.ts` | All shared types/interfaces | ~418 | Multiple |
+| `tabletop/tabletop-event-emitter.ts` | Narration + event helpers | ~250 | Multiple |
+| `tabletop/action-parser-chain.ts` | Parser chain types | ~44 | ActionDispatcher |
+| `tabletop/pending-action-state-machine.ts` | State transition validation | ~56 | Multiple |
+| `tabletop/tabletop-utils.ts` | Initiative utilities | ~96 | Multiple |
+| `tabletop/path-narrator.ts` | Movement narration text | ~119 | Multiple |
+| **ActionService subsystem** | | | |
+| `action-service.ts` | Programmatic action facade | ~568 | — |
+| `action-handlers/attack-action-handler.ts` | Programmatic attack resolution | ~388 | ActionService |
+| `action-handlers/grapple-action-handler.ts` | Programmatic grapple/shove resolution | ~542 | ActionService |
+| `action-handlers/skill-action-handler.ts` | Programmatic hide/search/help | ~285 | ActionService |
+| **TwoPhaseAction subsystem** | | | |
+| `two-phase-action-service.ts` | Reaction resolution facade | ~422 | — |
+| `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~450 | TwoPhaseActionService |
+| `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect) | ~450 | TwoPhaseActionService |
+| `two-phase/spell-reaction-handler.ts` | Spell reactions (counterspell) | ~320 | TwoPhaseActionService |
+| **Combat lifecycle** | | | |
+| `combat-service.ts` | Turn advancement, combat lifecycle | ~1083 | — |
+| `tactical-view-service.ts` | Tactical view assembly | ~547 | — |
+| `combat-victory-policy.ts` | Win/loss condition checks | ~53 | — |
 
 ## Key Contracts
 
@@ -93,10 +153,17 @@ classDiagram
 ### Adding a new action type
 1. Add a `tryParseXxxText()` function in `combat-text-parser.ts` (pure, no deps)
 2. Add an entry to `buildParserChain()` in `action-dispatcher.ts` at the correct priority position
-3. Implement the handler method (or delegate to an existing one)
+3. Implement the handler in the appropriate handler class (movement → `MovementHandlers`, combat → `AttackHandlers`, etc.)
 
 ### Parser chain order (priority)
 1. move → 2. moveToward → 3. jump → 4. simpleAction → 5. classAction → 6. hide → 7. search → 8. offhand → 9. help → 10. shove → 11. escapeGrapple → 12. grapple → 13. castSpell → 14. pickup → 15. drop → 16. drawWeapon → 17. sheatheWeapon → 18. useItem → 19. attack
+
+## Handler Ownership Rules
+
+- **`tabletop/` dispatch handlers** (MovementHandlers, AttackHandlers, etc.) are **ActionDispatcher-private** — only imported by `action-dispatcher.ts`
+- **`tabletop/` roll resolvers** (InitiativeHandler, HitRiderResolver, WeaponMasteryResolver) are **RollStateMachine-private** — only imported by `roll-state-machine.ts`
+- **`action-handlers/`** files are **ActionService-private** — only imported by `action-service.ts`
+- **`two-phase/`** files are **TwoPhaseActionService-private** — only imported by `two-phase-action-service.ts`
 
 ### Conventions
 - `tryParse` must return `null` for no match (boolean parsers wrapped to `true | null`)

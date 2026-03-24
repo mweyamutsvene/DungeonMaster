@@ -72,7 +72,7 @@ import {
 import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
 import { doubleDiceInFormula, parseDamageModifier } from "./combat-text-parser.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import { SavingThrowResolver } from "./saving-throw-resolver.js";
+import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import type { WeaponMasteryProperty } from "../../../../domain/rules/weapon-mastery.js";
 import { concentrationCheckOnDamage } from "../../../../domain/rules/concentration.js";
 import {
@@ -105,9 +105,9 @@ import type {
   RollProcessingCtx,
 } from "./tabletop-types.js";
 import { assertValidTransition } from "./pending-action-state-machine.js";
-import { InitiativeHandler } from "./initiative-handler.js";
-import { WeaponMasteryResolver } from "./weapon-mastery-resolver.js";
-import { HitRiderResolver } from "./hit-rider-resolver.js";
+import { InitiativeHandler } from "./rolls/initiative-handler.js";
+import { WeaponMasteryResolver } from "./rolls/weapon-mastery-resolver.js";
+import { HitRiderResolver } from "./rolls/hit-rider-resolver.js";
 
 /**
  * Load session entities and build an LlmRoster.

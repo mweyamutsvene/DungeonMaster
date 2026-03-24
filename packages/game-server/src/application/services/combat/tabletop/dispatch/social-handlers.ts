@@ -4,23 +4,23 @@
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2.2).
  */
 
-import { ValidationError } from "../../../errors.js";
-import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
-import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
-import { CUNNING_ACTION } from "../../../../domain/entities/classes/feature-keys.js";
+import { ValidationError } from "../../../../errors.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { CUNNING_ACTION } from "../../../../../domain/entities/classes/feature-keys.js";
 import {
   normalizeResources,
   readBoolean,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   inferActorRef,
   findCombatantByName,
   getActorNameFromRoster,
   tryParseReadyText,
-} from "./combat-text-parser.js";
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
-import type { LlmRoster } from "../../../commands/game-command.js";
+} from "../combat-text-parser.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import type { TabletopCombatServiceDeps, ActionParseResult } from "../tabletop-types.js";
+import type { LlmRoster } from "../../../../commands/game-command.js";
 
 export class SocialHandlers {
   constructor(

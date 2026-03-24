@@ -4,16 +4,16 @@
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2a).
  */
 
-import { ValidationError } from "../../../errors.js";
-import { calculateDistance } from "../../../../domain/rules/movement.js";
-import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import { ValidationError } from "../../../../errors.js";
+import { calculateDistance } from "../../../../../domain/rules/movement.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
 import type {
   SessionCharacterRecord,
   SessionMonsterRecord,
   SessionNPCRecord,
-} from "../../../types.js";
-import type { LlmRoster, CombatantRef } from "../../../commands/game-command.js";
-import { inferActorRef } from "./combat-text-parser.js";
+} from "../../../../types.js";
+import type { LlmRoster, CombatantRef } from "../../../../commands/game-command.js";
+import { inferActorRef } from "../combat-text-parser.js";
 import {
   getPosition,
   normalizeResources,
@@ -22,14 +22,14 @@ import {
   spendResourceFromPool,
   getActiveEffects,
   setActiveEffects,
-} from "../helpers/resource-utils.js";
-import { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import { SavingThrowResolver } from "./saving-throw-resolver.js";
+} from "../../helpers/resource-utils.js";
+import { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import { SavingThrowResolver } from "../rolls/saving-throw-resolver.js";
 import type {
   TabletopCombatServiceDeps,
   ActionParseResult,
-} from "./tabletop-types.js";
-import type { AbilityActor, AbilityCombatContext } from "../../../../domain/abilities/ability-executor.js";
+} from "../tabletop-types.js";
+import type { AbilityActor, AbilityCombatContext } from "../../../../../domain/abilities/ability-executor.js";
 
 // ─── Shared adapter helpers ────────────────────────────────────────────
 

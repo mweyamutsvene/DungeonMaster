@@ -13,3 +13,6 @@ export * from "./zone-damage-resolver.js";
 export * from "./movement-trigger-resolver.js";
 export * from "./aura-sync.js";
 export * from "./combat-utils.js";
+export * from "./concentration-helper.js";
+export * from "./spell-slot-manager.js";
+export * from "./opportunity-attack-resolver.js";

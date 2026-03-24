@@ -47,9 +47,9 @@ import {
   buildCreatureAdapter,
 } from "./helpers/combat-utils.js";
 
-import { AttackActionHandler } from "./handlers/attack-action-handler.js";
-import { GrappleActionHandler } from "./handlers/grapple-action-handler.js";
-import { SkillActionHandler } from "./handlers/skill-action-handler.js";
+import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
+import { GrappleActionHandler } from "./action-handlers/grapple-action-handler.js";
+import { SkillActionHandler } from "./action-handlers/skill-action-handler.js";
 
 /**
  * Executes concrete in-combat actions (attack, etc.) against the active encounter state.

@@ -11,27 +11,27 @@
  */
 
 import { nanoid } from "nanoid";
-import { ValidationError } from "../../../errors.js";
-import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
-import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
-import { UNCANNY_METABOLISM, DANGER_SENSE } from "../../../../domain/entities/classes/feature-keys.js";
-import { buildCombatResources } from "../../../../domain/entities/classes/combat-resource-builder.js";
-import { createEffect } from "../../../../domain/entities/combat/effects.js";
+import { ValidationError } from "../../../../errors.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { UNCANNY_METABOLISM, DANGER_SENSE } from "../../../../../domain/entities/classes/feature-keys.js";
+import { buildCombatResources } from "../../../../../domain/entities/classes/combat-resource-builder.js";
+import { createEffect } from "../../../../../domain/entities/combat/effects.js";
 import {
   getResourcePools,
   updateResourcePool,
   addActiveEffectsToResources,
-} from "../helpers/resource-utils.js";
-import { getMartialArtsDieSize } from "../../../../domain/rules/martial-arts-die.js";
-import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
-import { computeInitiativeRollMode } from "./tabletop-utils.js";
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
+} from "../../helpers/resource-utils.js";
+import { getMartialArtsDieSize } from "../../../../../domain/rules/martial-arts-die.js";
+import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
+import { computeInitiativeRollMode } from "../tabletop-utils.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type {
   TabletopCombatServiceDeps,
   InitiatePendingAction,
   InitiativeSwapPendingAction,
   CombatStartedResult,
-} from "./tabletop-types.js";
+} from "../tabletop-types.js";
 
 // ---------------------------------------------------------------------------
 // Private helper — roll initiative d20 with advantage/disadvantage

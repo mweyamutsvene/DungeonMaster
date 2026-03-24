@@ -4,12 +4,12 @@
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2.2).
  */
 
-import { ValidationError } from "../../../errors.js";
-import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
-import type { LlmRoster } from "../../../commands/game-command.js";
-import { hasSpentAction } from "../helpers/resource-utils.js";
+import { ValidationError } from "../../../../errors.js";
+import { inferActorRef, findCombatantByName } from "../combat-text-parser.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import type { TabletopCombatServiceDeps, ActionParseResult } from "../tabletop-types.js";
+import type { LlmRoster } from "../../../../commands/game-command.js";
+import { hasSpentAction } from "../../helpers/resource-utils.js";
 
 export class GrappleHandlers {
   constructor(

@@ -62,8 +62,8 @@ IMPORTANT!!  if you run into unexpected behavior during testing and implementati
 ## Server architecture (DDD-ish; keep dependency direction)
 - `packages/game-server/src/domain/`: pure game logic (no Fastify/Prisma/LLM).
 - `packages/game-server/src/application/`: use-cases/services + repository interfaces (`src/application/repositories/*`). App-layer errors live in `src/application/errors.ts`.
-  - Key services: `TabletopCombatService` (thin facade, pending action state machine), `TacticalViewService` (combat view assembly).
-  - `application/services/combat/`: combat orchestration with sub-folders `abilities/`, `ai/`, `helpers/`, `tabletop/`.
+  - Key services: `TabletopCombatService` (thin facade, pending action state machine), `ActionService` (programmatic actions), `TwoPhaseActionService` (reaction resolution), `TacticalViewService` (combat view assembly).
+  - `application/services/combat/`: combat orchestration with sub-folders `abilities/`, `action-handlers/`, `ai/`, `helpers/`, `tabletop/`, `two-phase/`.
   - `application/services/entities/`: entity services (`character-service.ts`, `game-session-service.ts`, `spell-lookup-service.ts`).
 - `packages/game-server/src/infrastructure/`: adapters + wiring.
   - `api/`: Fastify app + routes + SSE realtime.
@@ -93,9 +93,13 @@ packages/game-server/src/                  # game-server package source root
             monk/                          # monk abilities (flurry, patient defense, stunning strike, etc.)
             monster/                       # monster abilities (nimble escape)
             rogue/                         # rogue abilities (cunning action)
+        action-handlers/                   # programmatic action handlers (ActionService delegates)
         ai/                                # AI-driven combat decision making
         helpers/                           # combat helper utilities (creature hydration, etc.)
-        tabletop/                          # extracted TabletopCombatService modules (see below)
+        tabletop/                          # TabletopCombatService modules (parser chain, roll resolution)
+          dispatch/                        # 6 ActionDispatcher-private handler classes
+          rolls/                           # Roll resolvers (initiative, hit-rider, weapon mastery, saving throw)
+        two-phase/                         # reaction handlers (TwoPhaseActionService delegates)
       entities/                            # entity management services (character, game session, spells)
 
   content/                                 # rulebook content parsing helpers used by import scripts
@@ -150,25 +154,32 @@ Additional non-session routes:
 
 See `packages/game-server/SESSION_API_REFERENCE.md` for full request/response schemas.
 
-## TabletopCombatService Architecture (`combat/tabletop/`)
-The former 3,600-line monolith is now a **thin facade** (~370 lines) at `combat/tabletop-combat-service.ts` that delegates to 7 focused modules under `combat/tabletop/`:
+## Combat Service Architecture
 
-| Module | Responsibility |
-|--------|---------------|
-| `tabletop-types.ts` | All exported types/interfaces (`TabletopPendingAction`, `RollRequest`, `TabletopCombatServiceDeps`, etc.) |
-| `combat-text-parser.ts` | Pure text-parsing functions (`tryParseMoveText`, `tryParseSimpleActionText`, `inferActorRef`, etc.) |
-| `roll-state-machine.ts` | Roll handlers: `handleInitiativeRoll`, `handleAttackRoll`, `handleDamageRoll`, `handleDeathSaveRoll` + `loadRoster` |
-| `action-dispatcher.ts` | `dispatch()` — routes parsed actions to handlers (`handleMoveAction`, `handleAttackAction`, `handleClassAbility`, etc.) |
-| `spell-action-handler.ts` | `handleCastSpellAction` (~540 lines) |
-| `saving-throw-resolver.ts` | `SavingThrowResolver` — auto-resolves saving throws (replaces temporary MonkTechniqueResolver) |
-| `tabletop-event-emitter.ts` | `TabletopEventEmitter` — narration generation + event emission helpers |
-| `index.ts` | Barrel re-exports for sub-module access |
+Three thin facade services delegate to focused handler modules:
 
-The facade's 4 public methods stay unchanged:
+### TabletopCombatService (`combat/tabletop/`)
+Thin facade (~435 lines) at `combat/tabletop-combat-service.ts`. 4 public methods:
 - `initiateAction()` → roster loading + pending action creation
-- `processRollResult()` → `RollStateMachine.handle*Roll()`
+- `processRollResult()` → `RollStateMachine`
 - `parseCombatAction()` → `ActionDispatcher.dispatch()`
 - `completeMove()` → delegates to `TwoPhaseActionService`
+
+`ActionDispatcher` routes parsed text to 6 handler classes in `dispatch/`: `MovementHandlers`, `AttackHandlers`, `ClassAbilityHandlers`, `GrappleHandlers`, `SocialHandlers`, `InteractionHandlers`. These are ActionDispatcher-private — not exported from the barrel.
+
+`RollStateMachine` delegates to resolvers in `rolls/`: `InitiativeHandler`, `HitRiderResolver`, `WeaponMasteryResolver`, `SavingThrowResolver`.
+
+### ActionService (`combat/action-handlers/`)
+Thin facade (~568 lines) at `combat/action-service.ts`. Delegates programmatic action execution to:
+- `AttackActionHandler` — attack resolution
+- `GrappleActionHandler` — grapple, shove, escape
+- `SkillActionHandler` — hide, search, help
+
+### TwoPhaseActionService (`combat/two-phase/`)
+Thin facade (~422 lines) at `combat/two-phase-action-service.ts`. Handles reaction resolution:
+- `MoveReactionHandler` — opportunity attacks during movement
+- `AttackReactionHandler` — Shield, Deflect Attacks reactions
+- `SpellReactionHandler` — Counterspell and other spell reactions
 
 `abilityRegistry` is **required** in `TabletopCombatServiceDeps` — no optional guards.
 

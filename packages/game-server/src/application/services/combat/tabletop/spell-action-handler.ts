@@ -22,7 +22,7 @@
 import { ValidationError } from "../../../errors.js";
 import { findPreparedSpellInSheet, prepareSpellCast } from "../helpers/spell-slot-manager.js";
 import { inferActorRef } from "./combat-text-parser.js";
-import { SavingThrowResolver } from "./saving-throw-resolver.js";
+import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import type { LlmRoster } from "../../../commands/game-command.js";
 import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";

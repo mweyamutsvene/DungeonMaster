@@ -50,12 +50,12 @@ import {
 import { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import { SpellActionHandler } from "./spell-action-handler.js";
 import { loadRoster } from "./roll-state-machine.js";
-import { GrappleHandlers } from "./grapple-handlers.js";
-import { InteractionHandlers } from "./interaction-handlers.js";
-import { SocialHandlers } from "./social-handlers.js";
-import { MovementHandlers } from "./movement-handlers.js";
-import { AttackHandlers } from "./attack-handlers.js";
-import { ClassAbilityHandlers } from "./class-ability-handlers.js";
+import { GrappleHandlers } from "./dispatch/grapple-handlers.js";
+import { InteractionHandlers } from "./dispatch/interaction-handlers.js";
+import { SocialHandlers } from "./dispatch/social-handlers.js";
+import { MovementHandlers } from "./dispatch/movement-handlers.js";
+import { AttackHandlers } from "./dispatch/attack-handlers.js";
+import { ClassAbilityHandlers } from "./dispatch/class-ability-handlers.js";
 import { resolveWeaponMastery } from "../../../../domain/rules/weapon-mastery.js";
 import type { ActionParserEntry, DispatchContext } from "./action-parser-chain.js";
 

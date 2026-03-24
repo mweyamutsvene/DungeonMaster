@@ -5,13 +5,13 @@
  */
 
 import { nanoid } from "nanoid";
-import { ValidationError } from "../../../errors.js";
-import type { CombatMap } from "../../../../domain/rules/combat-map.js";
+import { ValidationError } from "../../../../errors.js";
+import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
 import {
   getGroundItemsNearPosition,
   removeGroundItem,
   addGroundItem,
-} from "../../../../domain/rules/combat-map.js";
+} from "../../../../../domain/rules/combat-map.js";
 import {
   getPosition,
   normalizeResources,
@@ -21,23 +21,23 @@ import {
   addDrawnWeapon,
   removeDrawnWeapon,
   getInventory,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   findInventoryItem,
   useConsumableItem,
   addInventoryItem,
-} from "../../../../domain/entities/items/inventory.js";
+} from "../../../../../domain/entities/items/inventory.js";
 import {
   lookupMagicItem,
   POTION_HEALING_FORMULAS,
-} from "../../../../domain/entities/items/magic-item-catalog.js";
+} from "../../../../../domain/entities/items/magic-item-catalog.js";
 import {
   inferActorRef,
   getActorNameFromRoster,
-} from "./combat-text-parser.js";
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
-import type { LlmRoster } from "../../../commands/game-command.js";
+} from "../combat-text-parser.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import type { TabletopCombatServiceDeps, ActionParseResult } from "../tabletop-types.js";
+import type { LlmRoster } from "../../../../commands/game-command.js";
 
 export class InteractionHandlers {
   constructor(

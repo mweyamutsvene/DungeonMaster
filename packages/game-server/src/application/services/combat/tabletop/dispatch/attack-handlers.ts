@@ -5,10 +5,10 @@
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2c).
  */
 
-import { ValidationError } from "../../../errors.js";
-import { calculateDistance } from "../../../../domain/rules/movement.js";
-import type { CombatMap } from "../../../../domain/rules/combat-map.js";
-import { getCoverLevel, getCoverACBonus } from "../../../../domain/rules/combat-map.js";
+import { ValidationError } from "../../../../errors.js";
+import { calculateDistance } from "../../../../../domain/rules/movement.js";
+import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
+import { getCoverLevel, getCoverACBonus } from "../../../../../domain/rules/combat-map.js";
 import {
   getPosition,
   normalizeResources,
@@ -22,41 +22,41 @@ import {
   getDrawnWeapons,
   addDrawnWeapon,
   getInventory,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
-} from "../../../../domain/entities/combat/effects.js";
-import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
-import { matchAttackEnhancements } from "../../../../domain/entities/classes/combat-text-profile.js";
-import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
+} from "../../../../../domain/entities/combat/effects.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { matchAttackEnhancements } from "../../../../../domain/entities/classes/combat-text-profile.js";
+import { getAllCombatTextProfiles } from "../../../../../domain/entities/classes/registry.js";
 import {
   deriveRollModeFromConditions,
   inferActorRef,
   findAllCombatantsByName,
-} from "./combat-text-parser.js";
-import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
-import { resolveWeaponMastery } from "../../../../domain/rules/weapon-mastery.js";
-import { lookupMagicItemById } from "../../../../domain/entities/items/magic-item-catalog.js";
-import { getWeaponMagicBonuses } from "../../../../domain/entities/items/inventory.js";
+} from "../combat-text-parser.js";
+import { readConditionNames } from "../../../../../domain/entities/combat/conditions.js";
+import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery.js";
+import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
+import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
 
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type {
   TabletopCombatServiceDeps,
   ActionParseResult,
   AttackPendingAction,
   WeaponSpec,
-} from "./tabletop-types.js";
+} from "../tabletop-types.js";
 import type {
   AttackCommand,
   LlmRoster,
   CombatantRef,
-} from "../../../commands/game-command.js";
+} from "../../../../commands/game-command.js";
 import type {
   SessionCharacterRecord,
   SessionMonsterRecord,
   SessionNPCRecord,
-} from "../../../types.js";
+} from "../../../../types.js";
 
 export class AttackHandlers {
   constructor(

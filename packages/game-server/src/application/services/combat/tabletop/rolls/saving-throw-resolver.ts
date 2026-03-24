@@ -6,8 +6,8 @@
  * Works with both structured ActiveCondition[] and legacy string[] conditions.
  */
 
-import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
-import type { ICombatRepository } from "../../../repositories/combat-repository.js";
+import type { DiceRoller } from "../../../../../domain/rules/dice-roller.js";
+import type { ICombatRepository } from "../../../../repositories/combat-repository.js";
 import {
   normalizeConditions,
   addCondition,
@@ -16,21 +16,21 @@ import {
   type ActiveCondition,
   type Condition,
   type ConditionDuration,
-} from "../../../../domain/entities/combat/conditions.js";
-import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/ability-checks.js";
-import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../helpers/resource-utils.js";
+} from "../../../../../domain/entities/combat/conditions.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
+import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../../helpers/resource-utils.js";
 import {
   breakConcentration,
   getConcentrationSpellName,
   isConcentrationBreakingCondition,
-} from "../helpers/concentration-helper.js";
+} from "../../helpers/concentration-helper.js";
 import {
   calculateBonusFromEffects,
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
   type ActiveEffect,
-} from "../../../../domain/entities/combat/effects.js";
-import type { SavingThrowPendingAction, SaveOutcome, SavingThrowAutoResult } from "./tabletop-types.js";
+} from "../../../../../domain/entities/combat/effects.js";
+import type { SavingThrowPendingAction, SaveOutcome, SavingThrowAutoResult } from "../tabletop-types.js";
 
 /**
  * Parameters for creating a saving throw pending action.
@@ -147,7 +147,7 @@ export class SavingThrowResolver {
       (c: any) => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
     );
     const targetEffects = getActiveEffects(targetCombatantForEffects?.resources ?? {});
-    const saveAbility = action.ability as import("../../../../domain/entities/core/ability-scores.js").Ability | undefined;
+    const saveAbility = action.ability as import("../../../../../domain/entities/core/ability-scores.js").Ability | undefined;
     const saveBonusResult = calculateBonusFromEffects(targetEffects, 'saving_throws', saveAbility);
     totalModifier += saveBonusResult.flatBonus;
     let effectSaveDiceBonus = 0;

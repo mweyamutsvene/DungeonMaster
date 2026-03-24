@@ -9,26 +9,26 @@
  */
 
 import { nanoid } from "nanoid";
-import { calculateDistance } from "../../../../domain/rules/movement.js";
-import { isFinesse } from "../../../../domain/entities/items/weapon-properties.js";
-import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import { calculateDistance } from "../../../../../domain/rules/movement.js";
+import { isFinesse } from "../../../../../domain/entities/items/weapon-properties.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
 import {
   getPosition,
   normalizeResources,
   isConditionImmuneByEffects,
   addActiveEffectsToResources,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   normalizeConditions,
   addCondition,
   createCondition,
   type Condition,
-} from "../../../../domain/entities/combat/conditions.js";
-import { createEffect } from "../../../../domain/entities/combat/effects.js";
-import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
+} from "../../../../../domain/entities/combat/conditions.js";
+import { createEffect } from "../../../../../domain/entities/combat/effects.js";
+import { applyKoEffectsIfNeeded } from "../../helpers/ko-handler.js";
 import type { SavingThrowResolver } from "./saving-throw-resolver.js";
-import type { WeaponMasteryProperty } from "../../../../domain/rules/weapon-mastery.js";
-import type { TabletopCombatServiceDeps, WeaponSpec } from "./tabletop-types.js";
+import type { WeaponMasteryProperty } from "../../../../../domain/rules/weapon-mastery.js";
+import type { TabletopCombatServiceDeps, WeaponSpec } from "../tabletop-types.js";
 
 export class WeaponMasteryResolver {
   constructor(

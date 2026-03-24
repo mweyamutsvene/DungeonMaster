@@ -12,20 +12,20 @@ import {
   normalizeResources,
   updateResourcePool,
   isConditionImmuneByEffects,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   normalizeConditions,
   addCondition,
   createCondition,
   type Condition,
-} from "../../../../domain/entities/combat/conditions.js";
+} from "../../../../../domain/entities/combat/conditions.js";
 import type { SavingThrowResolver } from "./saving-throw-resolver.js";
 import type {
   HitRiderEnhancement,
   HitRiderEnhancementResult,
   SaveOutcome,
   TabletopCombatServiceDeps,
-} from "./tabletop-types.js";
+} from "../tabletop-types.js";
 
 export class HitRiderResolver {
   constructor(

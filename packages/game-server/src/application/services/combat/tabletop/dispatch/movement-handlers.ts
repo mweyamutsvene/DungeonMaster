@@ -4,54 +4,54 @@
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2b).
  */
 
-import { ValidationError } from "../../../errors.js";
-import { calculateDistance, calculateLongJumpDistance, calculateHighJumpDistance, computeJumpLandingPosition } from "../../../../domain/rules/movement.js";
-import { findPath, findAdjacentPosition } from "../../../../domain/rules/pathfinding.js";
-import type { CombatMap } from "../../../../domain/rules/combat-map.js";
-import { getCellAt } from "../../../../domain/rules/combat-map.js";
-import { abilityCheck } from "../../../../domain/rules/ability-checks.js";
+import { ValidationError } from "../../../../errors.js";
+import { calculateDistance, calculateLongJumpDistance, calculateHighJumpDistance, computeJumpLandingPosition } from "../../../../../domain/rules/movement.js";
+import { findPath, findAdjacentPosition } from "../../../../../domain/rules/pathfinding.js";
+import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
+import { getCellAt } from "../../../../../domain/rules/combat-map.js";
+import { abilityCheck } from "../../../../../domain/rules/ability-checks.js";
 import {
   normalizeConditions,
   addCondition,
   createCondition,
   type Condition,
-} from "../../../../domain/entities/combat/conditions.js";
+} from "../../../../../domain/entities/combat/conditions.js";
 import {
   getPosition,
   getEffectiveSpeed,
   getActiveEffects,
   isConditionImmuneByEffects,
-} from "../helpers/resource-utils.js";
+} from "../../helpers/resource-utils.js";
 import {
   calculateBonusFromEffects,
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
-} from "../../../../domain/entities/combat/effects.js";
+} from "../../../../../domain/entities/combat/effects.js";
 import {
   inferActorRef,
   getActorNameFromRoster,
   getNameFromCombatantRef,
   type ParsedJump,
-} from "./combat-text-parser.js";
-import { findCombatantStateByRef, getPositionByRef } from "../helpers/combatant-ref.js";
-import { syncEntityPosition } from "../helpers/sync-map-entity.js";
-import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
-import { syncAuraZones } from "../helpers/aura-sync.js";
-import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import { buildPathNarration } from "./path-narrator.js";
+} from "../combat-text-parser.js";
+import { findCombatantStateByRef, getPositionByRef } from "../../helpers/combatant-ref.js";
+import { syncEntityPosition } from "../../helpers/sync-map-entity.js";
+import { resolveZoneDamageForPath } from "../../helpers/zone-damage-resolver.js";
+import { syncAuraZones } from "../../helpers/aura-sync.js";
+import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import { buildPathNarration } from "../path-narrator.js";
 import type {
   TabletopCombatServiceDeps,
   ActionParseResult,
-} from "./tabletop-types.js";
+} from "../tabletop-types.js";
 import type {
   LlmRoster,
   CombatantRef,
-} from "../../../commands/game-command.js";
+} from "../../../../commands/game-command.js";
 import type {
   SessionCharacterRecord,
   SessionMonsterRecord,
   CombatantStateRecord,
-} from "../../../types.js";
+} from "../../../../types.js";
 
 export class MovementHandlers {
   constructor(

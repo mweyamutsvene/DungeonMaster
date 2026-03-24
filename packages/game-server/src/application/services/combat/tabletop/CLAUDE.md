@@ -10,3 +10,5 @@
 4. **Two-phase action flow** — move phase → action phase → bonus phase → end turn. Action economy is tracked per phase.
 5. **`abilityRegistry` is required** in `TabletopCombatServiceDeps` — no optional guards, no null checks.
 6. **New action types require both** — a parser function in `combat-text-parser.ts` AND a dispatch route in `action-dispatcher.ts`.
+7. **Dispatch handlers are ActionDispatcher-private** — `MovementHandlers`, `AttackHandlers`, `ClassAbilityHandlers`, `GrappleHandlers`, `SocialHandlers`, `InteractionHandlers` live in `dispatch/` and are only constructed and called by `ActionDispatcher`. They MUST NOT be imported from outside `tabletop/`.
+8. **Roll resolvers are RollStateMachine-private** — `InitiativeHandler`, `HitRiderResolver`, `WeaponMasteryResolver` live in `rolls/` and are only imported by `RollStateMachine`. `SavingThrowResolver` also lives in `rolls/` but is shared (imported by `SpellActionHandler`, `spell-delivery/`, `ClassAbilityHandlers`, and the barrel).

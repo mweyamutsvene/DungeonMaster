@@ -9,7 +9,7 @@ import type { PreparedSpellDefinition } from '../../../../../domain/entities/spe
 import type { LlmRoster } from '../../../../commands/game-command.js';
 import type { ActionParseResult, TabletopCombatServiceDeps } from '../tabletop-types.js';
 import type { TabletopEventEmitter } from '../tabletop-event-emitter.js';
-import type { SavingThrowResolver } from '../saving-throw-resolver.js';
+import type { SavingThrowResolver } from '../rolls/saving-throw-resolver.js';
 
 /**
  * All data needed for a spell cast, resolved once by SpellActionHandler before dispatch.
