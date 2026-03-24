@@ -1,7 +1,7 @@
 # Plan: God-Class Decomposition — Combat Service Layer
 
-## Round: 1
-## Status: DRAFT
+## Round: 2
+## Status: IN_REVIEW → APPROVED (SME research complete)
 ## Affected Flows: CombatOrchestration, CombatRules, AIBehavior
 
 ---

@@ -12,3 +12,4 @@ export * from "./ko-handler.js";
 export * from "./zone-damage-resolver.js";
 export * from "./movement-trigger-resolver.js";
 export * from "./aura-sync.js";
+export * from "./combat-utils.js";

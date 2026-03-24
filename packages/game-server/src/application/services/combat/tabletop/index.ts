@@ -6,6 +6,9 @@
  */
 
 export { ActionDispatcher } from "./action-dispatcher.js";
+export { MovementHandlers } from "./movement-handlers.js";
+export { AttackHandlers } from "./attack-handlers.js";
+export { ClassAbilityHandlers } from "./class-ability-handlers.js";
 export { RollStateMachine, loadRoster } from "./roll-state-machine.js";
 export { SpellActionHandler } from "./spell-action-handler.js";
 export { TabletopEventEmitter } from "./tabletop-event-emitter.js";

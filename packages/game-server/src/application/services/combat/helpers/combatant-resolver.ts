@@ -12,8 +12,7 @@ import type { CombatantStateRecord } from "../../../types.js";
 
 import type { CombatantRef } from "./combatant-ref.js";
 import { isRecord, readNumber } from "./json-helpers.js";
-
-type AbilityScoresData = Record<Ability, number>;
+import { extractAbilityScores, type AbilityScoresData } from "./combat-utils.js";
 
 type CombatantEquipment = {
   weapon?: string;
@@ -50,27 +49,6 @@ export interface ICombatantResolver {
   getNames(combatants: CombatantStateRecord[]): Promise<Map<string, string>>;
   getCombatStats(ref: CombatantRef): Promise<CombatantCombatStats>;
   getMonsterAttacks(monsterId: string): Promise<unknown[]>;
-}
-
-function extractAbilityScores(raw: unknown): AbilityScoresData | null {
-  if (!isRecord(raw)) return null;
-  const abilities: Ability[] = [
-    "strength",
-    "dexterity",
-    "constitution",
-    "intelligence",
-    "wisdom",
-    "charisma",
-  ];
-
-  const out: Partial<AbilityScoresData> = {};
-  for (const a of abilities) {
-    const n = readNumber(raw, a);
-    if (n === null) return null;
-    out[a] = n;
-  }
-
-  return out as AbilityScoresData;
 }
 
 function extractEquippedFromSheet(sheet: Record<string, unknown>): CombatantEquipment {

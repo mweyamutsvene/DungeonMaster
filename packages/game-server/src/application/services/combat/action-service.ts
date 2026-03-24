@@ -3,8 +3,6 @@ import { nanoid } from "nanoid";
 
 import { resolveAttack, type AttackSpec } from "../../../domain/combat/attack-resolver.js";
 import { SeededDiceRoller } from "../../../domain/rules/dice-roller.js";
-import type { Ability } from "../../../domain/entities/core/ability-scores.js";
-import type { RollMode } from "../../../domain/rules/advantage.js";
 import { concentrationCheckOnDamage } from "../../../domain/rules/concentration.js";
 import {
   getConcentrationSpellName,
@@ -64,234 +62,26 @@ import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantStateByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
 import { isRecord, readNumber } from "./helpers/json-helpers.js";
-
-type AbilityScoresData = Record<Ability, number>;
-
-type CreatureAdapter = {
-  getAC(): number;
-  getAbilityModifier(ability: Ability): number;
-  takeDamage(amount: number): void;
-  getFeatIds?: () => readonly string[];
-  getD20TestModeForAbility?: (
-    ability: Ability,
-    baseMode: "normal" | "advantage" | "disadvantage",
-  ) => "normal" | "advantage" | "disadvantage";
-};
-
-function extractAbilityScores(raw: unknown): AbilityScoresData | null {
-  if (!isRecord(raw)) return null;
-  const abilities: Ability[] = [
-    "strength",
-    "dexterity",
-    "constitution",
-    "intelligence",
-    "wisdom",
-    "charisma",
-  ];
-
-  const out: Partial<AbilityScoresData> = {};
-  for (const a of abilities) {
-    const n = readNumber(raw, a);
-    if (n === null) return null;
-    out[a] = n;
-  }
-
-  return out as AbilityScoresData;
-}
-
-function modifier(score: number): number {
-  return Math.floor((score - 10) / 2);
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
-}
-
-/**
- * Compute flat + dice bonus and roll mode from ActiveEffects on ability_checks.
- * Must be called AFTER creating the SeededDiceRoller so dice bonuses are deterministic.
- */
-function abilityCheckEffectMods(
-  resources: unknown,
-  diceRoller: SeededDiceRoller,
-  ability?: Ability,
-): { bonus: number; mode: RollMode } {
-  const effects = getActiveEffects(resources ?? {});
-  const result = calculateBonusFromEffects(effects, 'ability_checks', ability);
-  let bonus = result.flatBonus;
-  for (const dr of result.diceRolls) {
-    const count = Math.abs(dr.count);
-    const sign = dr.count < 0 ? -1 : 1;
-    for (let i = 0; i < count; i++) {
-      bonus += sign * diceRoller.rollDie(dr.sides).total;
-    }
-  }
-  const hasAdv = hasAdvantageFromEffects(effects, 'ability_checks', ability);
-  const hasDisadv = hasDisadvantageFromEffects(effects, 'ability_checks', ability);
-  let mode: RollMode = "normal";
-  if (hasAdv && !hasDisadv) mode = "advantage";
-  else if (hasDisadv && !hasAdv) mode = "disadvantage";
-  return { bonus, mode };
-}
-
-function hashStringToInt32(text: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h | 0;
-}
-
-function buildCreatureAdapter(params: {
-  armorClass: number;
-  abilityScores: AbilityScoresData;
-  featIds?: readonly string[];
-  hpCurrent: number;
-}): { creature: CreatureAdapter; getHpCurrent: () => number } {
-  let hpCurrent = params.hpCurrent;
-
-  const creature: CreatureAdapter = {
-    getAC: () => params.armorClass,
-    getAbilityModifier: (ability) => modifier(params.abilityScores[ability]),
-    takeDamage: (amount) => {
-      const a = Number.isFinite(amount) ? amount : 0;
-      hpCurrent = Math.max(0, hpCurrent - Math.max(0, a));
-    },
-  };
-
-  if (params.featIds) {
-    creature.getFeatIds = () => params.featIds ?? [];
-  }
-
-  return { creature, getHpCurrent: () => hpCurrent };
-}
-
-type AttackActionInput = {
-  encounterId?: string;
-  attacker: CombatantRef;
-  target: CombatantRef;
-  seed?: unknown;
-  spec?: unknown;
-  monsterAttackName?: string;
-};
-
-type SimpleActionBaseInput = {
-  encounterId?: string;
-  actor: CombatantRef;
-  seed?: unknown;
-  /** If true, bypass the action economy check (used by bonus action abilities like Patient Defense) */
-  skipActionCheck?: boolean;
-};
-
-type HelpActionInput = SimpleActionBaseInput & {
-  target: CombatantRef;
-};
-
-type CastSpellActionInput = SimpleActionBaseInput & {
-  spellName: string;
-};
-
-type ShoveActionInput = SimpleActionBaseInput & {
-  target: CombatantRef;
-  shoveType?: "push" | "prone";
-};
-
-type GrappleActionInput = SimpleActionBaseInput & {
-  target: CombatantRef;
-};
-
-type HideActionInput = SimpleActionBaseInput & {
-  /** Whether actor has cover or obscurement from enemies (assume true for simplicity) */
-  hasCover?: boolean;
-  /** Whether to use as bonus action (e.g., Cunning Action) */
-  isBonusAction?: boolean;
-};
-
-type SearchActionInput = SimpleActionBaseInput & {
-  /** Optional: specific target creature to search for */
-  targetRef?: CombatantRef;
-};
-
-type MoveActionInput = SimpleActionBaseInput & {
-  destination: Position;
-};
-
-function isAbility(x: unknown): x is Ability {
-  return (
-    x === "strength" ||
-    x === "dexterity" ||
-    x === "constitution" ||
-    x === "intelligence" ||
-    x === "wisdom" ||
-    x === "charisma"
-  );
-}
-
-function parseAttackSpec(input: unknown): AttackSpec {
-  if (!isRecord(input)) throw new ValidationError("spec must be an object");
-
-  const nameRaw = input.name;
-  const name = nameRaw === undefined ? undefined : typeof nameRaw === "string" ? nameRaw : null;
-  if (name === null) throw new ValidationError("spec.name must be a string");
-
-  const attackBonus = readNumber(input, "attackBonus");
-  if (attackBonus === null || !Number.isInteger(attackBonus)) {
-    throw new ValidationError("spec.attackBonus must be an integer");
-  }
-
-  const kindRaw = input.kind;
-  const kind = kindRaw === "ranged" ? "ranged" : kindRaw === "melee" ? "melee" : undefined;
-
-  const attackAbilityRaw = input.attackAbility;
-  const attackAbility =
-    attackAbilityRaw === undefined ? undefined : isAbility(attackAbilityRaw) ? attackAbilityRaw : null;
-  if (attackAbility === null) {
-    throw new ValidationError("spec.attackAbility must be a valid ability name");
-  }
-
-  const modeRaw = input.mode;
-  const mode =
-    modeRaw === undefined
-      ? undefined
-      : modeRaw === "normal" || modeRaw === "advantage" || modeRaw === "disadvantage"
-        ? modeRaw
-        : null;
-  if (mode === null) {
-    throw new ValidationError("spec.mode must be normal|advantage|disadvantage");
-  }
-
-  const damageRaw = input.damage;
-  if (!isRecord(damageRaw)) throw new ValidationError("spec.damage must be an object");
-
-  const diceCount = readNumber(damageRaw, "diceCount");
-  const diceSides = readNumber(damageRaw, "diceSides");
-  const modifierN = damageRaw.modifier;
-  const damageModifier = modifierN === undefined ? 0 : typeof modifierN === "number" ? modifierN : null;
-
-  if (diceCount === null || !Number.isInteger(diceCount) || diceCount < 1) {
-    throw new ValidationError("spec.damage.diceCount must be an integer >= 1");
-  }
-  if (diceSides === null || !Number.isInteger(diceSides) || diceSides < 2) {
-    throw new ValidationError("spec.damage.diceSides must be an integer >= 2");
-  }
-  if (damageModifier === null || !Number.isInteger(damageModifier)) {
-    throw new ValidationError("spec.damage.modifier must be an integer");
-  }
-
-  return {
-    name: name ?? undefined,
-    kind,
-    attackAbility,
-    mode,
-    attackBonus,
-    damage: {
-      diceCount,
-      diceSides,
-      modifier: damageModifier,
-    },
-  };
-}
+import {
+  type AbilityScoresData,
+  type CreatureAdapter,
+  type AttackActionInput,
+  type SimpleActionBaseInput,
+  type HelpActionInput,
+  type CastSpellActionInput,
+  type ShoveActionInput,
+  type GrappleActionInput,
+  type HideActionInput,
+  type SearchActionInput,
+  type MoveActionInput,
+  getAbilityModifier,
+  extractAbilityScores,
+  clamp,
+  hashStringToInt32,
+  buildCreatureAdapter,
+  parseAttackSpec,
+  abilityCheckEffectMods,
+} from "./helpers/combat-utils.js";
 
 /**
  * Executes concrete in-combat actions (attack, etc.) against the active encounter state.
@@ -822,7 +612,7 @@ export class ActionService {
       stealthModifier = actorStats.skills.stealth;
     } else {
       // Calculate: Dex mod + proficiency bonus (assuming proficiency in Stealth)
-      const dexMod = modifier(actorStats.abilityScores.dexterity);
+      const dexMod = getAbilityModifier(actorStats.abilityScores.dexterity);
       stealthModifier = dexMod + actorStats.proficiencyBonus;
     }
 
@@ -916,7 +706,7 @@ export class ActionService {
     if (actorStats.skills?.perception !== undefined) {
       perceptionModifier = actorStats.skills.perception;
     } else {
-      const wisMod = modifier(actorStats.abilityScores.wisdom);
+      const wisMod = getAbilityModifier(actorStats.abilityScores.wisdom);
       perceptionModifier = wisMod + actorStats.proficiencyBonus;
     }
 
@@ -1080,9 +870,9 @@ export class ActionService {
 
     const targetStats = await this.combatants.getCombatStats(input.target);
 
-    const attackerStrMod = modifier(actorStats.abilityScores.strength);
-    const targetStrMod = modifier(targetStats.abilityScores.strength);
-    const targetDexMod = modifier(targetStats.abilityScores.dexterity);
+    const attackerStrMod = getAbilityModifier(actorStats.abilityScores.strength);
+    const targetStrMod = getAbilityModifier(targetStats.abilityScores.strength);
+    const targetDexMod = getAbilityModifier(targetStats.abilityScores.dexterity);
 
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
@@ -1252,9 +1042,9 @@ export class ActionService {
 
     const targetStats = await this.combatants.getCombatStats(input.target);
 
-    const attackerStrMod = modifier(actorStats.abilityScores.strength);
-    const targetStrMod = modifier(targetStats.abilityScores.strength);
-    const targetDexMod = modifier(targetStats.abilityScores.dexterity);
+    const attackerStrMod = getAbilityModifier(actorStats.abilityScores.strength);
+    const targetStrMod = getAbilityModifier(targetStats.abilityScores.strength);
+    const targetDexMod = getAbilityModifier(targetStats.abilityScores.dexterity);
 
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
@@ -1376,8 +1166,8 @@ export class ActionService {
 
     const actorStats = await this.combatants.getCombatStats(input.actor);
 
-    const escapeeStrMod = modifier(actorStats.abilityScores.strength);
-    const escapeeDexMod = modifier(actorStats.abilityScores.dexterity);
+    const escapeeStrMod = getAbilityModifier(actorStats.abilityScores.strength);
+    const escapeeDexMod = getAbilityModifier(actorStats.abilityScores.dexterity);
 
     // Look up skill proficiencies for Athletics (STR) and Acrobatics (DEX)
     const skills = actorStats.skills;
@@ -1401,7 +1191,7 @@ export class ActionService {
               ? { type: "NPC", npcId: grappler.npcId ?? grappler.id }
               : { type: "Monster", monsterId: grappler.monsterId ?? grappler.id };
         const grapplerStats = await this.combatants.getCombatStats(grapplerRef);
-        grapplerStrMod = modifier(grapplerStats.abilityScores.strength);
+        grapplerStrMod = getAbilityModifier(grapplerStats.abilityScores.strength);
         grapplerProfBonus = grapplerStats.proficiencyBonus;
       }
     }
@@ -1644,7 +1434,7 @@ export class ActionService {
       if (equippedWeapon) {
         // TODO: Parse weapon stats to build proper spec
         // For now, use basic melee attack
-        const strMod = modifier(attackerStats.abilityScores.strength);
+        const strMod = getAbilityModifier(attackerStats.abilityScores.strength);
         spec = {
           attackBonus: strMod + 2, // Proficiency bonus estimate
           damage: { diceCount: 1, diceSides: 6, modifier: strMod },
@@ -1675,7 +1465,7 @@ export class ActionService {
 
       if (!spec) {
         // Default unarmed strike
-        const strMod = modifier(attackerStats.abilityScores.strength);
+        const strMod = getAbilityModifier(attackerStats.abilityScores.strength);
         spec = {
           name: "Unarmed Strike",
           attackBonus: strMod,
