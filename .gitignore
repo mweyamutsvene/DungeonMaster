@@ -18,6 +18,7 @@ packages/game-server/prisma/dev.db
 # Local test artifacts
 packages/game-server/test-debug.txt
 packages/game-server/test-output.txt
+e2e-*.txt
 
 # OS/editor noise
 .DS_Store

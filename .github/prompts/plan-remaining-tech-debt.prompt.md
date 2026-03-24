@@ -68,10 +68,17 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-action-parser-registry.prompt.md`
 - **Affected flows**: CombatOrchestration
 
-### 3.3 `combat-map.ts` Monolith
-- **Priority**: LOW
+### 3.3 `combat-map.ts` Monolith ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
 - **File**: `domain/rules/combat-map.ts` (540 lines, 35+ exports)
-- **Fix**: Split into types/core/sight/zones modules. Large but stable — only split if adding significant new functionality.
+- **Resolution**: Split into 5 focused modules while keeping `combat-map.ts` as a barrel re-export:
+  - `combat-map-types.ts` — `TerrainType`, `CoverLevel`, `MapCell`, `MapEntity`, `CombatMap`
+  - `combat-map-core.ts` — `createCombatMap`, `getCellAt`, `setTerrainAt`, entity CRUD, passability, terrain speed
+  - `combat-map-sight.ts` — `hasLineOfSight`, `getCoverLevel`, `getCoverACBonus`, `getCoverSaveBonus`, radius/faction queries
+  - `combat-map-zones.ts` — `getMapZones`, `addZone`, `removeZone`, `updateZone`, `setMapZones`
+  - `combat-map-items.ts` — `getGroundItems`, `addGroundItem`, `removeGroundItem`, position queries
+  - All existing imports unchanged (barrel re-export from original path). 616 unit tests pass, 153/153 E2E pass.
+- **Plan**: See `plan-combat-map-split.prompt.md`
 - **Affected flows**: CombatRules
 
 ### 3.4 AI Action Extensibility
