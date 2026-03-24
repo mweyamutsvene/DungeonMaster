@@ -6,17 +6,19 @@ applyTo: "packages/game-server/src/domain/entities/classes/**,packages/game-serv
 # ClassAbilities Flow
 
 ## Purpose
-The class ability system: domain-declared class features (profiles, resource pools) and application-layer executors that carry them out. Two complementary patterns — ClassCombatTextProfile for detection/matching and AbilityRegistry for execution.
+The class ability system: domain-declared class features (profiles, feature maps, resource pools) and application-layer executors that carry them out. Three complementary patterns — ClassCombatTextProfile for detection/matching, Feature Maps for boolean eligibility gates, and AbilityRegistry for execution.
 
 ## Architecture
 
 ```mermaid
 classDiagram
     class ClassCombatTextProfile {
-        +className: string
+        +classId: string
         +actionMappings: ClassActionMapping[]
         +attackEnhancements: AttackEnhancementDef[]
         +attackReactions: AttackReactionDef[]
+        +damageReactions: DamageReactionDef[]
+        +spellReactions: SpellReactionDef[]
     }
     class ClassActionMapping {
         +keyword: string
@@ -26,34 +28,64 @@ classDiagram
     }
     class AbilityExecutor {
         <<interface>>
-        +abilityId: string
-        +canExecute(actor, context): boolean
-        +execute(actor, context): AbilityResult
+        +canExecute(abilityId: string): boolean
+        +execute(context: AbilityExecutionContext): Promise~AbilityExecutionResult~
     }
     class AbilityRegistry {
         +register(executor)
-        +getExecutor(abilityId)
-        +getAllExecutors()
+        +findExecutor(abilityId): AbilityExecutor
+        +execute(context): Promise~AbilityExecutionResult~
+        +hasExecutor(abilityId): boolean
+        +getExecutors(): AbilityExecutor[]
     }
-    class ClassDefinition {
-        +hitDie: number
-        +proficiencies: string[]
-        +capabilitiesForLevel(level): string[]
+    class CharacterClassDefinition {
+        +id: CharacterClassId
+        +name: string
+        +hitDie: HitDie
+        +proficiencies: ClassProficiencies
+        +features?: Record~string, number~
+        +resourcesAtLevel?(level, abilityModifiers?): ResourcePool[]
+        +capabilitiesForLevel?(level): ClassCapability[]
     }
     class Registry {
         +CLASS_DEFINITIONS: Record
         +getAllCombatTextProfiles()
-        +COMBAT_TEXT_PROFILES[]
+        +classHasFeature(classId, feature, level)
+        +hasFeature(classLevels, feature)
+        +getClassFeatureLevel(classId, feature)
+        +getClassDefinition(classId)
+    }
+    class FeatureKeys {
+        <<constants>>
+        +RAGE, RECKLESS_ATTACK, ...
+        +ACTION_SURGE, SECOND_WIND, ...
+        +MARTIAL_ARTS, FLURRY_OF_BLOWS, ...
+    }
+    class ClassFeatureResolver {
+        +getLevel()$
+        +getProficiencyBonus()$
+        +getAttacksPerAction()$
+        +getUnarmedStrikeStats()$
+        +getClassCapabilities()$
+        +hasOpenHandTechnique()$
     }
 
     Registry --> ClassCombatTextProfile : collects
-    Registry --> ClassDefinition : stores
+    Registry --> CharacterClassDefinition : stores + queries features
+    CharacterClassDefinition --> FeatureKeys : feature ids reference
     ClassCombatTextProfile --> ClassActionMapping : contains
     AbilityRegistry --> AbilityExecutor : registers
     ClassCombatTextProfile ..> AbilityExecutor : abilityId links to
+    ClassFeatureResolver --> Registry : uses classHasFeature()
 ```
 
 ## Adding a New Class Feature (Checklist)
+
+### If it's a boolean feature gate (e.g., "has Rage", "has Cunning Action"):
+1. Add the feature key constant in `feature-keys.ts` (e.g., `export const MY_FEATURE = "my-feature"`)
+2. Add entry to the class's `features` map in its domain file (e.g., `barbarian.ts`): `"my-feature": 3` (minimum level)
+3. Call `classHasFeature(classId, MY_FEATURE, level)` from application services — **never** add a new `has*()` method to ClassFeatureResolver
+4. For subclass-gated features, the features map provides the **level gate** (necessary but not sufficient), and the executor's `canExecute()` guards the subclass requirement
 
 ### If it's a text-parsed action (e.g., "flurry of blows"):
 1. Add `ClassActionMapping` in the class's domain file (e.g., `monk.ts`)
@@ -76,27 +108,41 @@ classDiagram
 
 | Type | File | Purpose |
 |------|------|---------|
+| `CharacterClassDefinition` | `class-definition.ts` | Base class metadata (hit die, proficiencies, capabilities by level, **features map**) |
+| `features` map | Each class file | `Record<string, number>` — feature id → minimum class level for boolean gates |
+| `feature-keys.ts` | `feature-keys.ts` | String constants for all standard feature keys (type safety without closed unions) |
+| `classHasFeature()` | `registry.ts` | Single-class boolean feature check (normalizes classId to lowercase) |
+| `hasFeature()` | `registry.ts` | Multi-class-ready feature check (`Array<{classId, level}>`) |
+| `getClassFeatureLevel()` | `registry.ts` | Returns minimum level for a feature on a class |
+| `ClassFeatureResolver` | `class-feature-resolver.ts` | **Computed values only** — `getAttacksPerAction`, `getUnarmedStrikeStats`, `getClassCapabilities`, `hasOpenHandTechnique` (subclass guard) |
 | `ClassCombatTextProfile` | `combat-text-profile.ts` | Per-class regex→action + enhancement + reaction bundle |
 | `AbilityExecutor` interface | `ability-executor.ts` | `canExecute()` + `execute()` for all ability executors |
 | `AbilityRegistry` | `ability-registry.ts` | Central executor registry — queried by abilityId |
-| `ClassDefinition` | `class-definition.ts` | Base class metadata (hit die, proficiencies, capabilities by level) |
 | `getAllCombatTextProfiles()` | `registry.ts` | Collects all registered class profiles |
 
 ## Registered Profiles
 Barbarian, Cleric, Fighter, Monk, Paladin, Warlock, Wizard (7 of 12 classes)
 
-## Registered Executors (23 total)
-- **monk** (9): flurry-of-blows, patient-defense, step-of-the-wind, martial-arts, stunning-strike, wholeness-of-body, uncanny-metabolism, deflect-attacks, open-hand-technique
+## Registered Executors (14 total, registered in AbilityRegistry)
+- **barbarian** (2): rage, reckless-attack
+- **monk** (5): flurry-of-blows, patient-defense, step-of-the-wind, martial-arts, wholeness-of-body
 - **fighter** (2): action-surge, second-wind
 - **rogue** (1): cunning-action
-- **barbarian** (2): rage, reckless-attack
+- **paladin** (1): lay-on-hands
 - **cleric** (1): turn-undead
 - **monster** (1): nimble-escape
 - **common** (1): offhand-attack
 
+Note: Stunning Strike, Deflect Attacks, and Open Hand Technique are handled as attack enhancements/reactions via `ClassCombatTextProfile`, not as AbilityRegistry executors. Divine Smite is handled inline in the attack flow.
+
 ## Known Gotchas
 1. **Domain-first principle** — class detection/eligibility/text matching MUST live in domain class files, NOT in application services
-2. **Bonus actions** route through `handleBonusAbility()` (consumes bonus action economy). **Free abilities** through `handleClassAbility()`.
-3. **Monk is the complexity outlier** — 200+ lines, 15+ exports, 9 executors. All other classes are simpler.
-4. **class-resources.ts** intentionally imports all class files — narrow changes still ripple here
-5. **Registration in app.ts** — both main app AND test registry must register new executors
+2. **Boolean gates use feature maps, NOT ClassFeatureResolver** — `classHasFeature(classId, FEATURE_KEY, level)` replaces all old `ClassFeatureResolver.has*()` / `is*()` methods. Never add new boolean checks to ClassFeatureResolver.
+3. **classHasFeature normalizes classId to lowercase** — callers pass mixed-case className values (e.g., "Barbarian", "MONK") and the function handles normalization
+4. **Subclass-gated features** (e.g., Open Hand Technique) — the features map provides the level gate (necessary), the executor guards the subclass (sufficient). Both are required.
+5. **ClassFeatureResolver retains only computed-value methods** — `getAttacksPerAction`, `getUnarmedStrikeStats`, `getClassCapabilities`, `hasOpenHandTechnique` (subclass guard), `getLevel`, `getProficiencyBonus`
+6. **Multi-class ready** — `hasFeature(classLevels, feature)` checks ANY class-level entry, supporting future multiclass characters
+7. **Bonus actions** route through `handleBonusAbility()` (consumes bonus action economy). **Free abilities** through `handleClassAbility()`.
+8. **Monk is the complexity outlier** — 200+ lines, 15+ exports, 9 executors. All other classes are simpler.
+9. **class-resources.ts** intentionally imports all class files — narrow changes still ripple here
+10. **Registration in app.ts** — both main app AND test registry must register new executors
