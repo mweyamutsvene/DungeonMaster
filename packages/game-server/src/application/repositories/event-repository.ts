@@ -24,6 +24,11 @@ export interface RestCompletedPayload {
   characters: Array<{ id: string; name: string }>;
 }
 
+export interface RestStartedPayload {
+  restType: string;
+  restId: string;
+}
+
 // --- Combat lifecycle events ---
 
 export interface CombatStartedPayload {
@@ -230,6 +235,7 @@ export interface AiDecisionPayload {
 export type GameEventInput =
   | { type: "SessionCreated"; payload: SessionCreatedPayload }
   | { type: "CharacterAdded"; payload: CharacterAddedPayload }
+  | { type: "RestStarted"; payload: RestStartedPayload }
   | { type: "RestCompleted"; payload: RestCompletedPayload }
   | { type: "CombatStarted"; payload: CombatStartedPayload }
   | { type: "CombatEnded"; payload: CombatEndedPayload }

@@ -5,7 +5,7 @@ import type { ICharacterRepository } from "../../repositories/character-reposito
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
 import type { JsonValue, SessionCharacterRecord } from "../../types.js";
-import { refreshClassResourcePools, spendHitDice, recoverHitDice, type RestType } from "../../../domain/rules/rest.js";
+import { refreshClassResourcePools, spendHitDice, recoverHitDice, detectRestInterruption, type RestType, type RestInterruptionReason } from "../../../domain/rules/rest.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import type { ResourcePool } from "../../../domain/entities/combat/resource-pool.js";
 import type { CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
@@ -83,18 +83,64 @@ export class CharacterService {
   }
 
   /**
+   * Begin a rest for a session. Records the start time via a `RestStarted` event
+   * so that interruptions (combat, damage) can be detected when the rest completes.
+   *
+   * Returns the restId and startedAt timestamp that must be passed to `takeSessionRest()`
+   * to enable interruption detection.
+   */
+  async beginRest(
+    sessionId: string,
+    restType: RestType,
+  ): Promise<{ restId: string; restType: RestType; startedAt: Date }> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
+
+    const restId = nanoid();
+    const startedAt = new Date();
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "RestStarted",
+        payload: { restType, restId },
+      });
+    }
+
+    return { restId, restType, startedAt };
+  }
+
+  /**
    * Take a short or long rest for all characters in a session.
    * Refreshes class resource pools and (on long rest) restores HP.
    * On short rest, optionally spend Hit Dice to recover HP.
    * On long rest, recover spent Hit Dice (half total, rounded down, min 1).
+   *
+   * If `restStartedAt` is provided (from `beginRest()`), checks the event log for
+   * interruptions (combat or damage) since that time. If interrupted, returns
+   * `{ interrupted: true, interruptedBy }` without applying any rest benefits.
    */
   async takeSessionRest(
     sessionId: string,
     restType: RestType,
     hitDiceSpending?: Record<string, number>,
-  ): Promise<{ characters: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> }> {
+    restStartedAt?: Date,
+  ): Promise<{
+    interrupted?: boolean;
+    interruptedBy?: RestInterruptionReason;
+    characters: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }>;
+  }> {
     const session = await this.sessions.getById(sessionId);
     if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
+
+    // Check for rest interruption if a start timestamp was provided
+    if (restStartedAt && this.events) {
+      const eventsSince = await this.events.listBySession(sessionId, { since: restStartedAt });
+      const check = detectRestInterruption(restType, eventsSince);
+      if (check.interrupted) {
+        return { interrupted: true, interruptedBy: check.reason, characters: [] };
+      }
+    }
 
     const characters = await this.characters.listBySession(sessionId);
     const results: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> = [];

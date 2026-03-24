@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { refreshClassResourcePools, spendHitDice, recoverHitDice } from "./rest.js";
+import { refreshClassResourcePools, spendHitDice, recoverHitDice, detectRestInterruption } from "./rest.js";
 import { FixedDiceRoller } from "./dice-roller.js";
 
 describe("rest resource refresh", () => {
@@ -300,5 +300,46 @@ describe("recoverHitDice", () => {
 
   it("recovers 2 at level 5 (half of 5 = 2)", () => {
     expect(recoverHitDice(1, 5)).toBe(3);
+  });
+});
+
+describe("detectRestInterruption", () => {
+  it("detects combat as interruption for short rest", () => {
+    const result = detectRestInterruption("short", [{ type: "CombatStarted" }]);
+    expect(result.interrupted).toBe(true);
+    expect(result.reason).toBe("combat");
+  });
+
+  it("detects combat as interruption for long rest", () => {
+    const result = detectRestInterruption("long", [{ type: "CombatStarted" }]);
+    expect(result.interrupted).toBe(true);
+    expect(result.reason).toBe("combat");
+  });
+
+  it("detects damage taken as interruption for long rest", () => {
+    const result = detectRestInterruption("long", [{ type: "DamageApplied" }]);
+    expect(result.interrupted).toBe(true);
+    expect(result.reason).toBe("damage");
+  });
+
+  it("does NOT treat damage as interruption for short rest", () => {
+    const result = detectRestInterruption("short", [{ type: "DamageApplied" }]);
+    expect(result.interrupted).toBe(false);
+  });
+
+  it("returns not interrupted when no relevant events", () => {
+    const result = detectRestInterruption("long", []);
+    expect(result.interrupted).toBe(false);
+  });
+
+  it("ignores non-interrupting events", () => {
+    const result = detectRestInterruption("short", [{ type: "TurnAdvanced" }, { type: "NarrativeText" }]);
+    expect(result.interrupted).toBe(false);
+  });
+
+  it("returns first interruption reason when multiple interrupting events exist", () => {
+    const result = detectRestInterruption("long", [{ type: "DamageApplied" }, { type: "CombatStarted" }]);
+    expect(result.interrupted).toBe(true);
+    expect(result.reason).toBe("damage");
   });
 });

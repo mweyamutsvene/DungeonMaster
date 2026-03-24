@@ -131,3 +131,39 @@ export function recoverHitDice(hitDiceRemaining: number, totalHitDice: number): 
   const recoverable = Math.max(1, Math.floor(totalHitDice / 2));
   return Math.min(hitDiceRemaining + recoverable, totalHitDice);
 }
+
+// ---------------------------------------------------------------------------
+// Rest Interruption
+// ---------------------------------------------------------------------------
+
+export type RestInterruptionReason = "combat" | "damage";
+
+export interface RestInterruptionResult {
+  interrupted: boolean;
+  reason?: RestInterruptionReason;
+}
+
+/**
+ * D&D 5e 2024: Detect whether a rest has been interrupted by checking events
+ * that occurred since the rest began.
+ *
+ * - Short rest: interrupted by combat (`CombatStarted`)
+ * - Long rest: interrupted by combat (`CombatStarted`) OR taking damage (`DamageApplied`)
+ *
+ * Note: Spell casting during a long rest also technically interrupts it per RAW,
+ * but we don't emit a queryable spell-cast event for this purpose yet.
+ */
+export function detectRestInterruption(
+  restType: RestType,
+  events: ReadonlyArray<{ type: string }>,
+): RestInterruptionResult {
+  for (const event of events) {
+    if (event.type === "CombatStarted") {
+      return { interrupted: true, reason: "combat" };
+    }
+    if (event.type === "DamageApplied" && restType === "long") {
+      return { interrupted: true, reason: "damage" };
+    }
+  }
+  return { interrupted: false };
+}

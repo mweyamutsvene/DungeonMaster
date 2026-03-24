@@ -6,6 +6,7 @@
  * Endpoints:
  * - POST /sessions/:id/characters - Add a character to a session
  * - POST /sessions/:id/characters/generate - Generate a character via LLM
+ * - POST /sessions/:id/rest/begin - Begin a rest (records start time for interruption detection)
  * - POST /sessions/:id/rest - Take a short or long rest (refreshes resources)
  */
 
@@ -96,29 +97,57 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
   });
 
   /**
-   * POST /sessions/:id/rest
-   * Take a short or long rest for all characters in the session.
-   * Refreshes class resource pools; long rest also restores HP.
-   * Optional hitDiceSpending: { [characterId]: count } to spend Hit Dice on short rest.
+   * POST /sessions/:id/rest/begin
+   * Begin a rest for the session. Records the start time via a RestStarted event so
+   * that interruptions (combat started, damage taken during long rest) can be detected
+   * when the rest completes via POST /sessions/:id/rest.
+   *
+   * Returns { restId, restType, startedAt } — pass `startedAt` back to /rest to
+   * enable interruption detection.
    */
   app.post<{
     Params: { id: string };
-    Body: { type: "short" | "long"; hitDiceSpending?: Record<string, number> };
-  }>("/sessions/:id/rest", async (req) => {
+    Body: { type: "short" | "long" };
+  }>("/sessions/:id/rest/begin", async (req) => {
     const sessionId = req.params.id;
-    const { type: restType, hitDiceSpending } = req.body;
+    const { type: restType } = req.body;
 
     if (!restType || (restType !== "short" && restType !== "long")) {
       throw new ValidationError("Rest type must be 'short' or 'long'");
     }
 
+    return deps.characters.beginRest(sessionId, restType);
+  });
+
+  /**
+   * POST /sessions/:id/rest
+   * Take a short or long rest for all characters in the session.
+   * Refreshes class resource pools; long rest also restores HP.
+   * Optional hitDiceSpending: { [characterId]: count } to spend Hit Dice on short rest.
+   * Optional restStartedAt: ISO timestamp from POST /rest/begin — if provided, checks
+   * for combat or damage interruptions since that time. Returns { interrupted: true } if
+   * the rest was interrupted without applying any benefits.
+   */
+  app.post<{
+    Params: { id: string };
+    Body: { type: "short" | "long"; hitDiceSpending?: Record<string, number>; restStartedAt?: string };
+  }>("/sessions/:id/rest", async (req) => {
+    const sessionId = req.params.id;
+    const { type: restType, hitDiceSpending, restStartedAt } = req.body;
+
+    if (!restType || (restType !== "short" && restType !== "long")) {
+      throw new ValidationError("Rest type must be 'short' or 'long'");
+    }
+
+    const startedAt = restStartedAt ? new Date(restStartedAt) : undefined;
+
     if (deps.unitOfWork) {
       return deps.unitOfWork.run(async (repos) => {
         const services = deps.createServicesForRepos(repos);
-        return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending);
+        return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
       });
     }
 
-    return deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending);
+    return deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
   });
 }
