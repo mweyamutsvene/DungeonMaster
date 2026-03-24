@@ -8,10 +8,14 @@
  * - Grant access to spells (with charges or at-will)
  * - Require attunement (with optional prerequisites)
  * - Have charges that recharge on a schedule
+ * - Apply ActiveEffects when consumed (potions)
  *
  * This module defines the DATA MODEL only — no runtime behavior.
  * Application-layer services interpret these definitions to modify combat operations.
  */
+
+import type { EffectType, EffectTarget, EffectDuration, DiceValue } from '../combat/effects.js';
+import type { Ability } from '../core/ability-scores.js';
 
 // ─── Rarity ──────────────────────────────────────────────────────────────
 
@@ -170,6 +174,49 @@ export interface ItemDamageModifier {
   modifier: "resistance" | "immunity" | "vulnerability";
 }
 
+// ─── Potion effects (consumed-item effects) ──────────────────────────────
+
+/**
+ * Template for an ActiveEffect that a potion applies when consumed.
+ * Omits runtime fields (id, appliedAtRound, appliedAtTurnIndex) since those
+ * are filled in at application time.
+ */
+export interface PotionEffectTemplate {
+  type: EffectType;
+  target: EffectTarget;
+  value?: number;
+  diceValue?: DiceValue;
+  ability?: Ability;
+  damageType?: string;
+  duration: EffectDuration;
+  roundsRemaining?: number;
+  source?: string;
+  description?: string;
+  conditionName?: string;
+  triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move';
+}
+
+/**
+ * Declares what a potion does when consumed.
+ * Used by the generic item-use applicator in the application layer.
+ */
+export interface PotionEffect {
+  /** ActiveEffects to apply to the drinker. */
+  effects?: PotionEffectTemplate[];
+  /** Instant healing (dice + modifier). */
+  healing?: { diceCount: number; diceSides: number; modifier: number };
+  /** Instant damage (e.g. Potion of Poison). */
+  damage?: { diceCount: number; diceSides: number; damageType: string };
+  /** Conditions to apply on the drinker. */
+  applyConditions?: Array<{ condition: string; duration: string; roundsRemaining?: number }>;
+  /** Conditions to remove from the drinker. */
+  removeConditions?: string[];
+  /** Saving throw to resist the damage/conditions (e.g. Potion of Poison). */
+  save?: { ability: Ability; dc: number; effectOnFail: string };
+  /** Temporary HP to grant (added to resources.tempHp, not stacking). */
+  tempHp?: number;
+}
+
 // ─── Main magic item definition ──────────────────────────────────────────
 
 /**
@@ -207,6 +254,8 @@ export interface MagicItemDefinition {
   charges?: ItemCharges;
   /** Damage resistances/immunities granted by the item. */
   damageModifiers?: ItemDamageModifier[];
+  /** Potion effects applied when this item is consumed. */
+  potionEffects?: PotionEffect;
 
   // ── Base item reference (for weapons/armor) ──
 

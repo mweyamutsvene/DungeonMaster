@@ -84,15 +84,15 @@ Like `POTION_HEALING_FORMULAS` but for each potion type. Doesn't scale.
 Build the foundation so any potion with a `potionEffects` field Just Works.
 
 #### [File: `packages/game-server/src/domain/entities/items/magic-item.ts`]
-- [ ] Add `PotionEffect` interface
-- [ ] Add optional `potionEffects?: PotionEffect` field to `MagicItemDefinition`
+- [x] Add `PotionEffect` interface
+- [x] Add optional `potionEffects?: PotionEffect` field to `MagicItemDefinition`
 
 #### [File: `packages/game-server/src/domain/entities/items/magic-item-catalog.ts`]
-- [ ] Migrate healing potion definitions to use `potionEffects.healing` instead of the separate `POTION_HEALING_FORMULAS` lookup table
-- [ ] Keep `POTION_HEALING_FORMULAS` as a deprecated re-export (or update all consumers) for backward compat during migration
+- [x] Migrate healing potion definitions to use `potionEffects.healing` instead of the separate `POTION_HEALING_FORMULAS` lookup table
+- [x] Keep `POTION_HEALING_FORMULAS` as a deprecated re-export (or update all consumers) for backward compat during migration
 
 #### [File: `packages/game-server/src/application/services/combat/tabletop/interaction-handlers.ts`]
-- [ ] Refactor `handleUseItemAction()` to be generic:
+- [x] Refactor `handleUseItemAction()` to be generic:
   1. Look up `MagicItemDefinition`
   2. If it has `potionEffects.healing` → apply healing (existing logic)
   3. If it has `potionEffects.effects` → apply each `ActiveEffect` to combatant resources
@@ -102,62 +102,61 @@ Build the foundation so any potion with a `potionEffects` field Just Works.
   7. Consume the item, spend action
   8. If none of the above → throw not-supported error
 
-#### [File: `packages/game-server/src/application/services/combat/ai/ai-action-executor.ts`]
-- [ ] Refactor `executeUseObject()` to use the generic potion effect system instead of hard-coded healing formula lookup
-- [ ] AI should be able to use any potion that has `potionEffects` defined
+#### [File: `packages/game-server/src/application/services/combat/ai/handlers/use-object-handler.ts`]
+- [x] Refactor `UseObjectHandler.execute()` to use the generic potion effect system instead of hard-coded healing formula lookup
+- [x] AI should be able to use any potion that has `potionEffects` defined
 
 ### Phase 2: Tier 1 Potion Definitions
 Add catalog entries with `potionEffects` for the simple-effect potions.
 
 #### [File: `packages/game-server/src/domain/entities/items/magic-item-catalog.ts`]
-- [ ] Add `POTION_OF_RESISTANCE` (parameterized by damage type — may need a factory function or 10 variants)
-- [ ] Add `POTION_OF_HEROISM` (10 temp HP + Bless effects)
-- [ ] Add `POTION_OF_INVULNERABILITY` (resistance to all damage, 10 rounds)
-- [ ] Add `POTION_OF_POISON` (4d6 poison damage + DC 13 CON save + Poisoned condition)
-- [ ] Add `POTION_OF_VITALITY` (remove Exhaustion + Poisoned)
-- [ ] Add `POTION_OF_CLIMBING` (climb speed + advantage on Athletics)
-- [ ] Add `POTION_OF_WATER_BREATHING` (no combat effect — flavor only)
+- [x] Add `POTION_OF_RESISTANCE` (parameterized by damage type — factory function with 13 variants)
+- [x] Add `POTION_OF_HEROISM` (10 temp HP + Bless effects)
+- [x] Add `POTION_OF_INVULNERABILITY` (resistance to all damage, 10 rounds)
+- [x] Add `POTION_OF_POISON` (4d6 poison damage + DC 13 CON save + Poisoned condition)
+- [x] Add `POTION_OF_VITALITY` (remove Exhaustion + Poisoned)
+- [x] Add `POTION_OF_CLIMBING` (climb speed)
+- [x] Add `POTION_OF_WATER_BREATHING` (flavor only)
 
 ### Phase 3: Tier 2 Spell-Replicating Potions
 Potions that grant spell effects. These are more complex because they combine multiple effects.
 
 #### [File: `packages/game-server/src/domain/entities/items/magic-item-catalog.ts`]
-- [ ] Add `POTION_OF_SPEED` — Haste effects: +2 AC, advantage on DEX saves, double speed, extra action (limited to Attack/Dash/Disengage/Hide/Use Object). No lethargy.
-- [ ] Add `POTION_OF_INVISIBILITY` — Invisible condition, ends on attack/damage/cast
-- [ ] Add `POTION_OF_GIANT_STRENGTH` (variants) — Set STR to 21/23/25/27/29
-- [ ] Add `POTION_OF_GROWTH` — Enlarge effects: +1d4 weapon damage, advantage on STR checks/saves, size Large
-- [ ] Add `POTION_OF_FLYING` — Fly speed = Speed
-- [ ] Add `POTION_OF_DIMINUTION` — Reduce effects: -1d4 weapon damage, disadvantage on STR checks/saves, size Small
-- [ ] Add `POTION_OF_GASEOUS_FORM` — Gaseous Form (resistance to nonmagical damage, can't attack/cast, fly 10ft, squeeze through tiny spaces)
+- [x] Add `POTION_OF_SPEED` — Haste effects: +2 AC, advantage on DEX saves, double speed. TODO: extra action (see Risks)
+- [x] Add `POTION_OF_INVISIBILITY` — Invisible condition, ends on attack/damage/cast
+- [x] Add `POTION_OF_GIANT_STRENGTH` (variants) — 6 variants (Hill/Frost/Stone/Fire/Cloud/Storm Giant)
+- [x] Add `POTION_OF_GROWTH` — Enlarge effects: +1d4 weapon damage, advantage on STR
+- [x] Add `POTION_OF_FLYING` — Fly speed = walking speed
+- [x] Add `POTION_OF_DIMINUTION` — Reduce effects: -1d4 damage, disadvantage on STR
+- [x] Add `POTION_OF_GASEOUS_FORM` — resistance to bludg/pierc/slash
 
 ### Phase 4: AI Tactical Awareness
 Teach the AI when to use non-healing potions.
 
-#### [File: `packages/game-server/src/infrastructure/llm/ai-decision-maker.ts`]
-- [ ] Update system prompt to describe available potions in inventory beyond just "healing potions"
-- [ ] Include potion names and brief effect descriptions in the AI context
-- [ ] Pre-filter `useObject` action when inventory has no usable potions/items (the AI pre-filtering improvement from the previous plan)
+#### [File: `packages/game-server/src/application/services/combat/ai/ai-context-builder.ts`]
+- [x] Update potion detection to use `potionEffects` field rather than `POTION_HEALING_FORMULAS`
+- [x] Pre-filter `useObject` action when inventory has no usable potions with `potionEffects`
 
-#### [File: `packages/game-server/src/application/services/combat/ai/ai-action-executor.ts`]
-- [ ] Update `executeUseObject()` to pick the best potion based on combat context:
-  - Low HP → healing potion
-  - About to face heavy damage → Potion of Resistance / Invulnerability
-  - Need to buff → Potion of Speed / Giant Strength / Growth
-  - Need to escape → Potion of Invisibility / Gaseous Form
+#### [File: `packages/game-server/src/application/services/combat/ai/handlers/use-object-handler.ts`]
+- [x] AI prefers healing potions when HP <= 50%; falls back to first available buff potion otherwise
 
 ### Phase 5: E2E Test Scenarios
 
 #### [File: `packages/game-server/scripts/test-harness/scenarios/`]
-- [ ] `potion-of-resistance.json` — Drink resistance potion, take reduced damage
-- [ ] `potion-of-heroism.json` — Drink heroism, gain temp HP + Bless-like bonus
-- [ ] `potion-of-invulnerability.json` — Drink invulnerability, resistance to all damage for 10 rounds
-- [ ] `potion-of-speed.json` — Drink speed potion, gain Haste benefits
-- [ ] `ai-use-buff-potion.json` — AI drinks a non-healing potion
+- [x] `potion-of-resistance.json` — Drink fire resistance potion, item consumed, HP unchanged
+- [x] `potion-of-heroism.json` — Drink heroism, verify tempHp = 10, HP unchanged
+- [x] `potion-of-invulnerability.json` — Drink invulnerability, item consumed, HP unchanged
+- [x] `potion-of-speed.json` — Drink speed potion, item consumed, HP unchanged
+- [x] `ai-use-buff-potion.json` — AI goblin drinks Potion of Heroism (buff), HP unchanged, tempHp = 10
+
+#### [File: `packages/game-server/scripts/test-harness/scenario-runner.ts`]
+- [x] Added `characterTempHp` assertion (min/max/exact) — checks `resources.tempHp`
+- [x] Added `monsterTempHp` assertion (name + min/max/exact) — checks monster `resources.tempHp`
 
 ---
 
 ## Cross-Flow Risk Checklist
-- [ ] Do changes in one flow break assumptions in another? — Yes: `POTION_HEALING_FORMULAS` migration affects both tabletop handler and AI executor. Need to update both simultaneously or keep the old lookup as fallback.
+- [x] Do changes in one flow break assumptions in another? — Yes: `POTION_HEALING_FORMULAS` migration affects both tabletop handler and AI executor. Need to update both simultaneously or keep the old lookup as fallback.
 - [ ] Does the pending action state machine still have valid transitions? — N/A. UseItem action already exists; just extending what it can do.
 - [ ] Is action economy preserved? — Yes. Drinking a potion always costs 1 action (D&D 5e 2024 rules).
 - [ ] Do both player AND AI paths handle the change? — Yes. Player path via `handleUseItemAction()`, AI path via `executeUseObject()`. Both will use the generic `potionEffects` system.

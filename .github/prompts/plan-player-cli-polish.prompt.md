@@ -42,7 +42,7 @@ This plan addresses quality-of-life improvements and missing features.
 | # | Feature | Description | Complexity |
 |---|---------|-------------|-----------|
 | 6 | ✅ Post-combat loop | After combat ends: rest / status / menu / quit | Medium |
-| 7 | Expanded quick encounters | Pull from server's monster database instead of 5 hardcoded presets | Medium |
+| 7 | ✅ Expanded quick encounters | Pull from server's monster database instead of 5 hardcoded presets | Medium |
 | 8 | ✅ Error recovery | SSE fallback to polling, graceful network failure handling | Medium |
 | 9 | ✅ Help command | Show all available commands with descriptions | Small |
 | 10 | ✅ Command history | `historySize: 100` in readline (arrow-key nav built-in) | Small |
@@ -82,4 +82,4 @@ Small for Tier 1, Medium for Tier 2, Large for Tier 3.
   - SSE connection failure handled gracefully with fallback to polling.
   - `pollForPlayerTurn()` added as fallback when event stream is unavailable.
   - `historySize: 100` set on readline for arrow-key command history.
-- **Not implemented:** #7 (expanded quick encounters), #11–#13 (Tier 3 major features).
+- **Not implemented (explicitly deferred):** #11–#13 (Tier 3 major features — multi-PC party control, save/resume sessions, exploration phase).

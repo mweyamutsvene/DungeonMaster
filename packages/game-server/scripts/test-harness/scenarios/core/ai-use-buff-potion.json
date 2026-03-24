@@ -1,0 +1,120 @@
+{
+  "name": "AI uses non-healing buff potion (Potion of Heroism)",
+  "description": "An AI goblin has only a Potion of Heroism (no healing potion). Even when at low HP, the AI should use the available buff potion via the generic potionEffects system (since there's no healing potion to prefer). Verifies that the AI path (UseObjectHandler) now supports non-healing potions: HP stays at 10 (no healing), but the goblin gains 10 temporary HP.",
+  "setup": {
+    "character": {
+      "name": "Dwyn Observer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Aspiring Goblin",
+        "position": { "x": 50, "y": 0 },
+        "statBlock": {
+          "name": "Aspiring Goblin",
+          "armorClass": 15,
+          "maxHp": 30,
+          "hp": 10,
+          "speed": 30,
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "inventory": [
+            {
+              "magicItemId": "potion-of-heroism",
+              "name": "Potion of Heroism",
+              "equipped": false,
+              "attuned": false,
+              "quantity": 1
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "usePotion"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin starts wounded at 10 HP",
+      "expect": {
+        "monsterHp": { "name": "Aspiring Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn to let AI goblin act",
+      "expect": {}
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for AI potion use and turn to come back"
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin HP stays at 10 — Heroism gives tempHp, NOT regular healing",
+      "expect": {
+        "monsterHp": { "name": "Aspiring Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin gains 10 temporary HP from Heroism",
+      "expect": {
+        "monsterTempHp": { "name": "Aspiring Goblin", "exact": 10 }
+      }
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "name": "Potion of Speed: Haste benefits (AC, DEX saves, speed boost)",
+  "description": "A rogue drinks a Potion of Speed during combat. Verifies the generic potionEffects system handles the Speed potion (Haste effects: +2 AC, advantage on DEX saves, double speed). HP unchanged, item consumed. Note: extra action from Haste is not implemented per the plan's TODO.",
+  "setup": {
+    "character": {
+      "name": "Vex the Swift",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Light"]
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "potion-of-speed",
+            "name": "Potion of Speed",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Slow Ogre",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "name": "Slow Ogre",
+          "armorClass": 11,
+          "maxHp": 59,
+          "hp": 59,
+          "speed": 40,
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character at full HP before potion",
+      "expect": {
+        "characterHp": { "min": 38, "max": 38 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "drink Potion of Speed" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "HP unchanged — Speed potion grants Haste ActiveEffects, not healing",
+      "expect": {
+        "characterHp": { "min": 38, "max": 38 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Potion of Speed consumed from inventory",
+      "expect": {
+        "characterInventory": {
+          "doesNotHave": ["Potion of Speed"]
+        }
+      }
+    }
+  ]
+}

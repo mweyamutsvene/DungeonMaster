@@ -1,0 +1,121 @@
+{
+  "name": "Potion of Resistance: Fire Resistance using generic potionEffects system",
+  "description": "A fighter drinks a Potion of Fire Resistance. Verifies that the generic potionEffects system correctly consumes the item and completes the action (resistance ActiveEffect is applied to resources).",
+  "setup": {
+    "character": {
+      "name": "Aria Flamestrike",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "potion-of-resistance-fire",
+            "name": "Potion of Resistance (fire)",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "name": "Training Dummy",
+          "armorClass": 10,
+          "maxHp": 200,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character at full HP before potion",
+      "expect": {
+        "characterHp": { "min": 44, "max": 44 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Resistance potion in inventory before use",
+      "expect": {
+        "characterInventory": {
+          "has": [
+            { "name": "Potion of Resistance (fire)", "quantity": 1 }
+          ]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "drink Potion of Resistance (fire)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "HP unchanged — resistance potion grants an ActiveEffect, not healing",
+      "expect": {
+        "characterHp": { "min": 44, "max": 44 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Resistance potion consumed from inventory",
+      "expect": {
+        "characterInventory": {
+          "doesNotHave": ["Potion of Resistance (fire)"]
+        }
+      }
+    }
+  ]
+}

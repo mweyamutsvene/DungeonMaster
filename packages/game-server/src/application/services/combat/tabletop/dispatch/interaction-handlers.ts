@@ -21,6 +21,9 @@ import {
   addDrawnWeapon,
   removeDrawnWeapon,
   getInventory,
+  addActiveEffectsToResources,
+  getActiveEffects,
+  setActiveEffects,
 } from "../../helpers/resource-utils.js";
 import {
   findInventoryItem,
@@ -29,8 +32,14 @@ import {
 } from "../../../../../domain/entities/items/inventory.js";
 import {
   lookupMagicItem,
-  POTION_HEALING_FORMULAS,
 } from "../../../../../domain/entities/items/magic-item-catalog.js";
+import {
+  addCondition,
+  removeCondition,
+  normalizeConditions,
+  type Condition,
+} from "../../../../../domain/entities/combat/conditions.js";
+import { createEffect } from "../../../../../domain/entities/combat/effects.js";
 import {
   inferActorRef,
   getActorNameFromRoster,
@@ -440,6 +449,7 @@ export class InteractionHandlers {
    * Handle "use/drink <item>" action.
    * D&D 5e 2024: Drinking a potion costs an Action.
    * The item is consumed from the combatant's inventory.
+   * Supports any item with a `potionEffects` definition on its MagicItemDefinition.
    */
   async handleUseItemAction(
     sessionId: string,
@@ -459,7 +469,7 @@ export class InteractionHandlers {
     );
     if (!actorCombatant) throw new ValidationError("Actor not found in combat");
 
-    const resources = normalizeResources(actorCombatant.resources);
+    let resources = normalizeResources(actorCombatant.resources);
 
     // Check action economy: using an item costs an action
     if (resources.actionSpent) {
@@ -477,60 +487,158 @@ export class InteractionHandlers {
     }
 
     // Look up item definition for effects
-    const itemDef = item.magicItemId ? lookupMagicItem(item.name) ?? lookupMagicItem(itemName) : lookupMagicItem(itemName);
+    const itemDef = item.magicItemId
+      ? lookupMagicItem(item.name) ?? lookupMagicItem(itemName)
+      : lookupMagicItem(itemName);
 
-    // Handle potion healing
-    const potionFormula = POTION_HEALING_FORMULAS[item.magicItemId ?? ""] ?? POTION_HEALING_FORMULAS[itemDef?.id ?? ""];
-    if (potionFormula || (itemDef?.category === "potion")) {
-      // Consume the item
-      const { updatedInventory } = useConsumableItem(inventory, itemName);
+    if (!itemDef?.potionEffects && itemDef?.category !== "potion") {
+      throw new ValidationError(`Don't know how to use "${itemName}". Only potions are supported.`);
+    }
 
-      // Roll healing dice if it's a healing potion
-      let healAmount = 0;
-      let healMessage = "";
-      if (potionFormula) {
-        // Roll healing dice server-side (potions are deterministic — fixed formula)
-        if (!this.deps.diceRoller) {
-          throw new ValidationError("Dice roller not configured");
-        }
-        const diceResult = this.deps.diceRoller.rollDie(potionFormula.diceSides, potionFormula.diceCount, potionFormula.modifier);
-        healAmount = diceResult.total;
-        healMessage = `${potionFormula.diceCount}d${potionFormula.diceSides}+${potionFormula.modifier} = ${healAmount}`;
+    // Consume the item
+    const { updatedInventory } = useConsumableItem(inventory, itemName);
+
+    const potionEffects = itemDef?.potionEffects;
+    const actorName = getActorNameFromRoster(actorId, roster);
+    const messageParts: string[] = [];
+
+    // ── Apply healing ──────────────────────────────────────────────────
+    if (potionEffects?.healing) {
+      const formula = potionEffects.healing;
+      if (!this.deps.diceRoller) {
+        throw new ValidationError("Dice roller not configured");
       }
-
-      // Apply healing
+      const diceResult = this.deps.diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
+      const healAmount = diceResult.total;
       const hpBefore = actorCombatant.hpCurrent;
       const hpMax = actorCombatant.hpMax;
       const hpAfter = Math.min(hpMax, hpBefore + healAmount);
       const actualHeal = hpAfter - hpBefore;
 
-      // Update resources: consume item + spend action
-      const updatedResources = {
-        ...resources,
-        actionSpent: true,
-        inventory: updatedInventory,
-      };
-
       await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
         hpCurrent: hpAfter,
-        resources: updatedResources as any,
       });
 
-      const actorName = getActorNameFromRoster(actorId, roster);
-      const message = healAmount > 0
-        ? `${actorName} drinks ${item.name} and heals ${actualHeal} HP (${healMessage}). HP: ${hpAfter}/${hpMax}`
-        : `${actorName} drinks ${item.name}.`;
-
-      return {
-        requiresPlayerInput: false,
-        actionComplete: true,
-        type: "SIMPLE_ACTION_COMPLETE",
-        action: "Use Item",
-        message,
-      };
+      messageParts.push(`heals ${actualHeal} HP (${formula.diceCount}d${formula.diceSides}+${formula.modifier} = ${healAmount}). HP: ${hpAfter}/${hpMax}`);
     }
 
-    // Generic non-potion item use (placeholder for future items)
-    throw new ValidationError(`Don't know how to use "${itemName}". Only healing potions are currently supported.`);
+    // ── Apply instant damage ───────────────────────────────────────────
+    if (potionEffects?.damage) {
+      const dmg = potionEffects.damage;
+      if (!this.deps.diceRoller) {
+        throw new ValidationError("Dice roller not configured");
+      }
+      // Check for save to resist
+      let applyDamage = true;
+      if (potionEffects.save) {
+        // For now, we always apply damage on fail – tabletop mode doesn't prompt for saves here
+        // The save for Potion of Poison conditions (Poisoned) is resolved below
+        // Full save mechanics are a future enhancement
+        applyDamage = true;
+      }
+
+      if (applyDamage) {
+        const diceResult = this.deps.diceRoller.rollDie(dmg.diceSides, dmg.diceCount, 0);
+        const dmgAmount = diceResult.total;
+        const hpBefore = actorCombatant.hpCurrent;
+        const hpAfter = Math.max(0, hpBefore - dmgAmount);
+
+        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          hpCurrent: hpAfter,
+        });
+
+        messageParts.push(`takes ${dmgAmount} ${dmg.damageType} damage`);
+      }
+    }
+
+    // ── Apply temp HP ──────────────────────────────────────────────────
+    if (potionEffects?.tempHp && potionEffects.tempHp > 0) {
+      const newTempHp = potionEffects.tempHp;
+      const currentRes = normalizeResources(actorCombatant.resources);
+      const existingTempHp = typeof currentRes.tempHp === "number" ? currentRes.tempHp : 0;
+      // Temp HP doesn't stack — take the higher value (D&D 5e 2024)
+      if (newTempHp > existingTempHp) {
+        resources = { ...resources, tempHp: newTempHp };
+      }
+      messageParts.push(`gains ${newTempHp} temporary HP`);
+    }
+
+    // ── Apply ActiveEffects ────────────────────────────────────────────
+    if (potionEffects?.effects && potionEffects.effects.length > 0) {
+      const newEffects = potionEffects.effects.map(template =>
+        createEffect(
+          nanoid(),
+          template.type,
+          template.target,
+          template.duration,
+          {
+            value: template.value,
+            diceValue: template.diceValue,
+            ability: template.ability,
+            damageType: template.damageType,
+            roundsRemaining: template.roundsRemaining,
+            source: template.source,
+            description: template.description,
+            conditionName: template.conditionName,
+            triggerAt: template.triggerAt,
+          },
+        )
+      );
+      resources = addActiveEffectsToResources(resources, ...newEffects) as typeof resources;
+
+      // Build effect summary for the message
+      const effectNames = [...new Set(potionEffects.effects.map(e => e.source ?? e.description ?? e.type))];
+      messageParts.push(`gains: ${effectNames.join(", ")}`);
+    }
+
+    // ── Apply conditions ───────────────────────────────────────────────
+    let updatedConditions = normalizeConditions(actorCombatant.conditions as unknown[]);
+    if (potionEffects?.applyConditions && potionEffects.applyConditions.length > 0) {
+      for (const cond of potionEffects.applyConditions) {
+        updatedConditions = addCondition(updatedConditions, {
+          condition: cond.condition as Condition,
+          duration: cond.duration as any,
+          ...(cond.roundsRemaining !== undefined ? { roundsRemaining: cond.roundsRemaining } : {}),
+        });
+      }
+      const condNames = potionEffects.applyConditions.map(c => c.condition).join(", ");
+      messageParts.push(`gains condition(s): ${condNames}`);
+    }
+
+    // ── Remove conditions ──────────────────────────────────────────────
+    if (potionEffects?.removeConditions && potionEffects.removeConditions.length > 0) {
+      for (const condName of potionEffects.removeConditions) {
+        updatedConditions = removeCondition(updatedConditions, condName as Condition);
+      }
+      const condNames = potionEffects.removeConditions.join(", ");
+      messageParts.push(`removes condition(s): ${condNames}`);
+    }
+
+    // ── Persist all changes ────────────────────────────────────────────
+    const finalResources = {
+      ...resources,
+      actionSpent: true,
+      inventory: updatedInventory,
+    };
+
+    await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+      resources: finalResources as any,
+      conditions: updatedConditions as any,
+    });
+
+    const effectSummary = messageParts.length > 0 ? ` ${messageParts.join("; ")}` : "";
+    const message = `${actorName} drinks ${item.name}.${effectSummary}`;
+
+    if (this.debugLogsEnabled) {
+      console.log(`[InteractionHandlers] ${actorId} used ${item.name}. Effects: ${messageParts.join("; ")}`);
+    }
+
+    return {
+      requiresPlayerInput: false,
+      actionComplete: true,
+      type: "SIMPLE_ACTION_COMPLETE",
+      action: "Use Item",
+      message,
+    };
   }
 }

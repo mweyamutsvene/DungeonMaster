@@ -1,0 +1,118 @@
+{
+  "name": "Potion of Heroism: Temp HP and Bless effects",
+  "description": "A paladin drinks a Potion of Heroism at full HP. Verifies: HP is unchanged (tempHp is separate from hpCurrent), characterTempHp = 10, and the potion is consumed from inventory.",
+  "setup": {
+    "character": {
+      "name": "Sir Galwyn",
+      "className": "Paladin",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 16
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "potion-of-heroism",
+            "name": "Potion of Heroism",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 50, "y": 10 },
+        "statBlock": {
+          "name": "Training Dummy",
+          "armorClass": 10,
+          "maxHp": 200,
+          "hp": 200,
+          "speed": 0,
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character at full HP, no temp HP before potion",
+      "expect": {
+        "characterHp": { "min": 44, "max": 44 },
+        "characterTempHp": { "exact": 0 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "drink Potion of Heroism" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "HP unchanged — Heroism grants tempHp, not regular healing",
+      "expect": {
+        "characterHp": { "min": 44, "max": 44 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character gains 10 temporary HP from Heroism",
+      "expect": {
+        "characterTempHp": { "exact": 10 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Heroism potion consumed from inventory",
+      "expect": {
+        "characterInventory": {
+          "doesNotHave": ["Potion of Heroism"]
+        }
+      }
+    }
+  ]
+}

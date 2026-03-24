@@ -286,6 +286,10 @@ interface AssertStateAction {
       has?: Array<{ name: string; quantity?: number }>;
       doesNotHave?: string[];
     };
+    /** Assert temporary HP on the player character (stored in resources.tempHp) */
+    characterTempHp?: { min?: number; max?: number; exact?: number };
+    /** Assert temporary HP on a specific monster (stored in resources.tempHp) */
+    monsterTempHp?: { name: string; min?: number; max?: number; exact?: number };
   };
 }
 
@@ -1405,6 +1409,48 @@ export async function runScenario(
               }
             }
             log(`   ${colors.green}✓${colors.reset} Inventory: [${inventory.map(i => `${i.name}(x${i.quantity})`).join(", ")}]`);
+          }
+          // Assert temporary HP on the player character
+          if (action.expect.characterTempHp !== undefined) {
+            const { min, max, exact } = action.expect.characterTempHp;
+            const assertActorId = resolveActorId(action.actor);
+            const char = body.combatants?.find((c: any) => c.characterId === assertActorId);
+            if (!char) {
+              throw new Error(`Character "${action.actor ?? "default"}" not found in combatants (id: ${assertActorId})`);
+            }
+            const charResources = char.resources as Record<string, unknown> | undefined;
+            const actualTempHp = typeof charResources?.tempHp === "number" ? charResources.tempHp : 0;
+            if (exact !== undefined && actualTempHp !== exact) {
+              throw new Error(`Expected characterTempHp = ${exact}, got ${actualTempHp}`);
+            }
+            if (min !== undefined && actualTempHp < min) {
+              throw new Error(`Expected characterTempHp >= ${min}, got ${actualTempHp}`);
+            }
+            if (max !== undefined && actualTempHp > max) {
+              throw new Error(`Expected characterTempHp <= ${max}, got ${actualTempHp}`);
+            }
+            log(`   ${colors.green}✓${colors.reset} Character tempHp = ${actualTempHp}`);
+          }
+          // Assert temporary HP on a specific monster
+          if (action.expect.monsterTempHp !== undefined) {
+            const { name: monsterName, min, max, exact } = action.expect.monsterTempHp;
+            const monsterIndex = scenario.setup.monsters.findIndex(m => m.name.toLowerCase() === monsterName.toLowerCase());
+            if (monsterIndex === -1) throw new Error(`Monster "${monsterName}" not found in scenario setup`);
+            const matchMonsterId = monsterIds[monsterIndex];
+            const monsterCombatant = body.combatants?.find((c: any) => c.monsterId === matchMonsterId);
+            if (!monsterCombatant) throw new Error(`Monster "${monsterName}" not found in combatants (id: ${matchMonsterId})`);
+            const monsterResources = monsterCombatant.resources as Record<string, unknown> | undefined;
+            const actualTempHp = typeof monsterResources?.tempHp === "number" ? monsterResources.tempHp : 0;
+            if (exact !== undefined && actualTempHp !== exact) {
+              throw new Error(`Expected monster "${monsterName}" tempHp = ${exact}, got ${actualTempHp}`);
+            }
+            if (min !== undefined && actualTempHp < min) {
+              throw new Error(`Expected monster "${monsterName}" tempHp >= ${min}, got ${actualTempHp}`);
+            }
+            if (max !== undefined && actualTempHp > max) {
+              throw new Error(`Expected monster "${monsterName}" tempHp <= ${max}, got ${actualTempHp}`);
+            }
+            log(`   ${colors.green}✓${colors.reset} Monster "${monsterName}" tempHp = ${actualTempHp}`);
           }
           break;
         }
