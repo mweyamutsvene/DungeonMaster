@@ -43,11 +43,11 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-spell-path-unification.prompt.md`
 - **Affected flows**: SpellSystem, AIBehavior
 
-### 2.3 SSE Event Type Narrowing
+### ~~2.3 SSE Event Type Narrowing~~ ✅ DONE (commit 477f57b)
 - **Priority**: LOW
 - **File**: `application/repositories/event-repository.ts`
 - **Issue**: `IEventRepository.append()` event type stays `string`. Non-combat events (`CharacterAdded`, `RestCompleted`, `SessionCreated`) block type narrowing to a discriminated union.
-- **Fix**: Define event type union when all event sources are catalogued.
+- **Fix**: Defined 25-event `GameEventInput` discriminated union with typed payload interfaces. All `events.append()` callers updated. `as JsonValue` casts removed.
 - **Affected flows**: EntityManagement
 
 ---
@@ -136,7 +136,7 @@ These are all **opportunistic** — pick up when you're already working in the a
 | Multi-attack / Extra Attack rework | ~~§1.1 Grapple economy~~ ✅ DONE |
 | AI improvements | §2.1 NPC fields, §3.4 AI extensibility, §4.3 replan, §4.5 retreat |
 | Spell system changes | §2.2 Spell path unification |
-| New event types | §2.3 SSE type narrowing |
+| New event types | ~~§2.3 SSE type narrowing~~ ✅ DONE |
 | New class abilities | §3.1 Resource builder generalization |
 | Action text parsing | §3.2 Parser registry |
 | Map/terrain features | §3.3 combat-map split, §4.4 cover |
