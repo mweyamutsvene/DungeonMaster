@@ -1,7 +1,7 @@
 # Plan: God-Class Decomposition — Combat Service Layer
 
 ## Round: 3
-## Status: PHASES 1-3 COMPLETE
+## Status: PHASES 1-4 COMPLETE
 ## Affected Flows: CombatOrchestration, CombatRules, AIBehavior
 
 ---
@@ -180,16 +180,16 @@ Should be ~200-250 lines: constructor instantiating handler classes + `dispatch(
 ### Phase 3d: Slim ActionService to facade
 
 #### Changes to `combat/action-service.ts` (EXISTING, target ~250 lines)
-- [ ] Constructor creates `AttackActionHandler`, `GrappleActionHandler`, `SkillActionHandler`
-- [ ] `attack()` → `this.attackHandler.execute(sessionId, input)`
-- [ ] `shove()` → `this.grappleHandler.shove(sessionId, input)`
-- [ ] `grapple()` → `this.grappleHandler.grapple(sessionId, input)`
-- [ ] `escapeGrapple()` → `this.grappleHandler.escapeGrapple(sessionId, input)`
-- [ ] `hide()` → `this.skillHandler.hide(sessionId, input)`
-- [ ] `search()` → `this.skillHandler.search(sessionId, input)`
-- [ ] Keep `dodge()`, `dash()`, `disengage()`, `help()`, `castSpell()` inline (they delegate to `performSimpleAction` and are 4-30 lines each)
-- [ ] Keep `move()` inline (98 lines, clean, no strong extraction case)
-- [ ] Keep `performSimpleAction()` inline (shared template method for simple actions)
+- [x] Constructor creates `AttackActionHandler`, `GrappleActionHandler`, `SkillActionHandler`
+- [x] `attack()` → `this.attackHandler.execute(sessionId, input)`
+- [x] `shove()` → `this.grappleHandler.shove(sessionId, input)`
+- [x] `grapple()` → `this.grappleHandler.grapple(sessionId, input)`
+- [x] `escapeGrapple()` → `this.grappleHandler.escapeGrapple(sessionId, input)`
+- [x] `hide()` → `this.skillHandler.hide(sessionId, input)`
+- [x] `search()` → `this.skillHandler.search(sessionId, input)`
+- [x] Keep `dodge()`, `dash()`, `disengage()`, `help()`, `castSpell()` inline (they delegate to `performSimpleAction` and are 4-30 lines each)
+- [x] Keep `move()` inline (98 lines, clean, no strong extraction case)
+- [x] Keep `performSimpleAction()` inline (shared template method for simple actions)
 
 **Rationale:** The facade pattern is proven by TabletopCombatService. Public API stays identical. Route handlers, AI executor, and tests see no change.
 
@@ -204,39 +204,39 @@ Should be ~350-400 lines: types + facade constructor + thin delegation methods +
 ### Phase 4a: Extract OpportunityAttackResolver
 
 #### File: `combat/helpers/opportunity-attack-resolver.ts` (NEW, ~350 lines)
-- [ ] Extract the OA resolution loop from `completeMove()` — the 200+ line block that rolls attacks, applies ActiveEffect modifiers, resolves damage defenses, applies retaliatory damage, tracks rage, and emits events
-- [ ] Pure function or small class: `resolveOpportunityAttacks(pendingAction, combatants, combatantResolver, diceRollerFactory, combatRepo): OAResult[]`
-- [ ] Also used by AI movement resolver (currently duplicates some OA logic)
+- [x] Extract the OA resolution loop from `completeMove()` — the 200+ line block that rolls attacks, applies ActiveEffect modifiers, resolves damage defenses, applies retaliatory damage, tracks rage, and emits events
+- [x] Pure function or small class: `resolveOpportunityAttacks(pendingAction, combatants, combatantResolver, diceRollerFactory, combatRepo): OAResult[]`
+- [x] Also used by AI movement resolver (currently duplicates some OA logic)
 
 **Rationale:** The OA resolution is the single biggest source of complexity in `completeMove()`. It's a self-contained sub-problem (given a list of resolved reactions, roll and apply each OA) with no dependency on the two-phase pending-action state.
 
 ### Phase 4b: Extract ReactionPhaseHandlers
 
 #### File: `combat/two-phase/move-reaction-handler.ts` (NEW, ~450 lines)
-- [ ] Move `initiateMove()` + `completeMove()` (after OA resolver extraction, completeMove drops to ~200 lines)
-- [ ] Uses `OpportunityAttackResolver` for the OA loop
+- [x] Move `initiateMove()` + `completeMove()` (after OA resolver extraction, completeMove drops to ~200 lines)
+- [x] Uses `OpportunityAttackResolver` for the OA loop
 
 #### File: `combat/two-phase/attack-reaction-handler.ts` (NEW, ~450 lines)  
-- [ ] Move `initiateAttack()` + `completeAttack()`
-- [ ] Attack reaction detection (Shield spell, etc.) lives here
+- [x] Move `initiateAttack()` + `completeAttack()`
+- [x] Attack reaction detection (Shield spell, etc.) lives here
 
 #### File: `combat/two-phase/spell-reaction-handler.ts` (NEW, ~320 lines)
-- [ ] Move `initiateSpellCast()` + `completeSpellCast()`
-- [ ] Counterspell/Shield reaction detection lives here
+- [x] Move `initiateSpellCast()` + `completeSpellCast()`
+- [x] Counterspell/Shield reaction detection lives here
 
 #### Keep in two-phase-action-service.ts:
-- [ ] `initiateDamageReaction()` + `completeDamageReaction()` (~150 lines combined — small enough to stay)
-- [ ] The service constructor + shared pending-action lifecycle utilities
-- [ ] `applyVoluntaryMoveTriggers()` private helper (can stay or move to move-reaction-handler)
+- [x] `initiateDamageReaction()` + `completeDamageReaction()` (~150 lines combined — small enough to stay)
+- [x] The service constructor + shared pending-action lifecycle utilities
+- [x] `applyVoluntaryMoveTriggers()` private helper (moved to move-reaction-handler)
 
 ### Phase 4c: Slim TwoPhaseActionService to facade
 
 #### Changes to `combat/two-phase-action-service.ts` (EXISTING, target ~300 lines)
-- [ ] Constructor creates `MoveReactionHandler`, `AttackReactionHandler`, `SpellReactionHandler`
-- [ ] `initiateMove()` → `this.moveHandler.initiate(sessionId, input)`
-- [ ] `completeMove()` → `this.moveHandler.complete(sessionId, input)`
-- [ ] Same pattern for attack and spell pairs
-- [ ] Keep damage reaction methods inline (small)
+- [x] Constructor creates `MoveReactionHandler`, `AttackReactionHandler`, `SpellReactionHandler`
+- [x] `initiateMove()` → `this.moveHandler.initiate(sessionId, input)`
+- [x] `completeMove()` → `this.moveHandler.complete(sessionId, input)`
+- [x] Same pattern for attack and spell pairs
+- [x] Keep damage reaction methods inline (small)
 
 ### Post Phase 4 state of two-phase-action-service.ts
 
@@ -301,7 +301,7 @@ Phase 4 depends on Phase 1 only, so it can also run in parallel with 2 and 3.
 |------|--------|-------|
 | `action-dispatcher.ts` | 2,143 | ~250 |
 | `action-service.ts` | 1,565 | ~350 |
-| `two-phase-action-service.ts` | 1,939 | ~300 |
+| `two-phase-action-service.ts` | 2,165 | 422 |
 
 **Total lines stay the same** — this is a structural refactoring, not a reduction.
 
