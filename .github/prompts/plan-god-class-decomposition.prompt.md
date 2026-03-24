@@ -1,7 +1,7 @@
 # Plan: God-Class Decomposition — Combat Service Layer
 
-## Round: 2
-## Status: IN_REVIEW → APPROVED (SME research complete)
+## Round: 3
+## Status: PHASES 1-3 COMPLETE
 ## Affected Flows: CombatOrchestration, CombatRules, AIBehavior
 
 ---
@@ -151,29 +151,29 @@ Should be ~200-250 lines: constructor instantiating handler classes + `dispatch(
 
 ### Phase 3a: Extract AttackActionHandler
 
-#### File: `combat/actions/attack-action-handler.ts` (NEW, ~400 lines)
-- [ ] Move `attack()` method body (~338 lines) — the full attack resolution pipeline
-- [ ] Constructor takes `sessions`, `combat`, `combatants`, `events` (same deps as ActionService)
-- [ ] Uses utilities from `combat-utils.ts` (`buildCreatureAdapter`, `parseAttackSpec`, etc.)
+#### File: `combat/handlers/attack-action-handler.ts` (NEW, 388 lines)
+- [x] Move `attack()` method body (~338 lines) — the full attack resolution pipeline
+- [x] Constructor takes `sessions`, `combat`, `combatants`, `events` (same deps as ActionService)
+- [x] Uses utilities from `combat-utils.ts` (`buildCreatureAdapter`, `parseAttackSpec`, etc.)
 
 **Rationale:** `attack()` is the biggest method and has the most complex ActiveEffect integration (advantage/disadvantage, AC bonuses, extra damage, retaliatory damage, concentration checks). Isolating it means changes to attack resolution don't risk breaking dodge/hide/grapple.
 
 ### Phase 3b: Extract GrappleActionHandler
 
-#### File: `combat/actions/grapple-action-handler.ts` (NEW, ~500 lines)
-- [ ] Move `shove()` (~175 lines)
-- [ ] Move `grapple()` (~158 lines)  
-- [ ] Move `escapeGrapple()` (~123 lines)
-- [ ] Share the common pattern: resolve encounter → validate reach → contested check → apply condition → emit event
+#### File: `combat/handlers/grapple-action-handler.ts` (NEW, 542 lines)
+- [x] Move `shove()` (~175 lines)
+- [x] Move `grapple()` (~158 lines)  
+- [x] Move `escapeGrapple()` (~123 lines)
+- [x] Share the common pattern: resolve encounter → validate reach → contested check → apply condition → emit event
 
 **Rationale:** These three methods share identical boilerplate (encounter resolution, reach validation, ability modifier extraction, contested check pattern). A single handler class can share that setup.
 
 ### Phase 3c: Extract SkillActionHandler
 
-#### File: `combat/actions/skill-action-handler.ts` (NEW, ~250 lines)
-- [ ] Move `hide()` (~97 lines)
-- [ ] Move `search()` (~111 lines)
-- [ ] Both follow the same pattern: validate actor → dice roll → apply conditions/reveal → emit event
+#### File: `combat/handlers/skill-action-handler.ts` (NEW, 285 lines)
+- [x] Move `hide()` (~97 lines)
+- [x] Move `search()` (~111 lines)
+- [x] Both follow the same pattern: validate actor → dice roll → apply conditions/reveal → emit event
 
 **Rationale:** Hide and Search are skill-based actions with similar structure. They share the same deps and follow the same resolve → roll → apply pattern.
 
