@@ -18,6 +18,8 @@ import { getResourcePools } from "../helpers/resource-utils.js";
 import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import type { TurnStepResult, AiCombatContext } from "./ai-types.js";
+import { getInventory } from "../helpers/resource-utils.js";
+import { POTION_HEALING_FORMULAS, lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
 
 export class AiContextBuilder {
   constructor(
@@ -669,6 +671,15 @@ export class AiContextBuilder {
     const allyDetails = await this.buildAllyDetails(allies, nameMap);
     const enemyDetails = await this.buildEnemyDetails(enemies, nameMap);
 
+    // Check inventory for healing potions (for AI pre-filtering of useObject)
+    const inventory = getInventory(aiCombatant.resources);
+    const hasPotions = inventory.some(item => {
+      const formula = POTION_HEALING_FORMULAS[item.magicItemId ?? ""];
+      if (formula) return item.quantity > 0;
+      const itemDef = lookupMagicItem(item.name);
+      return !!(itemDef && POTION_HEALING_FORMULAS[itemDef.id] && item.quantity > 0);
+    });
+
     // Inject pre-computed distances from self to each enemy and ally
     const selfPos = entityInfo.position;
     if (selfPos) {
@@ -723,6 +734,7 @@ export class AiContextBuilder {
       },
       allies: allyDetails,
       enemies: enemyDetails,
+      hasPotions,
       ...(battlefield ? { battlefield } : {}),
       ...(zoneContext ? { zones: zoneContext } : {}),
       recentNarrative,

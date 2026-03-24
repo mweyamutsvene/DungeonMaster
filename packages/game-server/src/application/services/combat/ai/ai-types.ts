@@ -211,6 +211,11 @@ export interface AiCombatContext {
       saveDC?: number;
     }>;
   }>;
+  /**
+   * Whether the AI combatant has at least one healing potion available in inventory.
+   * Used by the decision maker to pre-filter the useObject action.
+   */
+  hasPotions: boolean;
   recentNarrative: string[];
   actionHistory: string[];
   turnResults: TurnStepResult[];

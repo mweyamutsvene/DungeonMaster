@@ -60,10 +60,13 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
         input.context.recentNarrative.map((text, i) => `${i + 1}. ${text}`).join('\n')
       : '';
 
+    // Pre-filter useObject: only available when creature has potions AND HP is low (<50%)
+    const useObjectAvailable = input.context.hasPotions && input.context.combatant.hp.percentage < 50;
+
     // Strip battlefield from the JSON snapshot — it's already rendered as a formatted top-level section
     const { battlefield: _bf, ...contextWithoutBattlefield } = input.context;
     const prompt = new PromptBuilder('v1')
-      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType))
+      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable))
       .addSectionIf(!!bf, 'battlefield', battlefieldContent)
       .addSectionIf(!!bp, 'battle-plan', battlePlanContent)
       .addSectionIf(hasNarrative, 'narrative', narrativeContent)
@@ -117,7 +120,7 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     }
   }
 
-  private buildSystemPrompt(actorName: string, actorType: string): string {
+  private buildSystemPrompt(actorName: string, actorType: string, useObjectAvailable: boolean): string {
     return `You are the tactical brain of a combatant in a D&D combat encounter.
 You control this combatant's actions and must make strategic decisions following D&D-style rules.
 
@@ -302,7 +305,7 @@ AVAILABLE ACTIONS:
    - "help" - give ally advantage on next attack or ability check
    - "hide" - attempt to hide (Stealth check; succeeds if not clearly visible)
    - "search" - Perception check to find hidden creatures
-   - "useObject" - drink a healing potion from inventory. Only use when you have healing potions and HP is low.
+   ${useObjectAvailable ? '- "useObject" - drink a healing potion from inventory. Your HP is below 50% and you have a potion — this is a good time to heal.' : ''}
    
 4. ADVANCED ACTIONS (always available to ALL creatures):
    - "grapple" - grab an enemy (contested Athletics check)
