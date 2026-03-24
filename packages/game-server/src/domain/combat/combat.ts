@@ -127,6 +127,25 @@ export class Combat {
     return economy.actionsUsed.includes(actionType);
   }
 
+  /**
+   * Restore previously-persisted combat state (round, turnIndex, initiative order).
+   * Called by combat-hydration to inject DB-restored state into a freshly constructed instance
+   * without relying on reflection.
+   */
+  public restoreState(state: CombatState): void {
+    this.state = state;
+  }
+
+  /**
+   * Restore a combatant's action economy from persisted values.
+   * Called by combat-hydration to patch per-creature economies after DB round-trip.
+   */
+  public restoreActionEconomy(creatureId: string, economy: ActionEconomy): void {
+    const combatant = this.combatants.get(creatureId);
+    if (!combatant) throw new Error(`Unknown combatant: ${creatureId}`);
+    combatant.actionEconomy = economy;
+  }
+
   public endTurn(): void {
     const activeCreature = this.getActiveCreature();
     const activeId = activeCreature.getId();

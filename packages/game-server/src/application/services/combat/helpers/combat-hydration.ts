@@ -66,23 +66,15 @@ export function hydrateCombat(
     order,
   };
 
-  // Use reflection to restore state (Combat doesn't expose setState)
-  (combat as any).state = state;
+  combat.restoreState(state);
 
   // Restore action economy from resources JSON
-  const combatantsMap = (combat as any).combatants as Map<string, { creature: Creature; actionEconomy: ActionEconomy }>;
-  
   for (const combatant of combatants) {
     const creature = creatures.get(combatant.id);
     if (!creature) continue;
 
-    const creatureId = creature.getId();
-    const combatantEntry = combatantsMap.get(creatureId);
-    if (!combatantEntry) continue;
-
-    // Parse action economy from resources JSON
     const actionEconomy = parseActionEconomy(combatant.resources, creature.getSpeed());
-    combatantEntry.actionEconomy = actionEconomy;
+    combat.restoreActionEconomy(creature.getId(), actionEconomy);
   }
 
   return combat;

@@ -94,16 +94,20 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 
 ## 4. DRY / Cleanup
 
-### 4.1 `movement.ts` Mixes Movement + Jump
+### 4.1 `movement.ts` Mixes Movement + Jump — ⏸ DEFERRED (assessed 2026-03-24)
 - **Priority**: LOW
 - **File**: `domain/rules/movement.ts`
-- **Fix**: Consider splitting basic movement and jump mechanics into separate modules. Only worthwhile if adding new movement features (swimming, climbing, flying).
+- **Assessment**: Assessed at 324 lines. Jump functions (`calculateLongJumpDistance`, `calculateHighJumpDistance`, `computeJumpLandingPosition`, `JumpParams`, `JumpResult`) and constants (`MOVEMENT_MODIFIERS`, `STANDARD_SPEEDS`) have **zero usages** across the codebase — they are dead code. Splitting dead code into a new file provides no benefit. Split is only worthwhile when jump mechanics are wired into actual gameplay and the file grows substantially with new movement types (swim, climb, fly). Decision: **Defer until jump wiring work begins**.
+- **Plan**: See `plan-movement-split.prompt.md`
 - **Affected flows**: CombatRules
 
-### 4.2 `Combat` Class Stateful in Domain Layer
+### 4.2 `Combat` Class Stateful in Domain Layer — ⏸ DEFERRED (assessed 2026-03-24)
 - **Priority**: LOW
 - **Issue**: `Combat` class holds mutable state in domain layer. Could be made more functional (pure functions operating on combat state records).
 - **Risk**: Large refactor with high regression risk for low benefit. The class works correctly.
+- **Assessment**: Assessed at 255 lines. Only 1 production consumer (`combat-hydration.ts`). The class is a transient, request-scoped object (created, used, discarded per API call). A full functional refactor (class → pure functions) would touch 6+ files with zero behavior change. Decision: **Full refactor deferred**.
+- **Safe wins implemented**: Added `restoreState(state: CombatState)` and `restoreActionEconomy(creatureId, economy)` public methods to eliminate `(combat as any)` reflection hacks in `combat-hydration.ts`. 616 unit tests + 153/153 E2E pass.
+- **Plan**: See `plan-combat-functional-refactor.prompt.md`
 - **Affected flows**: CombatRules
 
 ### 4.3 `battle-plan-service` Incomplete `shouldReplan`
@@ -152,5 +156,5 @@ These are all **opportunistic** — pick up when you're already working in the a
 | New class abilities | §3.1 Resource builder generalization |
 | Action text parsing | §3.2 Parser registry |
 | Map/terrain features | §3.3 combat-map split, §4.4 cover |
-| Movement/terrain types | §4.1 movement split |
+| Movement/terrain types | §4.1 movement split (deferred — wire jump first) |
 | Rest system expansion | §5.1 interruption, §5.2 E2E scenarios |
