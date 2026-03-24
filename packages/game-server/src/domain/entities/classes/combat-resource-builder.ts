@@ -14,7 +14,6 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import type { CharacterClassId } from "./class-definition.js";
 import { isCharacterClassId } from "./class-definition.js";
 import { getClassDefinition } from "./registry.js";
-import { getMonkResourcePools } from "./monk.js";
 import type { CharacterSheetLike } from "./class-feature-resolver.js";
 
 // ----- Types -----
@@ -62,14 +61,18 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
 
   // 1. Class-specific resource pools (from domain class definitions)
   if (isCharacterClassId(classId)) {
-    if (classId === "monk") {
-      // Monk needs wisdom score for Wholeness of Body calculation
-      const wisdomScore = sheet?.abilityScores?.wisdom ?? 10;
-      resourcePools = [...getMonkResourcePools(level, wisdomScore)];
-    } else {
-      const classDef = getClassDefinition(classId as CharacterClassId);
-      resourcePools = [...(classDef.resourcesAtLevel?.(level) ?? [])];
+    const classDef = getClassDefinition(classId as CharacterClassId);
+    // Compute ability modifiers from sheet scores for classes that need them
+    // (e.g. Monk's Wholeness of Body uses WIS modifier).
+    const abilityModifiers: Record<string, number> = {};
+    if (sheet?.abilityScores) {
+      for (const [ability, score] of Object.entries(sheet.abilityScores)) {
+        if (typeof score === "number") {
+          abilityModifiers[ability] = Math.floor((score - 10) / 2);
+        }
+      }
     }
+    resourcePools = [...(classDef.resourcesAtLevel?.(level, abilityModifiers) ?? [])];
   }
 
   // 2. Merge any existing sheet-level resource pools that aren't already present

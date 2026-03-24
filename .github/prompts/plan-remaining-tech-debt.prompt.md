@@ -54,10 +54,11 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 
 ## 3. Scalability Improvements
 
-### 3.1 CombatResourceBuilder Monk Special Case
-- **Priority**: LOW
-- **Issue**: `resourcesAtLevel` has Monk-specific hardcoding for ki points using WIS modifier.
-- **Fix**: Extend to accept ability scores parameter so any class can use ability-score-derived resources.
+### 3.1 CombatResourceBuilder Monk Special Case ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
+- **Issue**: `resourcesAtLevel` had Monk-specific hardcoding for ki points using WIS modifier.
+- **Resolution**: Extended `resourcesAtLevel` signature to accept `abilityModifiers?: Record<string, number>` (matching `resourcePoolFactory` convention). Monk's `resourcesAtLevel` now uses `abilityModifiers.wisdom`; builder computes modifiers generically from sheet ability scores. Removed `getMonkResourcePools` import and `if (classId === "monk")` special case from builder. Updated `wholenessOfBodyUsesForLevel` and `getMonkResourcePools` to accept modifiers instead of raw scores.
+- **Plan**: See `plan-resource-builder-generalization.prompt.md`
 - **Affected flows**: ClassAbilities
 
 ### 3.2 Cascade Parser Chain in ActionDispatcher

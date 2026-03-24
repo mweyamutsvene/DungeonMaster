@@ -19,9 +19,9 @@ describe("Monk resource pool helpers", () => {
   });
 
   it("wholenessOfBodyUsesForLevel returns WIS mod (min 1) at level 6+", () => {
-    expect(wholenessOfBodyUsesForLevel(6, 10)).toBe(1); // WIS 10 → mod 0 → min 1
-    expect(wholenessOfBodyUsesForLevel(6, 16)).toBe(3); // WIS 16 → mod 3
-    expect(wholenessOfBodyUsesForLevel(6, 8)).toBe(1);  // WIS 8 → mod -1 → min 1
+    expect(wholenessOfBodyUsesForLevel(6, 0)).toBe(1);  // WIS mod 0 → min 1
+    expect(wholenessOfBodyUsesForLevel(6, 3)).toBe(3);  // WIS mod 3
+    expect(wholenessOfBodyUsesForLevel(6, -1)).toBe(1); // WIS mod -1 → min 1
   });
 
   it("getMonkResourcePools returns ki + uncanny_metabolism at level 2", () => {
@@ -32,7 +32,7 @@ describe("Monk resource pool helpers", () => {
   });
 
   it("getMonkResourcePools includes wholeness_of_body at level 6+", () => {
-    const pools = getMonkResourcePools(6, 14); // WIS 14 → mod 2
+    const pools = getMonkResourcePools(6, 2); // WIS mod 2
     expect(pools.find(p => p.name === "wholeness_of_body")).toEqual({ name: "wholeness_of_body", current: 2, max: 2 });
   });
 

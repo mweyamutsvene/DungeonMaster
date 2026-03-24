@@ -36,10 +36,9 @@ export function resetKiOnShortRest(level: number, state: KiState): KiState {
  * Get Wholeness of Body uses per long rest.
  * D&D 5e 2024: Monk level 6+ (Open Hand subclass), uses = Wisdom modifier (minimum 1).
  */
-export function wholenessOfBodyUsesForLevel(level: number, wisdomScore = 10): number {
+export function wholenessOfBodyUsesForLevel(level: number, wisdomModifier = 0): number {
   if (level < 6) return 0;
-  const wisMod = Math.floor((wisdomScore - 10) / 2);
-  return Math.max(1, wisMod);
+  return Math.max(1, wisdomModifier);
 }
 
 /**
@@ -52,9 +51,9 @@ export function uncannyMetabolismUsesForLevel(level: number): number {
 
 /**
  * Build all Monk resource pools for a given level.
- * Optional wisdomScore is needed for Wholeness of Body.
+ * Optional wisdomModifier is needed for Wholeness of Body.
  */
-export function getMonkResourcePools(level: number, wisdomScore = 10): ResourcePool[] {
+export function getMonkResourcePools(level: number, wisdomModifier = 0): ResourcePool[] {
   const pools: ResourcePool[] = [];
 
   // Ki / Focus Points (level 2+)
@@ -66,7 +65,7 @@ export function getMonkResourcePools(level: number, wisdomScore = 10): ResourceP
   if (umUses > 0) pools.push({ name: "uncanny_metabolism", current: umUses, max: umUses });
 
   // Wholeness of Body (level 6+, Open Hand subclass — uses = WIS mod, min 1)
-  const wbUses = wholenessOfBodyUsesForLevel(level, wisdomScore);
+  const wbUses = wholenessOfBodyUsesForLevel(level, wisdomModifier);
   if (wbUses > 0) pools.push({ name: "wholeness_of_body", current: wbUses, max: wbUses });
 
   return pools;
@@ -79,10 +78,32 @@ export const Monk: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["strength", "dexterity"],
   },
-  resourcesAtLevel: (level) => {
-    // Base resources without sheet context (uses default wisdom for wholeness)
-    return getMonkResourcePools(level);
+  features: {
+    "martial-arts": 1,
+    "unarmored-defense": 1,
+    "flurry-of-blows": 2,
+    "patient-defense": 2,
+    "step-of-the-wind": 2,
+    "uncanny-metabolism": 2,
+    "deflect-attacks": 3,
+    "open-hand-technique": 3, // also requires Open Hand subclass (executor guards)
+    "stunning-strike": 5,
+    "extra-attack": 5,
+    "wholeness-of-body": 6, // also requires Open Hand subclass (executor guards)
   },
+  resourcesAtLevel: (level, abilityModifiers) => {
+    const wisdomModifier = abilityModifiers?.wisdom ?? 0;
+    return getMonkResourcePools(level, wisdomModifier);
+  },
+  // resourcePoolFactory intentionally returns only ki — matching the character-sheet default.
+  // Combat initialization uses getMonkResourcePools() directly for all monk pools.
+  resourcePoolFactory: (level) => {
+    const ki = createKiState(level);
+    return ki.pool.max > 0 ? [ki.pool] : [];
+  },
+  restRefreshPolicy: [
+    { poolKey: "ki", refreshOn: "both", computeMax: (level) => kiPointsForLevel(level) },
+  ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     if (level < 2) return [];
     const caps: ClassCapability[] = [

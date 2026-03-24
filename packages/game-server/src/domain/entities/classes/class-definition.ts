@@ -52,6 +52,22 @@ export interface ClassProficiencies {
   tools?: readonly string[];
 }
 
+/**
+ * Entry in a class's rest-refresh policy. Declares how a resource pool resets on short/long rest.
+ * - `refreshOn: "short"` — only short rest
+ * - `refreshOn: "long"` — only long rest
+ * - `refreshOn: "both"` — short or long rest
+ * - `refreshOn: function` — custom predicate (e.g. level-dependent logic like Bard's bardic inspiration)
+ * - `computeMax` — optional function to recompute the pool's max on refresh. If absent, the stored max is kept.
+ *   `abilityModifiers` is a map of ability names to their MODIFIERS (not scores), for classes like Bard that
+ *   derive pool size from the charisma modifier.
+ */
+export interface RestRefreshPolicyEntry {
+  poolKey: string;
+  refreshOn: "short" | "long" | "both" | ((rest: "short" | "long", level: number) => boolean);
+  computeMax?: (level: number, abilityModifiers?: Record<string, number>) => number;
+}
+
 /** A combat capability a class grants at a given level (for tactical context display). */
 export interface ClassCapability {
   name: string;
@@ -78,10 +94,36 @@ export interface CharacterClassDefinition {
   proficiencies: ClassProficiencies;
 
   /**
+   * Feature availability map: featureId → minimum class level required.
+   * Used for fast boolean gate checks (e.g. "does this class get Extra Attack at level 5?").
+   * Feature keys are open strings to support homebrew/unique classes.
+   * Use constants from `feature-keys.ts` for standard features.
+   */
+  features?: Record<string, number>;
+
+  /**
    * Class-owned resources that should exist for a character at a given level.
    * Kept explicit and deterministic.
+   * `abilityModifiers` is a map of ability names to their MODIFIERS (not scores),
+   * for classes whose resource pools depend on ability scores (e.g. Monk's
+   * Wholeness of Body uses = WIS modifier). Matches `resourcePoolFactory` convention.
    */
-  resourcesAtLevel?: (level: number) => readonly ResourcePool[];
+  resourcesAtLevel?: (level: number, abilityModifiers?: Record<string, number>) => readonly ResourcePool[];
+
+  /**
+   * Factory that builds the default resource pools for character initialization and leveling.
+   * `abilityModifiers` is a map of ability names to their MODIFIERS (not scores).
+   * Currently only `charisma` is used (by Bard's bardic inspiration).
+   * Optional — classes without resources omit this field.
+   */
+  resourcePoolFactory?: (level: number, abilityModifiers?: Record<string, number>) => readonly ResourcePool[];
+
+  /**
+   * Declares how each class resource pool refreshes on short/long rest.
+   * Used by `refreshClassResourcePools` in `rest.ts` to replace the switch-statement hub.
+   * Optional — classes without resources omit this field.
+   */
+  restRefreshPolicy?: readonly RestRefreshPolicyEntry[];
 
   /**
    * Combat capabilities available at a given level (for tactical context / UI display).
