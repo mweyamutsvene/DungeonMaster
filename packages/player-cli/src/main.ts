@@ -245,17 +245,61 @@ async function quickEncounterFlow(
   });
   printSuccess(`Character: ${character.name} (Level ${charLevel} ${charClass})`);
 
-  // Monsters — provide inline stat blocks
-  const monstersInput = (await rl.question("Monster(s) - comma separated (e.g., goblin, goblin, wolf): ")).trim() || "goblin";
+  // Fetch available monsters from the server's catalog (graceful fallback if unavailable)
+  const catalog = await client.listMonsterCatalog(undefined, 200);
+  if (catalog && catalog.monsters.length > 0) {
+    const examples = catalog.monsters.slice(0, 12);
+    print(`\n${colors.dim}Available monsters (${catalog.total} in catalog, shown by CR):${colors.reset}`);
+    for (const m of examples) {
+      const crStr = m.cr === null ? "?" : m.cr < 1 ? `1/${Math.round(1 / m.cr)}` : String(m.cr);
+      print(`  ${m.name.padEnd(24)} CR ${crStr.padStart(4)}   ${m.size} ${m.kind}`);
+    }
+    if (catalog.total > examples.length) {
+      print(`  ${colors.dim}...and ${catalog.total - examples.length} more. Type any name to use it.${colors.reset}`);
+    }
+  } else {
+    print(`\n${colors.dim}Available presets: goblin, wolf, skeleton, ogre, orc${colors.reset}`);
+  }
+
+  // Monsters — look up in catalog first, then fall back to hardcoded presets
+  const monstersInput = (await rl.question("\nMonster(s) - comma separated (e.g., goblin, goblin, wolf): ")).trim() || "goblin";
   const monsterNames = monstersInput.split(",").map((s) => s.trim()).filter(Boolean);
 
   const monsters = [];
   for (const name of monsterNames) {
-    const statBlock = getQuickMonsterStatBlock(name);
+    let statBlock: Record<string, unknown> | null = null;
+    let monsterDefinitionId: string | undefined;
+
+    // Search the catalog for this monster by name
+    if (catalog && catalog.monsters.length > 0) {
+      const found = catalog.monsters.find((m) => m.name.toLowerCase() === name.toLowerCase())
+        ?? catalog.monsters.find((m) => m.name.toLowerCase().includes(name.toLowerCase()));
+      if (found) {
+        statBlock = found.statBlock;
+        monsterDefinitionId = found.id;
+      } else {
+        // Fetch with a targeted search in case our initial 200-entry window missed it
+        const searchResult = await client.listMonsterCatalog(name, 5);
+        const searchFound = searchResult?.monsters.find(
+          (m) => m.name.toLowerCase() === name.toLowerCase(),
+        ) ?? searchResult?.monsters[0];
+        if (searchFound) {
+          statBlock = searchFound.statBlock;
+          monsterDefinitionId = searchFound.id;
+        }
+      }
+    }
+
+    // Fall back to hardcoded presets if catalog lookup failed
+    if (!statBlock) {
+      statBlock = getQuickMonsterStatBlock(name);
+    }
+
     try {
-      const m = await client.addMonster(session.id, { name, statBlock });
+      const m = await client.addMonster(session.id, { name, statBlock, monsterDefinitionId });
       monsters.push(m);
-      printSuccess(`Monster: ${m.name}`);
+      const source = monsterDefinitionId ? `${colors.dim}(catalog)${colors.reset}` : `${colors.dim}(preset)${colors.reset}`;
+      printSuccess(`Monster: ${m.name} ${source}`);
     } catch (err) {
       printError(`Failed to add ${name}: ${err instanceof Error ? err.message : String(err)}`);
     }

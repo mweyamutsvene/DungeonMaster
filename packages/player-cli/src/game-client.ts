@@ -22,6 +22,7 @@ import type {
   CombatQueryResponse,
   RestResponse,
   InventoryResponse,
+  MonsterCatalogResponse,
 } from "./types.js";
 
 export interface GameClientOptions {
@@ -78,7 +79,7 @@ export class GameClient {
 
   async addMonster(
     sessionId: string,
-    monster: { name: string; statBlock: Record<string, unknown> },
+    monster: { name: string; statBlock: Record<string, unknown>; monsterDefinitionId?: string },
   ): Promise<SessionMonsterRecord> {
     return this.http.post<SessionMonsterRecord>(
       `/sessions/${sessionId}/monsters`,
@@ -94,6 +95,33 @@ export class GameClient {
       `/sessions/${sessionId}/npcs`,
       npc,
     );
+  }
+
+  // ==========================================================================
+  // Monster Catalog
+  // ==========================================================================
+
+  /**
+   * List monsters from the server's rulebook catalog.
+   * @param search Optional name filter (case-insensitive substring)
+   * @param limit Max results to return (default 50)
+   * @returns null if the catalog endpoint is unavailable (older server without catalog support)
+   */
+  async listMonsterCatalog(
+    search?: string,
+    limit = 50,
+  ): Promise<MonsterCatalogResponse | null> {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    params.set("limit", String(limit));
+    const qs = params.toString();
+    const url = `/monsters${qs ? `?${qs}` : ""}`;
+    try {
+      return await this.http.get<MonsterCatalogResponse>(url);
+    } catch {
+      // Catalog endpoint not available (e.g., older server or in-memory test mode)
+      return null;
+    }
   }
 
   // ==========================================================================

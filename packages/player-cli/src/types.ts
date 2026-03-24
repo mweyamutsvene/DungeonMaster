@@ -50,6 +50,26 @@ export interface SessionMonsterRecord {
   updatedAt: string;
 }
 
+// ============================================================================
+// Monster Catalog (server rulebook database)
+// ============================================================================
+
+/** A single entry from the server's monster definition catalog. */
+export interface MonsterCatalogEntry {
+  id: string;
+  name: string;
+  cr: number | null;
+  size: string;
+  kind: string;
+  /** Session-compatible stat block ready to pass to addMonster(). */
+  statBlock: Record<string, unknown>;
+}
+
+export interface MonsterCatalogResponse {
+  monsters: MonsterCatalogEntry[];
+  total: number;
+}
+
 export interface SessionNPCRecord {
   id: string;
   sessionId: string;

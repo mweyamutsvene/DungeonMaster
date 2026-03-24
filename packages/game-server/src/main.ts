@@ -98,6 +98,7 @@ const app = buildApp({
   eventsRepo,
   spellsRepo,
   unitOfWork,
+  prismaClient: prisma,
   diceRoller: new RandomDiceRoller(),
   storyGenerator,
   intentParser,

@@ -44,9 +44,11 @@ import type {
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSessionRoutes } from "./routes/sessions/index.js";
 import { registerReactionRoutes } from "./routes/reactions.js";
+import { registerCatalogRoutes } from "./routes/catalog.js";
 import { sseBroker } from "./realtime/sse-broker.js";
 import { NotFoundError, ValidationError } from "../../application/errors.js";
 import type { PrismaUnitOfWork } from "../db/unit-of-work.js";
+import type { PrismaClient } from "@prisma/client";
 import type { IStoryGenerator } from "../llm/story-generator.js";
 import type { IIntentParser } from "../llm/intent-parser.js";
 import type { INarrativeGenerator } from "../llm/narrative-generator.js";
@@ -67,6 +69,8 @@ export type AppDeps = {
   eventsRepo: IEventRepository;
   spellsRepo: ISpellRepository;
   unitOfWork?: PrismaUnitOfWork;
+  /** Raw Prisma client for read-only catalog queries (monster definitions, etc.). Optional — omit in tests. */
+  prismaClient?: PrismaClient;
   storyGenerator?: IStoryGenerator;
   intentParser?: IIntentParser;
   narrativeGenerator?: INarrativeGenerator;
@@ -281,6 +285,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   registerHealthRoutes(app);
+  registerCatalogRoutes(app, { prismaClient: deps.prismaClient });
   registerReactionRoutes(app, {
     pendingActions: pendingActionsRepo,
     events: deps.eventsRepo,
