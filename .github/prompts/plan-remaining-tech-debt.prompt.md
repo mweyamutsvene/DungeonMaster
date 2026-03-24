@@ -61,10 +61,11 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-resource-builder-generalization.prompt.md`
 - **Affected flows**: ClassAbilities
 
-### 3.2 Cascade Parser Chain in ActionDispatcher
-- **Priority**: LOW
+### 3.2 Cascade Parser Chain in ActionDispatcher ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
 - **Issue**: ActionDispatcher uses a long if/else chain to parse text into actions.
-- **Fix**: Short-circuit parser registry pattern (text parser tries each parser in order, returns first match). Similar to how AbilityRegistry works for executors.
+- **Resolution**: Extracted 19-entry parser chain (`ActionParserEntry<T>` interface in `action-parser-chain.ts`). `dispatch()` iterates the chain in priority order — first match wins. Each entry pairs a pure `tryParse` function with an async `handle` method. Adding a new action type = adding one entry to the array. Boolean parsers wrapped to `true | null` convention. Complex pre-dispatch logic (offhand TWF/Nick, attack target resolution) encapsulated in each entry's `handle` method.
+- **Plan**: See `plan-action-parser-registry.prompt.md`
 - **Affected flows**: CombatOrchestration
 
 ### 3.3 `combat-map.ts` Monolith

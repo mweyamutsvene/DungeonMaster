@@ -6,11 +6,10 @@
  */
 
 import { ValidationError } from "../../../errors.js";
-import { nanoid } from "nanoid";
 import { calculateDistance, calculateLongJumpDistance, calculateHighJumpDistance, computeJumpLandingPosition } from "../../../../domain/rules/movement.js";
 import { findPath, findAdjacentPosition } from "../../../../domain/rules/pathfinding.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
-import { getCellAt, getCoverLevel, getCoverACBonus, getGroundItemsNearPosition, removeGroundItem, addGroundItem } from "../../../../domain/rules/combat-map.js";
+import { getCellAt, getCoverLevel, getCoverACBonus } from "../../../../domain/rules/combat-map.js";
 import { abilityCheck } from "../../../../domain/rules/ability-checks.js";
 import {
   normalizeConditions,
@@ -36,11 +35,8 @@ import {
   getEffectiveSpeed,
   isConditionImmuneByEffects,
   getDrawnWeapons,
-  isWeaponDrawn,
   addDrawnWeapon,
-  removeDrawnWeapon,
   getInventory,
-  setInventory,
 } from "../helpers/resource-utils.js";
 import {
   calculateBonusFromEffects,
@@ -53,9 +49,17 @@ import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/re
 import {
   buildGameCommandSchemaHint,
   parseGameCommand,
+  type GameCommand,
+  type AttackCommand,
   type LlmRoster,
   type CombatantRef,
 } from "../../../commands/game-command.js";
+import type {
+  SessionCharacterRecord,
+  SessionMonsterRecord,
+  SessionNPCRecord,
+  CombatantStateRecord,
+} from "../../../types.js";
 
 import {
   tryParseMoveText,
@@ -68,8 +72,8 @@ import {
   tryParseHelpText,
   tryParseShoveText,
   tryParseGrappleText,
+  tryParseEscapeGrappleText,
   tryParseCastSpellText,
-  tryParseReadyText,
   tryParsePickupText,
   tryParseDropText,
   tryParseDrawWeaponText,
@@ -78,7 +82,6 @@ import {
   tryParseAttackText,
   deriveRollModeFromConditions,
   inferActorRef,
-  findCombatantByName,
   findAllCombatantsByName,
   getActorNameFromRoster,
   getNameFromCombatantRef,
@@ -94,9 +97,13 @@ import { buildPathNarration } from "./path-narrator.js";
 import { SpellActionHandler } from "./spell-action-handler.js";
 import { SavingThrowResolver } from "./saving-throw-resolver.js";
 import { loadRoster } from "./roll-state-machine.js";
+import { GrappleHandlers } from "./grapple-handlers.js";
+import { InteractionHandlers } from "./interaction-handlers.js";
+import { SocialHandlers } from "./social-handlers.js";
 import { resolveWeaponMastery } from "../../../../domain/rules/weapon-mastery.js";
-import { lookupMagicItem, lookupMagicItemById, POTION_HEALING_FORMULAS } from "../../../../domain/entities/items/magic-item-catalog.js";
-import { findInventoryItem, useConsumableItem, getWeaponMagicBonuses, addInventoryItem } from "../../../../domain/entities/items/inventory.js";
+import { lookupMagicItemById } from "../../../../domain/entities/items/magic-item-catalog.js";
+import { getWeaponMagicBonuses } from "../../../../domain/entities/items/inventory.js";
+import type { ActionParserEntry, DispatchContext } from "./action-parser-chain.js";
 
 import type {
   TabletopCombatServiceDeps,
@@ -106,12 +113,22 @@ import type {
 } from "./tabletop-types.js";
 
 export class ActionDispatcher {
+  private readonly grappleHandlers: GrappleHandlers;
+  private readonly interactionHandlers: InteractionHandlers;
+  private readonly socialHandlers: SocialHandlers;
+  private readonly parserChain: ActionParserEntry<any>[];
+
   constructor(
     private readonly deps: TabletopCombatServiceDeps,
     private readonly eventEmitter: TabletopEventEmitter,
     private readonly spellHandler: SpellActionHandler,
     private readonly debugLogsEnabled: boolean,
-  ) {}
+  ) {
+    this.grappleHandlers = new GrappleHandlers(deps, eventEmitter, debugLogsEnabled);
+    this.interactionHandlers = new InteractionHandlers(deps, eventEmitter, debugLogsEnabled);
+    this.socialHandlers = new SocialHandlers(deps, eventEmitter, debugLogsEnabled);
+    this.parserChain = this.buildParserChain();
+  }
 
   // ----------------------------------------------------------------
   // Public entry point – replaces TabletopCombatService.parseCombatAction body
@@ -124,167 +141,15 @@ export class ActionDispatcher {
     encounterId: string,
   ): Promise<ActionParseResult> {
     const { characters, monsters, npcs, roster } = await loadRoster(this.deps, sessionId);
+    const ctx: DispatchContext = { sessionId, encounterId, actorId, text, characters, monsters, npcs, roster };
 
-    // Try direct parsing first
-    const directMove = tryParseMoveText(text);
-    const directMoveToward = directMove ? null : tryParseMoveTowardText(text, roster);
-    const directJump = directMove || directMoveToward ? null : tryParseJumpText(text, roster);
-    const directSimple = directMove || directMoveToward || directJump ? null : tryParseSimpleActionText(text);
-    // Profile-driven class action matching replaces per-class bonus/class parsers
-    const classAction = directMove || directMoveToward || directJump || directSimple ? null : tryMatchClassAction(text, getAllCombatTextProfiles());
-    const directOffhand = directMove || directMoveToward || directJump || directSimple || classAction ? false : tryParseOffhandAttackText(text);
-    const directHide = directMove || directMoveToward || directJump || directSimple || classAction || directOffhand ? false : tryParseHideText(text);
-    const directSearch = directMove || directMoveToward || directJump || directSimple || classAction || directOffhand || directHide ? false : tryParseSearchText(text);
-    const directHelp = directMove || directMoveToward || directJump || directSimple || classAction || directOffhand || directHide || directSearch ? null : tryParseHelpText(text);
-    const directShove = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directOffhand || directHide || directSearch ? null : tryParseShoveText(text);
-    const directGrapple = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directOffhand || directHide || directSearch ? null : tryParseGrappleText(text);
-    const directCast = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch ? null : tryParseCastSpellText(text);
-    const directPickup = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch || directCast ? null : tryParsePickupText(text);
-    const directDrop = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch || directCast || directPickup ? null : tryParseDropText(text);
-    const directDraw = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch || directCast || directPickup || directDrop ? null : tryParseDrawWeaponText(text);
-    const directSheathe = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch || directCast || directPickup || directDrop || directDraw ? null : tryParseSheatheWeaponText(text);
-    const directUseItem = directMove || directMoveToward || directJump || directSimple || classAction || directHelp || directShove || directGrapple || directOffhand || directHide || directSearch || directCast || directPickup || directDrop || directDraw || directSheathe ? null : tryParseUseItemText(text);
-
-    if (directMove) {
-      console.log(`[ActionDispatcher] Direct parse: move`);
-      return this.handleMoveAction(sessionId, encounterId, actorId, directMove, roster);
-    }
-
-    if (directMoveToward) {
-      console.log(`[ActionDispatcher] Direct parse: moveToward`);
-      return this.handleMoveTowardAction(sessionId, encounterId, actorId, directMoveToward.target, directMoveToward.desiredRange, roster);
-    }
-
-    if (directJump) {
-      console.log(`[ActionDispatcher] Direct parse: jump`);
-      return this.handleJumpAction(sessionId, encounterId, actorId, directJump, characters, monsters, roster);
-    }
-
-    if (directSimple) {
-      console.log(`[ActionDispatcher] Direct parse: ${directSimple}`);
-      if (directSimple === "ready") {
-        return this.handleReadyAction(sessionId, encounterId, actorId, text, roster);
+    // Try each parser in priority order; first match wins.
+    for (const parser of this.parserChain) {
+      const parsed = parser.tryParse(text, roster);
+      if (parsed !== null) {
+        console.log(`[ActionDispatcher] Direct parse: ${parser.id}`);
+        return parser.handle(parsed, ctx);
       }
-      return this.handleSimpleAction(sessionId, encounterId, actorId, directSimple, roster);
-    }
-
-    // Route class-specific actions through the AbilityRegistry based on profile category
-    if (classAction) {
-      console.log(`[ActionDispatcher] Direct parse: classAction (${classAction.abilityId})`);
-      if (classAction.category === "classAction") {
-        return this.handleClassAbility(sessionId, encounterId, actorId, classAction.abilityId, characters, roster);
-      }
-      return this.handleBonusAbility(sessionId, encounterId, actorId, classAction.abilityId, text, characters, monsters, npcs, roster);
-    }
-
-    // Hide action - can be standard action or Cunning Action (bonus) for Rogues
-    if (directHide) {
-      return this.handleHideAction(sessionId, encounterId, actorId, characters, roster);
-    }
-
-    // Search action - Perception check to find hidden creatures
-    if (directSearch) {
-      return this.handleSearchAction(sessionId, encounterId, actorId, roster);
-    }
-
-    // Off-hand attack is a bonus action available to any class with two light weapons
-    // Nick mastery: offhand attack is part of the Attack action (not bonus action), once per turn
-    if (directOffhand) {
-      let skipBonusCost = false;
-      const actorCharForNick = characters.find((c) => c.id === actorId);
-      if (actorCharForNick) {
-        const actorSheetForNick = (actorCharForNick?.sheet ?? {}) as any;
-        const actorClassForNick = actorCharForNick?.className ?? actorSheetForNick?.className ?? "";
-        const attacks: Array<{ name: string; properties?: string[] }> = actorSheetForNick?.attacks ?? [];
-
-        // TWF validation: both weapons must have the Light property (D&D 5e 2024)
-        const mainHand = attacks[0];
-        const offHand = attacks.length > 1 ? attacks[1] : undefined;
-        if (!offHand) {
-          throw new ValidationError("Two-weapon fighting requires wielding two weapons");
-        }
-        const mainIsLight = mainHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-        const offIsLight = offHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-        if (!mainIsLight || !offIsLight) {
-          throw new ValidationError("Two-weapon fighting requires both weapons to have the Light property");
-        }
-        const offhandWeaponForNick = attacks.length > 1 ? attacks[1] : undefined;
-        if (offhandWeaponForNick) {
-          const offhandMastery = resolveWeaponMastery(offhandWeaponForNick.name, actorSheetForNick, actorClassForNick);
-          if (offhandMastery === "nick") {
-            // Check once-per-turn limit
-            const combatantsForNick = await this.deps.combatRepo.listCombatants(encounterId);
-            const actorCombatantForNick = combatantsForNick.find(
-              (c: any) => c.combatantType === "Character" && c.characterId === actorId,
-            );
-            const nickRes = actorCombatantForNick ? normalizeResources(actorCombatantForNick.resources) : {} as any;
-            if (!nickRes.nickUsedThisTurn) {
-              skipBonusCost = true;
-            }
-          }
-        }
-      }
-      return this.handleBonusAbility(sessionId, encounterId, actorId, "base:bonus:offhand-attack", text, characters, monsters, npcs, roster, skipBonusCost);
-    }
-
-    if (directHelp) {
-      return this.handleHelpAction(sessionId, encounterId, actorId, directHelp, roster);
-    }
-
-    if (directShove) {
-      return this.handleShoveAction(sessionId, encounterId, actorId, directShove, roster);
-    }
-
-    if (directGrapple) {
-      return this.handleGrappleAction(sessionId, encounterId, actorId, directGrapple, roster);
-    }
-
-    if (directCast) {
-      return this.spellHandler.handleCastSpell(sessionId, encounterId, actorId, directCast, characters, roster);
-    }
-
-    if (directPickup) {
-      console.log(`[ActionDispatcher] Direct parse: pickup (${directPickup.itemName})`);
-      return this.handlePickupAction(sessionId, encounterId, actorId, directPickup.itemName, roster);
-    }
-
-    if (directDrop) {
-      console.log(`[ActionDispatcher] Direct parse: drop (${directDrop.itemName})`);
-      return this.handleDropAction(sessionId, encounterId, actorId, directDrop.itemName, characters, monsters, npcs, roster);
-    }
-
-    if (directDraw) {
-      console.log(`[ActionDispatcher] Direct parse: draw (${directDraw.weaponName})`);
-      return this.handleDrawWeaponAction(sessionId, encounterId, actorId, directDraw.weaponName, characters, monsters, npcs, roster);
-    }
-
-    if (directSheathe) {
-      console.log(`[ActionDispatcher] Direct parse: sheathe (${directSheathe.weaponName})`);
-      return this.handleSheatheWeaponAction(sessionId, encounterId, actorId, directSheathe.weaponName, roster);
-    }
-
-    if (directUseItem) {
-      console.log(`[ActionDispatcher] Direct parse: use item (${directUseItem.itemName})`);
-      return this.handleUseItemAction(sessionId, encounterId, actorId, directUseItem.itemName, roster);
-    }
-
-    // Direct attack parser: "attack [target] [with weapon]", "attack nearest goblin"
-    // This avoids the LLM entirely for common attack patterns and resolves the nearest
-    // matching target when multiple same-named combatants exist.
-    const directAttack = tryParseAttackText(text, roster);
-    if (directAttack) {
-      console.log(`[ActionDispatcher] Direct parse: attack (target=${directAttack.targetName ?? "nearest"}, weapon=${directAttack.weaponHint ?? "default"}, nearest=${directAttack.nearest})`);
-
-      const targetRef = await this.resolveAttackTarget(
-        encounterId, actorId, roster, directAttack.targetName, directAttack.nearest,
-      );
-
-      const command = {
-        kind: "attack" as const,
-        attacker: inferActorRef(actorId, roster),
-        target: targetRef,
-      };
-      return this.handleAttackAction(sessionId, encounterId, actorId, text, command, characters, monsters, npcs);
     }
 
     // Fall back to LLM parsing
@@ -301,7 +166,7 @@ export class ActionDispatcher {
       schemaHint: buildGameCommandSchemaHint(enrichedRoster),
     });
 
-    let command: any;
+    let command: GameCommand | undefined;
     try {
       command = parseGameCommand(intent);
     } catch (err) {
@@ -309,7 +174,7 @@ export class ActionDispatcher {
     }
 
     console.log(`[ActionDispatcher] LLM intent → ${command.kind}`, command.kind === "attack"
-      ? { target: command.target?.type, spec: command.spec?.name ?? "(none)" }
+      ? { target: command.target?.type, spec: (command.spec as Record<string, unknown>)?.name ?? "(none)" }
       : command.kind === "move"
         ? { destination: command.destination }
         : {});
@@ -335,6 +200,218 @@ export class ActionDispatcher {
     }
 
     throw new ValidationError(`Action type ${command.kind} not yet implemented`);
+  }
+
+  // ----------------------------------------------------------------
+  // Parser chain – ordered list of text parsers tried by dispatch()
+  // ----------------------------------------------------------------
+
+  private buildParserChain(): ActionParserEntry<any>[] {
+    const profiles = getAllCombatTextProfiles();
+
+    return [
+      // 1. Move to coordinates
+      {
+        id: "move",
+        tryParse: (text) => tryParseMoveText(text),
+        handle: (parsed, ctx) =>
+          this.handleMoveAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+      },
+
+      // 2. Move toward creature
+      {
+        id: "moveToward",
+        tryParse: (text, roster) => tryParseMoveTowardText(text, roster),
+        handle: (parsed, ctx) =>
+          this.handleMoveTowardAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.target, parsed.desiredRange, ctx.roster),
+      },
+
+      // 3. Jump
+      {
+        id: "jump",
+        tryParse: (text, roster) => tryParseJumpText(text, roster),
+        handle: (parsed, ctx) =>
+          this.handleJumpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.characters, ctx.monsters, ctx.roster),
+      },
+
+      // 4. Simple actions (dash/dodge/disengage/ready)
+      {
+        id: "simpleAction",
+        tryParse: (text) => tryParseSimpleActionText(text),
+        handle: (parsed, ctx) => {
+          if (parsed === "ready") {
+            return this.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
+          }
+          return this.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
+        },
+      },
+
+      // 5. Profile-driven class action matching
+      {
+        id: "classAction",
+        tryParse: (text) => tryMatchClassAction(text, profiles),
+        handle: (parsed, ctx) => {
+          if (parsed.category === "classAction") {
+            return this.handleClassAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.abilityId, ctx.characters, ctx.roster);
+          }
+          return this.handleBonusAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.abilityId, ctx.text, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster);
+        },
+      },
+
+      // 6. Hide
+      {
+        id: "hide",
+        tryParse: (text) => tryParseHideText(text) ? true : null,
+        handle: (_parsed, ctx) =>
+          this.handleHideAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.characters, ctx.roster),
+      },
+
+      // 7. Search
+      {
+        id: "search",
+        tryParse: (text) => tryParseSearchText(text) ? true : null,
+        handle: (_parsed, ctx) =>
+          this.handleSearchAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
+      },
+
+      // 8. Off-hand attack (with TWF validation + Nick mastery)
+      {
+        id: "offhand",
+        tryParse: (text) => tryParseOffhandAttackText(text) ? true : null,
+        handle: async (_parsed, ctx) => {
+          let skipBonusCost = false;
+          const actorChar = ctx.characters.find((c) => c.id === ctx.actorId);
+          if (actorChar) {
+            const sheet = (actorChar?.sheet ?? {}) as any;
+            const className = actorChar?.className ?? sheet?.className ?? "";
+            const attacks: Array<{ name: string; properties?: string[] }> = sheet?.attacks ?? [];
+
+            // TWF validation: both weapons must have the Light property (D&D 5e 2024)
+            const mainHand = attacks[0];
+            const offHand = attacks.length > 1 ? attacks[1] : undefined;
+            if (!offHand) {
+              throw new ValidationError("Two-weapon fighting requires wielding two weapons");
+            }
+            const mainIsLight = mainHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
+            const offIsLight = offHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
+            if (!mainIsLight || !offIsLight) {
+              throw new ValidationError("Two-weapon fighting requires both weapons to have the Light property");
+            }
+            if (offHand) {
+              const offhandMastery = resolveWeaponMastery(offHand.name, sheet, className);
+              if (offhandMastery === "nick") {
+                const combatants = await this.deps.combatRepo.listCombatants(ctx.encounterId);
+                const actorCombatant = combatants.find(
+                  (c: any) => c.combatantType === "Character" && c.characterId === ctx.actorId,
+                );
+                const nickRes = actorCombatant ? normalizeResources(actorCombatant.resources) : {} as any;
+                if (!nickRes.nickUsedThisTurn) {
+                  skipBonusCost = true;
+                }
+              }
+            }
+          }
+          return this.handleBonusAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, "base:bonus:offhand-attack", ctx.text, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster, skipBonusCost);
+        },
+      },
+
+      // 9. Help
+      {
+        id: "help",
+        tryParse: (text) => tryParseHelpText(text),
+        handle: (parsed, ctx) =>
+          this.handleHelpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+      },
+
+      // 10. Shove
+      {
+        id: "shove",
+        tryParse: (text) => tryParseShoveText(text),
+        handle: (parsed, ctx) =>
+          this.handleShoveAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+      },
+
+      // 11. Escape Grapple
+      {
+        id: "escapeGrapple",
+        tryParse: (text) => tryParseEscapeGrappleText(text),
+        handle: (_parsed, ctx) =>
+          this.handleEscapeGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
+      },
+
+      // 12. Grapple
+      {
+        id: "grapple",
+        tryParse: (text) => tryParseGrappleText(text),
+        handle: (parsed, ctx) =>
+          this.handleGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+      },
+
+      // 13. Cast Spell
+      {
+        id: "castSpell",
+        tryParse: (text) => tryParseCastSpellText(text),
+        handle: (parsed, ctx) =>
+          this.spellHandler.handleCastSpell(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.characters, ctx.roster),
+      },
+
+      // 14. Pickup item
+      {
+        id: "pickup",
+        tryParse: (text) => tryParsePickupText(text),
+        handle: (parsed, ctx) =>
+          this.handlePickupAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
+      },
+
+      // 15. Drop item
+      {
+        id: "drop",
+        tryParse: (text) => tryParseDropText(text),
+        handle: (parsed, ctx) =>
+          this.handleDropAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
+      },
+
+      // 16. Draw weapon
+      {
+        id: "drawWeapon",
+        tryParse: (text) => tryParseDrawWeaponText(text),
+        handle: (parsed, ctx) =>
+          this.handleDrawWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
+      },
+
+      // 17. Sheathe weapon
+      {
+        id: "sheatheWeapon",
+        tryParse: (text) => tryParseSheatheWeaponText(text),
+        handle: (parsed, ctx) =>
+          this.handleSheatheWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.roster),
+      },
+
+      // 18. Use item
+      {
+        id: "useItem",
+        tryParse: (text) => tryParseUseItemText(text),
+        handle: (parsed, ctx) =>
+          this.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
+      },
+
+      // 19. Attack (last because it's the broadest text match)
+      {
+        id: "attack",
+        tryParse: (text, roster) => tryParseAttackText(text, roster),
+        handle: async (parsed, ctx) => {
+          const targetRef = await this.resolveAttackTarget(
+            ctx.encounterId, ctx.actorId, ctx.roster, parsed.targetName, parsed.nearest,
+          );
+          const command = {
+            kind: "attack" as const,
+            attacker: inferActorRef(ctx.actorId, ctx.roster),
+            target: targetRef,
+          };
+          return this.handleAttackAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, command, ctx.characters, ctx.monsters, ctx.npcs);
+        },
+      },
+    ];
   }
 
   // ----------------------------------------------------------------
@@ -696,23 +773,7 @@ export class ActionDispatcher {
     action: "dash" | "dodge" | "disengage" | "ready",
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-    const sessionId = _sessionId;
-
-    if (action === "dash") {
-      await this.deps.actions.dash(sessionId, { encounterId, actor });
-      return { requiresPlayerInput: false, actionComplete: true, type: "SIMPLE_ACTION_COMPLETE", action: "Dash", message: "Dashed." };
-    }
-    if (action === "dodge") {
-      await this.deps.actions.dodge(sessionId, { encounterId, actor });
-      return { requiresPlayerInput: false, actionComplete: true, type: "SIMPLE_ACTION_COMPLETE", action: "Dodge", message: "Dodged." };
-    }
-    if (action === "disengage") {
-      await this.deps.actions.disengage(sessionId, { encounterId, actor });
-      return { requiresPlayerInput: false, actionComplete: true, type: "SIMPLE_ACTION_COMPLETE", action: "Disengage", message: "Disengaged." };
-    }
-
-    throw new ValidationError(`Unknown simple action: ${action}`);
+    return this.socialHandlers.handleSimpleAction(_sessionId, encounterId, actorId, action, roster);
   }
 
   /**
@@ -733,58 +794,7 @@ export class ActionDispatcher {
     text: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actorRef = inferActorRef(actorId, roster);
-
-    // Parse ready details from text
-    const parsed = tryParseReadyText(text);
-    const responseType = parsed?.responseType ?? "attack";
-    const triggerType = parsed?.triggerType ?? "creature_moves_within_range";
-    const triggerDescription = parsed?.triggerDescription ?? "a creature moves within reach";
-
-    // Find actor combatant and spend the action
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorState = combatants.find(c =>
-      (c.combatantType === "Character" && c.characterId && actorRef.type === "Character" && c.characterId === actorRef.characterId) ||
-      (c.combatantType === "Monster" && c.monsterId && actorRef.type === "Monster" && c.monsterId === actorRef.monsterId) ||
-      (c.combatantType === "NPC" && c.npcId && actorRef.type === "NPC" && c.npcId === actorRef.npcId)
-    );
-    if (!actorState) throw new ValidationError("Actor not found in encounter");
-
-    const resources = normalizeResources(actorState.resources);
-    if (readBoolean(resources, "actionSpent")) {
-      throw new ValidationError("Actor has already spent their action this turn");
-    }
-
-    // Store readied action in resources
-    const readiedAction = {
-      responseType,
-      triggerType,
-      triggerDescription,
-      ...(parsed?.targetName ? { targetName: parsed.targetName } : {}),
-    };
-
-    await this.deps.combatRepo.updateCombatantState(actorState.id, {
-      resources: {
-        ...resources,
-        actionSpent: true,
-        readiedAction,
-      } as any,
-    });
-
-    if (this.debugLogsEnabled) {
-      console.log(`[ActionDispatcher] Ready action: ${responseType} on trigger "${triggerDescription}"`);
-    }
-
-    const actorName = getActorNameFromRoster(actorId, roster);
-    const message = `${actorName} readies ${responseType === "attack" ? "an attack" : `a ${responseType}`} — will trigger when ${triggerDescription}.`;
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Ready",
-      message,
-    };
+    return this.socialHandlers.handleReadyAction(sessionId, encounterId, actorId, text, roster);
   }
 
   /**
@@ -806,8 +816,8 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     jump: import("./combat-text-parser.js").ParsedJump,
-    characters: any[],
-    monsters: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     const actorRef = inferActorRef(actorId, roster);
@@ -1033,7 +1043,7 @@ export class ActionDispatcher {
    */
   private findNearestHostilePosition(
     actorRef: CombatantRef,
-    combatantStates: any[],
+    combatantStates: CombatantStateRecord[],
     actorPosition: { x: number; y: number },
   ): { x: number; y: number } | undefined {
     let nearestDist = Infinity;
@@ -1076,7 +1086,7 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     abilityId: string,
-    characters: any[],
+    characters: SessionCharacterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     const actor = inferActorRef(actorId, roster);
@@ -1271,22 +1281,7 @@ export class ActionDispatcher {
     targetName: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-
-    const targetRef = findCombatantByName(targetName, roster);
-    if (!targetRef) {
-      throw new ValidationError(`Could not find target: ${targetName}`);
-    }
-
-    await this.deps.actions.help(sessionId, { encounterId, actor, target: targetRef });
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Help",
-      message: `Helped attack ${targetName}.`,
-    };
+    return this.socialHandlers.handleHelpAction(sessionId, encounterId, actorId, targetName, roster);
   }
 
   /**
@@ -1299,37 +1294,7 @@ export class ActionDispatcher {
     shoveInfo: { targetName: string; shoveType: "push" | "prone" },
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-
-    const targetRef = findCombatantByName(shoveInfo.targetName, roster);
-    if (!targetRef) {
-      throw new ValidationError(`Could not find target: ${shoveInfo.targetName}`);
-    }
-
-    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
-    const shoveSeed = (encounter?.round ?? 1) * 1000 + (encounter?.turn ?? 0) * 10 + 1;
-
-    const result = await this.deps.actions.shove(sessionId, {
-      encounterId,
-      actor,
-      target: targetRef,
-      shoveType: shoveInfo.shoveType,
-      seed: shoveSeed,
-    });
-
-    const outcome = result.result.success
-      ? shoveInfo.shoveType === "prone"
-        ? "knocked prone"
-        : `pushed to (${result.result.pushedTo?.x}, ${result.result.pushedTo?.y})`
-      : "resisted";
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Shove",
-      message: `Shove ${shoveInfo.shoveType}: ${shoveInfo.targetName} ${outcome}. (${result.result.attackerRoll} vs ${result.result.targetRoll})`,
-    };
+    return this.grappleHandlers.handleShoveAction(sessionId, encounterId, actorId, shoveInfo, roster);
   }
 
   /**
@@ -1342,32 +1307,16 @@ export class ActionDispatcher {
     grappleInfo: { targetName: string },
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
+    return this.grappleHandlers.handleGrappleAction(sessionId, encounterId, actorId, grappleInfo, roster);
+  }
 
-    const targetRef = findCombatantByName(grappleInfo.targetName, roster);
-    if (!targetRef) {
-      throw new ValidationError(`Could not find target: ${grappleInfo.targetName}`);
-    }
-
-    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
-    const grappleSeed = (encounter?.round ?? 1) * 1000 + (encounter?.turn ?? 0) * 10 + 1;
-
-    const result = await this.deps.actions.grapple(sessionId, {
-      encounterId,
-      actor,
-      target: targetRef,
-      seed: grappleSeed,
-    });
-
-    const outcome = result.result.success ? "grappled" : "escaped";
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Grapple",
-      message: `Grapple: ${grappleInfo.targetName} ${outcome}. (${result.result.attackerRoll} vs ${result.result.targetRoll})`,
-    };
+  private async handleEscapeGrappleAction(
+    sessionId: string,
+    encounterId: string,
+    actorId: string,
+    roster: LlmRoster,
+  ): Promise<ActionParseResult> {
+    return this.grappleHandlers.handleEscapeGrappleAction(sessionId, encounterId, actorId, roster);
   }
 
   /**
@@ -1378,38 +1327,10 @@ export class ActionDispatcher {
     sessionId: string,
     encounterId: string,
     actorId: string,
-    characters: any[],
+    characters: SessionCharacterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-
-    const actorChar = characters.find((c) => c.id === actorId);
-    const actorSheet = (actorChar?.sheet ?? {}) as any;
-    const actorClassName = actorChar?.className ?? actorSheet?.className ?? "";
-    const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
-
-    const hasCunningAction = ClassFeatureResolver.hasCunningAction(actorSheet, actorClassName, actorLevel);
-
-    const result = await this.deps.actions.hide(sessionId, {
-      encounterId,
-      actor,
-      isBonusAction: hasCunningAction,
-      hasCover: true,
-    });
-
-    const outcome = result.result.success
-      ? `now Hidden (Stealth: ${result.result.stealthRoll})`
-      : `failed to hide${result.result.reason ? ` - ${result.result.reason}` : ""}`;
-
-    const actionType = hasCunningAction ? "Cunning Action: Hide" : "Hide";
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Hide",
-      message: `${actionType}: ${outcome}`,
-    };
+    return this.socialHandlers.handleHideAction(sessionId, encounterId, actorId, characters, roster);
   }
 
   /**
@@ -1421,25 +1342,7 @@ export class ActionDispatcher {
     actorId: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-
-    const result = await this.deps.actions.search(sessionId, {
-      encounterId,
-      actor,
-    });
-
-    const foundNames = result.result.found;
-    const outcome = foundNames.length > 0
-      ? `found ${foundNames.join(", ")} (Perception: ${result.result.roll})`
-      : `found nothing (Perception: ${result.result.roll})`;
-
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Search",
-      message: `Search: ${outcome}`,
-    };
+    return this.socialHandlers.handleSearchAction(sessionId, encounterId, actorId, roster);
   }
 
   /**
@@ -1454,99 +1357,7 @@ export class ActionDispatcher {
     itemName: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    // Get encounter map
-    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
-    if (!encounter) throw new ValidationError("No encounter found");
-    const map = encounter.mapData as unknown as CombatMap | undefined;
-    if (!map) throw new ValidationError("No map data available");
-
-    // Get actor position
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
-    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
-
-    const actorPos = getPosition(actorCombatant.resources ?? {});
-    if (!actorPos) throw new ValidationError("Actor has no position");
-
-    // Find matching ground item within 5ft
-    const nearbyItems = getGroundItemsNearPosition(map, actorPos, 5);
-    const itemNameLower = itemName.toLowerCase();
-    const matchedItem = nearbyItems.find(i => i.name.toLowerCase() === itemNameLower)
-      ?? nearbyItems.find(i => i.name.toLowerCase().includes(itemNameLower));
-
-    if (!matchedItem) {
-      const available = nearbyItems.map(i => i.name).join(", ");
-      const hint = available ? ` Nearby items: ${available}.` : " There are no items nearby.";
-      throw new ValidationError(`No "${itemName}" found within reach.${hint}`);
-    }
-
-    // Check free object interaction
-    const resources = normalizeResources(actorCombatant.resources ?? {});
-    const objectInteractionUsed = readBoolean(resources, "objectInteractionUsed") ?? false;
-    if (objectInteractionUsed) {
-      throw new ValidationError(
-        "You've already used your free Object Interaction this turn. Use the Utilize action to interact with another object.",
-      );
-    }
-
-    // Remove item from map
-    const updatedMap = removeGroundItem(map, matchedItem.id);
-    await this.deps.combatRepo.updateEncounter(encounterId, { mapData: updatedMap as any });
-
-    // Add weapon to actor's attacks array if it has weapon stats
-    if (matchedItem.weaponStats) {
-      const actorResources = { ...(actorCombatant.resources as Record<string, unknown> ?? {}) };
-      const sheet = actorResources.sheet ?? (actorCombatant as any).sheet;
-
-      // For characters, we add the weapon to their persistent sheet attacks
-      // For simplicity, store in resources.pickedUpWeapons to add to attacks at read time
-      const pickedUp = Array.isArray(actorResources.pickedUpWeapons)
-        ? [...actorResources.pickedUpWeapons, matchedItem.weaponStats]
-        : [matchedItem.weaponStats];
-
-      // Also add to drawnWeapons — picking up a weapon puts it in your hand
-      const weaponName = (matchedItem.weaponStats as any)?.name;
-      const pickupDrawnUpdate = weaponName
-        ? addDrawnWeapon(actorResources, weaponName) as Record<string, unknown>
-        : actorResources;
-
-      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-        resources: {
-          ...pickupDrawnUpdate,
-          pickedUpWeapons: pickedUp,
-          objectInteractionUsed: true,
-        } as any,
-      });
-    } else {
-      // Non-weapon item — add to inventory if it has inventoryItem data, mark interaction used
-      const actorResources = { ...(actorCombatant.resources as Record<string, unknown> ?? {}) };
-      if (matchedItem.inventoryItem) {
-        const inventory = getInventory(actorResources);
-        const updatedInventory = addInventoryItem(inventory, matchedItem.inventoryItem);
-        actorResources.inventory = updatedInventory;
-      }
-      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-        resources: {
-          ...actorResources,
-          objectInteractionUsed: true,
-        } as any,
-      });
-    }
-
-    if (this.debugLogsEnabled) {
-      console.log(`[ActionDispatcher] ${actorId} picked up ${matchedItem.name} from (${matchedItem.position.x}, ${matchedItem.position.y})`);
-    }
-
-    const actorName = getActorNameFromRoster(actorId, roster);
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Pickup",
-      message: `${actorName} picks up the ${matchedItem.name}.`,
-    };
+    return this.interactionHandlers.handlePickupAction(sessionId, encounterId, actorId, itemName, roster);
   }
 
   /**
@@ -1559,111 +1370,12 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     itemName: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
-    if (!encounter) throw new ValidationError("No encounter found");
-    const map = encounter.mapData as unknown as CombatMap | undefined;
-    if (!map) throw new ValidationError("No map data available");
-
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
-    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
-
-    const actorPos = getPosition(actorCombatant.resources ?? {});
-    if (!actorPos) throw new ValidationError("Actor has no position");
-
-    // Resolve the actor's attacks from the entity (character/monster/npc), same pattern as handleAttackAction
-    const actorEntity = characters.find((c) => c.id === actorId)
-      ?? monsters.find((m) => m.id === actorId)
-      ?? npcs.find((n) => n.id === actorId);
-    const actorSheet = (actorEntity?.sheet ?? actorEntity?.statBlock ?? {}) as any;
-    const sheetAttacks: Array<{ name: string; [key: string]: unknown }> = Array.isArray(actorSheet?.attacks) ? [...actorSheet.attacks] : [];
-
-    const resources = { ...(actorCombatant.resources as Record<string, unknown> ?? {}) };
-    const pickedUpWeapons: Array<{ name: string; [key: string]: unknown }> = Array.isArray(resources.pickedUpWeapons) ? [...resources.pickedUpWeapons as any[]] : [];
-
-    const itemNameLower = itemName.toLowerCase();
-
-    // Try pickedUpWeapons first (most recently acquired)
-    let droppedWeapon: Record<string, unknown> | undefined;
-    let fromPickedUp = false;
-    const pickupIdx = pickedUpWeapons.findIndex(w => w.name.toLowerCase() === itemNameLower);
-    if (pickupIdx >= 0) {
-      droppedWeapon = pickedUpWeapons.splice(pickupIdx, 1)[0] as Record<string, unknown>;
-      fromPickedUp = true;
-    } else {
-      // Try entity sheet attacks
-      const attackIdx = sheetAttacks.findIndex(w => w.name.toLowerCase() === itemNameLower);
-      if (attackIdx >= 0) {
-        droppedWeapon = sheetAttacks.splice(attackIdx, 1)[0] as Record<string, unknown>;
-      }
-    }
-
-    if (!droppedWeapon) {
-      const available = [...sheetAttacks.map(a => a.name), ...pickedUpWeapons.map(p => p.name)].join(", ");
-      const hint = available ? ` Available weapons: ${available}.` : " You have no weapons to drop.";
-      throw new ValidationError(`You don't have a "${itemName}" to drop.${hint}`);
-    }
-
-    // Create ground item at actor's position
-    const groundItem = {
-      id: nanoid(),
-      name: droppedWeapon.name as string,
-      position: { ...actorPos },
-      source: "dropped" as const,
-      droppedBy: actorId,
-      weaponStats: droppedWeapon as any,
-    };
-    const updatedMap = addGroundItem(map, groundItem);
-    await this.deps.combatRepo.updateEncounter(encounterId, { mapData: updatedMap as any });
-
-    // Update combatant/entity state
-    // Also remove from drawnWeapons since the weapon is no longer in hand
-    const updatedDropResources = removeDrawnWeapon(resources, groundItem.name) as Record<string, unknown>;
-
-    if (fromPickedUp) {
-      // Was in pickedUpWeapons — only update resources
-      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-        resources: { ...updatedDropResources, pickedUpWeapons } as any,
-      });
-    } else {
-      // Was in entity sheet attacks — update the entity's sheet
-      const isCharacter = characters.some((c) => c.id === actorId);
-      if (isCharacter) {
-        const updatedSheet = { ...actorSheet, attacks: sheetAttacks };
-        await this.deps.characters.updateSheet(actorId, updatedSheet);
-      }
-      // Update combatant resources with drawnWeapons change
-      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-        resources: updatedDropResources as any,
-      });
-      // For monsters/NPCs, also store the reduced attacks list in combatant resources
-      const isMonster = monsters.some((m) => m.id === actorId);
-      if (isMonster) {
-        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-          resources: { ...updatedDropResources, sheet: { ...actorSheet, attacks: sheetAttacks } } as any,
-        });
-      }
-    }
-
-    if (this.debugLogsEnabled) {
-      console.log(`[ActionDispatcher] ${actorId} dropped ${groundItem.name} at (${actorPos.x}, ${actorPos.y})`);
-    }
-
-    const actorName = getActorNameFromRoster(actorId, roster);
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Drop",
-      message: `${actorName} drops the ${groundItem.name}.`,
-    };
+    return this.interactionHandlers.handleDropAction(sessionId, encounterId, actorId, itemName, characters, monsters, npcs, roster);
   }
 
   /**
@@ -1676,84 +1388,12 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     weaponName: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
-    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
-
-    const resources = normalizeResources(actorCombatant.resources ?? {});
-
-    // Find the weapon in the actor's available weapons (sheet.attacks + pickedUpWeapons)
-    const actorEntity = characters.find((c) => c.id === actorId)
-      ?? monsters.find((m) => m.id === actorId)
-      ?? npcs.find((n) => n.id === actorId);
-    const actorSheet = (actorEntity?.sheet ?? actorEntity?.statBlock ?? {}) as any;
-    const sheetAttacks: Array<{ name: string }> = Array.isArray(actorSheet?.attacks) ? actorSheet.attacks : [];
-    const pickedUpWeapons: Array<{ name: string }> = Array.isArray(resources.pickedUpWeapons) ? resources.pickedUpWeapons as any[] : [];
-
-    const weaponNameLower = weaponName.toLowerCase();
-    const allAvailable = [...sheetAttacks, ...pickedUpWeapons];
-    const matchedWeapon = allAvailable.find(w => w.name?.toLowerCase() === weaponNameLower)
-      ?? allAvailable.find(w => w.name?.toLowerCase().includes(weaponNameLower));
-
-    if (!matchedWeapon) {
-      const available = allAvailable.map(w => w.name).filter(Boolean).join(", ");
-      const hint = available ? ` Available weapons: ${available}.` : " You have no weapons.";
-      throw new ValidationError(`You don't have a "${weaponName}" to draw.${hint}`);
-    }
-
-    // Check if already drawn
-    if (isWeaponDrawn(actorCombatant.resources ?? {}, matchedWeapon.name)) {
-      throw new ValidationError(`${matchedWeapon.name} is already drawn.`);
-    }
-
-    // Check free object interaction
-    const objectInteractionUsed = readBoolean(resources, "objectInteractionUsed") ?? false;
-    let usedAction = false;
-
-    if (objectInteractionUsed) {
-      // Free interaction already spent — this costs the Utilize action
-      const actionSpent = readBoolean(resources, "actionSpent") ?? false;
-      if (actionSpent) {
-        throw new ValidationError(
-          "You've already used your free Object Interaction and your Action this turn. " +
-          "You can draw the weapon on your next turn.",
-        );
-      }
-      usedAction = true;
-    }
-
-    // Draw the weapon
-    const updated = addDrawnWeapon(actorCombatant.resources ?? {}, matchedWeapon.name) as Record<string, unknown>;
-    const persistResources: Record<string, unknown> = {
-      ...updated,
-      objectInteractionUsed: true,
-      ...(usedAction ? { actionSpent: true } : {}),
-    };
-
-    await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-      resources: persistResources as any,
-    });
-
-    if (this.debugLogsEnabled) {
-      console.log(`[ActionDispatcher] ${actorId} draws ${matchedWeapon.name}${usedAction ? " (Utilize action)" : " (free interaction)"}`);
-    }
-
-    const actorNameStr = getActorNameFromRoster(actorId, roster);
-    const costNote = usedAction ? " (using Utilize action)" : "";
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Draw",
-      message: `${actorNameStr} draws the ${matchedWeapon.name}${costNote}.`,
-    };
+    return this.interactionHandlers.handleDrawWeaponAction(sessionId, encounterId, actorId, weaponName, characters, monsters, npcs, roster);
   }
 
   /**
@@ -1768,70 +1408,7 @@ export class ActionDispatcher {
     weaponName: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
-    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
-
-    const resources = normalizeResources(actorCombatant.resources ?? {});
-    const drawn = getDrawnWeapons(actorCombatant.resources ?? {});
-
-    // If drawnWeapons not initialized (legacy), can't sheathe
-    if (!drawn) {
-      throw new ValidationError("No weapon tracking available. Draw a weapon first.");
-    }
-
-    // Find the weapon in drawn weapons (fuzzy name match)
-    const weaponNameLower = weaponName.toLowerCase();
-    const matchedName = drawn.find(n => n.toLowerCase() === weaponNameLower)
-      ?? drawn.find(n => n.toLowerCase().includes(weaponNameLower));
-
-    if (!matchedName) {
-      const hint = drawn.length > 0 ? ` Currently drawn: ${drawn.join(", ")}.` : " No weapons are drawn.";
-      throw new ValidationError(`You don't have "${weaponName}" drawn.${hint}`);
-    }
-
-    // Check free object interaction
-    const objectInteractionUsed = readBoolean(resources, "objectInteractionUsed") ?? false;
-    let usedAction = false;
-
-    if (objectInteractionUsed) {
-      const actionSpent = readBoolean(resources, "actionSpent") ?? false;
-      if (actionSpent) {
-        throw new ValidationError(
-          "You've already used your free Object Interaction and your Action this turn. " +
-          "You can sheathe the weapon on your next turn.",
-        );
-      }
-      usedAction = true;
-    }
-
-    // Sheathe the weapon
-    const updated = removeDrawnWeapon(actorCombatant.resources ?? {}, matchedName) as Record<string, unknown>;
-    const persistResources: Record<string, unknown> = {
-      ...updated,
-      objectInteractionUsed: true,
-      ...(usedAction ? { actionSpent: true } : {}),
-    };
-
-    await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-      resources: persistResources as any,
-    });
-
-    if (this.debugLogsEnabled) {
-      console.log(`[ActionDispatcher] ${actorId} sheathes ${matchedName}${usedAction ? " (Utilize action)" : " (free interaction)"}`);
-    }
-
-    const actorNameStr = getActorNameFromRoster(actorId, roster);
-    const costNote = usedAction ? " (using Utilize action)" : "";
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "Sheathe",
-      message: `${actorNameStr} sheathes the ${matchedName}${costNote}.`,
-    };
+    return this.interactionHandlers.handleSheatheWeaponAction(sessionId, encounterId, actorId, weaponName, roster);
   }
 
   /**
@@ -1850,9 +1427,9 @@ export class ActionDispatcher {
     actorId: string,
     abilityId: string,
     text: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
     roster: LlmRoster,
     skipBonusActionCost = false,
   ): Promise<ActionParseResult> {
@@ -2287,10 +1864,10 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     text: string,
-    command: any,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    command: AttackCommand,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<ActionParseResult> {
     const targetId = command.target
       ? command.target.type === "Character"
@@ -2878,89 +2455,6 @@ export class ActionDispatcher {
     itemName: string,
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
-    const actor = inferActorRef(actorId, roster);
-
-    // Get combatant state
-    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => (c.combatantType === "Character" && c.characterId === actorId)
-        || (c.combatantType === "Monster" && c.monsterId === actorId)
-        || (c.combatantType === "NPC" && c.npcId === actorId),
-    );
-    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
-
-    const resources = normalizeResources(actorCombatant.resources);
-
-    // Check action economy: using an item costs an action
-    if (resources.actionSpent) {
-      throw new ValidationError("You have already used your action this turn");
-    }
-
-    // Find item in combatant inventory
-    const inventory = getInventory(actorCombatant.resources);
-    const item = findInventoryItem(inventory, itemName);
-    if (!item) {
-      throw new ValidationError(`You don't have "${itemName}" in your inventory`);
-    }
-    if (item.quantity < 1) {
-      throw new ValidationError(`No "${itemName}" remaining in inventory`);
-    }
-
-    // Look up item definition for effects
-    const itemDef = item.magicItemId ? lookupMagicItem(item.name) ?? lookupMagicItem(itemName) : lookupMagicItem(itemName);
-
-    // Handle potion healing
-    const potionFormula = POTION_HEALING_FORMULAS[item.magicItemId ?? ""] ?? POTION_HEALING_FORMULAS[itemDef?.id ?? ""];
-    if (potionFormula || (itemDef?.category === "potion")) {
-      // Consume the item
-      const { updatedInventory } = useConsumableItem(inventory, itemName);
-
-      // Roll healing dice if it's a healing potion
-      let healAmount = 0;
-      let healMessage = "";
-      if (potionFormula) {
-        // Roll healing dice server-side (potions are deterministic — fixed formula)
-        if (!this.deps.diceRoller) {
-          throw new ValidationError("Dice roller not configured");
-        }
-        const diceResult = this.deps.diceRoller.rollDie(potionFormula.diceSides, potionFormula.diceCount, potionFormula.modifier);
-        healAmount = diceResult.total;
-        healMessage = `${potionFormula.diceCount}d${potionFormula.diceSides}+${potionFormula.modifier} = ${healAmount}`;
-      }
-
-      // Apply healing
-      const hpBefore = actorCombatant.hpCurrent;
-      const hpMax = actorCombatant.hpMax;
-      const hpAfter = Math.min(hpMax, hpBefore + healAmount);
-      const actualHeal = hpAfter - hpBefore;
-
-      // Update resources: consume item + spend action
-      const updatedResources = {
-        ...resources,
-        actionSpent: true,
-        inventory: updatedInventory,
-      };
-
-      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-        hpCurrent: hpAfter,
-        resources: updatedResources as any,
-      });
-
-      const actorName = getActorNameFromRoster(actorId, roster);
-      const message = healAmount > 0
-        ? `${actorName} drinks ${item.name} and heals ${actualHeal} HP (${healMessage}). HP: ${hpAfter}/${hpMax}`
-        : `${actorName} drinks ${item.name}.`;
-
-      return {
-        requiresPlayerInput: false,
-        actionComplete: true,
-        type: "SIMPLE_ACTION_COMPLETE",
-        action: "Use Item",
-        message,
-      };
-    }
-
-    // Generic non-potion item use (placeholder for future items)
-    throw new ValidationError(`Don't know how to use "${itemName}". Only healing potions are currently supported.`);
+    return this.interactionHandlers.handleUseItemAction(sessionId, encounterId, actorId, itemName, roster);
   }
 }

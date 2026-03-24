@@ -10,6 +10,24 @@ export { RollStateMachine, loadRoster } from "./roll-state-machine.js";
 export { SpellActionHandler } from "./spell-action-handler.js";
 export { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 export { SavingThrowResolver } from "./saving-throw-resolver.js";
+
+// Action parser chain types
+export type { ActionParserEntry, DispatchContext } from "./action-parser-chain.js";
+
+// Spell delivery strategy components
+export type {
+  SpellCastingContext,
+  SpellDeliveryDeps,
+  SpellDeliveryHandler,
+} from "./spell-delivery/index.js";
+export {
+  SpellAttackDeliveryHandler,
+  SaveSpellDeliveryHandler,
+  HealingSpellDeliveryHandler,
+  BuffDebuffSpellDeliveryHandler,
+  ZoneSpellDeliveryHandler,
+} from "./spell-delivery/index.js";
+export { isCreatureSurprised, computeInitiativeModifiers, computeInitiativeRollMode } from "./tabletop-utils.js";
 export { buildPathNarration } from "./path-narrator.js";
 export type { PathNarrationInput } from "./path-narrator.js";
 
