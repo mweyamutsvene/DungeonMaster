@@ -143,11 +143,18 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 
 ## 5. Feature Gaps (Blocked)
 
-### 5.1 Rest Interruption
-- **Priority**: LOW (feature gap)
-- **Issue**: D&D 5e 2024: rest can be interrupted by combat/damage/spellcasting ≥1 hour for long rest, ≥1 minute for short rest. Currently not implemented.
-- **Blocked by**: No session-level time tracking or "in rest" state machine.
-- **Affected flows**: EntityManagement, CombatOrchestration
+### 5.1 Rest Interruption ✅ DONE
+- **Priority**: ~~LOW (feature gap)~~ COMPLETED
+- **Resolution**: Implemented event-log-based rest interruption state machine. No Prisma schema change needed.
+  - Added `detectRestInterruption()` pure function in `domain/rules/rest.ts`
+  - Added `RestStarted` to `GameEventInput` discriminated union
+  - Added `CharacterService.beginRest()` — records rest via event, returns `{ restId, restType, startedAt }`
+  - Updated `CharacterService.takeSessionRest()` — accepts optional `restStartedAt`; checks event log for `CombatStarted`/`DamageApplied` since that time
+  - Added `POST /sessions/:id/rest/begin` endpoint
+  - Updated `POST /sessions/:id/rest` to accept optional `restStartedAt` (backward compatible)
+  - Combat interrupts any rest; Damage only interrupts long rest (D&D 5e 2024)
+- **Plan**: See `plan-rest-interruption.prompt.md`
+- **Affected flows**: EntityManagement
 
 ### 5.2 Hit Dice E2E Scenarios
 - **Priority**: LOW
