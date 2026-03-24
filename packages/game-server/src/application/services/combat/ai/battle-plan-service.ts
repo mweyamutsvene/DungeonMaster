@@ -41,6 +41,19 @@ export interface IAiBattlePlanner {
   }): Promise<BattlePlan | null>;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Replan thresholds — named constants, no magic numbers.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Number of rounds after which a plan is considered stale regardless of other signals. */
+const REPLAN_STALE_ROUNDS = 2;
+
+/**
+ * Fraction of a combatant's max HP that must be lost since the plan was generated
+ * before the faction is triggered to re-plan.  0.25 = 25%.
+ */
+const REPLAN_HP_LOSS_THRESHOLD = 0.25;
+
 export class BattlePlanService {
   constructor(
     private readonly combatRepo: ICombatRepository,
@@ -107,7 +120,25 @@ export class BattlePlanService {
     });
 
     if (newPlan) {
-      await this.combatRepo.updateBattlePlan(encounterId, faction, newPlan as unknown as Record<string, unknown>);
+      // Capture a battlefield snapshot so shouldReplan() heuristics can run
+      // synchronously (without needing async faction-service calls).
+      const livingAllies = [combatant, ...allies].filter(c => c.hpCurrent > 0);
+      const livingEnemies = enemies.filter(e => e.hpCurrent > 0);
+
+      const allyHpAtGeneration: Record<string, number> = {};
+      for (const ally of livingAllies) {
+        allyHpAtGeneration[ally.id] = ally.hpCurrent;
+      }
+
+      const planWithSnapshot: BattlePlan = {
+        ...newPlan,
+        allyHpAtGeneration,
+        livingAllyIdsAtGeneration: livingAllies.map(a => a.id),
+        livingEnemyIdsAtGeneration: livingEnemies.map(e => e.id),
+      };
+
+      await this.combatRepo.updateBattlePlan(encounterId, faction, planWithSnapshot as unknown as Record<string, unknown>);
+      return planWithSnapshot;
     }
 
     return newPlan;
@@ -115,20 +146,53 @@ export class BattlePlanService {
 
   /**
    * Determine if the current plan should be regenerated.
+   *
+   * Heuristics (evaluated in order; first true wins):
+   *  1. Stale plan  — generated ≥ REPLAN_STALE_ROUNDS ago.
+   *  2. Ally died   — any ally that was alive at plan generation is now dead.
+   *  3. HP crisis   — any ally has lost > REPLAN_HP_LOSS_THRESHOLD of their max HP
+   *                   since the plan was generated.
+   *  4. New threat  — a living combatant is present whose ID was unknown at
+   *                   plan generation (i.e., a reinforcement joined the fight).
+   *
+   * All snapshot-based heuristics (2-4) are silently skipped when the plan
+   * lacks snapshot fields (e.g., plans stored before this feature was added) —
+   * heuristic 1 always applies as a safety fallback.
    */
   private shouldReplan(
     plan: BattlePlan,
     encounter: CombatEncounterRecord,
     combatants: CombatantStateRecord[],
   ): boolean {
-    // Plan is stale (generated >= 2 rounds ago)
-    if (encounter.round - plan.generatedAtRound >= 2) return true;
+    // ── 1. Stale plan ────────────────────────────────────────────────────────
+    if (encounter.round - plan.generatedAtRound >= REPLAN_STALE_ROUNDS) return true;
 
-    // Focus target is dead
-    if (plan.focusTarget) {
-      const living = combatants.filter(c => c.hpCurrent > 0);
-      // We don't have names here easily, but we can check if the total living count dropped significantly
-      // This is a heuristic — proper name resolution would need async. For now, we trust stale-round check.
+    // ── 2. Ally died since last plan ─────────────────────────────────────────
+    if (plan.livingAllyIdsAtGeneration) {
+      const allyIdSet = new Set(plan.livingAllyIdsAtGeneration);
+      const allyDied = combatants.some(c => allyIdSet.has(c.id) && c.hpCurrent <= 0);
+      if (allyDied) return true;
+    }
+
+    // ── 3. Significant HP loss (any ally lost > 25 % of their max HP) ────────
+    if (plan.allyHpAtGeneration) {
+      const combatantById = new Map(combatants.map(c => [c.id, c]));
+      for (const [id, hpAtGen] of Object.entries(plan.allyHpAtGeneration)) {
+        const current = combatantById.get(id);
+        if (!current) continue; // combatant may have been removed already
+        const hpLost = hpAtGen - current.hpCurrent;
+        if (hpLost > REPLAN_HP_LOSS_THRESHOLD * current.hpMax) return true;
+      }
+    }
+
+    // ── 4. New threat entered combat (reinforcements) ────────────────────────
+    if (plan.livingAllyIdsAtGeneration && plan.livingEnemyIdsAtGeneration) {
+      const knownIds = new Set([
+        ...plan.livingAllyIdsAtGeneration,
+        ...plan.livingEnemyIdsAtGeneration,
+      ]);
+      const newThreat = combatants.some(c => c.hpCurrent > 0 && !knownIds.has(c.id));
+      if (newThreat) return true;
     }
 
     return false;

@@ -110,9 +110,16 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-combat-functional-refactor.prompt.md`
 - **Affected flows**: CombatRules
 
-### 4.3 `battle-plan-service` Incomplete `shouldReplan`
-- **Priority**: LOW
-- **Fix**: Improve heuristic for when AI should regenerate battle plans (e.g., after significant HP loss, ally death, new threats).
+### 4.3 `battle-plan-service` Incomplete `shouldReplan` ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
+- **Resolution**: Added 4 data-driven heuristics backed by a battlefield snapshot embedded in `BattlePlan` at generation time:
+  1. Stale plan (≥2 rounds old) — existing, now uses `REPLAN_STALE_ROUNDS` constant
+  2. Ally died — any living ally ID at generation is now dead
+  3. Significant HP loss — any ally lost >25% of max HP (threshold: `REPLAN_HP_LOSS_THRESHOLD = 0.25`)
+  4. New threat — a living combatant appears whose ID was unknown at generation (reinforcements)
+- Added `allyHpAtGeneration`, `livingAllyIdsAtGeneration`, `livingEnemyIdsAtGeneration` snapshot fields to `BattlePlan`. All optional (backward compat with stored plans).
+- 20 new unit tests in `battle-plan-service.test.ts` (636 total). All 153 E2E scenarios pass.
+- **Plan**: See `plan-battle-plan-replan.prompt.md`
 - **Affected flows**: AIBehavior
 
 ### 4.4 Cover Detection Simplified Heuristic
@@ -150,7 +157,7 @@ These are all **opportunistic** — pick up when you're already working in the a
 | When working on... | Consider picking up... |
 |---------------------|----------------------|
 | Multi-attack / Extra Attack rework | ~~§1.1 Grapple economy~~ ✅ DONE |
-| AI improvements | §2.1 NPC fields, §3.4 AI extensibility, §4.3 replan, §4.5 retreat |
+| AI improvements | §2.1 NPC fields, §3.4 AI extensibility, ~~§4.3 replan~~ ✅ DONE, §4.5 retreat |
 | Spell system changes | §2.2 Spell path unification |
 | New event types | ~~§2.3 SSE type narrowing~~ ✅ DONE |
 | New class abilities | §3.1 Resource builder generalization |

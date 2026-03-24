@@ -25,6 +25,19 @@ export interface BattlePlan {
   tacticalNotes: string;
   /** Descriptive condition for when the faction should retreat. */
   retreatCondition?: string;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Battlefield snapshot captured at plan-generation time.
+  // Used by shouldReplan() heuristics — all fields are optional for backward
+  // compatibility with plans stored before this feature was added.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Map of combatantId → hpCurrent at the moment this plan was generated. */
+  allyHpAtGeneration?: Record<string, number>;
+  /** IDs of living ally combatants at the moment this plan was generated. */
+  livingAllyIdsAtGeneration?: string[];
+  /** IDs of living enemy combatants at the moment this plan was generated. */
+  livingEnemyIdsAtGeneration?: string[];
 }
 
 /**

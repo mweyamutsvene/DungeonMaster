@@ -1,6 +1,8 @@
 // DELETE ME — throwaway script used to verify SeededDiceRoller dice outcomes for mock grapple seeds.
 // Seeds chosen: 42 (grapple success), 100 (escape fails). See mocks/index.ts.
 
+import { SeededDiceRoller } from "../src/domain/rules/dice-roller.js";
+
 const attackBonus = 7;
 const targetAC = 16;
 const saveMod = -1;
