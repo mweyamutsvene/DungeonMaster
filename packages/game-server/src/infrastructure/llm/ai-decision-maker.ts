@@ -2,6 +2,7 @@ import type { LlmProvider } from './types.js';
 import type { IAiDecisionMaker, AiDecision, AiCombatContext } from '../../application/services/combat/ai/ai-types.js';
 import { extractFirstJsonObject } from './json.js';
 import { llmDebugLog } from './debug.js';
+import { PromptBuilder } from './prompt-builder.js';
 
 /**
  * Infrastructure adapter: LLM-based AI decision maker
@@ -33,44 +34,42 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     combatantType: string;
     context: AiCombatContext;
   }): Promise<AiDecision | null> {
-    const systemPrompt = this.buildSystemPrompt(input.combatantName, input.combatantType);
-    
-    // Build user message with battlefield, narrative, battle plan, and state
-    let userMessage = '';
-    
-    // Add battlefield visualization if available
-    if (input.context.battlefield) {
-      userMessage += 'BATTLEFIELD:\n' + 
-        input.context.battlefield.grid + '\n\n' +
-        'LEGEND:\n' + input.context.battlefield.legend + '\n\n';
-    }
+    // Pre-compute conditional section content (JS evaluates all args eagerly, so guard nulls here)
+    const bf = input.context.battlefield;
+    const battlefieldContent = bf
+      ? `BATTLEFIELD:\n${bf.grid}\n\nLEGEND:\n${bf.legend}`
+      : '';
 
-    // Add battle plan if available
-    if (input.context.battlePlan) {
-      const bp = input.context.battlePlan;
-      userMessage += 'BATTLE PLAN:\n';
-      userMessage += `Priority: ${bp.priority}\n`;
-      if (bp.focusTarget) userMessage += `Focus target: ${bp.focusTarget}\n`;
-      if (bp.yourRole) userMessage += `Your role: ${bp.yourRole}\n`;
-      userMessage += `Strategy: ${bp.tacticalNotes}\n`;
-      if (bp.retreatCondition) userMessage += `Retreat if: ${bp.retreatCondition}\n`;
-      userMessage += '\n';
-    }
-    
-    // Add recent narrative context if available
-    if (input.context.recentNarrative && input.context.recentNarrative.length > 0) {
-      userMessage += 'Recent combat narrative:\n' + 
-        input.context.recentNarrative.map((text, i) => `${i + 1}. ${text}`).join('\n') +
-        '\n\n';
-    }
-    
-    // Add combat state JSON
-    userMessage += 'Current combat state:\n' + JSON.stringify(input.context, null, 2);
+    const bp = input.context.battlePlan;
+    const battlePlanContent = bp
+      ? [
+          'BATTLE PLAN:',
+          `Priority: ${bp.priority}`,
+          bp.focusTarget ? `Focus target: ${bp.focusTarget}` : null,
+          bp.yourRole ? `Your role: ${bp.yourRole}` : null,
+          `Strategy: ${bp.tacticalNotes}`,
+          bp.retreatCondition ? `Retreat if: ${bp.retreatCondition}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
 
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userMessage },
-    ];
+    const hasNarrative = input.context.recentNarrative.length > 0;
+    const narrativeContent = hasNarrative
+      ? 'Recent combat narrative:\n' +
+        input.context.recentNarrative.map((text, i) => `${i + 1}. ${text}`).join('\n')
+      : '';
+
+    // Strip battlefield from the JSON snapshot — it's already rendered as a formatted top-level section
+    const { battlefield: _bf, ...contextWithoutBattlefield } = input.context;
+    const prompt = new PromptBuilder('v1')
+      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType))
+      .addSectionIf(!!bf, 'battlefield', battlefieldContent)
+      .addSectionIf(!!bp, 'battle-plan', battlePlanContent)
+      .addSectionIf(hasNarrative, 'narrative', narrativeContent)
+      .addSection('combat-state', 'Current combat state:\n' + JSON.stringify(contextWithoutBattlefield, null, 2));
+
+    const messages = prompt.buildAsMessages();
 
     const options = {
       model: this.config.model,
@@ -256,7 +255,7 @@ CRITICAL - DASH ACTION MECHANICS:
 
 ACTION ECONOMY ENFORCEMENT (read the context):
 - The input context may include context.combatant.economy.actionSpent / bonusActionSpent / reactionSpent / movementSpent.
-- If context.combatant.economy.actionSpent is true, you MUST NOT choose an action-consuming action (attack, shove, grapple, dash, dodge, disengage, help, hide, search, useObject, castSpell).
+- If context.combatant.economy.actionSpent is true, you MUST NOT choose an action-consuming action (attack, shove, grapple, escapeGrapple, dash, dodge, disengage, help, hide, search, useObject, castSpell).
   - In that case, only choose action: "move" (optionally with a bonusAction if allowed) OR action: "endTurn".
 - If context.combatant.economy.bonusActionSpent is true, do not include a bonusAction. This field now correctly reflects when bonus action has been used.
 - If context.combatant.economy.reactionSpent is true, your reaction is unavailable this round.
@@ -272,6 +271,7 @@ PRONE MOVEMENT RULES:
 - If you have the "Prone" condition AND "Grappled", "Stunned", "Incapacitated", "Paralyzed", or "Unconscious", you CANNOT stand up or move.
 - While Prone, your attacks have DISADVANTAGE. Melee attacks against you have ADVANTAGE. Standing up is almost always worthwhile.
 - If you used Dash while Prone, you get double movement but still pay the half-base-speed stand-up cost once.
+- STRATEGY: If you are Prone, use a "move" action (to your current position or toward the enemy) BEFORE attacking so the server automatically stands you up. Only attack while still prone if you have no remaining movement.
 
 ACTION RESULT FEEDBACK (read the context):
 - The context may include context.lastActionResult and context.turnResults describing what happened earlier this turn.
@@ -302,10 +302,11 @@ AVAILABLE ACTIONS:
    - "help" - give ally advantage on next attack or ability check
    - "hide" - attempt to hide (Stealth check; succeeds if not clearly visible)
    - "search" - Perception check to find hidden creatures
-   - "useObject" - NOT CURRENTLY SUPPORTED — use attack, move, or endTurn instead
+   - "useObject" - drink a healing potion from inventory. Only use when you have healing potions and HP is low.
    
 4. ADVANCED ACTIONS (always available to ALL creatures):
    - "grapple" - grab an enemy (contested Athletics check)
+   - "escapeGrapple" - escape from a grapple (contested Athletics/Acrobatics vs grappler's Athletics). Only use when you have the Grappled condition.
    - "shove" - push enemy back 5ft or knock prone
 
 5. SPECIAL ABILITIES:
@@ -333,7 +334,7 @@ GROUP TACTICS:
 OUTPUT FORMAT:
 Respond with ONLY a single JSON object containing (no other text, no markdown, no code fences):
 {
-  "action": string,           // "attack", "move", "moveToward", "moveAwayFrom", "dodge", "dash", "disengage", "help", "hide", "grapple", "shove", "search", "castSpell", "endTurn"
+  "action": string,           // "attack", "move", "moveToward", "moveAwayFrom", "dodge", "dash", "disengage", "help", "hide", "grapple", "escapeGrapple", "shove", "search", "castSpell", "endTurn"
   "target": string,           // Target name (for attacks, grapple, shove, help)
   "attackName": string,       // Specific attack from "actions" (e.g., "Scimitar", "Shortbow")
   "destination": object,      // For move: {x: number, y: number} coordinates
@@ -510,6 +511,17 @@ Second response (after you are asked again):
       return {
         action,
         target: typeof json.target === 'string' ? json.target : undefined,
+        seed: typeof json.seed === 'number' && Number.isInteger(json.seed) ? json.seed : undefined,
+        bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
+        intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
+        reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,
+        endTurn: typeof json.endTurn === 'boolean' ? json.endTurn : true,
+      };
+    }
+
+    if (action === 'escapeGrapple') {
+      return {
+        action,
         seed: typeof json.seed === 'number' && Number.isInteger(json.seed) ? json.seed : undefined,
         bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
         intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,

@@ -50,7 +50,7 @@ export interface ScenarioSetup {
   }>;
   /** Configure mock AI behavior */
   aiConfig?: {
-    defaultBehavior?: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide";
+    defaultBehavior?: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion";
     defaultBonusAction?: string;
   };
   /** Pre-placed ground items on the battlefield at combat start */
@@ -238,7 +238,7 @@ interface WaitForReactionAction {
 interface ConfigureAiAction {
   type: "configureAi";
   input: {
-    defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide";
+    defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion";
     defaultBonusAction?: string;
   };
   comment?: string;
@@ -360,6 +360,8 @@ interface RestAction {
   expect?: {
     /** Expected pool names that were refreshed */
     poolsRefreshed?: string[];
+    /** Verify character HP after rest (by name) */
+    characterHp?: { name: string; min?: number; max?: number; exact?: number };
   };
 }
 
@@ -527,7 +529,7 @@ function displayCombatEvents(
 
 export interface RunScenarioCallbacks {
   /** Configure the mock AI decision maker */
-  configureAi?: (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide"; defaultBonusAction?: string }) => void;
+  configureAi?: (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"; defaultBonusAction?: string }) => void;
 }
 
 export async function runScenario(
@@ -1590,6 +1592,28 @@ export async function runScenario(
                 throw new Error(`Expected pool "${expectedPool}" to be refreshed, but it wasn't. Refreshed: [${allRefreshed.join(", ")}]`);
               }
             }
+          }
+
+          // Validate character HP after rest if specified
+          if (restAction.expect?.characterHp) {
+            const expectHp = restAction.expect.characterHp;
+            const sessionRes = await httpGet(`${baseUrl}/sessions/${sessionId}`);
+            const sessionBody = sessionRes.body as { characters?: Array<{ name: string; sheet?: { currentHp?: number; maxHp?: number } }> };
+            const char = sessionBody.characters?.find(c => c.name === expectHp.name);
+            if (!char) {
+              throw new Error(`Character "${expectHp.name}" not found in session for HP check`);
+            }
+            const hp = char.sheet?.currentHp ?? 0;
+            if (expectHp.exact !== undefined && hp !== expectHp.exact) {
+              throw new Error(`Expected "${expectHp.name}" HP = ${expectHp.exact}, got ${hp}`);
+            }
+            if (expectHp.min !== undefined && hp < expectHp.min) {
+              throw new Error(`Expected "${expectHp.name}" HP >= ${expectHp.min}, got ${hp}`);
+            }
+            if (expectHp.max !== undefined && hp > expectHp.max) {
+              throw new Error(`Expected "${expectHp.name}" HP <= ${expectHp.max}, got ${hp}`);
+            }
+            log(`${colors.green}✓${colors.reset} HP check: ${expectHp.name} HP = ${hp}`);
           }
           break;
         }

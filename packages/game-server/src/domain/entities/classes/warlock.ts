@@ -60,7 +60,14 @@ export const Warlock: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["wisdom", "charisma"],
   },
+  features: {
+    "pact-magic": 1,
+  },
   resourcesAtLevel: (level) => [createPactMagicState(level).pool],
+  resourcePoolFactory: (level) => [createPactMagicState(level).pool],
+  restRefreshPolicy: [
+    { poolKey: "pactMagic", refreshOn: "both", computeMax: (level) => pactMagicSlotsForLevel(level).slots },
+  ],
 };
 
 // ----- Damage Reaction: Hellish Rebuke -----

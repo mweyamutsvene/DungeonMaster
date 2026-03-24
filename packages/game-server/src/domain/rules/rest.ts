@@ -1,20 +1,7 @@
 import type { ResourcePool } from "../entities/combat/resource-pool.js";
-import type { CharacterClassId } from "../entities/classes/class-definition.js";
-import { rageUsesForLevel } from "../entities/classes/barbarian.js";
-import { kiPointsForLevel } from "../entities/classes/monk.js";
-import {
-  channelDivinityUsesForLevel as clericChannelDivinityUsesForLevel,
-} from "../entities/classes/cleric.js";
-import {
-  channelDivinityUsesForLevel as paladinChannelDivinityUsesForLevel,
-} from "../entities/classes/paladin.js";
-import { actionSurgeUsesForLevel, secondWindUsesForLevel } from "../entities/classes/fighter.js";
-import { sorceryPointsForLevel } from "../entities/classes/sorcerer.js";
-import { pactMagicSlotsForLevel } from "../entities/classes/warlock.js";
-import { bardicInspirationUsesForLevel } from "../entities/classes/bard.js";
-import { wildShapeUsesForLevel } from "../entities/classes/druid.js";
-import { arcaneRecoveryUsesForLevel } from "../entities/classes/wizard.js";
-import { layOnHandsPoolForLevel } from "../entities/classes/paladin.js";
+import type { CharacterClassId, HitDie } from "../entities/classes/class-definition.js";
+import type { DiceRoller } from "./dice-roller.js";
+import { getClassDefinition } from "../entities/classes/registry.js";
 
 export type RestType = "short" | "long";
 
@@ -31,95 +18,116 @@ export interface RefreshClassResourcePoolsOptions {
   charismaModifier?: number;
 }
 
-function shouldRefreshOnRest(poolName: string, rest: RestType, level: number): boolean {
-  switch (poolName) {
-    case "rage":
-      return rest === "long";
-
-    case "layOnHands":
-      return rest === "long";
-
-    case "arcaneRecovery":
-      return rest === "long";
-
-    case "sorceryPoints":
-      return rest === "long";
-    case "bardicInspiration":
-      // Font of Inspiration at 5+: refreshes on short rest.
-      return rest === "long" || (rest === "short" && level >= 5);
-    case "ki":
-    case "channelDivinity":
-    case "actionSurge":
-    case "secondWind":
-    case "pactMagic":
-    case "wildShape":
-      return true;
-    default:
-      return false;
+function shouldRefreshOnRest(poolName: string, rest: RestType, level: number, classId: CharacterClassId): boolean {
+  // Spell slot pools (spellSlot_1, spellSlot_2, etc.) refresh on long rest only
+  if (poolName.startsWith("spellSlot_")) {
+    return rest === "long";
   }
+
+  const def = getClassDefinition(classId);
+  const policy = def.restRefreshPolicy?.find((p) => p.poolKey === poolName);
+  if (!policy) return false;
+
+  if (typeof policy.refreshOn === "function") {
+    return policy.refreshOn(rest, level);
+  }
+  if (policy.refreshOn === "both") return true;
+  return policy.refreshOn === rest;
 }
 
 function computeMaxForPool(
   options: RefreshClassResourcePoolsOptions,
   poolName: string,
+  currentMax: number,
 ): number {
   const { classId, level } = options;
 
-  switch (poolName) {
-    case "rage":
-      return rageUsesForLevel(level);
+  const def = getClassDefinition(classId);
+  const policy = def.restRefreshPolicy?.find((p) => p.poolKey === poolName);
+  if (!policy?.computeMax) return currentMax;
 
-    case "wildShape":
-      return wildShapeUsesForLevel(level);
+  const abilityModifiers: Record<string, number> | undefined =
+    options.charismaModifier !== undefined ? { charisma: options.charismaModifier } : undefined;
 
-    case "ki":
-      return kiPointsForLevel(level);
-
-    case "channelDivinity":
-      if (classId === "cleric") return clericChannelDivinityUsesForLevel(level);
-      if (classId === "paladin") return paladinChannelDivinityUsesForLevel(level);
-      return 0;
-
-    case "layOnHands":
-      return layOnHandsPoolForLevel(level);
-
-    case "actionSurge":
-      return actionSurgeUsesForLevel(level);
-
-    case "secondWind":
-      return secondWindUsesForLevel(level);
-
-    case "sorceryPoints":
-      return sorceryPointsForLevel(level);
-
-    case "arcaneRecovery":
-      return arcaneRecoveryUsesForLevel(level);
-
-    case "pactMagic":
-      return pactMagicSlotsForLevel(level).slots;
-
-    case "bardicInspiration": {
-      const cha = options.charismaModifier;
-      if (cha === undefined) {
-        throw new Error("charismaModifier is required to refresh bardicInspiration");
-      }
-      return bardicInspirationUsesForLevel(level, cha);
-    }
-
-    default:
-      return 0;
-  }
+  return policy.computeMax(level, abilityModifiers);
 }
 
 export function refreshClassResourcePools(
   options: RefreshClassResourcePoolsOptions,
 ): ResourcePool[] {
   return options.pools.map((pool) => {
-    if (!shouldRefreshOnRest(pool.name, options.rest, options.level)) {
+    if (!shouldRefreshOnRest(pool.name, options.rest, options.level, options.classId)) {
       return pool;
     }
 
-    const max = computeMaxForPool(options, pool.name);
+    // Spell slot pools use their stored max directly
+    if (pool.name.startsWith("spellSlot_")) {
+      return { ...pool, current: pool.max };
+    }
+
+    const max = computeMaxForPool(options, pool.name, pool.max);
     return { ...pool, current: max, max };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Hit Dice — spending (short rest) & recovery (long rest)
+// ---------------------------------------------------------------------------
+
+export interface SpendHitDiceInput {
+  hitDiceRemaining: number;
+  hitDie: HitDie;
+  conModifier: number;
+  count: number;
+  currentHp: number;
+  maxHp: number;
+  diceRoller: DiceRoller;
+}
+
+export interface SpendHitDiceResult {
+  hpRecovered: number;
+  newHp: number;
+  hitDiceRemaining: number;
+  rolls: number[];
+}
+
+/**
+ * D&D 5e 2024: During a short rest, spend Hit Dice to recover HP.
+ * For each die spent, roll the hit die + CON modifier (minimum 1 HP per die).
+ */
+export function spendHitDice(input: SpendHitDiceInput): SpendHitDiceResult {
+  const { hitDiceRemaining, hitDie, conModifier, count, currentHp, maxHp, diceRoller } = input;
+
+  const diceToSpend = Math.min(count, hitDiceRemaining);
+  if (diceToSpend <= 0) {
+    return { hpRecovered: 0, newHp: currentHp, hitDiceRemaining, rolls: [] };
+  }
+
+  const rolls: number[] = [];
+  let totalHealing = 0;
+
+  for (let i = 0; i < diceToSpend; i++) {
+    const roll = diceRoller.rollDie(hitDie);
+    const healing = Math.max(1, roll.total + conModifier);
+    rolls.push(roll.total);
+    totalHealing += healing;
+  }
+
+  const newHp = Math.min(currentHp + totalHealing, maxHp);
+
+  return {
+    hpRecovered: newHp - currentHp,
+    newHp,
+    hitDiceRemaining: hitDiceRemaining - diceToSpend,
+    rolls,
+  };
+}
+
+/**
+ * D&D 5e 2024: On a long rest, recover spent Hit Dice.
+ * Regain up to half your total Hit Dice (rounded down, minimum 1).
+ */
+export function recoverHitDice(hitDiceRemaining: number, totalHitDice: number): number {
+  const recoverable = Math.max(1, Math.floor(totalHitDice / 2));
+  return Math.min(hitDiceRemaining + recoverable, totalHitDice);
 }

@@ -35,7 +35,7 @@ export class TabletopEventEmitter {
 
     try {
       const narration = await this.deps.narrativeGenerator.narrate({
-        storyFramework: { genre: "fantasy", tone: "heroic" },
+        storyFramework: { genre: "fantasy", tone: "heroic", ...(payload.actorName ? { actorName: payload.actorName } : {}) },
         events: [{ type: eventType, payload }],
       });
       return narration;

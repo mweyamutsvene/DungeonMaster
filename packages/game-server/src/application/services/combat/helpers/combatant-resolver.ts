@@ -1,7 +1,7 @@
 import type { Ability } from "../../../../domain/entities/core/ability-scores.js";
 import type { CreatureSize } from "../../../../domain/entities/core/types.js";
-import type { EquippedItems } from "../../../../domain/entities/items/equipped-items.js";
 import { isTwoHanded } from "../../../../domain/entities/items/weapon-properties.js";
+import { parseCharacterSheet, parseStatBlockJson, type EquipmentJson } from "./hydration-types.js";
 import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 
 import { ValidationError } from "../../../errors.js";
@@ -11,6 +11,7 @@ import type { INPCRepository } from "../../../repositories/npc-repository.js";
 import type { CombatantStateRecord } from "../../../types.js";
 
 import type { CombatantRef } from "./combatant-ref.js";
+import { isRecord, readNumber } from "./json-helpers.js";
 
 type AbilityScoresData = Record<Ability, number>;
 
@@ -51,15 +52,6 @@ export interface ICombatantResolver {
   getMonsterAttacks(monsterId: string): Promise<unknown[]>;
 }
 
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null;
-}
-
-function readNumber(obj: Record<string, unknown>, key: string): number | null {
-  const v = obj[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
 function extractAbilityScores(raw: unknown): AbilityScoresData | null {
   if (!isRecord(raw)) return null;
   const abilities: Ability[] = [
@@ -82,20 +74,20 @@ function extractAbilityScores(raw: unknown): AbilityScoresData | null {
 }
 
 function extractEquippedFromSheet(sheet: Record<string, unknown>): CombatantEquipment {
-  const equip = sheet.equipment as EquippedItems | undefined;
+  const equip = sheet.equipment as EquipmentJson | undefined;
   if (!equip || typeof equip !== "object") return {};
 
-  const weaponName = (equip as any).weapon?.name;
+  const weaponName = equip.weapon?.name;
 
   let armorText: string | undefined;
-  if ((equip as any).armor?.name && typeof (equip as any).armor.name === "string") {
-    armorText = (equip as any).armor.name;
+  if (equip.armor?.name) {
+    armorText = equip.armor.name;
   }
-  if ((equip as any).shield?.name && typeof (equip as any).shield.name === "string") {
-    armorText = armorText ? `${armorText} and ${(equip as any).shield.name}` : (equip as any).shield.name;
+  if (equip.shield?.name) {
+    armorText = armorText ? `${armorText} and ${equip.shield.name}` : equip.shield.name;
   }
 
-  const weaponProperties = (equip as any).weapon?.properties;
+  const weaponProperties = equip.weapon?.properties;
   const hasTwoHanded = isTwoHanded(weaponProperties);
 
   return {
@@ -110,7 +102,7 @@ function extractEquippedFromSheet(sheet: Record<string, unknown>): CombatantEqui
  * Returns a map of skill names to their total modifier.
  */
 function extractSkills(data: Record<string, unknown>): SkillProficiencies | undefined {
-  const skills = (data as any).skills;
+  const skills = data.skills;
   if (!skills || typeof skills !== "object") return undefined;
 
   const result: SkillProficiencies = {};
@@ -134,7 +126,7 @@ function calculateProficiencyBonus(level: number): number {
  * Extract creature size from sheet/statBlock. Defaults to Medium if not found.
  */
 function extractSize(data: Record<string, unknown>): CreatureSize {
-  const size = (data as any).size;
+  const size = data.size;
   if (typeof size === "string") {
     const normalized = size.charAt(0).toUpperCase() + size.slice(1).toLowerCase();
     const validSizes: CreatureSize[] = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"];
@@ -215,15 +207,11 @@ export class CombatantResolver implements ICombatantResolver {
       const c = await this.characters.getById(ref.characterId);
       if (!c) throw new ValidationError(`Character not found: ${ref.characterId}`);
       if (!isRecord(c.sheet)) throw new ValidationError("Character sheet must be an object");
+      const sheet = parseCharacterSheet(c.sheet);
 
       const armorClass = readNumber(c.sheet, "armorClass") ?? readNumber(c.sheet, "ac");
-      const abilityScores = extractAbilityScores((c.sheet as any).abilityScores);
-
-      const featIdsRaw = (c.sheet as any).featIds;
-      const featIds =
-        Array.isArray(featIdsRaw) && featIdsRaw.every((x: unknown) => typeof x === "string")
-          ? (featIdsRaw as string[])
-          : undefined;
+      const abilityScores = extractAbilityScores(sheet.abilityScores);
+      const featIds = sheet.featIds;
 
       if (armorClass === null || !abilityScores) {
         throw new ValidationError("Character is missing required combat stats (armorClass, abilityScores)");
@@ -235,9 +223,7 @@ export class CombatantResolver implements ICombatantResolver {
       const proficiencyBonus = proficiencyBonusFromSheet ?? calculateProficiencyBonus(level);
 
       const equip = extractEquippedFromSheet(c.sheet);
-      const className = typeof (c.sheet as any).className === "string"
-        ? (c.sheet as any).className
-        : (typeof c.className === "string" ? c.className : undefined);
+      const className = sheet.className ?? (typeof c.className === "string" ? c.className : undefined);
 
       return {
         name: c.name,
@@ -259,9 +245,10 @@ export class CombatantResolver implements ICombatantResolver {
       const m = await this.monsters.getById(ref.monsterId);
       if (!m) throw new ValidationError(`Monster not found: ${ref.monsterId}`);
       if (!isRecord(m.statBlock)) throw new ValidationError("Monster statBlock must be an object");
+      const statBlock = parseStatBlockJson(m.statBlock);
 
       const armorClass = readNumber(m.statBlock, "armorClass") ?? readNumber(m.statBlock, "ac");
-      const abilityScores = extractAbilityScores((m.statBlock as any).abilityScores);
+      const abilityScores = extractAbilityScores(statBlock.abilityScores);
       if (armorClass === null || !abilityScores) {
         throw new ValidationError("Monster is missing required combat stats (armorClass, abilityScores)");
       }
@@ -286,9 +273,10 @@ export class CombatantResolver implements ICombatantResolver {
     const n = await this.npcs.getById(ref.npcId);
     if (!n) throw new ValidationError(`NPC not found: ${ref.npcId}`);
     if (!isRecord(n.statBlock)) throw new ValidationError("NPC statBlock must be an object");
+    const statBlock = parseStatBlockJson(n.statBlock);
 
     const armorClass = readNumber(n.statBlock, "armorClass") ?? readNumber(n.statBlock, "ac");
-    const abilityScores = extractAbilityScores((n.statBlock as any).abilityScores);
+    const abilityScores = extractAbilityScores(statBlock.abilityScores);
     if (armorClass === null || !abilityScores) {
       throw new ValidationError("NPC is missing required combat stats (armorClass, abilityScores)");
     }
@@ -315,7 +303,7 @@ export class CombatantResolver implements ICombatantResolver {
     if (!m) throw new ValidationError(`Monster not found: ${monsterId}`);
     if (!isRecord(m.statBlock)) throw new ValidationError("Monster statBlock must be an object");
 
-    const attacks = (m.statBlock as any).attacks;
-    return Array.isArray(attacks) ? attacks : [];
+    const statBlock = parseStatBlockJson(m.statBlock);
+    return Array.isArray(statBlock.attacks) ? statBlock.attacks : [];
   }
 }

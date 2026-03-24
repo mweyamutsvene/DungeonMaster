@@ -99,13 +99,14 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
    * POST /sessions/:id/rest
    * Take a short or long rest for all characters in the session.
    * Refreshes class resource pools; long rest also restores HP.
+   * Optional hitDiceSpending: { [characterId]: count } to spend Hit Dice on short rest.
    */
   app.post<{
     Params: { id: string };
-    Body: { type: "short" | "long" };
+    Body: { type: "short" | "long"; hitDiceSpending?: Record<string, number> };
   }>("/sessions/:id/rest", async (req) => {
     const sessionId = req.params.id;
-    const { type: restType } = req.body;
+    const { type: restType, hitDiceSpending } = req.body;
 
     if (!restType || (restType !== "short" && restType !== "long")) {
       throw new ValidationError("Rest type must be 'short' or 'long'");
@@ -114,10 +115,10 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
     if (deps.unitOfWork) {
       return deps.unitOfWork.run(async (repos) => {
         const services = deps.createServicesForRepos(repos);
-        return services.characters.takeSessionRest(sessionId, restType);
+        return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending);
       });
     }
 
-    return deps.characters.takeSessionRest(sessionId, restType);
+    return deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending);
   });
 }

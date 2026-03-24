@@ -51,6 +51,7 @@ export class CharacterGenerator implements ICharacterGenerator {
     private readonly config: { model: string; temperature?: number; timeoutMs?: number },
   ) {}
 
+  // TODO: Migrate inline systemPrompt + userContent to PromptBuilder (see prompt-builder.ts)
   async generateCharacter(input: { className: string; level?: number; seed?: number }): Promise<GeneratedCharacterSheet> {
     const level = input.level ?? 1;
     const className = input.className.toLowerCase();

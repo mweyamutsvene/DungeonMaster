@@ -20,6 +20,7 @@ export class NarrativeGenerator implements INarrativeGenerator {
     private readonly config: { model: string; temperature?: number; timeoutMs?: number },
   ) {}
 
+  // TODO: Migrate inline messages construction to PromptBuilder (see prompt-builder.ts)
   async narrate(input: { storyFramework: JsonValue; events: JsonValue[]; seed?: number }): Promise<string> {
     const messages = [
         {
@@ -33,6 +34,7 @@ export class NarrativeGenerator implements INarrativeGenerator {
               "CRITICAL: Do not invent spells, NPCs, locations, scenery (forests/tunnels/shadows/dust), or backstory beyond the event payload.",
               "CRITICAL: Use pronouns that match established character gender consistently (no swapping he/she).",
               "CRITICAL: Never refer to yourself as 'the narrator' or say lines like 'the narrator intones'.",
+              "CRITICAL: Use ONLY the actorName and targetName as they appear in the event payload. Do not use any other names. Do not use 'Aragorn', 'hero', 'adventurer' or any name not present in the event payload.",
               "If the payload includes constraints, follow them.",
             ].join(" "),
         },

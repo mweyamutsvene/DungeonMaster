@@ -6,6 +6,8 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { CUNNING_ACTION } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { requireActor, requireClassFeature } from "../executor-helpers.js";
 
 /**
  * Executor for Cunning Action (Rogue class feature).
@@ -29,15 +31,10 @@ export class CunningActionExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const featureErr = requireClassFeature(params, CUNNING_ACTION, "Cunning Action (requires Rogue level 2+)"); if (featureErr) return featureErr;
+
+    const actorRef = params!.actor;
 
     // Determine choice: dash, disengage, or hide
     let choice = params?.choice as string | undefined;

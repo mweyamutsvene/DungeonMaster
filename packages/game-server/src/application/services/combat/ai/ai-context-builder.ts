@@ -463,6 +463,8 @@ export class AiContextBuilder {
         bonusActions: (statBlock.bonusActions as unknown[]) || [],
         reactions: (statBlock.reactions as unknown[]) || [],
         spells: (statBlock.spells as unknown[]) || [],
+        abilities: (statBlock.abilities as unknown[]) || [],
+        features: (statBlock.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
       };
     } else if (aiCombatant.combatantType === "NPC") {
@@ -501,9 +503,14 @@ export class AiContextBuilder {
         ...(defenses.damageImmunities && defenses.damageImmunities.length > 0 ? { damageImmunities: defenses.damageImmunities } : {}),
         ...(defenses.damageVulnerabilities && defenses.damageVulnerabilities.length > 0 ? { damageVulnerabilities: defenses.damageVulnerabilities } : {}),
         ...(activeBuffs ? { activeBuffs } : {}),
+        traits: (statBlock.traits as unknown[]) || [],
+        attacks: (statBlock.attacks as unknown[]) || [],
+        actions: (statBlock.actions as unknown[]) || [],
+        bonusActions: (statBlock.bonusActions as unknown[]) || [],
+        reactions: (statBlock.reactions as unknown[]) || [],
         spells: (statBlock.spells as unknown[]) || [],
         abilities: (statBlock.abilities as unknown[]) || [],
-        actions: (statBlock.actions as unknown[]) || [],
+        features: (statBlock.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
       };
     } else {
@@ -543,11 +550,16 @@ export class AiContextBuilder {
         ...(defenses.damageImmunities && defenses.damageImmunities.length > 0 ? { damageImmunities: defenses.damageImmunities } : {}),
         ...(defenses.damageVulnerabilities && defenses.damageVulnerabilities.length > 0 ? { damageVulnerabilities: defenses.damageVulnerabilities } : {}),
         ...(activeBuffs ? { activeBuffs } : {}),
+        traits: (sheet?.traits as unknown[]) || [],
+        attacks: (sheet?.attacks as unknown[]) || [],
+        actions: (sheet?.actions as unknown[]) || [],
+        bonusActions: (sheet?.bonusActions as unknown[]) || [],
+        reactions: (sheet?.reactions as unknown[]) || [],
         spells: (sheet?.spells as unknown[]) || [],
         abilities: (sheet?.abilities as unknown[]) || [],
         features: (sheet?.features as unknown[]) || [],
-        attacks: (sheet?.attacks as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
+
       };
     }
   }

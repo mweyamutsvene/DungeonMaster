@@ -9,7 +9,6 @@ import { Character, type CharacterData } from "../../../../domain/entities/creat
 import { Monster, type MonsterData } from "../../../../domain/entities/creatures/monster.js";
 import { NPC, type NPCData } from "../../../../domain/entities/creatures/npc.js";
 import { AbilityScores, type AbilityScoresData } from "../../../../domain/entities/core/ability-scores.js";
-import { EquippedItems } from "../../../../domain/entities/items/equipped-items.js";
 import type { ResourcePool } from "../../../../domain/entities/combat/resource-pool.js";
 import type { 
   SessionCharacterRecord, 
@@ -17,42 +16,7 @@ import type {
   SessionNPCRecord,
   CombatantStateRecord,
 } from "../../../types.js";
-
-/**
- * Helper to safely read a number from JSON blob.
- */
-function readNumber(obj: unknown, key: string): number | undefined {
-  if (typeof obj !== 'object' || obj === null) return undefined;
-  const val = (obj as Record<string, unknown>)[key];
-  return typeof val === 'number' ? val : undefined;
-}
-
-/**
- * Helper to safely read a string from JSON blob.
- */
-function readString(obj: unknown, key: string): string | undefined {
-  if (typeof obj !== 'object' || obj === null) return undefined;
-  const val = (obj as Record<string, unknown>)[key];
-  return typeof val === 'string' ? val : undefined;
-}
-
-/**
- * Helper to safely read an array from JSON blob.
- */
-function readArray<T = unknown>(obj: unknown, key: string): T[] | undefined {
-  if (typeof obj !== 'object' || obj === null) return undefined;
-  const val = (obj as Record<string, unknown>)[key];
-  return Array.isArray(val) ? val : undefined;
-}
-
-/**
- * Helper to safely read an object from JSON blob.
- */
-function readObject(obj: unknown, key: string): Record<string, unknown> | undefined {
-  if (typeof obj !== 'object' || obj === null) return undefined;
-  const val = (obj as Record<string, unknown>)[key];
-  return typeof val === 'object' && val !== null ? val as Record<string, unknown> : undefined;
-}
+import { readNumber, readString, readArray, readObject } from "./json-helpers.js";
 
 /**
  * Parse ability scores from JSON sheet.

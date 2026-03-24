@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { InMemoryPendingActionRepository } from "./pending-action-repository.js";
+import { InMemoryPendingActionRepository } from "../../infrastructure/testing/memory-repos.js";
 import type { PendingAction, ReactionOpportunity } from "../../domain/entities/combat/pending-action.js";
 
 describe("InMemoryPendingActionRepository", () => {

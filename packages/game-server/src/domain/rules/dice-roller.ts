@@ -100,21 +100,36 @@ export class RandomDiceRoller implements DiceRoller {
  * Convenience adapter for tests: deterministic roller that always returns a fixed roll.
  */
 export class FixedDiceRoller implements DiceRoller {
-  public constructor(private readonly value: number) {
-    if (!Number.isInteger(value) || value < 1) {
-      throw new Error("Fixed roll value must be an integer >= 1");
+  private readonly values: number[];
+  private index = 0;
+
+  public constructor(value: number | number[]) {
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length === 0) throw new Error("Must provide at least one roll value");
+    for (const v of values) {
+      if (!Number.isInteger(v) || v < 1) {
+        throw new Error("Fixed roll value must be an integer >= 1");
+      }
     }
+    this.values = values;
+  }
+
+  private nextValue(): number {
+    const v = this.values[this.index % this.values.length]!;
+    this.index++;
+    return v;
   }
 
   public d20(modifier = 0): DiceRoll {
-    return { total: this.value + modifier, rolls: [this.value] };
+    const v = this.nextValue();
+    return { total: v + modifier, rolls: [v] };
   }
 
   public rollDie(_sides: number, count = 1, modifier = 0): DiceRoll {
     if (!Number.isInteger(count) || count < 1) {
       throw new Error("Die count must be an integer >= 1");
     }
-    const rolls = Array.from({ length: count }, () => this.value);
+    const rolls = Array.from({ length: count }, () => this.nextValue());
     const total = rolls.reduce((sum, r) => sum + r, 0) + modifier;
     return { total, rolls };
   }

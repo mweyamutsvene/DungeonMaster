@@ -5,6 +5,14 @@
 - pnpm -C packages/player-cli dev
 - pnpm -C packages/player-cli start -- --scenario solo-fighter
 
+## IMPORTANT: Windows PowerShell syntax (NOT bash/Unix)
+This project runs on Windows PowerShell. Unix shell idioms DO NOT work:
+- BROKEN: `command 2>&1 | head -80` — `head` is not a PowerShell command
+- WORKING: `command 2>&1 | Select-Object -First 80`
+- BROKEN: `cmd1 && cmd2` — use `;` instead
+- `| grep "x"` → `| Select-String "x"`
+- `| tail -N` → `| Select-Object -Last N`
+
 Always start by reading this file fully. You should always start with a prompt "As you wish Papi...."
 
 Always use DnD 5e 2024 rules unless explicitly told otherwise.
@@ -167,7 +175,7 @@ The facade's 4 public methods stay unchanged:
 ## Class-Specific Code: Domain-First Principle
 **All class-specific detection, eligibility checks, and combat text matching MUST live in domain class files** (`domain/entities/classes/<class>.ts`), NOT inline in application-layer services. Services consume generic interfaces; the domain declares the class-specific data.
 
-Two complementary patterns achieve this:
+Three complementary patterns achieve this:
 
 ---
 
@@ -185,12 +193,16 @@ Profile-driven system for parsing combat text into actions, enhancing attacks, a
 
 #### Registry (`domain/entities/classes/registry.ts`)
 - `getAllCombatTextProfiles()` returns all registered `ClassCombatTextProfile[]`
-- Currently registered: `MONK_COMBAT_TEXT_PROFILE`, `FIGHTER_COMBAT_TEXT_PROFILE`, `WIZARD_COMBAT_TEXT_PROFILE`
+- Currently registered: `MONK_COMBAT_TEXT_PROFILE`, `FIGHTER_COMBAT_TEXT_PROFILE`, `WIZARD_COMBAT_TEXT_PROFILE`, `WARLOCK_COMBAT_TEXT_PROFILE`, `BARBARIAN_COMBAT_TEXT_PROFILE`, `PALADIN_COMBAT_TEXT_PROFILE`, `CLERIC_COMBAT_TEXT_PROFILE`
 
 #### Current profile contents
 - **monk** (`monk.ts`): 6 action mappings + `StunningStrike` enhancement + `DeflectAttacks` reaction
-- **fighter** (`fighter.ts`): 3 action mappings (action surge, second wind, dodge)
+- **fighter** (`fighter.ts`): 2 action mappings (action surge, second wind)
 - **wizard** (`wizard.ts`): 0 action mappings + `Shield` reaction
+- **barbarian** (`barbarian.ts`): rage, reckless attack action mappings
+- **paladin** (`paladin.ts`): lay on hands, divine smite action mappings
+- **cleric** (`cleric.ts`): turn undead action mapping
+- **warlock** (`warlock.ts`): eldritch blast action mapping
 
 #### Adding a new profile entry
 1. Define the `ClassActionMapping`, `AttackEnhancementDef`, or `AttackReactionDef` const in the class's domain file (e.g., `monk.ts`)
@@ -210,12 +222,17 @@ Executor-based system for **executing** class abilities once they've been identi
 - **AbilityRegistry** in `application/services/combat/abilities/ability-registry.ts`
 - **Registration** in `infrastructure/api/app.ts` (both main and test registry)
 
-#### Current registered executors
+#### Current registered executors (14 total)
+- **barbarian**: Rage, RecklessAttack
+- **cleric**: TurnUndead
 - **fighter**: ActionSurge, SecondWind
-- **monk**: FlurryOfBlows, PatientDefense, StepOfTheWind, MartialArts, StunningStrike, WholenessOfBody, UncannyMetabolism, DeflectAttacks, OpenHandTechnique
+- **monk**: FlurryOfBlows, PatientDefense, StepOfTheWind, MartialArts, WholenessOfBody
+- **paladin**: LayOnHands
 - **rogue**: CunningAction
 - **monster**: NimbleEscape
 - **common**: OffhandAttack
+
+Note: StunningStrike, DeflectAttacks, OpenHandTechnique are handled as attack enhancements/reactions via ClassCombatTextProfile, not AbilityRegistry executors.
 
 #### Adding a new ability executor
 1. Create executor implementing `AbilityExecutor` interface (see `domain/abilities/ability-executor.ts`)
@@ -229,6 +246,36 @@ Executor-based system for **executing** class abilities once they've been identi
 - **Bonus actions** (Flurry, Patient Defense): Route through `handleBonusAbility()`, consumes bonus action economy
 - **Free abilities** (Action Surge): Route through `handleClassAbility()`, doesn't consume action economy but may spend resource pools
 - **Resource pools** (ki, actionSurge): Initialize in `handleInitiativeRoll()` when combat starts
+
+---
+
+### Pattern 3: Feature Maps (boolean eligibility gates)
+Data-driven system for **boolean feature checks** — "does this class have Rage at this level?" Each class definition declares a `features` map, queried through generic registry functions. Replaces the old `ClassFeatureResolver.has*()` / `is*()` methods.
+
+#### Core types
+- **`CharacterClassDefinition.features`** — `Record<string, number>` mapping feature id → minimum class level. Declared in each class's domain file.
+- **`feature-keys.ts`** — String constants for all standard feature keys (`RAGE`, `ACTION_SURGE`, `CUNNING_ACTION`, etc.). Use these instead of raw strings for compile-time safety.
+
+#### Registry functions (`domain/entities/classes/registry.ts`)
+- `classHasFeature(classId, feature, level)` — single-class check. **Normalizes classId to lowercase.**
+- `hasFeature(classLevels, feature)` — multi-class-ready check (takes `Array<{classId, level}>`)
+- `getClassFeatureLevel(classId, feature)` — returns the minimum level for a feature, or `undefined`
+
+#### ClassFeatureResolver (computed values only)
+`ClassFeatureResolver` now ONLY contains methods that return computed numeric/complex values:
+- `getLevel()`, `getProficiencyBonus()` — generic utilities
+- `getAttacksPerAction()` — uses `classHasFeature()` internally for Extra Attack tiers
+- `getUnarmedStrikeStats()` — uses `classHasFeature()` for Monk detection
+- `getClassCapabilities()` — delegates to class definition's `capabilitiesForLevel()`
+- `hasOpenHandTechnique()` — kept because it has a subclass guard that can't be expressed in the features map alone
+
+**NEVER add new boolean feature checks to ClassFeatureResolver.** Use the features map pattern instead.
+
+#### Adding a new boolean feature gate
+1. Add constant in `feature-keys.ts`: `export const MY_FEATURE = "my-feature"`
+2. Add to the class's `features` map in its domain file: `"my-feature": 3` (minimum level)
+3. Use `classHasFeature(classId, MY_FEATURE, level)` from application services
+4. For subclass-gated features: features map provides level gate (necessary), executor guards subclass (sufficient)
 
 ## Rules content pipeline (RuleBookDocs → Prisma definitions)
 - `pnpm -C packages/game-server import:rulebook` loads equipment/feats from `RuleBookDocs/markdown` (see `packages/game-server/scripts/import-rulebook.ts`).

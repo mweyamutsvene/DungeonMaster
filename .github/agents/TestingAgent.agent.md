@@ -18,7 +18,7 @@ You are a testing specialist for the DungeonMaster D&D 5e game-server. Your role
 
 ```bash
 # All unit/integration tests (fast, no LLM)
-J test
+pnpm -C packages/game-server test
 
 pnpm -C packages/player-cli start -- --scenario solo-fighter
 

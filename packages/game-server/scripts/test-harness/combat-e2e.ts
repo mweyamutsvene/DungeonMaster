@@ -125,7 +125,7 @@ async function main() {
       console.log(`   ${scenario.description ?? ""}\n`);
 
       // Create AI configuration callback
-      const configureAi = (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "hide"; defaultBonusAction?: string }) => {
+      const configureAi = (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"; defaultBonusAction?: string }) => {
         aiDecisionMaker.setDefaultBehavior(config.defaultBehavior);
         aiDecisionMaker.setDefaultBonusAction(config.defaultBonusAction);
       };

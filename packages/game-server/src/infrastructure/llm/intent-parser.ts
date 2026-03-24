@@ -21,6 +21,7 @@ export class IntentParser implements IIntentParser {
     private readonly config: { model: string; temperature?: number; timeoutMs?: number },
   ) {}
 
+  // TODO: Migrate inline messages construction to PromptBuilder (see prompt-builder.ts)
   async parseIntent(input: { text: string; seed?: number; schemaHint?: string }): Promise<unknown> {
     const messages = [
         {

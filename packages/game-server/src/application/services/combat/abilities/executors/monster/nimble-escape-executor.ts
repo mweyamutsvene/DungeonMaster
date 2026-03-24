@@ -3,9 +3,14 @@
  * 
  * Handles the Goblin's "Nimble Escape" bonus action feature.
  * Allows Disengage or Hide as a bonus action.
+ *
+ * TODO: Add creature-type validation once monsters have a trait/feature system
+ * analogous to classHasFeature(). Currently Nimble Escape is a monster trait
+ * (Goblin-specific), not a class feature, so the Feature Map pattern doesn't apply.
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { requireActor } from "../executor-helpers.js";
 
 /**
  * Executor for Nimble Escape (Goblin bonus action).
@@ -27,6 +32,9 @@ export class NimbleEscapeExecutor implements AbilityExecutor {
 
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params } = context;
+
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const actorRef = params!.actor;
 
     // Determine choice: disengage or hide
     let choice = params?.choice as string | undefined;
@@ -55,16 +63,6 @@ export class NimbleEscapeExecutor implements AbilityExecutor {
         };
       }
 
-      // Get actor ref from params (passed by AiTurnOrchestrator)
-      const actorRef = params?.actor;
-      if (!actorRef) {
-        return {
-          success: false,
-          summary: 'No actor reference in params',
-          error: 'MISSING_ACTOR',
-        };
-      }
-
       await services.disengage({
         encounterId: context.encounterId,
         actor: actorRef,
@@ -83,16 +81,6 @@ export class NimbleEscapeExecutor implements AbilityExecutor {
         success: false,
         summary: 'Hide action not yet implemented',
         error: 'NOT_IMPLEMENTED',
-      };
-    }
-
-    // Get actor ref from params
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
       };
     }
 

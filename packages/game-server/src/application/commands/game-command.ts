@@ -1,8 +1,5 @@
 import { ValidationError } from "../errors.js";
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
-}
+import { isRecord } from "../services/combat/helpers/json-helpers.js";
 
 function readOptionalString(x: Record<string, unknown>, key: string): string | undefined {
   const v = x[key];

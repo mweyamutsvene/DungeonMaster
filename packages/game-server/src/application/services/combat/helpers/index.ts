@@ -1,4 +1,5 @@
 // Combat helper utilities
+export * from "./hydration-types.js";
 export * from "./combatant-resolver.js";
 export * from "./combatant-ref.js";
 export * from "./encounter-resolver.js";

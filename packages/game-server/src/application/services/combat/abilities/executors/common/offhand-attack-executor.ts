@@ -11,6 +11,7 @@
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
 import { resolveWeaponMastery } from "../../../../../../domain/rules/weapon-mastery.js";
+import { requireActor } from "../executor-helpers.js";
 
 /**
  * Executor for off-hand attack (two-weapon fighting).
@@ -32,15 +33,9 @@ export class OffhandAttackExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params, combat, actor } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator or handleBonusAbility)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+
+    const actorRef = params!.actor;
 
     // Validate Attack action prerequisite
     if (!combat.hasUsedAction(actor.getId(), 'Attack')) {

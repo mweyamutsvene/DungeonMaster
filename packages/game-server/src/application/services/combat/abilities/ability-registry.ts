@@ -90,9 +90,3 @@ export class AbilityRegistry {
     this.executors = [];
   }
 }
-
-/**
- * Global ability registry instance.
- * This can be injected into services or used as a singleton.
- */
-export const globalAbilityRegistry = new AbilityRegistry();

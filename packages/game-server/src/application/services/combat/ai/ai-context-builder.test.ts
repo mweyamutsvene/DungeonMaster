@@ -814,6 +814,90 @@ describe("AiContextBuilder", () => {
       expect(ctx.combatant.damageResistances).toEqual(["poison"]);
       expect(ctx.combatant.resourcePools).toEqual([{ name: "secondWind", current: 1, max: 1 }]);
     });
+
+    it("exposes attacks, bonusActions, reactions, traits from stat block (same as Monster)", async () => {
+      await npcs.createInSession(SESSION_ID, {
+        id: "npc-1",
+        name: "Guard Captain",
+        statBlock: {
+          armorClass: 16,
+          speed: 30,
+          attacks: [{ name: "Longsword", toHit: 5, damage: "1d8+3", damageType: "slashing" }],
+          traits: [{ name: "Brave", description: "Advantage on saves vs frightened" }],
+          bonusActions: [{ name: "Rally", description: "Grant temp HP to ally" }],
+          reactions: [{ name: "Parry", description: "Add 2 to AC against one melee attack" }],
+          actions: [{ name: "Multiattack", description: "Two longsword attacks" }],
+          spells: [],
+          abilities: [],
+          features: [{ name: "Fighting Style: Defense" }],
+        } as JsonValue,
+        faction: "party",
+        aiControlled: true,
+      });
+
+      const combatant = makeCombatant({
+        id: "npc-1",
+        npcId: "npc-1",
+        combatantType: "NPC",
+      });
+
+      const npc = await npcs.getById("npc-1");
+      const ctx = await builder.build(
+        npc as unknown as Record<string, unknown>,
+        combatant,
+        [combatant],
+        makeEncounter(),
+        [],
+        [],
+        [],
+      );
+
+      expect(ctx.combatant.attacks).toEqual([{ name: "Longsword", toHit: 5, damage: "1d8+3", damageType: "slashing" }]);
+      expect(ctx.combatant.traits).toEqual([{ name: "Brave", description: "Advantage on saves vs frightened" }]);
+      expect(ctx.combatant.bonusActions).toEqual([{ name: "Rally", description: "Grant temp HP to ally" }]);
+      expect(ctx.combatant.reactions).toEqual([{ name: "Parry", description: "Add 2 to AC against one melee attack" }]);
+      expect(ctx.combatant.actions).toEqual([{ name: "Multiattack", description: "Two longsword attacks" }]);
+      expect(ctx.combatant.features).toEqual([{ name: "Fighting Style: Defense" }]);
+    });
+
+    it("defaults missing NPC stat block fields to empty arrays", async () => {
+      await npcs.createInSession(SESSION_ID, {
+        id: "npc-1",
+        name: "Simple Guard",
+        statBlock: {
+          armorClass: 14,
+          speed: 30,
+        } as JsonValue,
+        faction: "party",
+        aiControlled: true,
+      });
+
+      const combatant = makeCombatant({
+        id: "npc-1",
+        npcId: "npc-1",
+        combatantType: "NPC",
+      });
+
+      const npc = await npcs.getById("npc-1");
+      const ctx = await builder.build(
+        npc as unknown as Record<string, unknown>,
+        combatant,
+        [combatant],
+        makeEncounter(),
+        [],
+        [],
+        [],
+      );
+
+      expect(ctx.combatant.attacks).toEqual([]);
+      expect(ctx.combatant.traits).toEqual([]);
+      expect(ctx.combatant.bonusActions).toEqual([]);
+      expect(ctx.combatant.reactions).toEqual([]);
+      expect(ctx.combatant.actions).toEqual([]);
+      expect(ctx.combatant.spells).toEqual([]);
+      expect(ctx.combatant.abilities).toEqual([]);
+      expect(ctx.combatant.features).toEqual([]);
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -872,6 +956,48 @@ describe("AiContextBuilder", () => {
       expect(ctx.combatant.resourcePools).toEqual([{ name: "ki", current: 4, max: 5 }]);
       expect(ctx.combatant.concentrationSpell).toBe("Patient Defense");
       expect(ctx.combatant.activeBuffs).toEqual(["Dashed"]);
+    });
+
+    it("exposes consistent field set including actions, bonusActions, reactions, traits", async () => {
+      await characters.createInSession(SESSION_ID, {
+        id: "char-1",
+        name: "Thorin",
+        level: 5,
+        className: "fighter",
+        sheet: {
+          armorClass: 18,
+          speed: 30,
+          attacks: [{ name: "Longsword", toHit: 7, damage: "1d8+4" }],
+          spells: [],
+          abilities: [],
+          features: [{ name: "Extra Attack" }],
+        } as JsonValue,
+      });
+
+      const combatant = makeCombatant({
+        id: "char-1",
+        characterId: "char-1",
+        combatantType: "Character",
+      });
+
+      const character = await characters.getById("char-1");
+      const ctx = await builder.build(
+        character as unknown as Record<string, unknown>,
+        combatant,
+        [combatant],
+        makeEncounter(),
+        [],
+        [],
+        [],
+      );
+
+      // Character sheets don't typically have these, but they should default to [] for AI consistency
+      expect(ctx.combatant.attacks).toEqual([{ name: "Longsword", toHit: 7, damage: "1d8+4" }]);
+      expect(ctx.combatant.actions).toEqual([]);
+      expect(ctx.combatant.bonusActions).toEqual([]);
+      expect(ctx.combatant.reactions).toEqual([]);
+      expect(ctx.combatant.traits).toEqual([]);
+      expect(ctx.combatant.features).toEqual([{ name: "Extra Attack" }]);
     });
   });
 

@@ -100,16 +100,6 @@ export function searchForHidden(
   };
 }
 
-/**
- * Common ways stealth is broken (DM decides based on situation).
- */
-export type StealthBreaker =
-  | "attack"           // Making an attack reveals you
-  | "cast-spell"       // Most spells have components that reveal you
-  | "loud-noise"       // Shouting, knocking things over, etc.
-  | "move-into-open"   // Leaving cover/obscurement
-  | "damage-taken";    // Getting hit might give away position
-
 // ----- Surprise auto-computation -----
 
 /**
@@ -189,9 +179,4 @@ export function computeSurprise(
   }
 
   return surprised.length > 0 ? surprised : undefined;
-}
-
-export function breaksHidden(breaker: StealthBreaker): boolean {
-  // All of these typically break hidden status
-  return true;
 }

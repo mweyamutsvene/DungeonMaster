@@ -602,19 +602,20 @@ export class AiTurnOrchestrator {
       // Use the AI action executor which supports two-phase reactions (Shield, Deflect, damage reactions)
       const actorRef = { type: "Monster" as const, monsterId };
       const targetRef = { type: "Character" as const, characterId: target.characterId! };
+      const targetName = await this.combatantResolver.getName(targetRef, target);
+      const aiCombatant = allCombatants.find((c) => c.monsterId === monsterId) ?? allCombatants[0]!;
       const decision: AiDecision = {
         action: "attack",
-        target: monsterName, // name placeholder — executor resolves by ref
+        target: targetName,
         attackName: attacks[0]!.name,
       };
 
-      const result = await this.actionExecutor.executeAttack(
+      const result = await this.actionExecutor.execute(
         sessionId,
         encounter.id,
-        allCombatants.find((c) => c.monsterId === monsterId) ?? allCombatants[0]!,
+        aiCombatant,
         decision,
         allCombatants,
-        actorRef,
       );
 
       // If awaiting player reaction, don't advance turn

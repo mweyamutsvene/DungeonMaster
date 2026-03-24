@@ -18,7 +18,7 @@ import type {
   AbilityExecutionContext,
   AbilityExecutionResult,
 } from "../../../../../../domain/abilities/ability-executor.js";
-import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { RAGE } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { rageDamageBonusForLevel } from "../../../../../../domain/entities/classes/barbarian.js";
 import { createEffect } from "../../../../../../domain/entities/combat/effects.js";
 import {
@@ -29,6 +29,7 @@ import {
   addActiveEffectsToResources,
 } from "../../../helpers/resource-utils.js";
 import { nanoid } from "nanoid";
+import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 
 export class RageExecutor implements AbilityExecutor {
   canExecute(abilityId: string): boolean {
@@ -39,38 +40,13 @@ export class RageExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { params } = context;
 
-    const sheet = params?.sheet;
-    const resources = params?.resources;
-    const passedClassName = params?.className as string | undefined;
-    const passedLevel = params?.level as number | undefined;
+    const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
+    const featureErr = requireClassFeature(params, RAGE, "Rage (requires Barbarian class)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
-    if (!sheet) {
-      return {
-        success: false,
-        summary: "No character sheet in params",
-        error: "MISSING_SHEET",
-      };
-    }
-
-    const level = passedLevel ?? (sheet as any)?.level ?? 1;
-    const className = passedClassName ?? (sheet as any)?.className ?? "";
-
-    // Validate Barbarian class
-    if (!ClassFeatureResolver.isBarbarian(sheet as any, className)) {
-      return {
-        success: false,
-        summary: "This character does not have Rage (requires Barbarian class)",
-        error: "MISSING_FEATURE",
-      };
-    }
-
-    if (!resources) {
-      return {
-        success: false,
-        summary: "No resources provided for Rage validation",
-        error: "MISSING_RESOURCES",
-      };
-    }
+    const sheet = params!.sheet;
+    const resources = params!.resources;
+    const { level } = extractClassInfo(params);
 
     try {
       // Check if already raging via ActiveEffect

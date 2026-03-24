@@ -67,6 +67,7 @@ export class LlmBattlePlanner implements IAiBattlePlanner {
     }
   }
 
+  // TODO: Migrate buildSystemPrompt + buildUserMessage to PromptBuilder (see prompt-builder.ts)
   private buildSystemPrompt(faction: string): string {
     return `You are a tactical commander for the "${faction}" faction in a D&D combat encounter.
 Analyze the battlefield and create a concise battle plan for your forces.

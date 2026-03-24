@@ -1,150 +1,203 @@
 /**
- * D&D 5e Grapple and Shove Mechanics
+ * D&D 5e 2024 Grapple and Shove Mechanics
  *
- * Rules:
- * - Both use your Attack action (replaces one attack if you have Extra Attack)
- * - Contested check: Attacker's Athletics vs Target's Athletics or Acrobatics (target chooses)
+ * Rules (2024):
+ * - Both use your Unarmed Strike (replaces one attack if you have Extra Attack)
+ * - Attacker makes an Unarmed Strike attack roll (d20 + STR mod + prof bonus) vs target AC
+ * - On hit, instead of dealing damage:
+ *   - Grapple/shove DC = 8 + attacker's STR mod + attacker's proficiency bonus
+ *   - Target makes a STR or DEX saving throw (their choice, whichever is higher)
+ *   - If the save fails, the grapple/shove succeeds
  * - Target must be no more than one size larger than you
- * - You need at least one free hand
+ * - Grapple requires at least one free hand
+ *
+ * Escape Grapple (2024):
+ * - DC = 8 + grappler's STR mod + grappler's proficiency bonus
+ * - Escapee rolls Athletics (STR) or Acrobatics (DEX), picks higher
  */
 
 import type { DiceRoller } from "./dice-roller.js";
 import { abilityCheck } from "./ability-checks.js";
-import type { RollMode } from "./advantage.js";
 
-export interface GrappleAttempt {
-  /** Attacker's Strength (Athletics) modifier */
-  attackerAthleticsModifier: number;
-  /** Target's choice: Athletics or Acrobatics modifier (whichever is higher usually) */
-  targetContestModifier: number;
-  /** Attack roll mode */
-  attackerMode?: RollMode;
-  /** Target roll mode */
-  targetMode?: RollMode;
-  /** Size difference check (target can't be more than 1 size larger) */
-  targetTooLarge: boolean;
-  /** Attacker needs at least one free hand */
-  hasFreeHand: boolean;
+export interface GrappleShoveResult {
+  success: boolean;
+  /** The Unarmed Strike attack roll (d20 raw) */
+  attackRoll: number;
+  /** attackRoll + STR mod + prof bonus (total attack) */
+  attackTotal: number;
+  /** Target's AC */
+  targetAC: number;
+  /** Whether the Unarmed Strike hit */
+  hit: boolean;
+  /** DC for the saving throw (8 + STR mod + prof), only meaningful if hit */
+  dc: number;
+  /** The raw d20 roll on the saving throw (0 if attack missed) */
+  saveRoll: number;
+  /** saveRoll + modifier (the total the target achieved, 0 if attack missed) */
+  total: number;
+  /** Which ability the target used for their save */
+  abilityUsed: "strength" | "dexterity";
+  reason?: string;
 }
 
-export interface GrappleResult {
+/** Result for escape grapple — no attack roll involved */
+export interface EscapeGrappleResult {
   success: boolean;
-  attackerRoll: number;
-  targetRoll: number;
+  dc: number;
+  saveRoll: number;
+  total: number;
+  abilityUsed: "strength" | "dexterity";
   reason?: string;
 }
 
 /**
- * Resolve a grapple attempt.
- * Attacker rolls Athletics, target rolls Athletics or Acrobatics (their choice).
+ * Resolve a grapple attempt (2024 rules).
+ * Step 1: Unarmed Strike attack roll (d20 + STR mod + prof) vs target AC.
+ * Step 2 (on hit): Target makes STR or DEX save vs DC (8 + attacker STR mod + prof).
  */
-export function resolveGrapple(
+export function grappleTarget(
+  attackerStrMod: number,
+  attackerProfBonus: number,
+  targetAC: number,
+  targetStrMod: number,
+  targetDexMod: number,
+  targetTooLarge: boolean,
+  hasFreeHand: boolean,
   diceRoller: DiceRoller,
-  attempt: GrappleAttempt,
-): GrappleResult {
-  // Pre-checks
-  if (attempt.targetTooLarge) {
-    return {
-      success: false,
-      attackerRoll: 0,
-      targetRoll: 0,
-      reason: "Target is too large to grapple",
-    };
-  }
-
-  if (!attempt.hasFreeHand) {
-    return {
-      success: false,
-      attackerRoll: 0,
-      targetRoll: 0,
-      reason: "You need at least one free hand to grapple",
-    };
-  }
-
-  // Roll contested Athletics checks (DC 0 for contested - we just need the roll)
-  const attackerCheck = abilityCheck(diceRoller, {
-    dc: 0,
-    abilityModifier: attempt.attackerAthleticsModifier,
-    mode: attempt.attackerMode ?? "normal",
-  });
-
-  const targetCheck = abilityCheck(diceRoller, {
-    dc: 0,
-    abilityModifier: attempt.targetContestModifier,
-    mode: attempt.targetMode ?? "normal",
-  });
-
-  const success = attackerCheck.total >= targetCheck.total;
-
-  return {
-    success,
-    attackerRoll: attackerCheck.total,
-    targetRoll: targetCheck.total,
+): GrappleShoveResult {
+  const missResult: GrappleShoveResult = {
+    success: false, attackRoll: 0, attackTotal: 0, targetAC, hit: false,
+    dc: 0, saveRoll: 0, total: 0, abilityUsed: "strength",
   };
-}
 
-export interface ShoveAttempt {
-  /** Attacker's Strength (Athletics) modifier */
-  attackerAthleticsModifier: number;
-  /** Target's choice: Athletics or Acrobatics modifier */
-  targetContestModifier: number;
-  /** Attack roll mode */
-  attackerMode?: RollMode;
-  /** Target roll mode */
-  targetMode?: RollMode;
-  /** Size difference check */
-  targetTooLarge: boolean;
-  /** What you're trying to do: push 5ft away or knock prone */
-  shoveType: "push" | "prone";
-}
+  if (targetTooLarge) {
+    return { ...missResult, reason: "Target is too large to grapple" };
+  }
+  if (!hasFreeHand) {
+    return { ...missResult, reason: "You need at least one free hand to grapple" };
+  }
 
-export interface ShoveResult {
-  success: boolean;
-  attackerRoll: number;
-  targetRoll: number;
-  shoveType: "push" | "prone";
-  reason?: string;
+  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller);
 }
 
 /**
- * Resolve a shove attempt (push away or knock prone).
- * Same mechanics as grapple but different effect.
+ * Resolve a shove attempt (2024 rules).
+ * Step 1: Unarmed Strike attack roll (d20 + STR mod + prof) vs target AC.
+ * Step 2 (on hit): Target makes STR or DEX save vs DC (8 + attacker STR mod + prof).
  */
-export function resolveShove(
+export function shoveTarget(
+  attackerStrMod: number,
+  attackerProfBonus: number,
+  targetAC: number,
+  targetStrMod: number,
+  targetDexMod: number,
+  targetTooLarge: boolean,
   diceRoller: DiceRoller,
-  attempt: ShoveAttempt,
-): ShoveResult {
-  // Pre-checks
-  if (attempt.targetTooLarge) {
+): GrappleShoveResult {
+  if (targetTooLarge) {
     return {
-      success: false,
-      attackerRoll: 0,
-      targetRoll: 0,
-      shoveType: attempt.shoveType,
+      success: false, attackRoll: 0, attackTotal: 0, targetAC, hit: false,
+      dc: 0, saveRoll: 0, total: 0, abilityUsed: "strength",
       reason: "Target is too large to shove",
     };
   }
 
-  // Roll contested checks (DC 0 for contested - we just need the roll)
-  const attackerCheck = abilityCheck(diceRoller, {
-    dc: 0,
-    abilityModifier: attempt.attackerAthleticsModifier,
-    mode: attempt.attackerMode ?? "normal",
-  });
+  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller);
+}
 
-  const targetCheck = abilityCheck(diceRoller, {
-    dc: 0,
-    abilityModifier: attempt.targetContestModifier,
-    mode: attempt.targetMode ?? "normal",
-  });
+/**
+ * Resolve an escape-grapple attempt (2024 rules).
+ * DC = 8 + grappler's STR mod + grappler's proficiency bonus.
+ * Escapee rolls Athletics (STR) or Acrobatics (DEX) — picks higher total.
+ *
+ * When skill proficiency info is provided, the proficiency bonus is added to
+ * the relevant ability modifier when the escapee is proficient in that skill.
+ */
+export function escapeGrapple(
+  grapplerStrMod: number,
+  grapplerProfBonus: number,
+  escapeeStrMod: number,
+  escapeeDexMod: number,
+  diceRoller: DiceRoller,
+  skillProficiency?: {
+    athleticsBonus?: number;
+    acrobaticsBonus?: number;
+  },
+): EscapeGrappleResult {
+  const dc = 8 + grapplerStrMod + grapplerProfBonus;
 
-  const success = attackerCheck.total >= targetCheck.total;
+  // Athletics total = STR mod + athletics proficiency bonus (if proficient)
+  const athleticsTotal = escapeeStrMod + (skillProficiency?.athleticsBonus ?? 0);
+  // Acrobatics total = DEX mod + acrobatics proficiency bonus (if proficient)
+  const acrobaticsTotal = escapeeDexMod + (skillProficiency?.acrobaticsBonus ?? 0);
+
+  // Escapee picks the skill that gives the higher total modifier
+  const useDex = acrobaticsTotal > athleticsTotal;
+  const mod = useDex ? acrobaticsTotal : athleticsTotal;
+
+  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: mod, mode: "normal" });
 
   return {
-    success,
-    attackerRoll: attackerCheck.total,
-    targetRoll: targetCheck.total,
-    shoveType: attempt.shoveType,
+    success: saveCheck.success,
+    dc,
+    saveRoll: saveCheck.chosen,
+    total: saveCheck.total,
+    abilityUsed: useDex ? "dexterity" : "strength",
+  };
+}
+
+/**
+ * Shared logic for grapple/shove (2024):
+ * 1. Attacker rolls Unarmed Strike (d20 + STR mod + prof) vs target AC
+ * 2. On hit, DC = 8 + attacker STR mod + attacker prof
+ * 3. Target rolls STR or DEX save (picks higher) vs DC
+ * 4. If save fails → grapple/shove succeeds
+ */
+function resolveUnarmedStrike(
+  attackerStrMod: number,
+  attackerProfBonus: number,
+  targetAC: number,
+  targetStrMod: number,
+  targetDexMod: number,
+  diceRoller: DiceRoller,
+): GrappleShoveResult {
+  // Step 1: Unarmed Strike attack roll
+  const attackRoll = diceRoller.rollDie(20).total;
+  const attackTotal = attackRoll + attackerStrMod + attackerProfBonus;
+  const hit = attackTotal >= targetAC;
+
+  if (!hit) {
+    return {
+      success: false,
+      attackRoll,
+      attackTotal,
+      targetAC,
+      hit: false,
+      dc: 0,
+      saveRoll: 0,
+      total: 0,
+      abilityUsed: "strength",
+      reason: "Unarmed Strike missed",
+    };
+  }
+
+  // Step 2: Target saving throw vs DC
+  const dc = 8 + attackerStrMod + attackerProfBonus;
+  const useDex = targetDexMod > targetStrMod;
+  const targetMod = useDex ? targetDexMod : targetStrMod;
+
+  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: targetMod, mode: "normal" });
+
+  return {
+    success: !saveCheck.success, // target must BEAT the DC to resist → if target fails, grapple/shove succeeds
+    attackRoll,
+    attackTotal,
+    targetAC,
+    hit: true,
+    dc,
+    saveRoll: saveCheck.chosen,
+    total: saveCheck.total,
+    abilityUsed: useDex ? "dexterity" : "strength",
   };
 }
 

@@ -17,7 +17,7 @@ import {
   type Condition,
   type ConditionDuration,
 } from "../../../../domain/entities/combat/conditions.js";
-import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/saving-throws.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/ability-checks.js";
 import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../helpers/resource-utils.js";
 import {
   breakConcentration,

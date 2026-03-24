@@ -1,0 +1,129 @@
+{
+  "name": "AI uses healing potion when hurt",
+  "setup": {
+    "character": {
+      "name": "Passive Observer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Versatile"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Wounded Goblin",
+        "position": { "x": 50, "y": 0 },
+        "statBlock": {
+          "name": "Wounded Goblin",
+          "armorClass": 15,
+          "maxHp": 30,
+          "hp": 10,
+          "speed": 30,
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "inventory": [
+            {
+              "magicItemId": "potion-of-healing",
+              "name": "Potion of Healing",
+              "equipped": false,
+              "attuned": false,
+              "quantity": 2
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "usePotion"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Begin combat!" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Monster starts wounded at 10 HP",
+      "expect": {
+        "monsterHp": { "name": "Wounded Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn to let AI goblin act",
+      "expect": {}
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for AI potion use and turn to come back"
+    },
+    {
+      "type": "assertState",
+      "comment": "Monster HP should increase by 2d4+2 (4-10 healing), so 14-20 HP",
+      "expect": {
+        "monsterHp": { "name": "Wounded Goblin", "min": 14, "max": 20 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn again to let AI use another potion",
+      "expect": {}
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for AI second potion use"
+    },
+    {
+      "type": "assertState",
+      "comment": "Monster HP should increase more (was 14-20, +4-10 more, so 18-30 HP capped by maxHp=30)",
+      "expect": {
+        "monsterHp": { "name": "Wounded Goblin", "min": 18, "max": 30 }
+      }
+    }
+  ]
+}

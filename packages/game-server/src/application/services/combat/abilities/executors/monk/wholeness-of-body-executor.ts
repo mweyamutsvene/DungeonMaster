@@ -1,6 +1,9 @@
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { WHOLENESS_OF_BODY } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { hasResourceAvailable } from "../../../helpers/resource-utils.js";
 import { rollMartialArtsDie } from "../../../../../../domain/rules/martial-arts-die.js";
+import { SeededDiceRoller } from "../../../../../../domain/rules/dice-roller.js";
+import { requireActor, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 
 /**
  * Wholeness of Body (Monk Level 6 - Open Hand Subclass)
@@ -22,24 +25,11 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { actor, params } = context;
 
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const featureErr = requireClassFeature(params, WHOLENESS_OF_BODY, "Wholeness of Body (requires Monk level 6+)"); if (featureErr) return featureErr;
 
-    // Validate level requirement (Monk level 6+ with Open Hand subclass)
-    const level = (params?.level as number) || (actorRef as any).level || 1;
-    if (level < 6) {
-      return {
-        success: false,
-        summary: 'Wholeness of Body requires Monk level 6',
-        error: 'LEVEL_TOO_LOW',
-      };
-    }
+    const actorRef = params!.actor;
+    const { level } = extractClassInfo(params);
 
     // Validate Open Hand subclass (type-agnostic: works for Characters, NPCs, and Monsters)
     const sheet = params?.sheet as Record<string, unknown> | undefined;
@@ -77,7 +67,8 @@ export class WholenessOfBodyExecutor implements AbilityExecutor {
 
     // Roll Martial Arts die (scales with monk level)
     const monkLevel = (params?.level as number) || (actorRef as any).level || 6;
-    const martialArtsDieRoll = rollMartialArtsDie(monkLevel);
+    const dice = new SeededDiceRoller(Date.now());
+    const martialArtsDieRoll = rollMartialArtsDie(dice, monkLevel);
     
     // Get Wisdom modifier from sheet (tabletop) or actorRef (AI)
     const wisdomScore = (sheet as any)?.abilityScores?.wisdom ?? (actorRef as any).abilityScores?.wisdom ?? 10;

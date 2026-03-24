@@ -156,7 +156,7 @@ export class GameClient {
 
   async rest(
     sessionId: string,
-    input: { type: "short" | "long" },
+    input: { type: "short" | "long"; hitDiceSpending?: Record<string, number> },
   ): Promise<RestResponse> {
     return this.http.post<RestResponse>(
       `/sessions/${sessionId}/rest`,

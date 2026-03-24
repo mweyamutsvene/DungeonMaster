@@ -21,7 +21,7 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 - DO NOT modify files outside these paths unless the plan explicitly lists them
 
 ## Workflow
-1. Read the approved plan at `.github/plans/current-plan.md`
+1. Read the approved plan at the path provided by the orchestrator (typically `.github/prompts/plan-{feature}.prompt.md`)
 2. Identify all changes assigned to the AIBehavior flow
 3. Implement each change
 4. After all changes, run: `pnpm -C packages/game-server test` (deterministic tests)

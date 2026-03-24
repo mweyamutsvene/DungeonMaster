@@ -68,6 +68,13 @@ export const Fighter: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["strength", "constitution"],
   },
+  features: {
+    "second-wind": 1,
+    "action-surge": 2,
+    "extra-attack": 5,
+    "two-extra-attacks": 11,
+    "three-extra-attacks": 20,
+  },
   resourcesAtLevel: (level) => {
     const pools: ResourcePool[] = [];
     const actionSurge = createActionSurgeState(level);
@@ -78,6 +85,20 @@ export const Fighter: CharacterClassDefinition = {
 
     return pools;
   },
+  resourcePoolFactory: (level) => {
+    const pools: ResourcePool[] = [];
+    const actionSurge = createActionSurgeState(level);
+    if (actionSurge.pool.max > 0) pools.push(actionSurge.pool);
+
+    const secondWind = createSecondWindState(level);
+    if (secondWind.pool.max > 0) pools.push(secondWind.pool);
+
+    return pools;
+  },
+  restRefreshPolicy: [
+    { poolKey: "actionSurge", refreshOn: "both", computeMax: (level) => actionSurgeUsesForLevel(level) },
+    { poolKey: "secondWind", refreshOn: "both", computeMax: (level) => secondWindUsesForLevel(level) },
+  ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Second Wind", economy: "bonusAction", cost: "1 use/short rest", effect: "Regain 1d10 + Fighter level HP", abilityId: "class:fighter:second-wind", resourceCost: { pool: "secondWind", amount: 1 } },

@@ -94,6 +94,8 @@ describe("AbilityRegistry", () => {
         abilityId: "cunning_action_dash",
         params: {
           actor: { type: "Character", characterId: "rogue-1" },
+          className: "rogue",
+          level: 2,
         },
         services: {
           disengage: vi.fn(),

@@ -24,8 +24,8 @@ import { CombatantResolver } from "../helpers/combatant-resolver.js";
 import { AbilityRegistry } from "../abilities/ability-registry.js";
 import { NimbleEscapeExecutor, CunningActionExecutor, OffhandAttackExecutor, FlurryOfBlowsExecutor, PatientDefenseExecutor, StepOfTheWindExecutor, MartialArtsExecutor } from "../abilities/executors/index.js";
 import { TwoPhaseActionService } from "../two-phase-action-service.js";
-import { InMemoryPendingActionRepository } from "../../../repositories/pending-action-repository.js";
-import { resolveShove } from "../../../../domain/rules/grapple-shove.js";
+import { InMemoryPendingActionRepository } from "../../../../infrastructure/testing/memory-repos.js";
+import { shoveTarget } from "../../../../domain/rules/grapple-shove.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { LlmAiDecisionMaker } from "../../../../infrastructure/llm/ai-decision-maker.js";
 import {
@@ -617,15 +617,10 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
     it("should be able to shove then move in the same turn", async () => {
       const abilityMod = (score: number): number => Math.floor((score - 10) / 2);
 
-      const findSuccessfulShoveSeed = (attackerMod: number, targetMod: number): number => {
+      const findSuccessfulShoveSeed = (attackerStrMod: number, profBonus: number, targetAC: number, targetStrMod: number, targetDexMod: number): number => {
         for (let seed = 1; seed <= 5000; seed++) {
           const dice = new SeededDiceRoller(seed);
-          const result = resolveShove(dice, {
-            attackerAthleticsModifier: attackerMod,
-            targetContestModifier: targetMod,
-            targetTooLarge: false,
-            shoveType: "push",
-          });
+          const result = shoveTarget(attackerStrMod, profBonus, targetAC, targetStrMod, targetDexMod, false, dice);
           if (result.success) return seed;
         }
         throw new Error("Failed to find a successful shove seed");
@@ -638,8 +633,10 @@ describe.skipIf(!shouldRunLLMTests)("AI Actions (Real LLM)", () => {
 
       const statBlock = (existingMonster?.statBlock ?? {}) as any;
       const attackerMod = abilityMod(16);
-      const targetMod = Math.max(abilityMod(16), abilityMod(14));
-      const shoveSeed = findSuccessfulShoveSeed(attackerMod, targetMod);
+      const targetStrMod = abilityMod(16);
+      const targetDexMod = abilityMod(14);
+      const targetAC = 16; // Typical AC for a fighter
+      const shoveSeed = findSuccessfulShoveSeed(attackerMod, 2, targetAC, targetStrMod, targetDexMod);
 
       await prisma.sessionMonster.update({
         where: { id: goblinId },

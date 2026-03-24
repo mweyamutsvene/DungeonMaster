@@ -81,10 +81,13 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-combat-map-split.prompt.md`
 - **Affected flows**: CombatRules
 
-### 3.4 AI Action Extensibility
-- **Priority**: LOW
-- **Issue**: AI action executors are a large switch/if-else chain in `ai-action-executor.ts`.
-- **Fix**: Registry/strategy pattern for AI action executors (like AbilityRegistry for player abilities).
+### 3.4 AI Action Extensibility ✅ DONE
+- **Priority**: ~~LOW~~ COMPLETED
+- **Resolution**: Extracted 14 handler classes into `ai/handlers/` implementing `AiActionHandler` interface.
+  Registered via `AiActionRegistry` in `AiActionExecutor.setupRegistry()`. `execute()` reduced from ~1800 lines
+  (14-branch if/else) to ~50 lines (registry lookup + dispatch). Fixed latent bug in `fallbackSimpleTurn()`
+  target name resolution. All 616 unit tests pass, all 153 E2E scenarios pass.
+- **Plan**: See `plan-ai-action-registry.prompt.md`
 - **Affected flows**: AIBehavior
 
 ---

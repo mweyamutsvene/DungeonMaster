@@ -1,9 +1,9 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type {
   INPCRepository,
-  SessionNPCRecord,
   CreateNPCInput,
 } from "../../application/repositories/npc-repository.js";
+import type { SessionNPCRecord } from "../../application/types.js";
 
 /**
  * Prisma-backed persistence for session NPCs.

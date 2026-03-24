@@ -1180,12 +1180,42 @@ ${colors.cyan}Other:${colors.reset}
 
   private async handleRestCommand(type: "short" | "long"): Promise<void> {
     try {
-      const result = await this.client.rest(this.ctx.sessionId, { type });
+      let hitDiceSpending: Record<string, number> | undefined;
+
+      if (type === "short") {
+        const char = this.ctx.characters[0];
+        if (char) {
+          const sheet = char.sheet as Record<string, unknown> | undefined;
+          const level = char.level ?? 1;
+          const remaining = typeof sheet?.hitDiceRemaining === "number"
+            ? sheet.hitDiceRemaining
+            : level;
+
+          if (remaining > 0) {
+            const answer = await this.ask(
+              `Spend Hit Dice? You have ${remaining}/${level} remaining (0 to skip, or enter number): `,
+            );
+            const count = parseInt(answer, 10);
+            if (!isNaN(count) && count > 0) {
+              hitDiceSpending = { [this.ctx.characterId]: Math.min(count, remaining) };
+            }
+          }
+        }
+      }
+
+      const result = await this.client.rest(this.ctx.sessionId, { type, hitDiceSpending });
       const label = type === "long" ? "Long Rest" : "Short Rest";
       printSuccess(`${label} complete!`);
       for (const char of result.characters) {
+        const parts: string[] = [];
         if (char.poolsRefreshed.length > 0) {
-          print(`  ${colors.cyan}${char.name}${colors.reset}: refreshed ${char.poolsRefreshed.join(", ")}`);
+          parts.push(`refreshed ${char.poolsRefreshed.join(", ")}`);
+        }
+        if (char.hitDiceSpent && char.hitDiceSpent > 0) {
+          parts.push(`spent ${char.hitDiceSpent} Hit Dice, recovered ${char.hpRecovered ?? 0} HP`);
+        }
+        if (parts.length > 0) {
+          print(`  ${colors.cyan}${char.name}${colors.reset}: ${parts.join("; ")}`);
         }
       }
     } catch (err) {

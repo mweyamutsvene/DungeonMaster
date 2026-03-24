@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  channelDivinityUsesForLevel,
+  clericChannelDivinityUsesForLevel,
   createChannelDivinityState,
   resetChannelDivinityOnShortRest,
   spendChannelDivinity,
@@ -8,10 +8,10 @@ import {
 
 describe("Cleric channel divinity", () => {
   it("computes uses by level (2024 rules)", () => {
-    expect(channelDivinityUsesForLevel(1)).toBe(0);
-    expect(channelDivinityUsesForLevel(2)).toBe(2);
-    expect(channelDivinityUsesForLevel(6)).toBe(3);
-    expect(channelDivinityUsesForLevel(18)).toBe(4);
+    expect(clericChannelDivinityUsesForLevel(1)).toBe(0);
+    expect(clericChannelDivinityUsesForLevel(2)).toBe(2);
+    expect(clericChannelDivinityUsesForLevel(6)).toBe(3);
+    expect(clericChannelDivinityUsesForLevel(18)).toBe(4);
   });
 
   it("spends and resets on short rest", () => {

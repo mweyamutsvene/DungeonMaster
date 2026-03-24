@@ -12,22 +12,23 @@
 
 import { nanoid } from "nanoid";
 import { ValidationError } from "../../../errors.js";
+import type {
+  SessionCharacterRecord,
+  SessionMonsterRecord,
+  SessionNPCRecord,
+  CombatEncounterRecord,
+} from "../../../types.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import {
   getPosition,
   normalizeResources,
   getResourcePools,
-  updateResourcePool,
-  readBoolean,
-  readNumber,
   hasResourceAvailable,
   spendResourceFromPool,
   hasBonusActionAvailable,
   useBonusAction,
   getActiveEffects,
   setActiveEffects,
-  addActiveEffectsToResources,
-  isConditionImmuneByEffects,
 } from "../helpers/resource-utils.js";
 import {
   calculateBonusFromEffects,
@@ -41,30 +42,25 @@ import {
 } from "../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
-import { hasFeralInstinct } from "../../../../domain/entities/classes/barbarian.js";
-import { hasDangerSense } from "../../../../domain/entities/classes/barbarian.js";
+import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
+import { SNEAK_ATTACK } from "../../../../domain/entities/classes/feature-keys.js";
 import { divineSmiteDice } from "../../../../domain/entities/classes/paladin.js";
-import { buildCombatResources } from "../../../../domain/entities/classes/combat-resource-builder.js";
-import { isFinesse } from "../../../../domain/entities/items/weapon-properties.js";
 import { getEligibleOnHitEnhancements, matchOnHitEnhancementsInText } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import {
   normalizeConditions,
-  readConditionNames,
-  addCondition,
   removeCondition,
-  createCondition,
   type Condition,
 } from "../../../../domain/entities/combat/conditions.js";
 import {
   buildGameCommandSchemaHint,
   parseGameCommand,
   type LlmRoster,
+  type RollResultCommand,
 } from "../../../commands/game-command.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import type { CombatVictoryStatus } from "../combat-victory-policy.js";
 import { sneakAttackDiceForLevel, isSneakAttackEligible } from "../../../../domain/entities/classes/rogue.js";
-import { getMartialArtsDieSize } from "../../../../domain/rules/martial-arts-die.js";
 import {
   makeDeathSave,
   applyDeathSaveResult,
@@ -90,6 +86,7 @@ import type { GroundItem } from "../../../../domain/entities/items/ground-item.j
 import type {
   TabletopCombatServiceDeps,
   TabletopPendingAction,
+  PendingActionType,
   InitiatePendingAction,
   InitiativeSwapPendingAction,
   AttackPendingAction,
@@ -100,89 +97,17 @@ import type {
   CombatStartedResult,
   AttackResult,
   DamageResult,
+  DeathSaveResult,
   HitRiderEnhancement,
   HitRiderEnhancementResult,
   SaveOutcome,
-  SurpriseSpec,
+  PendingActionHandlerMap,
+  RollProcessingCtx,
 } from "./tabletop-types.js";
-
-// ----- Standalone helper -----
-
-/**
- * Check if a creature is surprised based on the surprise spec.
- * @param creatureId The creature's canonical ID (characterId / monsterId / npcId)
- * @param surprise The surprise spec from the initiate action
- * @param side Which side the creature is on ("party" for PCs/NPCs, "enemy" for monsters)
- */
-function isCreatureSurprised(
-  creatureId: string,
-  surprise: SurpriseSpec | undefined,
-  side: "party" | "enemy",
-): boolean {
-  if (!surprise) return false;
-  if (surprise === "party") return side === "party";
-  if (surprise === "enemies") return side === "enemy";
-  return surprise.surprised.includes(creatureId);
-}
-
-/**
- * Compute the initiative roll mode for a server-rolled creature.
- * Factors in surprise + pre-combat conditions (Invisible, Incapacitated).
- * D&D 5e 2024: advantage + disadvantage cancel to normal.
- */
-function computeInitiativeRollMode(
-  creatureId: string,
-  surprise: SurpriseSpec | undefined,
-  side: "party" | "enemy",
-  conditions?: unknown[],
-  classInfo?: { className: string; level: number },
-): "normal" | "advantage" | "disadvantage" {
-  let adv = 0;
-  let disadv = 0;
-
-  if (isCreatureSurprised(creatureId, surprise, side)) disadv++;
-
-  let isIncapacitated = false;
-  if (conditions && Array.isArray(conditions)) {
-    const condLower = conditions.map((c: unknown) =>
-      typeof c === "string" ? c.toLowerCase()
-        : typeof c === "object" && c !== null && "condition" in c ? String((c as any).condition).toLowerCase()
-        : "",
-    );
-    if (condLower.includes("invisible")) adv++;
-    if (condLower.includes("incapacitated")) isIncapacitated = true;
-    if (isIncapacitated) disadv++;
-  }
-
-  // D&D 5e 2024: Feral Instinct (Barbarian 7+) grants advantage on initiative
-  // and negates surprise disadvantage if not incapacitated
-  if (classInfo && classInfo.className.toLowerCase() === "barbarian" && hasFeralInstinct(classInfo.level)) {
-    adv++;
-    if (isCreatureSurprised(creatureId, surprise, side) && !isIncapacitated && disadv > 0) {
-      disadv--;
-    }
-  }
-
-  if (adv > 0 && disadv > 0) return "normal";
-  if (adv > 0) return "advantage";
-  if (disadv > 0) return "disadvantage";
-  return "normal";
-}
-
-/**
- * Roll initiative with the given mode using a dice roller.
- * advantage → 2d20 take highest, disadvantage → 2d20 take lowest.
- */
-function rollInitiativeD20(
-  diceRoller: { d20(): { total: number } } | undefined,
-  mode: "normal" | "advantage" | "disadvantage",
-): number {
-  if (!diceRoller) return 10;
-  const roll1 = diceRoller.d20().total;
-  if (mode === "normal") return roll1;
-  const roll2 = diceRoller.d20().total;
-  return mode === "advantage" ? Math.max(roll1, roll2) : Math.min(roll1, roll2);
-}
+import { assertValidTransition } from "./pending-action-state-machine.js";
+import { InitiativeHandler } from "./initiative-handler.js";
+import { WeaponMasteryResolver } from "./weapon-mastery-resolver.js";
+import { HitRiderResolver } from "./hit-rider-resolver.js";
 
 /**
  * Load session entities and build an LlmRoster.
@@ -209,6 +134,11 @@ export async function loadRoster(
 
 export class RollStateMachine {
   private readonly savingThrowResolver: SavingThrowResolver | null;
+  private readonly initiativeHandler: InitiativeHandler;
+  private readonly weaponMasteryResolver: WeaponMasteryResolver;
+  private readonly hitRiderResolver: HitRiderResolver;
+  /** Exhaustive handler map — Record<PendingActionType, ...> enforces compile-time coverage. */
+  private readonly rollHandlers: PendingActionHandlerMap;
 
   constructor(
     private readonly deps: TabletopCombatServiceDeps,
@@ -218,6 +148,44 @@ export class RollStateMachine {
     this.savingThrowResolver = deps.diceRoller
       ? new SavingThrowResolver(deps.combatRepo, deps.diceRoller, debugLogsEnabled)
       : null;
+    this.initiativeHandler = new InitiativeHandler(deps, eventEmitter, debugLogsEnabled);
+    this.weaponMasteryResolver = new WeaponMasteryResolver(deps, this.savingThrowResolver, debugLogsEnabled);
+    this.hitRiderResolver = new HitRiderResolver(deps, this.savingThrowResolver, debugLogsEnabled);
+
+    // Handler map — every key in PendingActionType must have an entry (exhaustiveness check).
+    // Adding a new PendingActionType will cause a compile error here until wired in.
+    this.rollHandlers = {
+      INITIATIVE: (action, ctx) =>
+        this.handleInitiativeRoll(
+          ctx.sessionId, ctx.encounter, action as InitiatePendingAction,
+          ctx.command as RollResultCommand | undefined, ctx.actorId, ctx.characters, ctx.monsters, ctx.npcs,
+        ),
+      INITIATIVE_SWAP: (action, ctx) =>
+        this.handleInitiativeSwap(
+          action as InitiativeSwapPendingAction,
+          ctx.text, ctx.characters, ctx.monsters, ctx.npcs,
+        ),
+      ATTACK: (action, ctx) =>
+        this.handleAttackRoll(
+          ctx.sessionId, ctx.encounter, action as AttackPendingAction,
+          ctx.command as RollResultCommand, ctx.actorId, ctx.characters, ctx.monsters, ctx.npcs,
+        ),
+      DAMAGE: (action, ctx) =>
+        this.handleDamageRoll(
+          ctx.sessionId, ctx.encounter, action as DamagePendingAction,
+          ctx.command as RollResultCommand, ctx.actorId, ctx.characters, ctx.monsters, ctx.npcs, ctx.text,
+        ),
+      DEATH_SAVE: (action, ctx) =>
+        this.handleDeathSaveRoll(
+          ctx.sessionId, ctx.encounter, action as DeathSavePendingAction,
+          ctx.command as RollResultCommand, ctx.actorId,
+        ),
+      SAVING_THROW: (action, ctx) =>
+        this.handleSavingThrowAction(
+          ctx.sessionId, ctx.encounter, action as SavingThrowPendingAction,
+          ctx.characters, ctx.monsters, ctx.npcs,
+        ),
+    };
   }
 
   /**
@@ -225,7 +193,7 @@ export class RollStateMachine {
    * Creates a GroundItem from the WeaponSpec and persists the updated map.
    */
   private async dropThrownWeaponOnGround(
-    encounter: any,
+    encounter: CombatEncounterRecord,
     actorId: string,
     targetId: string,
     weaponSpec: { name: string; kind: "melee" | "ranged"; attackBonus: number; damage?: { diceCount: number; diceSides: number; modifier: number }; damageType?: string; properties?: string[]; normalRange?: number; longRange?: number; mastery?: string },
@@ -283,9 +251,9 @@ export class RollStateMachine {
    * at the monster's last known position on the map.
    */
   private async dropMonsterLoot(
-    encounter: any,
-    targetCombatant: any,
-    monsters: any[],
+    encounter: CombatEncounterRecord,
+    targetCombatant: { monsterId: string | null; resources?: unknown },
+    monsters: SessionMonsterRecord[],
   ): Promise<void> {
     const mapData = encounter.mapData as CombatMap | undefined;
     if (!mapData) return;
@@ -343,7 +311,7 @@ export class RollStateMachine {
     sessionId: string,
     text: string,
     actorId: string,
-  ): Promise<CombatStartedResult | AttackResult | DamageResult | SavingThrowAutoResult> {
+  ): Promise<CombatStartedResult | AttackResult | DamageResult | DeathSaveResult | SavingThrowAutoResult> {
     const { characters, monsters, npcs, roster } = await loadRoster(this.deps, sessionId);
 
     // Get pending action
@@ -361,56 +329,51 @@ export class RollStateMachine {
 
     const action = pendingAction as TabletopPendingAction;
 
-    // Determine expected roll type
-    let expectedRollType = "initiative";
-    if (action.type === "ATTACK") expectedRollType = "attack";
-    else if (action.type === "DAMAGE") expectedRollType = "damage";
-    else if (action.type === "DEATH_SAVE") expectedRollType = "deathSave";
-    else if (action.type === "SAVING_THROW") expectedRollType = "savingThrow";
-    else if (action.type === "INITIATIVE_SWAP") expectedRollType = "initiativeSwap";
+    // Map each pending action type to the expected roll-type string used by parseRollValue.
+    // Record<PendingActionType, string> here ensures this map stays exhaustive.
+    const EXPECTED_ROLL_TYPE: Record<PendingActionType, string> = {
+      INITIATIVE:      "initiative",
+      INITIATIVE_SWAP: "initiativeSwap",
+      ATTACK:          "attack",
+      DAMAGE:          "damage",
+      DEATH_SAVE:      "deathSave",
+      SAVING_THROW:    "savingThrow",
+    };
 
-    // SAVING_THROW is auto-resolved — no player roll needed
-    if (action.type === "SAVING_THROW") {
-      return this.handleSavingThrowAction(sessionId, encounter, action as SavingThrowPendingAction, characters, monsters, npcs);
-    }
+    // SAVING_THROW and INITIATIVE_SWAP skip parseRollValue:
+    //   SAVING_THROW  — auto-resolved by the server, no dice roll needed.
+    //   INITIATIVE_SWAP — text choice ("swap with X" / "decline"), not a dice roll.
+    const SKIP_ROLL_PARSE = new Set<PendingActionType>(["SAVING_THROW", "INITIATIVE_SWAP"]);
 
-    // INITIATIVE_SWAP is a choice, not a dice roll — handle before parseRollValue
-    if (action.type === "INITIATIVE_SWAP") {
-      return this.handleInitiativeSwap(
-        action as InitiativeSwapPendingAction,
-        text,
-        characters,
-        monsters,
-        npcs,
-      );
-    }
+    const command = SKIP_ROLL_PARSE.has(action.type)
+      ? undefined
+      : await this.parseRollValue(text, EXPECTED_ROLL_TYPE[action.type], roster);
 
-    // Parse roll value
-    const command = await this.parseRollValue(text, expectedRollType, roster);
+    const ctx: RollProcessingCtx = {
+      sessionId,
+      text,
+      actorId,
+      encounter,
+      characters,
+      monsters,
+      npcs,
+      roster,
+      command,
+    };
 
-    // Route to appropriate handler
-    if (action.type === "INITIATIVE" && command.rollType === "initiative") {
-      return this.handleInitiativeRoll(sessionId, encounter, action, command, actorId, characters, monsters, npcs);
-    }
-
-    if (action.type === "ATTACK" && command.rollType === "attack") {
-      return this.handleAttackRoll(sessionId, encounter, action, command, actorId, characters, monsters, npcs);
-    }
-
-    if (action.type === "DAMAGE" && command.rollType === "damage") {
-      return this.handleDamageRoll(sessionId, encounter, action, command, actorId, characters, monsters, npcs, text);
-    }
-
-    if (action.type === "DEATH_SAVE") {
-      return this.handleDeathSaveRoll(sessionId, encounter, action as DeathSavePendingAction, command, actorId);
-    }
-
-    throw new ValidationError(`Roll type ${command.rollType} not yet implemented for action type ${action.type}`);
+    // Dispatch via exhaustive handler map — replaces the scattered if-chain.
+    // TypeScript ensures every PendingActionType has an entry in this.rollHandlers.
+    // NOTE: assertValidTransition is called here with null as the "from" state because
+    // we don't track the previous state in processRollResult — we only know the current action.
+    // The actual transition validation belongs at the setPendingAction() call sites.
+    // TODO: move assertValidTransition to the call site that *sets* pending action type.
+    assertValidTransition(null, action.type);
+    return this.rollHandlers[action.type](action, ctx);
   }
 
   // ----- Private helpers -----
 
-  private async parseRollValue(text: string, expectedRollType: string, roster: LlmRoster) {
+  private async parseRollValue(text: string, expectedRollType: string, roster: LlmRoster): Promise<RollResultCommand> {
     const numberFromText = (() => {
       const m = text.match(/\b(\d{1,3})\b/);
       if (!m) return null;
@@ -421,12 +384,12 @@ export class RollStateMachine {
     const looksLikeARoll = /\broll(?:ed)?\b/i.test(text);
 
     if (looksLikeARoll && numberFromText !== null) {
-      return { kind: "rollResult", value: numberFromText, rollType: expectedRollType };
+      return { kind: "rollResult" as const, value: numberFromText, rollType: expectedRollType as RollResultCommand["rollType"] };
     }
 
     if (!this.deps.intentParser) {
       if (numberFromText !== null) {
-        return { kind: "rollResult", value: numberFromText, rollType: expectedRollType };
+        return { kind: "rollResult" as const, value: numberFromText, rollType: expectedRollType as RollResultCommand["rollType"] };
       }
       throw new ValidationError("Could not parse roll value from text and LLM is not configured");
     }
@@ -441,19 +404,19 @@ export class RollStateMachine {
       const command = parseGameCommand(intent);
       if (command.kind === "rollResult") return command;
       return {
-        kind: "rollResult",
-        value: (intent as any).value ?? (intent as any).result ?? (intent as any).roll,
-        values: (intent as any).values,
-        rollType: (intent as any).rollType ?? expectedRollType,
+        kind: "rollResult" as const,
+        value: (intent as Record<string, unknown>).value as number ?? (intent as Record<string, unknown>).result as number ?? (intent as Record<string, unknown>).roll as number,
+        values: (intent as Record<string, unknown>).values as number[] | undefined,
+        rollType: ((intent as Record<string, unknown>).rollType as string ?? expectedRollType) as RollResultCommand["rollType"],
       };
     } catch {
       if (numberFromText !== null) {
-        return { kind: "rollResult", value: numberFromText, rollType: expectedRollType };
+        return { kind: "rollResult" as const, value: numberFromText, rollType: expectedRollType as RollResultCommand["rollType"] };
       }
       return {
-        kind: "rollResult",
-        value: (intent as any).value ?? (intent as any).result ?? (intent as any).roll,
-        rollType: expectedRollType,
+        kind: "rollResult" as const,
+        value: (intent as Record<string, unknown>).value as number ?? (intent as Record<string, unknown>).result as number ?? (intent as Record<string, unknown>).roll as number,
+        rollType: expectedRollType as RollResultCommand["rollType"],
       };
     }
   }
@@ -462,499 +425,15 @@ export class RollStateMachine {
 
   private async handleInitiativeRoll(
     sessionId: string,
-    encounter: any,
+    encounter: CombatEncounterRecord,
     action: InitiatePendingAction,
-    command: any,
+    command: RollResultCommand | undefined,
     actorId: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<CombatStartedResult> {
-    const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
-
-    const character = characters.find((c) => c.id === actorId);
-    let dexModifier = 0;
-
-    if (character && typeof character.sheet === "object" && character.sheet !== null) {
-      const sheet = character.sheet as any;
-      if (sheet.abilityScores?.dexterity) {
-        dexModifier = Math.floor((sheet.abilityScores.dexterity - 10) / 2);
-      }
-    }
-
-    // Alert feat: add proficiency bonus to initiative
-    let alertBonus = 0;
-    if (character && typeof character.sheet === "object" && character.sheet !== null) {
-      const sheet = character.sheet as Record<string, unknown>;
-      const charFeatIds: string[] = (sheet.featIds as string[] | undefined) ?? (sheet.feats as string[] | undefined) ?? [];
-      if (charFeatIds.length > 0) {
-        const featMods = computeFeatModifiers(charFeatIds);
-        if (featMods.initiativeAddProficiency) {
-          const charLevel = ClassFeatureResolver.getLevel(sheet as any, (character as any).level);
-          alertBonus = ClassFeatureResolver.getProficiencyBonus(sheet as any, charLevel);
-          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Alert feat: +${alertBonus} proficiency bonus to initiative`);
-        }
-      }
-    }
-
-    const finalInitiative = rollValue + dexModifier + alertBonus;
-
-    // Include all session monsters
-    const intendedTargetIds: string[] = action.intendedTargets ?? (action.intendedTarget ? [action.intendedTarget] : []);
-    const allMonsterIds = monsters.map((m) => m.id);
-    const targetIds: string[] = [...new Set([...intendedTargetIds, ...allMonsterIds])];
-
-    // Build combatants
-    const combatants: any[] = [];
-
-    if (character) {
-      const sheet = character.sheet as any;
-      const charPosition = sheet?.position;
-      const charClassName = character.className ?? sheet?.className ?? "";
-      const charLevel = ClassFeatureResolver.getLevel(sheet, character.level);
-
-      // Build resources using centralized domain builder (class-agnostic)
-      const combatRes = buildCombatResources({
-        className: charClassName,
-        level: charLevel,
-        sheet: sheet ?? {},
-      });
-
-      const charResources: Record<string, unknown> = {};
-      if (charPosition) {
-        charResources.position = charPosition;
-      }
-      if (combatRes.resourcePools.length > 0) {
-        charResources.resourcePools = combatRes.resourcePools;
-      }
-      if (combatRes.hasShieldPrepared) {
-        (charResources as any).hasShieldPrepared = true;
-      }
-      if (combatRes.hasCounterspellPrepared) {
-        (charResources as any).hasCounterspellPrepared = true;
-      }
-      if (combatRes.hasAbsorbElementsPrepared) {
-        (charResources as any).hasAbsorbElementsPrepared = true;
-      }
-      if (combatRes.hasHellishRebukePrepared) {
-        (charResources as any).hasHellishRebukePrepared = true;
-      }
-
-      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
-      if (charClassName.toLowerCase() === "barbarian" && hasDangerSense(charLevel)) {
-        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
-          ability: "dexterity",
-          source: "Danger Sense",
-          description: "Advantage on DEX saving throws (Danger Sense)",
-        });
-        addActiveEffectsToResources(charResources, dangerSenseEffect);
-      }
-
-      // D&D 5e 2024: Track which weapons are currently drawn (in-hand).
-      // At combat start, all character weapons are drawn and ready.
-      const sheetAttacks = Array.isArray(sheet?.attacks) ? sheet.attacks as Array<{ name?: string }> : [];
-      if (sheetAttacks.length > 0) {
-        charResources.drawnWeapons = sheetAttacks
-          .map(a => a.name)
-          .filter((n): n is string => typeof n === "string" && n.length > 0);
-      }
-
-      // Initialize inventory from character sheet (potions, consumables, etc.)
-      if (Array.isArray(sheet?.inventory) && sheet.inventory.length > 0) {
-        charResources.inventory = sheet.inventory;
-      }
-
-      combatants.push({
-        combatantType: "Character" as const,
-        characterId: actorId,
-        initiative: finalInitiative,
-        hpCurrent: sheet?.currentHp ?? sheet?.maxHp ?? 10,
-        hpMax: sheet?.maxHp ?? 10,
-        resources: Object.keys(charResources).length > 0 ? charResources : undefined,
-      });
-    }
-
-    // Add remaining session characters (multi-PC support)
-    for (const otherChar of characters.filter((c) => c.id !== actorId)) {
-      const otherSheet = otherChar.sheet as any;
-      let otherDexMod = 0;
-      if (otherSheet?.abilityScores?.dexterity) {
-        otherDexMod = Math.floor((otherSheet.abilityScores.dexterity - 10) / 2);
-      }
-
-      // Extract class info early (needed for Feral Instinct initiative check)
-      const otherClassName = otherChar.className ?? otherSheet?.className ?? "";
-      const otherLevel = ClassFeatureResolver.getLevel(otherSheet ?? {}, (otherChar as any).level);
-
-      // Alert feat bonus for non-initiator characters
-      let otherAlertBonus = 0;
-      const otherFeatIds: string[] = (otherSheet?.featIds as string[] | undefined) ?? (otherSheet?.feats as string[] | undefined) ?? [];
-      if (otherFeatIds.length > 0) {
-        const otherFeatMods = computeFeatModifiers(otherFeatIds);
-        if (otherFeatMods.initiativeAddProficiency) {
-          otherAlertBonus = ClassFeatureResolver.getProficiencyBonus(otherSheet ?? {}, otherLevel);
-          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Alert feat (multi-PC): +${otherAlertBonus} proficiency bonus for "${otherChar.name}"`);
-        }
-      }
-
-      // Auto-roll initiative for non-initiator characters (with surprise/condition modifiers)
-      const otherInitMode = computeInitiativeRollMode(otherChar.id, action.surprise, "party", otherSheet?.conditions, otherClassName && otherLevel > 0 ? { className: otherClassName, level: otherLevel } : undefined);
-      const otherRoll = rollInitiativeD20(this.deps.diceRoller, otherInitMode);
-      if (otherInitMode !== "normal" && this.debugLogsEnabled) {
-        console.log(`[RollStateMachine] Character "${otherChar.name}" initiative with ${otherInitMode}: roll=${otherRoll}`);
-      }
-      const otherInitiative = otherRoll + otherDexMod + otherAlertBonus;
-
-      // Build combat resources for this character
-      const otherCombatRes = buildCombatResources({
-        className: otherClassName,
-        level: otherLevel,
-        sheet: otherSheet ?? {},
-      });
-
-      const otherResources: Record<string, unknown> = {};
-      if (otherSheet?.position) {
-        otherResources.position = otherSheet.position;
-      }
-      if (otherCombatRes.resourcePools.length > 0) {
-        otherResources.resourcePools = otherCombatRes.resourcePools;
-      }
-      if (otherCombatRes.hasShieldPrepared) {
-        (otherResources as any).hasShieldPrepared = true;
-      }
-      if (otherCombatRes.hasCounterspellPrepared) {
-        (otherResources as any).hasCounterspellPrepared = true;
-      }
-      if (otherCombatRes.hasAbsorbElementsPrepared) {
-        (otherResources as any).hasAbsorbElementsPrepared = true;
-      }
-      if (otherCombatRes.hasHellishRebukePrepared) {
-        (otherResources as any).hasHellishRebukePrepared = true;
-      }
-
-      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
-      if (otherClassName.toLowerCase() === "barbarian" && hasDangerSense(otherLevel)) {
-        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
-          ability: "dexterity",
-          source: "Danger Sense",
-          description: "Advantage on DEX saving throws (Danger Sense)",
-        });
-        addActiveEffectsToResources(otherResources, dangerSenseEffect);
-      }
-
-      // D&D 5e 2024: Initialize drawn weapons for multi-PC characters
-      const otherSheetAttacks = Array.isArray(otherSheet?.attacks) ? otherSheet.attacks as Array<{ name?: string }> : [];
-      if (otherSheetAttacks.length > 0) {
-        otherResources.drawnWeapons = otherSheetAttacks
-          .map((a: { name?: string }) => a.name)
-          .filter((n: string | undefined): n is string => typeof n === "string" && n.length > 0);
-      }
-
-      // Initialize inventory from character sheet (potions, consumables, etc.)
-      if (Array.isArray(otherSheet?.inventory) && otherSheet.inventory.length > 0) {
-        otherResources.inventory = otherSheet.inventory;
-      }
-
-      combatants.push({
-        combatantType: "Character" as const,
-        characterId: otherChar.id,
-        initiative: otherInitiative,
-        hpCurrent: otherSheet?.currentHp ?? otherSheet?.maxHp ?? 10,
-        hpMax: otherSheet?.maxHp ?? 10,
-        resources: Object.keys(otherResources).length > 0 ? otherResources : undefined,
-      });
-
-      if (this.debugLogsEnabled) console.log(`[RollStateMachine] Multi-PC: Added "${otherChar.name}" with initiative ${otherInitiative} (roll=${otherRoll}, dex=${otherDexMod}, alert=${otherAlertBonus})`);
-    }
-
-    for (const targetId of targetIds) {
-      const monster = monsters.find((m) => m.id === targetId);
-      if (monster) {
-        const statBlock = monster.statBlock as any;
-        const monsterDexMod = statBlock.abilityScores?.dexterity
-          ? Math.floor((statBlock.abilityScores.dexterity - 10) / 2)
-          : 0;
-
-        // Extract class info early (needed for Feral Instinct initiative check)
-        const monsterClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
-        const monsterLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
-
-        // D&D 5e 2024: Use d20 roll for monster initiative (with surprise/condition modifiers)
-        const monsterInitMode = computeInitiativeRollMode(targetId, action.surprise, "enemy", statBlock?.conditions, monsterClassName && monsterLevel > 0 ? { className: monsterClassName, level: monsterLevel } : undefined);
-        const monsterRoll = rollInitiativeD20(this.deps.diceRoller, monsterInitMode);
-        if (monsterInitMode !== "normal" && this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Monster "${monster.name}" initiative with ${monsterInitMode}: roll=${monsterRoll}`);
-        }
-        const monsterInitiative = monsterRoll + monsterDexMod;
-
-        const monsterPosition = statBlock?.position;
-        const monsterResources: Record<string, unknown> = {};
-        if (monsterPosition) {
-          monsterResources.position = monsterPosition;
-        }
-
-        // Auto-initialize class resource pools for monsters with class levels
-        if (monsterClassName && monsterLevel > 0) {
-          const monsterCombatRes = buildCombatResources({
-            className: monsterClassName,
-            level: monsterLevel,
-            sheet: statBlock ?? {},
-          });
-          if (monsterCombatRes.resourcePools.length > 0) {
-            monsterResources.resourcePools = monsterCombatRes.resourcePools;
-          }
-          if (monsterCombatRes.hasShieldPrepared) {
-            (monsterResources as any).hasShieldPrepared = true;
-          }
-          if (monsterCombatRes.hasCounterspellPrepared) {
-            (monsterResources as any).hasCounterspellPrepared = true;
-          }
-          if (monsterCombatRes.hasAbsorbElementsPrepared) {
-            (monsterResources as any).hasAbsorbElementsPrepared = true;
-          }
-          if (monsterCombatRes.hasHellishRebukePrepared) {
-            (monsterResources as any).hasHellishRebukePrepared = true;
-          }
-        }
-
-        combatants.push({
-          combatantType: "Monster" as const,
-          monsterId: targetId,
-          initiative: monsterInitiative,
-          hpCurrent: statBlock.hp ?? statBlock.maxHp ?? 10,
-          hpMax: statBlock.maxHp ?? statBlock.hp ?? 10,
-          resources: Object.keys(monsterResources).length > 0 ? monsterResources : undefined,
-        });
-      }
-    }
-
-    // Add NPCs to combat (party allies)
-    for (const npc of npcs) {
-      const statBlock = npc.statBlock as any;
-      const npcDexMod = statBlock?.abilityScores?.dexterity
-        ? Math.floor((statBlock.abilityScores.dexterity - 10) / 2)
-        : 0;
-
-      // Extract class info early (needed for Feral Instinct initiative check)
-      const npcClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
-      const npcLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
-
-      // D&D 5e 2024: Use d20 roll for NPC initiative (with surprise/condition modifiers)
-      // NPCs are party allies, so they use "party" side for surprise
-      const npcInitMode = computeInitiativeRollMode(npc.id, action.surprise, "party", statBlock?.conditions, npcClassName && npcLevel > 0 ? { className: npcClassName, level: npcLevel } : undefined);
-      const npcRoll = rollInitiativeD20(this.deps.diceRoller, npcInitMode);
-      if (npcInitMode !== "normal" && this.debugLogsEnabled) {
-        console.log(`[RollStateMachine] NPC "${npc.name}" initiative with ${npcInitMode}: roll=${npcRoll}`);
-      }
-      const npcInitiative = npcRoll + npcDexMod;
-
-      const npcPosition = statBlock?.position;
-      const npcResources: Record<string, unknown> = {};
-      if (npcPosition) {
-        npcResources.position = npcPosition;
-      }
-
-      // Auto-initialize class resource pools for NPCs with class levels
-      if (npcClassName && npcLevel > 0) {
-        const npcCombatRes = buildCombatResources({
-          className: npcClassName,
-          level: npcLevel,
-          sheet: statBlock ?? {},
-        });
-        if (npcCombatRes.resourcePools.length > 0) {
-          npcResources.resourcePools = npcCombatRes.resourcePools;
-        }
-        if (npcCombatRes.hasShieldPrepared) {
-          (npcResources as any).hasShieldPrepared = true;
-        }
-        if (npcCombatRes.hasCounterspellPrepared) {
-          (npcResources as any).hasCounterspellPrepared = true;
-        }
-        if (npcCombatRes.hasAbsorbElementsPrepared) {
-          (npcResources as any).hasAbsorbElementsPrepared = true;
-        }
-        if (npcCombatRes.hasHellishRebukePrepared) {
-          (npcResources as any).hasHellishRebukePrepared = true;
-        }
-      }
-
-      combatants.push({
-        combatantType: "NPC" as const,
-        npcId: npc.id,
-        initiative: npcInitiative,
-        hpCurrent: statBlock?.hp ?? statBlock?.maxHp ?? 10,
-        hpMax: statBlock?.maxHp ?? statBlock?.hp ?? 10,
-        resources: Object.keys(npcResources).length > 0 ? npcResources : undefined,
-      });
-    }
-
-    // Check for existing combatants
-    const existingCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
-    if (existingCombatants.length > 0) {
-      throw new ValidationError("Combat already started - encounter has combatants");
-    }
-
-    await this.deps.combat.addCombatantsToEncounter(sessionId, encounter.id, combatants);
-    const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-
-    const turnOrder = combatantStates.map((c: any) => ({
-      actorId: c.characterId || c.monsterId || c.npcId || c.id,
-      actorName:
-        c.combatantType === "Character"
-          ? characters.find((ch) => ch.id === c.characterId)?.name ?? "Character"
-          : c.combatantType === "Monster"
-            ? monsters.find((m) => m.id === c.monsterId)?.name ?? "Monster"
-            : npcs.find((n) => n.id === c.npcId)?.name ?? "NPC",
-      initiative: c.initiative ?? 0,
-    }));
-
-    const currentTurn = turnOrder[0] ?? null;
-
-    // --- Uncanny Metabolism auto-trigger on initiative ---
-    // D&D 5e 2024: When a Monk rolls initiative and has Uncanny Metabolism available (1/long rest),
-    // they regain all Focus Points (ki) and heal for martial arts die + monk level.
-    let uncannyMetabolismResult: CombatStartedResult["uncannyMetabolism"];
-    if (character) {
-      const sheet = character.sheet as any;
-      const charClassName = character.className ?? sheet?.className ?? "";
-      const charLevel = ClassFeatureResolver.getLevel(sheet, character.level);
-      if (ClassFeatureResolver.hasUncannyMetabolism(sheet, charClassName, charLevel)) {
-        const charCombatant = combatantStates.find((c: any) => c.characterId === actorId);
-        if (charCombatant) {
-          const resources = charCombatant.resources as Record<string, unknown> | undefined;
-          const pools = getResourcePools(resources ?? {});
-          const metabolismPool = pools.find((p) => p.name === "uncanny_metabolism");
-          const kiPool = pools.find((p) => p.name === "ki");
-          if (metabolismPool && metabolismPool.current > 0 && kiPool) {
-            // Roll martial arts die for healing
-            const martialArtsDieSize = getMartialArtsDieSize(charLevel);
-            const dieRoll = this.deps.diceRoller
-              ? this.deps.diceRoller.rollDie(martialArtsDieSize, 1)
-              : { total: Math.floor(Math.random() * martialArtsDieSize) + 1, rolls: [0] };
-            const healAmount = dieRoll.total + charLevel;
-
-            // Restore all ki to max
-            const kiRestored = kiPool.max - kiPool.current;
-            let updatedResources = updateResourcePool(resources ?? {}, "ki", (p) => ({
-              ...p, current: p.max,
-            }));
-            // Spend uncanny_metabolism pool
-            updatedResources = updateResourcePool(updatedResources, "uncanny_metabolism", (p) => ({
-              ...p, current: p.current - 1,
-            }));
-
-            // Apply healing (capped at max HP)
-            const hpBefore = charCombatant.hpCurrent ?? charCombatant.hpMax ?? 10;
-            const hpMax = charCombatant.hpMax ?? 10;
-            const hpAfter = Math.min(hpBefore + healAmount, hpMax);
-
-            await this.deps.combatRepo.updateCombatantState(charCombatant.id, {
-              resources: updatedResources,
-              hpCurrent: hpAfter,
-            });
-
-            uncannyMetabolismResult = {
-              kiRestored,
-              healAmount,
-              martialArtsDieRoll: dieRoll.total,
-              hpAfter,
-            };
-          }
-        }
-      }
-    }
-
-    // --- D&D 5e 2024 Alert Feat: Initiative Swap ---
-    // "After you roll Initiative, you can swap your Initiative with one willing ally."
-    let alertSwapAvailable = false;
-    let swapEligibleTargets: Array<{ actorId: string; actorName: string; initiative: number }> = [];
-    if (character && typeof character.sheet === "object" && character.sheet !== null) {
-      const sheet = character.sheet as Record<string, unknown>;
-      const charFeatIds: string[] = (sheet.featIds as string[] | undefined) ?? (sheet.feats as string[] | undefined) ?? [];
-      if (charFeatIds.length > 0) {
-        const featMods = computeFeatModifiers(charFeatIds);
-        if (featMods.initiativeSwapEnabled) {
-          // Eligible targets: party allies (other PCs + NPCs) — not enemies, not self
-          swapEligibleTargets = turnOrder.filter((t) => {
-            if (t.actorId === actorId) return false;
-            if (characters.some((c) => c.id === t.actorId)) return true;
-            if (npcs.some((n) => n.id === t.actorId)) return true;
-            return false;
-          });
-          alertSwapAvailable = swapEligibleTargets.length > 0;
-        }
-      }
-    }
-
-    if (alertSwapAvailable) {
-      // Store pending action for swap decision — don't start AI yet
-      const swapAction: InitiativeSwapPendingAction = {
-        type: "INITIATIVE_SWAP",
-        timestamp: new Date(),
-        actorId,
-        encounterId: encounter.id,
-        sessionId,
-        eligibleTargets: swapEligibleTargets,
-      };
-      await this.deps.combatRepo.setPendingAction(encounter.id, swapAction as any);
-
-      const targetList = swapEligibleTargets.map((t) => `${t.actorName} (${t.initiative})`).join(", ");
-      const narration = await this.eventEmitter.generateNarration("combatStarted", {
-        initiativeRoll: rollValue,
-        dexModifier,
-        finalInitiative,
-        firstActor: currentTurn?.actorName,
-      });
-
-      return {
-        rollType: "initiative",
-        rawRoll: rollValue,
-        modifier: dexModifier,
-        total: finalInitiative,
-        combatStarted: true,
-        encounterId: encounter.id,
-        turnOrder,
-        currentTurn,
-        message: `Initiative rolled! Alert feat: swap initiative with an ally? Eligible: ${targetList}. Say "swap with <name>" or "no swap".`,
-        narration,
-        uncannyMetabolism: uncannyMetabolismResult,
-        requiresPlayerInput: true,
-        initiativeSwapOffer: {
-          alertHolderId: actorId,
-          alertHolderName: character?.name ?? "Character",
-          eligibleTargets: swapEligibleTargets,
-        },
-      };
-    }
-
-    // No swap — clear pending action and proceed normally
-    await this.deps.combatRepo.clearPendingAction(encounter.id);
-
-    // If monster acts first, start AI orchestrator
-    if (this.deps.aiOrchestrator && currentTurn?.actorId && monsters.some((m) => m.id === currentTurn.actorId)) {
-      void this.deps.aiOrchestrator.processAllMonsterTurns(sessionId, encounter.id).catch(console.error);
-    }
-
-    const narration = await this.eventEmitter.generateNarration("combatStarted", {
-      initiativeRoll: rollValue,
-      dexModifier,
-      finalInitiative,
-      firstActor: currentTurn?.actorName,
-    });
-
-    return {
-      rollType: "initiative",
-      rawRoll: rollValue,
-      modifier: dexModifier,
-      total: finalInitiative,
-      combatStarted: true,
-      encounterId: encounter.id,
-      turnOrder,
-      currentTurn,
-      message: `Combat started! ${currentTurn?.actorName}'s turn (Initiative: ${currentTurn?.initiative}).`,
-      narration,
-      uncannyMetabolism: uncannyMetabolismResult,
-    };
+    return this.initiativeHandler.handleInitiativeRoll(sessionId, encounter, action, command, actorId, characters, monsters, npcs);
   }
 
   /**
@@ -964,112 +443,22 @@ export class RollStateMachine {
   private async handleInitiativeSwap(
     action: InitiativeSwapPendingAction,
     text: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<CombatStartedResult> {
-    const { encounterId, sessionId, actorId, eligibleTargets } = action;
-    const encounter = await this.deps.combatRepo.findById(encounterId);
-    if (!encounter) throw new ValidationError("Encounter not found for initiative swap");
-
-    // Parse swap decision from player text
-    const lowerText = text.toLowerCase().trim();
-    const declined = /\b(no swap|decline|skip|pass|no)\b/i.test(lowerText);
-    let swapTargetId: string | undefined;
-
-    if (!declined) {
-      // Try to match "swap with <name>"
-      const swapMatch = lowerText.match(/swap\s+(?:with\s+)?(.+)/i);
-      const targetName = swapMatch?.[1]?.trim();
-      if (targetName) {
-        const target = eligibleTargets.find((t) =>
-          t.actorName.toLowerCase() === targetName.toLowerCase()
-        );
-        if (target) {
-          swapTargetId = target.actorId;
-        } else {
-          throw new ValidationError(`No eligible swap target named "${targetName}". Eligible: ${eligibleTargets.map((t) => t.actorName).join(", ")}`);
-        }
-      } else {
-        throw new ValidationError(`Could not parse swap decision. Say "swap with <name>" or "no swap".`);
-      }
-    }
-
-    // Apply the swap if requested
-    if (swapTargetId) {
-      const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-      const holderCombatant = combatants.find((c: any) =>
-        c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId
-      );
-      const targetCombatant = combatants.find((c: any) =>
-        c.characterId === swapTargetId || c.monsterId === swapTargetId || c.npcId === swapTargetId
-      );
-
-      if (holderCombatant && targetCombatant) {
-        const holderInit = holderCombatant.initiative;
-        const targetInit = targetCombatant.initiative;
-        await this.deps.combatRepo.updateCombatantState(holderCombatant.id, { initiative: targetInit });
-        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { initiative: holderInit });
-
-        if (this.debugLogsEnabled) {
-          const holderName = characters.find((c) => c.id === actorId)?.name ?? actorId;
-          const targetName = eligibleTargets.find((t) => t.actorId === swapTargetId)?.actorName ?? swapTargetId;
-          console.log(`[RollStateMachine] Alert swap: ${holderName} (${holderInit} → ${targetInit}) ↔ ${targetName} (${targetInit} → ${holderInit})`);
-        }
-      }
-    }
-
-    // Re-read combatants (sorted by initiative after swap)
-    const combatantStates = await this.deps.combatRepo.listCombatants(encounterId);
-    const turnOrder = combatantStates.map((c: any) => ({
-      actorId: c.characterId || c.monsterId || c.npcId || c.id,
-      actorName:
-        c.combatantType === "Character"
-          ? characters.find((ch) => ch.id === c.characterId)?.name ?? "Character"
-          : c.combatantType === "Monster"
-            ? monsters.find((m) => m.id === c.monsterId)?.name ?? "Monster"
-            : npcs.find((n) => n.id === c.npcId)?.name ?? "NPC",
-      initiative: c.initiative ?? 0,
-    }));
-    const currentTurn = turnOrder[0] ?? null;
-
-    // Clear the pending action — combat is now fully started
-    await this.deps.combatRepo.clearPendingAction(encounterId);
-
-    // If monster acts first after swap, start AI orchestrator
-    if (this.deps.aiOrchestrator && currentTurn?.actorId && monsters.some((m) => m.id === currentTurn.actorId)) {
-      void this.deps.aiOrchestrator.processAllMonsterTurns(sessionId, encounterId).catch(console.error);
-    }
-
-    const swapTargetName = swapTargetId
-      ? eligibleTargets.find((t) => t.actorId === swapTargetId)?.actorName ?? "ally"
-      : undefined;
-    const swapMsg = swapTargetId
-      ? `Initiative swapped with ${swapTargetName}! `
-      : "No swap. ";
-
-    return {
-      rollType: "initiative",
-      rawRoll: 0,
-      modifier: 0,
-      total: 0,
-      combatStarted: true,
-      encounterId,
-      turnOrder,
-      currentTurn,
-      message: `${swapMsg}Combat started! ${currentTurn?.actorName}'s turn (Initiative: ${currentTurn?.initiative}).`,
-    };
+    return this.initiativeHandler.handleInitiativeSwap(action, text, characters, monsters, npcs);
   }
 
   private async handleAttackRoll(
     sessionId: string,
-    encounter: any,
+    encounter: CombatEncounterRecord,
     action: AttackPendingAction,
-    command: any,
+    command: RollResultCommand,
     actorId: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<AttackResult> {
     const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
 
@@ -1312,7 +701,7 @@ export class RollStateMachine {
     const actorClassName = actorChar?.className ?? (actorChar?.sheet as any)?.className ?? "";
     const actorLevel = ClassFeatureResolver.getLevel((actorChar?.sheet ?? {}) as any, actorChar?.level);
 
-    if (ClassFeatureResolver.isRogue(actorChar?.sheet as any, actorClassName)) {
+    if (classHasFeature(actorClassName, SNEAK_ATTACK, actorLevel)) {
       const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
       const actorCombatant = combatantStates.find((c: any) => c.characterId === actorId);
       const targetCombatant = combatantStates.find((c: any) =>
@@ -1456,13 +845,13 @@ export class RollStateMachine {
 
   private async handleDamageRoll(
     sessionId: string,
-    encounter: any,
+    encounter: CombatEncounterRecord,
     action: DamagePendingAction,
-    command: any,
+    command: RollResultCommand,
     actorId: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
     rawText?: string,
   ): Promise<DamageResult> {
     const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
@@ -2072,11 +1461,11 @@ export class RollStateMachine {
    */
   private async handleDeathSaveRoll(
     sessionId: string,
-    encounter: any,
+    encounter: CombatEncounterRecord,
     action: DeathSavePendingAction,
     command: { value?: number; values?: number[] },
     actorId: string,
-  ): Promise<any> {
+  ): Promise<DeathSaveResult> {
     const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
     const currentDeathSaves = action.currentDeathSaves;
 
@@ -2229,12 +1618,12 @@ export class RollStateMachine {
    */
   private async handleSavingThrowAction(
     sessionId: string,
-    encounter: any,
+    encounter: CombatEncounterRecord,
     action: SavingThrowPendingAction,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
-  ): Promise<any> {
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
+  ): Promise<SavingThrowAutoResult> {
     if (!this.savingThrowResolver) {
       throw new ValidationError("DiceRoller is required for saving throw resolution");
     }
@@ -2287,303 +1676,11 @@ export class RollStateMachine {
     encounterId: string,
     sessionId: string,
     weaponSpec: import("./tabletop-types.js").WeaponSpec,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<string> {
-    const target =
-      monsters.find((m: any) => m.id === targetId) ||
-      characters.find((c: any) => c.id === targetId) ||
-      npcs.find((n: any) => n.id === targetId);
-    const targetName = (target as any)?.name ?? "Target";
-
-    switch (mastery) {
-      case "push": {
-        // Push: Strength save or pushed up to 10 feet (Large or smaller)
-        if (!this.savingThrowResolver) return "";
-
-        // Get attacker's ability modifier + proficiency for DC
-        const actorChar = characters.find((c: any) => c.id === actorId);
-        const actorSheet = (actorChar?.sheet ?? {}) as any;
-        const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
-        const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
-        // Use STR or DEX depending on weapon type (finesse can use DEX)
-        const strScore = actorSheet?.abilityScores?.strength ?? 10;
-        const dexScore = actorSheet?.abilityScores?.dexterity ?? 10;
-        const strMod = Math.floor((strScore - 10) / 2);
-        const dexMod = Math.floor((dexScore - 10) / 2);
-        const abilityMod = isFinesse(weaponSpec.properties) ? Math.max(strMod, dexMod) : strMod;
-        const dc = 8 + abilityMod + profBonus;
-
-        const saveAction = this.savingThrowResolver.buildPendingAction({
-          actorId: targetId,
-          sourceId: actorId,
-          ability: "strength",
-          dc,
-          reason: `${weaponSpec.name} (Push mastery)`,
-          onSuccess: { summary: "Resists the push!" },
-          onFailure: { movement: { push: 10 }, summary: "Pushed 10 feet!" },
-        });
-
-        const resolution = await this.savingThrowResolver.resolve(
-          saveAction, encounterId, characters, monsters, npcs,
-        );
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Push mastery: ${targetName} ${resolution.success ? "resists" : "pushed 10ft"} (STR save ${resolution.total} vs DC ${dc})`);
-        }
-
-        return resolution.success
-          ? ` Push: ${targetName} resists (STR ${resolution.total} vs DC ${dc}).`
-          : ` Push: ${targetName} pushed 10 feet (STR ${resolution.total} vs DC ${dc})!`;
-      }
-
-      case "topple": {
-        // Topple: CON save or knocked Prone
-        if (!this.savingThrowResolver) return "";
-
-        const actorChar = characters.find((c: any) => c.id === actorId);
-        const actorSheet = (actorChar?.sheet ?? {}) as any;
-        const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
-        const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
-        const strScore = actorSheet?.abilityScores?.strength ?? 10;
-        const dexScore = actorSheet?.abilityScores?.dexterity ?? 10;
-        const strMod = Math.floor((strScore - 10) / 2);
-        const dexMod = Math.floor((dexScore - 10) / 2);
-        const abilityMod = isFinesse(weaponSpec.properties) ? Math.max(strMod, dexMod) : strMod;
-        const dc = 8 + abilityMod + profBonus;
-
-        const saveAction = this.savingThrowResolver.buildPendingAction({
-          actorId: targetId,
-          sourceId: actorId,
-          ability: "constitution",
-          dc,
-          reason: `${weaponSpec.name} (Topple mastery)`,
-          onSuccess: { summary: "Keeps footing!" },
-          onFailure: { conditions: { add: ["Prone"] }, summary: "Knocked Prone!" },
-        });
-
-        const resolution = await this.savingThrowResolver.resolve(
-          saveAction, encounterId, characters, monsters, npcs,
-        );
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Topple mastery: ${targetName} ${resolution.success ? "keeps footing" : "knocked Prone"} (CON save ${resolution.total} vs DC ${dc})`);
-        }
-
-        return resolution.success
-          ? ` Topple: ${targetName} keeps footing (CON ${resolution.total} vs DC ${dc}).`
-          : ` Topple: ${targetName} knocked Prone (CON ${resolution.total} vs DC ${dc})!`;
-      }
-
-      case "vex": {
-        // Vex: Gain advantage on next attack against the same target before end of your next turn
-        // Uses ActiveEffect with until_triggered duration for one-use advantage
-        const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const actorCombatant = combatants.find(
-          (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-        );
-        if (actorCombatant) {
-          const vexEffect = createEffect(nanoid(), "advantage", "attack_rolls", "until_triggered", {
-            targetCombatantId: targetId,
-            source: "Vex",
-            description: `Advantage on next attack against ${targetName}`,
-          });
-          const updatedResources = addActiveEffectsToResources(actorCombatant.resources ?? {}, vexEffect);
-          await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-            resources: updatedResources as any,
-          });
-        }
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Vex mastery: ${actorId} gains advantage on next attack vs ${targetName}`);
-        }
-
-        return ` Vex: Advantage on next attack against ${targetName}!`;
-      }
-
-      case "sap": {
-        // Sap: Target has disadvantage on its next attack roll before your next turn
-        const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
-        if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, "Sapped")) {
-          let conditions = normalizeConditions(targetCombatant.conditions);
-          conditions = addCondition(conditions, createCondition("Sapped" as Condition, "until_start_of_next_turn", {
-            source: `${weaponSpec.name} (Sap mastery)`,
-            expiresAt: { event: "start_of_turn" as const, combatantId: actorId },
-          }));
-          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
-            conditions: conditions as any,
-          });
-        }
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Sap mastery: ${targetName} has disadvantage on next attack`);
-        }
-
-        return ` Sap: ${targetName} has disadvantage on next attack!`;
-      }
-
-      case "slow": {
-        // Slow: Target's speed reduced by 10ft until start of your next turn
-        const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
-        if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, "Slowed")) {
-          let conditions = normalizeConditions(targetCombatant.conditions);
-          conditions = addCondition(conditions, createCondition("Slowed" as Condition, "until_start_of_next_turn", {
-            source: `${weaponSpec.name} (Slow mastery)`,
-            expiresAt: { event: "start_of_turn" as const, combatantId: actorId },
-          }));
-          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
-            conditions: conditions as any,
-          });
-        }
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Slow mastery: ${targetName} speed reduced by 10ft`);
-        }
-
-        return ` Slow: ${targetName}'s speed reduced by 10ft!`;
-      }
-
-      case "cleave": {
-        // Cleave: If you hit a creature with a melee attack roll using this weapon,
-        // you can make a melee attack roll with the weapon against a second creature
-        // within 5 feet of the first that is also within your reach. On a hit, the
-        // second creature takes the weapon's damage, but don't add your ability modifier
-        // to that damage unless that modifier is negative. Once per turn.
-        if (!this.deps.diceRoller) return "";
-
-        // Check once-per-turn limit
-        const combatantsForCleave = await this.deps.combatRepo.listCombatants(encounterId);
-        const actorCombatantForCleave = combatantsForCleave.find(
-          (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-        );
-        if (!actorCombatantForCleave) return "";
-
-        const cleaveRes = normalizeResources(actorCombatantForCleave.resources);
-        if (cleaveRes.cleaveUsedThisTurn) {
-          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Cleave mastery: already used this turn`);
-          return "";
-        }
-
-        // Find the position of the hit target and the attacker
-        const targetCombatantForCleave = combatantsForCleave.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
-        if (!targetCombatantForCleave) return "";
-
-        const actorPosForCleave = getPosition(actorCombatantForCleave.resources ?? {});
-        const targetPosForCleave = getPosition(targetCombatantForCleave.resources ?? {});
-        if (!actorPosForCleave || !targetPosForCleave) return "";
-
-        // Find a second creature within 5ft of the hit target AND within attacker's reach (5ft for melee)
-        // Must be alive, hostile, and NOT the original target
-        const cleaveReach = 5; // Standard melee reach
-        const secondaryTargets = combatantsForCleave.filter((c: any) => {
-          if (c.id === actorCombatantForCleave.id) return false; // skip attacker
-          if (c.id === targetCombatantForCleave.id) return false; // skip original target
-          if (c.hpCurrent <= 0) return false; // skip dead
-          const cPos = getPosition(c.resources ?? {});
-          if (!cPos) return false;
-          // Within 5ft of the original target
-          const distToTarget = calculateDistance(targetPosForCleave, cPos);
-          if (distToTarget > 5.0001) return false;
-          // Within attacker's reach
-          const distToAttacker = calculateDistance(actorPosForCleave, cPos);
-          if (distToAttacker > cleaveReach + 0.0001) return false;
-          return true;
-        });
-
-        if (secondaryTargets.length === 0) {
-          if (this.debugLogsEnabled) console.log(`[RollStateMachine] Cleave mastery: no adjacent secondary target found`);
-          return "";
-        }
-
-        // Pick the first available secondary target
-        const secondaryTarget = secondaryTargets[0];
-        const secondaryTargetId = secondaryTarget.monsterId || secondaryTarget.characterId || secondaryTarget.npcId;
-        const secondaryEntity =
-          monsters.find((m: any) => m.id === secondaryTargetId) ||
-          characters.find((c: any) => c.id === secondaryTargetId) ||
-          npcs.find((n: any) => n.id === secondaryTargetId);
-        const secondaryTargetName = (secondaryEntity as any)?.name ?? "Target";
-        const secondaryTargetAC = (secondaryEntity as any)?.statBlock?.armorClass
-          ?? (secondaryEntity as any)?.sheet?.armorClass ?? 10;
-
-        // Mark cleave as used this turn
-        await this.deps.combatRepo.updateCombatantState(actorCombatantForCleave.id, {
-          resources: { ...cleaveRes, cleaveUsedThisTurn: true } as any,
-        });
-
-        // Auto-roll secondary attack
-        const cleaveAttackRoll = this.deps.diceRoller.d20();
-        const cleaveAttackBonus = weaponSpec.attackBonus ?? 0;
-        const cleaveAttackTotal = cleaveAttackRoll.total + cleaveAttackBonus;
-        const cleaveHit = cleaveAttackTotal >= secondaryTargetAC;
-        const cleaveCritMiss = cleaveAttackRoll.total === 1;
-        const cleaveCritHit = cleaveAttackRoll.total === 20;
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Cleave mastery: secondary attack d20(${cleaveAttackRoll.total}) + ${cleaveAttackBonus} = ${cleaveAttackTotal} vs AC ${secondaryTargetAC} → ${cleaveHit ? "HIT" : "MISS"}`);
-        }
-
-        if (!cleaveHit && !cleaveCritHit) {
-          return ` Cleave: Attack ${secondaryTargetName} — d20(${cleaveAttackRoll.total}) + ${cleaveAttackBonus} = ${cleaveAttackTotal} vs AC ${secondaryTargetAC}. Miss!`;
-        }
-
-        // Roll weapon damage WITHOUT ability modifier (unless modifier is negative)
-        const dmgSpec = weaponSpec.damage;
-        let cleaveDmg = 0;
-        if (dmgSpec) {
-          for (let i = 0; i < dmgSpec.diceCount; i++) {
-            const dieRoll = this.deps.diceRoller.rollDie(dmgSpec.diceSides);
-            cleaveDmg += dieRoll.total;
-          }
-          // Only add ability modifier if it's negative
-          if (dmgSpec.modifier < 0) {
-            cleaveDmg = Math.max(0, cleaveDmg + dmgSpec.modifier);
-          }
-          // Critical hit: double dice
-          if (cleaveCritHit) {
-            for (let i = 0; i < dmgSpec.diceCount; i++) {
-              const dieRoll = this.deps.diceRoller.rollDie(dmgSpec.diceSides);
-              cleaveDmg += dieRoll.total;
-            }
-          }
-        }
-
-        // Apply damage to secondary target
-        const secondaryHpBefore = secondaryTarget.hpCurrent;
-        const secondaryHpAfter = Math.max(0, secondaryHpBefore - cleaveDmg);
-        await this.deps.combatRepo.updateCombatantState(secondaryTarget.id, { hpCurrent: secondaryHpAfter });
-        await applyKoEffectsIfNeeded(secondaryTarget, secondaryHpBefore, secondaryHpAfter, this.deps.combatRepo);
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] Cleave mastery: ${cleaveDmg} damage to ${secondaryTargetName} (HP: ${secondaryHpBefore} → ${secondaryHpAfter})`);
-        }
-
-        return ` Cleave: Attack ${secondaryTargetName} — d20(${cleaveAttackRoll.total}) + ${cleaveAttackBonus} = ${cleaveAttackTotal} vs AC ${secondaryTargetAC}. Hit! ${cleaveDmg} damage (HP: ${secondaryHpBefore} → ${secondaryHpAfter})!`;
-      }
-
-      case "nick": {
-        // Nick: Light weapon's extra attack is part of the Attack action (not bonus action)
-        // This is handled at the action-dispatch level, not post-damage
-        return "";
-      }
-
-      case "graze": {
-        // Graze is handled in the miss path of handleAttackRoll, not here
-        return "";
-      }
-
-      default:
-        return "";
-    }
+    return this.weaponMasteryResolver.resolve(mastery, actorId, targetId, encounterId, sessionId, weaponSpec, characters, monsters, npcs);
   }
 
   // ----- Post-Damage Effect Resolution (System 2) -----
@@ -2601,121 +1698,11 @@ export class RollStateMachine {
     actorId: string,
     targetId: string,
     encounterId: string,
-    characters: any[],
-    monsters: any[],
-    npcs: any[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<HitRiderEnhancementResult> {
-    const ctx = enhancement.context ?? {};
-    const target =
-      monsters.find((m) => m.id === targetId) ||
-      characters.find((c) => c.id === targetId) ||
-      npcs.find((n) => n.id === targetId);
-    const targetName = (target as any)?.name ?? "Target";
-
-    // Spend resources if specified in context (e.g. 1 ki for Stunning Strike)
-    if (ctx.resourceCost) {
-      const { pool, amount } = ctx.resourceCost as { pool: string; amount: number };
-      const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-      const actorCombatant = combatants.find(
-        (c: any) => c.combatantType === "Character" && c.characterId === actorId,
-      );
-      if (actorCombatant) {
-        let updatedRes = updateResourcePool(actorCombatant.resources ?? {}, pool, (p) => ({
-          ...p, current: Math.max(0, p.current - amount),
-        }));
-        const normalized = normalizeResources(updatedRes);
-        if (ctx.turnTrackingKey) {
-          (normalized as any)[ctx.turnTrackingKey as string] = true;
-        }
-        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-          resources: normalized as any,
-        });
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] ${enhancement.displayName}: Spent ${amount} ${pool}`);
-        }
-      }
-    }
-
-    switch (enhancement.postDamageEffect) {
-      case "saving-throw": {
-        if (!this.savingThrowResolver) {
-          return {
-            abilityId: enhancement.abilityId,
-            displayName: enhancement.displayName,
-            summary: `${enhancement.displayName}: Saving throw resolver not available.`,
-          };
-        }
-
-        const saveAction = this.savingThrowResolver.buildPendingAction({
-          actorId: targetId,
-          sourceId: (ctx.sourceId as string) ?? actorId,
-          ability: ctx.saveAbility as string,
-          dc: ctx.saveDC as number,
-          reason: ctx.saveReason as string,
-          onSuccess: ctx.onSuccess as SaveOutcome,
-          onFailure: ctx.onFailure as SaveOutcome,
-          context: ctx.expiresAt ? { expiresAt: ctx.expiresAt } : undefined,
-        });
-
-        const resolution = await this.savingThrowResolver.resolve(
-          saveAction, encounterId, characters, monsters, npcs,
-        );
-
-        const abilityUpper = ((ctx.saveAbility as string) ?? "").toUpperCase().slice(0, 3);
-        const successSummary = `${enhancement.displayName}: ${targetName} makes ${abilityUpper} save (${resolution.total} vs DC ${resolution.dc})! ${resolution.appliedOutcome.summary}`;
-        const failureSummary = `${enhancement.displayName}: ${targetName} fails ${abilityUpper} save (${resolution.total} vs DC ${resolution.dc}) and is ${resolution.conditionsApplied[0] ?? "affected"}!`;
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] ${enhancement.displayName}: ${targetName} ${resolution.success ? "makes" : "fails"} ${abilityUpper} save (${resolution.total} vs DC ${resolution.dc})`);
-        }
-
-        return {
-          abilityId: enhancement.abilityId,
-          displayName: enhancement.displayName,
-          summary: resolution.success ? successSummary : failureSummary,
-          saved: resolution.success,
-          saveRoll: resolution.rawRoll,
-          saveTotal: resolution.total,
-          saveDC: resolution.dc,
-          conditionApplied: resolution.conditionsApplied[0],
-        };
-      }
-
-      case "apply-condition": {
-        const conditionName = ctx.conditionName as string;
-        const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
-        if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, conditionName)) {
-          let conditions = normalizeConditions(targetCombatant.conditions);
-          conditions = addCondition(conditions, createCondition(conditionName as Condition, "until_removed", {
-            source: enhancement.displayName,
-          }));
-          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
-            conditions: conditions as any,
-          });
-        }
-
-        if (this.debugLogsEnabled) {
-          console.log(`[RollStateMachine] ${enhancement.displayName}: ${targetName} is ${conditionName}`);
-        }
-
-        return {
-          abilityId: enhancement.abilityId,
-          displayName: enhancement.displayName,
-          summary: `${enhancement.displayName}: ${targetName} has disadvantage on next attack roll!`,
-          conditionApplied: conditionName,
-        };
-      }
-
-      default:
-        return {
-          abilityId: enhancement.abilityId,
-          displayName: enhancement.displayName,
-          summary: `${enhancement.displayName} effect triggered.`,
-        };
-    }
+    return this.hitRiderResolver.resolvePostDamageEffect(enhancement, actorId, targetId, encounterId, characters, monsters, npcs);
   }
 
   /**

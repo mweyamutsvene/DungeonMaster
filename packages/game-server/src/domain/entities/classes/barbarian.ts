@@ -53,22 +53,6 @@ export function barbarianUnarmoredDefenseAC(dexMod: number, conMod: number): num
 }
 
 /**
- * Danger Sense (Barbarian level 2+).
- * Advantage on DEX saving throws against effects you can see.
- */
-export function hasDangerSense(level: number): boolean {
-  return level >= 2;
-}
-
-/**
- * Feral Instinct (Barbarian level 7+).
- * Advantage on initiative rolls; can't be surprised if not incapacitated.
- */
-export function hasFeralInstinct(level: number): boolean {
-  return level >= 7;
-}
-
-/**
  * Determines whether Rage should end at the start of the Barbarian's turn.
  * Rage ends if (didn't attack AND didn't take damage since last turn), OR if unconscious.
  */
@@ -128,7 +112,19 @@ export const Barbarian: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["strength", "constitution"],
   },
+  features: {
+    "rage": 1,
+    "unarmored-defense": 1,
+    "reckless-attack": 2,
+    "danger-sense": 2,
+    "extra-attack": 5,
+    "feral-instinct": 7,
+  },
   resourcesAtLevel: (level) => [createRageState(level).pool],
+  resourcePoolFactory: (level) => [createRageState(level).pool],
+  restRefreshPolicy: [
+    { poolKey: "rage", refreshOn: "long", computeMax: (level) => rageUsesForLevel(level) },
+  ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Unarmored Defense", economy: "free", effect: "AC = 10 + DEX mod + CON mod (no armor)" },

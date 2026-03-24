@@ -1,6 +1,9 @@
 import type { JsonValue } from "../../../types.js";
 import type { ActiveEffect } from "../../../../domain/entities/combat/effects.js";
 import { calculateFlatBonusFromEffects, hasConditionImmunity } from "../../../../domain/entities/combat/effects.js";
+import { isRecord, readBoolean } from "./json-helpers.js";
+
+export { readBoolean };
 
 /**
  * Action economy resource utilities for managing combatant action state.
@@ -9,23 +12,11 @@ import { calculateFlatBonusFromEffects, hasConditionImmunity } from "../../../..
  * which is stored as JsonValue to support flexible resource tracking.
  */
 
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null;
-}
-
 /**
  * Normalize resources field to a plain object, handling null/undefined/non-object cases.
  */
 export function normalizeResources(raw: unknown): Record<string, unknown> {
   return isRecord(raw) ? { ...raw } : {};
-}
-
-/**
- * Read a boolean value from a resources object, returning null if not present or wrong type.
- */
-export function readBoolean(obj: Record<string, unknown>, key: string): boolean | null {
-  const v = obj[key];
-  return typeof v === "boolean" ? v : null;
 }
 
 /**

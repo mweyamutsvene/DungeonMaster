@@ -30,8 +30,8 @@ import {
   WholenessOfBodyExecutor,
 } from "../abilities/executors/index.js";
 import { TwoPhaseActionService } from "../two-phase-action-service.js";
-import { InMemoryPendingActionRepository } from "../../../repositories/pending-action-repository.js";
-import { resolveShove } from "../../../../domain/rules/grapple-shove.js";
+import { InMemoryPendingActionRepository } from "../../../../infrastructure/testing/memory-repos.js";
+import { shoveTarget } from "../../../../domain/rules/grapple-shove.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { LlmAiDecisionMaker } from "../../../../infrastructure/llm/ai-decision-maker.js";
 import {

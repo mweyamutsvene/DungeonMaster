@@ -1,0 +1,56 @@
+/**
+ * SpellDeliveryHandler — interface + shared context type for spell delivery strategy pattern.
+ *
+ * Each delivery mode (attack roll, save, healing, buff/debuff, zone) implements
+ * SpellDeliveryHandler. SpellActionHandler dispatches via find(h => h.canHandle(spell)).
+ */
+
+import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import type { LlmRoster } from '../../../../commands/game-command.js';
+import type { ActionParseResult, TabletopCombatServiceDeps } from '../tabletop-types.js';
+import type { TabletopEventEmitter } from '../tabletop-event-emitter.js';
+import type { SavingThrowResolver } from '../saving-throw-resolver.js';
+
+/**
+ * All data needed for a spell cast, resolved once by SpellActionHandler before dispatch.
+ * Encounter state is fetched AFTER slot spending so resources reflect the deduction.
+ */
+export interface SpellCastingContext {
+  sessionId: string;
+  encounterId: string;
+  actorId: string;
+  castInfo: { spellName: string; targetName?: string };
+  spellMatch: PreparedSpellDefinition;
+  spellLevel: number;
+  isConcentration: boolean;
+  sheet: any;
+  characters: any[];
+  actor: any;
+  roster: LlmRoster;
+  /** Current encounter (fetched after slot spending) */
+  encounter: any;
+  /** All combatants in the encounter (fetched after slot spending) */
+  combatants: any[];
+  /** The caster's combatant entry (fetched after slot spending) */
+  actorCombatant: any;
+}
+
+/**
+ * Shared dependencies injected into every delivery handler.
+ */
+export interface SpellDeliveryDeps {
+  deps: TabletopCombatServiceDeps;
+  eventEmitter: TabletopEventEmitter;
+  debugLogsEnabled: boolean;
+  savingThrowResolver: SavingThrowResolver | null;
+}
+
+/**
+ * Strategy interface for spell delivery modes.
+ */
+export interface SpellDeliveryHandler {
+  /** Returns true if this handler should process the given spell. */
+  canHandle(spell: PreparedSpellDefinition): boolean;
+  /** Executes the delivery. Context includes fully-resolved encounter state. */
+  handle(ctx: SpellCastingContext): Promise<ActionParseResult>;
+}

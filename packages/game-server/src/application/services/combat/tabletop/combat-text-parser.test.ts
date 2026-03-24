@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { tryParseMoveTowardText, findCombatantByName } from "./combat-text-parser.js";
+import { tryParseMoveTowardText, findCombatantByName, tryParseAttackText } from "./combat-text-parser.js";
 import type { LlmRoster } from "../../../commands/game-command.js";
 
 // ------------------------------------------------------------------
@@ -211,5 +211,82 @@ describe("findCombatantByName", () => {
   it("returns null for no match", () => {
     const ref = findCombatantByName("unknown monster", ROSTER);
     expect(ref).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------
+// tryParseAttackText — BUG 3: unarmed strike / punch / kick patterns
+// ------------------------------------------------------------------
+
+describe("tryParseAttackText — unarmed strike patterns (BUG 3)", () => {
+  it("parses 'unarmed strike' → nearest, no weaponHint", () => {
+    const result = tryParseAttackText("unarmed strike", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'unarmed attack' → nearest", () => {
+    const result = tryParseAttackText("unarmed attack", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'unarmed' (bare keyword) → nearest", () => {
+    const result = tryParseAttackText("unarmed", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'punch' → nearest, no weaponHint", () => {
+    const result = tryParseAttackText("punch", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'kick' → nearest, no weaponHint", () => {
+    const result = tryParseAttackText("kick", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'fist attack' → nearest", () => {
+    const result = tryParseAttackText("fist attack", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'unarmed strike Goblin Scout' → named target", () => {
+    const result = tryParseAttackText("unarmed strike Goblin Scout", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(false);
+    expect(result!.targetName).toBe("goblin scout");
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'punch Red Dragon' → named target", () => {
+    const result = tryParseAttackText("punch Red Dragon", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(false);
+    expect(result!.targetName).toBe("red dragon");
+    expect(result!.weaponHint).toBeUndefined();
+  });
+
+  it("parses 'i unarmed strike' → nearest (strip leading I)", () => {
+    const result = tryParseAttackText("i unarmed strike", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+  });
+
+  it("parses 'with my fists' → nearest, no weaponHint", () => {
+    const result = tryParseAttackText("with my fists", ROSTER);
+    expect(result).not.toBeNull();
+    expect(result!.nearest).toBe(true);
+    expect(result!.weaponHint).toBeUndefined();
   });
 });

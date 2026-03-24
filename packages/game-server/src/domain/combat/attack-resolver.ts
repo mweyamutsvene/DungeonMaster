@@ -11,16 +11,7 @@ import {
 } from "../rules/feat-modifiers.js";
 import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
 import { hasProperty } from "../entities/items/weapon-properties.js";
-
-type D20ModeProvider = {
-  getD20TestModeForAbility?: (ability: Ability, baseMode: RollMode) => RollMode;
-};
-
-function getAdjustedMode(attacker: Creature, ability: Ability, baseMode: RollMode): RollMode {
-  const maybe = attacker as unknown as D20ModeProvider;
-  if (typeof maybe.getD20TestModeForAbility !== "function") return baseMode;
-  return maybe.getD20TestModeForAbility(ability, baseMode);
-}
+import { getAdjustedMode } from "../rules/ability-checks.js";
 
 export interface DamageSpec {
   diceCount: number;

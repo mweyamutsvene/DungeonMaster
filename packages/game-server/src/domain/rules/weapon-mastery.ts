@@ -21,6 +21,13 @@ export type WeaponMasteryProperty =
   | "topple"   // On hit → CON save (DC 8 + ability mod + prof) or Prone
   | "vex";     // On hit + damage → advantage on next attack vs that target before end of your next turn
 
+/** Minimal character sheet shape used by weapon mastery lookups. */
+export interface WeaponMasterySheet {
+  className?: string;
+  class?: string;
+  weaponMasteries?: string[];
+}
+
 /**
  * Standard D&D 5e 2024 weapon → mastery property mapping.
  *
@@ -99,12 +106,10 @@ const WEAPON_MASTERY_CLASSES: Readonly<Record<string, number>> = {
  * @returns true if the character's class grants Weapon Mastery
  */
 export function hasWeaponMasteryFeature(
-  sheet: Record<string, unknown>,
+  sheet: WeaponMasterySheet,
   className?: string,
 ): boolean {
-  const cls = (
-    className ?? sheet.className ?? sheet.class ?? ""
-  ) as string;
+  const cls = className ?? sheet.className ?? sheet.class ?? "";
   return cls.toLowerCase() in WEAPON_MASTERY_CLASSES;
 }
 
@@ -112,12 +117,10 @@ export function hasWeaponMasteryFeature(
  * Get the number of weapon masteries a character's class grants.
  */
 export function getWeaponMasteryCount(
-  sheet: Record<string, unknown>,
+  sheet: WeaponMasterySheet,
   className?: string,
 ): number {
-  const cls = (
-    className ?? sheet.className ?? sheet.class ?? ""
-  ) as string;
+  const cls = className ?? sheet.className ?? sheet.class ?? "";
   return WEAPON_MASTERY_CLASSES[cls.toLowerCase()] ?? 0;
 }
 
@@ -130,12 +133,12 @@ export function getWeaponMasteryCount(
  * simplification until explicit weapon mastery selection is implemented).
  */
 export function hasWeaponMastery(
-  sheet: Record<string, unknown>,
+  sheet: WeaponMasterySheet,
   weaponName: string,
   className?: string,
 ): boolean {
   // Check explicit weapon mastery list on sheet
-  const masteries = sheet.weaponMasteries as string[] | undefined;
+  const masteries = sheet.weaponMasteries;
   if (Array.isArray(masteries)) {
     return masteries.some(
       (m) => m.toLowerCase() === weaponName.toLowerCase(),
@@ -161,7 +164,7 @@ export function hasWeaponMastery(
  */
 export function resolveWeaponMastery(
   weaponName: string,
-  sheet: Record<string, unknown>,
+  sheet: WeaponMasterySheet,
   className?: string,
   explicitMastery?: string,
 ): WeaponMasteryProperty | undefined {

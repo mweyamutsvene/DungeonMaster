@@ -163,13 +163,3 @@ export interface AbilityExecutor {
    */
   execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult>;
 }
-
-/**
- * Helper to check if ability ID matches a pattern.
- */
-export function matchesAbilityPattern(abilityId: string, pattern: string | RegExp): boolean {
-  if (typeof pattern === 'string') {
-    return abilityId === pattern;
-  }
-  return pattern.test(abilityId);
-}

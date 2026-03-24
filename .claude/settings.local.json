@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(npm:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Agent",
+      "TodoWrite",
+      "Skill",
+      "Bash(pnpm -C packages/game-server test)",
+      "Bash(pnpm -C packages/game-server test:e2e:combat:mock)",
+      "Bash(pnpm -C packages/game-server test:e2e:combat:mock -- --all)"
+    ]
+  }
+}

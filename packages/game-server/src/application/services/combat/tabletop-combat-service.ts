@@ -56,6 +56,7 @@ import type {
   CombatStartedResult,
   AttackResult,
   DamageResult,
+  DeathSaveResult,
   SavingThrowAutoResult,
   ActionParseResult,
 } from "./tabletop/tabletop-types.js";
@@ -64,82 +65,9 @@ import { TabletopEventEmitter } from "./tabletop/tabletop-event-emitter.js";
 import { RollStateMachine, loadRoster } from "./tabletop/roll-state-machine.js";
 import { SpellActionHandler } from "./tabletop/spell-action-handler.js";
 import { ActionDispatcher } from "./tabletop/action-dispatcher.js";
-import { hasFeralInstinct } from "../../../domain/entities/classes/barbarian.js";
+import { computeInitiativeModifiers } from "./tabletop/tabletop-utils.js";
 
-/**
- * Check if a specific creature is surprised given the surprise spec.
- * - "enemies" → only monsters/NPCs marked as enemies are surprised (not tested here; handled at roll time)
- * - "party" → PCs and party NPCs are surprised (not tested here; handled at roll time)
- * - { surprised: string[] } → returns true if the creature's ID is in the list
- */
-function isCreatureSurprised(
-  creatureId: string,
-  surprise: SurpriseSpec | undefined,
-  side: "party" | "enemy",
-): boolean {
-  if (!surprise) return false;
-  if (surprise === "party") return side === "party";
-  if (surprise === "enemies") return side === "enemy";
-  // Per-creature model
-  return surprise.surprised.includes(creatureId);
-}
-
-/**
- * Compute initiative advantage/disadvantage for a creature based on surprise + conditions.
- * D&D 5e 2024 rules:
- * - Surprised → disadvantage on initiative
- * - Invisible condition → advantage on initiative
- * - Incapacitated condition → disadvantage on initiative
- * - If both advantage and disadvantage sources exist → they cancel (normal roll)
- */
-function computeInitiativeModifiers(
-  creatureId: string,
-  surprise: SurpriseSpec | undefined,
-  sheet?: unknown,
-): { advantage: boolean; disadvantage: boolean } {
-  let advSources = 0;
-  let disadvSources = 0;
-
-  // Surprise check (PCs are on "party" side)
-  if (isCreatureSurprised(creatureId, surprise, "party")) {
-    disadvSources++;
-  }
-
-  // Condition checks from character sheet (pre-combat conditions)
-  let isIncapacitated = false;
-  if (sheet && typeof sheet === "object") {
-    const conditions = (sheet as any).conditions;
-    if (Array.isArray(conditions)) {
-      const condLower = conditions.map((c: unknown) =>
-        typeof c === "string" ? c.toLowerCase() : typeof c === "object" && c !== null && "condition" in c ? String((c as any).condition).toLowerCase() : "",
-      );
-      if (condLower.includes("invisible")) advSources++;
-      if (condLower.includes("incapacitated")) {
-        isIncapacitated = true;
-        disadvSources++;
-      }
-    }
-  }
-
-  // D&D 5e 2024: Feral Instinct (Barbarian 7+) grants advantage on initiative
-  // and negates surprise disadvantage if not incapacitated
-  if (sheet && typeof sheet === "object") {
-    const className = ((sheet as any).className ?? "").toLowerCase();
-    const level = (sheet as any).level ?? 0;
-    if (className === "barbarian" && hasFeralInstinct(level)) {
-      advSources++;
-      if (isCreatureSurprised(creatureId, surprise, "party") && !isIncapacitated && disadvSources > 0) {
-        disadvSources--;
-      }
-    }
-  }
-
-  // D&D 5e: advantage + disadvantage cancel out
-  if (advSources > 0 && disadvSources > 0) {
-    return { advantage: false, disadvantage: false };
-  }
-  return { advantage: advSources > 0, disadvantage: disadvSources > 0 };
-}
+// computeInitiativeModifiers imported from tabletop/tabletop-utils.ts (isCreatureSurprised used internally)
 
 export class TabletopCombatService {
   private debugLogsEnabled: boolean;
@@ -336,7 +264,14 @@ export class TabletopCombatService {
     });
 
     // Compute initiative advantage/disadvantage for the initiating player
-    const initModifiers = computeInitiativeModifiers(actorId, surprise, actorChar?.sheet);
+    const actorSheet = actorChar?.sheet as any;
+    const actorClassName = (actorSheet?.className ?? "") as string;
+    const actorLevel = (actorSheet?.level ?? 0) as number;
+    const initModifiers = computeInitiativeModifiers(
+      actorId, surprise, "party",
+      actorSheet?.conditions,
+      actorClassName ? { className: actorClassName, level: actorLevel } : undefined,
+    );
 
     const rollRequest: RollRequest = {
       requiresPlayerInput: true,
@@ -366,7 +301,7 @@ export class TabletopCombatService {
     sessionId: string,
     text: string,
     actorId: string,
-  ): Promise<CombatStartedResult | AttackResult | DamageResult | SavingThrowAutoResult> {
+  ): Promise<CombatStartedResult | AttackResult | DamageResult | DeathSaveResult | SavingThrowAutoResult> {
     return this.rollStateMachine.processRollResult(sessionId, text, actorId);
   }
 
@@ -428,19 +363,36 @@ export class TabletopCombatService {
           );
 
           const attacker = combatants.find((c) => c.id === nextOA.combatantId);
-          let attackMod = 2; // Default: proficiency bonus
+          let attackMod = 0;
 
           if (attacker?.characterId) {
             const charStats = await this.deps.combatants.getCombatStats({ type: "Character", characterId: attacker.characterId });
             const strMod = Math.floor((charStats.abilityScores.strength - 10) / 2);
             const dexMod = Math.floor((charStats.abilityScores.dexterity - 10) / 2);
-            attackMod += Math.max(strMod, dexMod);
+            attackMod = charStats.proficiencyBonus + Math.max(strMod, dexMod);
+          } else if (attacker?.monsterId) {
+            const monStats = await this.deps.combatants.getCombatStats({ type: "Monster", monsterId: attacker.monsterId });
+            const strMod = Math.floor((monStats.abilityScores.strength - 10) / 2);
+            const dexMod = Math.floor((monStats.abilityScores.dexterity - 10) / 2);
+            attackMod = monStats.proficiencyBonus + Math.max(strMod, dexMod);
+          } else if (attacker?.npcId) {
+            const npcStats = await this.deps.combatants.getCombatStats({ type: "NPC", npcId: attacker.npcId });
+            const strMod = Math.floor((npcStats.abilityScores.strength - 10) / 2);
+            const dexMod = Math.floor((npcStats.abilityScores.dexterity - 10) / 2);
+            attackMod = npcStats.proficiencyBonus + Math.max(strMod, dexMod);
           }
 
           const totalAttack = roll + attackMod;
-          const targetAC = target?.resources && typeof (target.resources as any).armorClass === "number"
-            ? (target.resources as any).armorClass
-            : 10;
+          let targetAC = 10;
+          if (target) {
+            const targetRef = target.characterId
+              ? { type: "Character" as const, characterId: target.characterId }
+              : target.monsterId
+              ? { type: "Monster" as const, monsterId: target.monsterId }
+              : { type: "NPC" as const, npcId: target.npcId! };
+            const targetStats = await this.deps.combatants.getCombatStats(targetRef);
+            targetAC = targetStats.armorClass;
+          }
           const hit = totalAttack >= targetAC;
 
           nextOA.result = { attackRoll: roll, totalAttack, hit };

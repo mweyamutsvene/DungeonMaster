@@ -1,0 +1,56 @@
+{
+  "name": "Long Rest: Wizard Spell Slot Recovery",
+  "description": "Validates that a long rest refreshes spell slot pools for a wizard with depleted slots. Also confirms arcane recovery (long-rest-only) is refreshed.",
+  "setup": {
+    "character": {
+      "name": "Recovering Rincewind",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 13,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 30,
+        "currentHp": 12,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "resourcePools": [
+          { "name": "arcaneRecovery", "current": 0, "max": 1 },
+          { "name": "spellSlot_1", "current": 1, "max": 4 },
+          { "name": "spellSlot_2", "current": 0, "max": 3 },
+          { "name": "spellSlot_3", "current": 0, "max": 2 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": []
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "input": { "restType": "long" },
+      "comment": "Long rest should refresh arcaneRecovery + all spell slots + restore HP to max",
+      "expect": {
+        "poolsRefreshed": ["arcaneRecovery", "spellSlot_1", "spellSlot_2", "spellSlot_3"],
+        "characterHp": { "name": "Recovering Rincewind", "exact": 30 }
+      }
+    }
+  ]
+}

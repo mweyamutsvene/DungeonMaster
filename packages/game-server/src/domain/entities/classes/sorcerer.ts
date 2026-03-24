@@ -42,8 +42,20 @@ export const Sorcerer: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["constitution", "charisma"],
   },
+  features: {
+    "spellcasting": 1,
+    "sorcery-points": 2,
+    "metamagic": 2,
+  },
   resourcesAtLevel: (level) => {
     const sp = createSorceryPointsState(level);
     return sp.pool.max > 0 ? [sp.pool] : [];
   },
+  resourcePoolFactory: (level) => {
+    const sp = createSorceryPointsState(level);
+    return sp.pool.max > 0 ? [sp.pool] : [];
+  },
+  restRefreshPolicy: [
+    { poolKey: "sorceryPoints", refreshOn: "long", computeMax: (level) => sorceryPointsForLevel(level) },
+  ],
 };

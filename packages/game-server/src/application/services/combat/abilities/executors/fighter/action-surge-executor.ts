@@ -7,7 +7,10 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { ACTION_SURGE } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { requireActor, requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
+import { hasResourceAvailable, spendResourceFromPool, grantAdditionalAction, getAttacksAllowedThisTurn } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Action Surge (Fighter class feature).
@@ -36,59 +39,17 @@ export class ActionSurgeExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { params } = context;
 
-    // Get actor info from params
-    const actorRef = params?.actor;
-    const sheet = params?.sheet;
-    const resources = params?.resources;
-    const passedClassName = params?.className as string | undefined;
-    const passedLevel = params?.level as number | undefined;
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
+    const featureErr = requireClassFeature(params, ACTION_SURGE, "Action Surge (requires Fighter level 2+)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
-
-    if (!sheet) {
-      return {
-        success: false,
-        summary: 'No character sheet in params',
-        error: 'MISSING_SHEET',
-      };
-    }
-
-    const level = passedLevel ?? (sheet as any)?.level ?? 1;
-    const className = passedClassName ?? (sheet as any)?.className ?? "";
-
-    // Check if character has Action Surge (Fighter level 2+)
-    if (!ClassFeatureResolver.hasActionSurge(sheet as any, className, level)) {
-      return {
-        success: false,
-        summary: 'This character does not have Action Surge (requires Fighter level 2+)',
-        error: 'MISSING_FEATURE',
-      };
-    }
-
-    // Validate Action Surge resource pool
-    if (!resources) {
-      return {
-        success: false,
-        summary: 'No resources provided for Action Surge validation',
-        error: 'MISSING_RESOURCES',
-      };
-    }
+    const actorRef = params!.actor;
+    const sheet = params!.sheet;
+    const resources = params!.resources;
+    const { level, className } = extractClassInfo(params);
 
     try {
-      // Import resource utils dynamically to avoid circular deps
-      const { 
-        hasResourceAvailable, 
-        spendResourceFromPool, 
-        grantAdditionalAction,
-        getAttacksAllowedThisTurn,
-      } = await import('../../../helpers/resource-utils.js');
-      
       // Check Action Surge availability
       if (!hasResourceAvailable(resources, 'actionSurge', 1)) {
         return {

@@ -20,6 +20,7 @@ export type AiDecision = {
     | "help"
     | "hide"
     | "grapple"
+    | "escapeGrapple"
     | "shove"
     | "search"
     | "useObject"

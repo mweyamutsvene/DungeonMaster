@@ -30,7 +30,7 @@ import {
   TurnUndeadExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
-import { InMemoryPendingActionRepository } from "../../application/repositories/pending-action-repository.js";
+import { InMemoryPendingActionRepository } from "../testing/memory-repos.js";
 import type {
   ICharacterRepository,
   ICombatRepository,
@@ -56,7 +56,7 @@ import { LlmAiDecisionMaker } from "../llm/ai-decision-maker.js";
 import { LlmBattlePlanner } from "../llm/battle-planner.js";
 import { BattlePlanService } from "../../application/services/combat/ai/battle-plan-service.js";
 import type { LlmProvider } from "../llm/types.js";
-import type { DiceRoller } from "../../domain/rules/dice-roller.js";
+import { type DiceRoller, RandomDiceRoller } from "../../domain/rules/dice-roller.js";
 
 export type AppDeps = {
   sessionsRepo: IGameSessionRepository;
@@ -156,7 +156,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   const sessions = new GameSessionService(deps.sessionsRepo, deps.eventsRepo);
-  const characters = new CharacterService(deps.sessionsRepo, deps.charactersRepo, deps.eventsRepo);
+  const characters = new CharacterService(deps.sessionsRepo, deps.charactersRepo, deps.eventsRepo, deps.diceRoller);
   const factionService = new FactionService({
     combat: deps.combatRepo,
     characters: deps.charactersRepo,
@@ -164,6 +164,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     npcs: deps.npcsRepo,
   });
   const victoryPolicy = new BasicCombatVictoryPolicy(factionService);
+  const diceRoller = deps.diceRoller ?? new RandomDiceRoller();
   const combat = new CombatService(
     deps.sessionsRepo,
     deps.combatRepo,
@@ -172,7 +173,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     deps.charactersRepo,  // New: for domain hydration
     deps.monstersRepo,    // New: for domain hydration
     deps.npcsRepo,        // New: for domain hydration
-    deps.diceRoller,      // New: for Combat domain instance
+    diceRoller,           // New: for Combat domain instance
   );
 
   const combatants = new CombatantResolver(deps.charactersRepo, deps.monstersRepo, deps.npcsRepo);
@@ -313,7 +314,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     diceRoller: deps.diceRoller,
     createServicesForRepos: (repos) => {
       const sessionsService = new GameSessionService(repos.sessionsRepo, repos.eventsRepo);
-      const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo);
+      const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo, deps.diceRoller);
       const factionServiceInner = new FactionService({
         combat: repos.combatRepo,
         characters: repos.charactersRepo,
@@ -321,6 +322,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         npcs: repos.npcsRepo,
       });
       const victoryPolicyInner = new BasicCombatVictoryPolicy(factionServiceInner);
+      const diceRollerInner = deps.diceRoller ?? new RandomDiceRoller();
       const combatService = new CombatService(
         repos.sessionsRepo,
         repos.combatRepo,
@@ -329,7 +331,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         repos.charactersRepo,  // New: for domain hydration
         repos.monstersRepo,    // New: for domain hydration
         repos.npcsRepo,        // New: for domain hydration
-        deps.diceRoller,       // New: for Combat domain instance
+        diceRollerInner,       // New: for Combat domain instance
       );
 
       const combatantsInner = new CombatantResolver(

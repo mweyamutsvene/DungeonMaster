@@ -9,6 +9,7 @@ This document provides a comprehensive reference for all session-related API end
 - [Endpoints](#endpoints)
   - [Session Management](#session-management)
   - [Character Management](#character-management)
+  - [Rest](#rest)
   - [Creature Management](#creature-management)
   - [Combat Core](#combat-core)
   - [Tactical View](#tactical-view)
@@ -162,6 +163,66 @@ Generate a character sheet via LLM or use a provided sheet.
 
 **Errors:**
 - 400: No character sheet provided and no generator available
+
+---
+
+### Rest
+
+#### POST /sessions/:id/rest
+
+Take a short or long rest for all characters in a session. Refreshes class resource pools and (on long rest) restores HP and spell slots.
+
+**Request Body:**
+```json
+{
+  "type": "short",
+  "hitDiceSpending": {
+    "char_xyz789": 2
+  }
+}
+```
+
+| Field | Type | Required | Values | Description |
+|-------|------|----------|--------|-------------|
+| type | string | yes | `"short"` or `"long"` | Rest type |
+| hitDiceSpending | object | no | `{ [characterId]: count }` | Number of Hit Dice each character spends (short rest only) |
+
+**Response:**
+```json
+{
+  "characters": [
+    {
+      "id": "char_xyz789",
+      "name": "Aragorn",
+      "poolsRefreshed": ["actionSurge", "secondWind"],
+      "hitDiceSpent": 2,
+      "hpRecovered": 15
+    }
+  ]
+}
+```
+
+**Short Rest Recovery (D&D 5e 2024):**
+| Resource | Refreshes | Condition |
+|----------|-----------|-----------|
+| Ki | Yes | Monk |
+| Channel Divinity | Yes | Cleric / Paladin (2024 rules) |
+| Action Surge | Yes | Fighter |
+| Second Wind | Yes | Fighter |
+| Pact Magic | Yes | Warlock |
+| Wild Shape | Yes | Druid |
+| Bardic Inspiration | Level 5+ | Bard (Font of Inspiration) |
+
+**Long Rest Recovery (D&D 5e 2024):**
+- All of the above, plus:
+- Full HP restored (`currentHp = maxHp`)
+- All spell slot pools refreshed (`spellSlot_*` pools reset to max)
+- Rage (Barbarian), Lay on Hands (Paladin), Arcane Recovery (Wizard), Sorcery Points (Sorcerer)
+- Recover spent Hit Dice: up to half total (rounded down, min 1)
+
+**Errors:**
+- 400: `Rest type must be 'short' or 'long'`
+- 404: Session not found
 
 ---
 

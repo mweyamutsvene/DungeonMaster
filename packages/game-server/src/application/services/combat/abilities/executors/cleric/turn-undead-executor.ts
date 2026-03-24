@@ -17,7 +17,10 @@ import type {
   AbilityExecutionContext,
   AbilityExecutionResult,
 } from "../../../../../../domain/abilities/ability-executor.js";
-import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { CHANNEL_DIVINITY } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { proficiencyBonusByLevel } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
+import { hasResourceAvailable, spendResourceFromPool, hasSpentAction } from "../../../helpers/resource-utils.js";
 
 export class TurnUndeadExecutor implements AbilityExecutor {
   canExecute(abilityId: string): boolean {
@@ -28,38 +31,15 @@ export class TurnUndeadExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { params } = context;
 
-    const sheet = params?.sheet;
-    const resources = params?.resources;
-    const passedClassName = params?.className as string | undefined;
-    const passedLevel = params?.level as number | undefined;
+    const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
+    const featureErr = requireClassFeature(params, CHANNEL_DIVINITY, "Channel Divinity (requires Cleric level 2+)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
-    if (!sheet) {
-      return { success: false, summary: "No character sheet in params", error: "MISSING_SHEET" };
-    }
-
-    const level = passedLevel ?? (sheet as any)?.level ?? 1;
-    const className = passedClassName ?? (sheet as any)?.className ?? "";
-
-    // Validate Cleric class + Channel Divinity availability
-    if (!ClassFeatureResolver.hasChannelDivinity(sheet as any, className, level)) {
-      return {
-        success: false,
-        summary: "This character does not have Channel Divinity (requires Cleric level 2+)",
-        error: "MISSING_FEATURE",
-      };
-    }
-
-    if (!resources) {
-      return { success: false, summary: "No resources provided", error: "MISSING_RESOURCES" };
-    }
+    const sheet = params!.sheet;
+    const resources = params!.resources;
+    const { level } = extractClassInfo(params);
 
     try {
-      const {
-        hasResourceAvailable,
-        spendResourceFromPool,
-        hasSpentAction,
-      } = await import("../../../helpers/resource-utils.js");
-
       // Check action availability  
       if (hasSpentAction(resources)) {
         return {
@@ -84,7 +64,7 @@ export class TurnUndeadExecutor implements AbilityExecutor {
 
       // Calculate save DC: 8 + proficiency bonus + Wisdom modifier
       const wisdomScore = (sheet as any)?.abilityScores?.wisdom ?? 10;
-      const profBonus = ClassFeatureResolver.getProficiencyBonus(sheet as any, level);
+      const profBonus = proficiencyBonusByLevel(level);
       const wisMod = Math.floor((wisdomScore - 10) / 2);
       const saveDC = 8 + profBonus + wisMod;
 

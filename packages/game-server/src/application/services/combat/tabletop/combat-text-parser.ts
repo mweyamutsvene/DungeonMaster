@@ -398,6 +398,18 @@ export function tryParseGrappleText(input: string): { targetName: string } | nul
 }
 
 /**
+ * Parse "escape grapple", "break free", "break grapple" commands.
+ * Returns true if matched, null otherwise.
+ */
+export function tryParseEscapeGrappleText(input: string): true | null {
+  const normalized = input.trim().toLowerCase();
+  if (/\b(?:escape\s+grapple|break\s+(?:free|grapple))\b/.test(normalized)) {
+    return true;
+  }
+  return null;
+}
+
+/**
  * Parse "cast <spell> [at <target>]" or "cast <spell> on <target>".
  * Returns { spellName, targetName? } if matched, null otherwise.
  */
@@ -520,10 +532,25 @@ export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAtta
   const stripped = normalized.replace(/[^a-z0-9]+/g, "");
   if (/offhandattack|offhand$|bonusattack|twoweaponattack/.test(stripped)) return null;
 
+  // Unarmed strike / punch / kick — recognized BEFORE the generic attack verb check.
+  // Returns no weaponHint; target name is optional (defaults to nearest hostile).
+  const unarmedVerb = normalized.match(
+    /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:unarmed(?:\s+(?:strike|attack))?|with\s+my\s+fists?|fist\s+attack|fists?|bare\s+hands?|punch|kick)\b(.*)$/,
+  );
+  if (unarmedVerb) {
+    const unarmedRest = unarmedVerb[1]!.trim().replace(/^(?:the|a|an|at|on)\s+/i, "").trim();
+    let unarmedTarget: string | undefined;
+    if (unarmedRest.length > 0) {
+      const ref = findCombatantByName(unarmedRest, roster);
+      if (ref) unarmedTarget = unarmedRest;
+    }
+    return { targetName: unarmedTarget, nearest: !unarmedTarget };
+  }
+
   // Must start with an attack-like verb
   // Allow leading "I" / "i'll" / "let me" etc.
   const attackVerb = normalized.match(
-    /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:attack|strike|hit|slash|stab|swing\s+at|swing\s+my)\b(.*)$/,
+    /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:attack|strike|hit|slash|stab|punch|kick|fist|swing\s+at|swing\s+my)\b(.*)$/,
   );
   if (!attackVerb) return null;
 

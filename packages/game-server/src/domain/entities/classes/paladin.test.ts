@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  channelDivinityUsesForLevel,
+  paladinChannelDivinityUsesForLevel,
   createChannelDivinityState,
   createLayOnHandsState,
   layOnHandsPoolForLevel,
@@ -12,10 +12,10 @@ import {
 
 describe("Paladin channel divinity", () => {
   it("computes uses by level", () => {
-    expect(channelDivinityUsesForLevel(2)).toBe(0);
-    expect(channelDivinityUsesForLevel(3)).toBe(1);
-    expect(channelDivinityUsesForLevel(7)).toBe(2);
-    expect(channelDivinityUsesForLevel(18)).toBe(3);
+    expect(paladinChannelDivinityUsesForLevel(2)).toBe(0);
+    expect(paladinChannelDivinityUsesForLevel(3)).toBe(1);
+    expect(paladinChannelDivinityUsesForLevel(7)).toBe(2);
+    expect(paladinChannelDivinityUsesForLevel(18)).toBe(3);
   });
 
   it("spends and resets on short rest", () => {

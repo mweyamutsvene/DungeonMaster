@@ -13,7 +13,9 @@ import type {
   AbilityExecutionContext,
   AbilityExecutionResult,
 } from "../../../../../../domain/abilities/ability-executor.js";
-import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { LAY_ON_HANDS } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { requireSheet, requireResources, requireClassFeature } from "../executor-helpers.js";
+import { hasResourceAvailable, hasBonusActionAvailable } from "../../../helpers/resource-utils.js";
 
 export class LayOnHandsExecutor implements AbilityExecutor {
   canExecute(abilityId: string): boolean {
@@ -24,35 +26,13 @@ export class LayOnHandsExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { actor, params } = context;
 
-    const sheet = params?.sheet;
-    const resources = params?.resources;
-    const passedClassName = params?.className as string | undefined;
+    const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
+    const featureErr = requireClassFeature(params, LAY_ON_HANDS, "Lay on Hands (requires Paladin class)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
-    if (!sheet) {
-      return { success: false, summary: "No character sheet in params", error: "MISSING_SHEET" };
-    }
-
-    const className = passedClassName ?? (sheet as any)?.className ?? "";
-
-    // Validate Paladin class
-    if (!ClassFeatureResolver.hasLayOnHands(sheet as any, className)) {
-      return {
-        success: false,
-        summary: "This character does not have Lay on Hands (requires Paladin class)",
-        error: "MISSING_FEATURE",
-      };
-    }
-
-    if (!resources) {
-      return { success: false, summary: "No resources provided", error: "MISSING_RESOURCES" };
-    }
+    const resources = params!.resources;
 
     try {
-      const {
-        hasResourceAvailable,
-        hasBonusActionAvailable,
-      } = await import("../../../helpers/resource-utils.js");
-
       // Check bonus action availability
       if (!hasBonusActionAvailable(resources)) {
         return {

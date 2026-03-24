@@ -58,7 +58,15 @@ export const Wizard: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["intelligence", "wisdom"],
   },
+  features: {
+    "spellcasting": 1,
+    "arcane-recovery": 1,
+  },
   resourcesAtLevel: (level) => [createArcaneRecoveryState(level).pool],
+  resourcePoolFactory: (level) => [createArcaneRecoveryState(level).pool],
+  restRefreshPolicy: [
+    { poolKey: "arcaneRecovery", refreshOn: "long", computeMax: (level) => arcaneRecoveryUsesForLevel(level) },
+  ],
 };
 
 // ----- Attack Reaction: Shield Spell -----

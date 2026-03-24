@@ -4,7 +4,6 @@ import {
   attemptHide,
   detectHidden,
   searchForHidden,
-  breaksHidden,
   type HideAttempt,
 } from "./hide.js";
 
@@ -97,25 +96,4 @@ describe("Hide Action", () => {
     });
   });
 
-  describe("breaksHidden", () => {
-    it("should break hidden on attack", () => {
-      expect(breaksHidden("attack")).toBe(true);
-    });
-
-    it("should break hidden on casting spell", () => {
-      expect(breaksHidden("cast-spell")).toBe(true);
-    });
-
-    it("should break hidden on loud noise", () => {
-      expect(breaksHidden("loud-noise")).toBe(true);
-    });
-
-    it("should break hidden when moving into open", () => {
-      expect(breaksHidden("move-into-open")).toBe(true);
-    });
-
-    it("should break hidden when taking damage", () => {
-      expect(breaksHidden("damage-taken")).toBe(true);
-    });
-  });
 });

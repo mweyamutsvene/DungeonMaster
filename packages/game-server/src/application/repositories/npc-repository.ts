@@ -1,15 +1,4 @@
-import type { JsonValue } from "../types.js";
-
-export type SessionNPCRecord = {
-  id: string;
-  sessionId: string;
-  name: string;
-  statBlock: JsonValue;
-  faction: string;
-  aiControlled: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import type { JsonValue, SessionNPCRecord } from "../types.js";
 
 export type CreateNPCInput = {
   id: string;

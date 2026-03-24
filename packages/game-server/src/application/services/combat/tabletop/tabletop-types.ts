@@ -5,6 +5,13 @@
  * TabletopCombatService are gathered here for reuse by sub-modules.
  */
 
+import type {
+  SessionCharacterRecord,
+  SessionMonsterRecord,
+  SessionNPCRecord,
+  CombatEncounterRecord,
+} from "../../../types.js";
+import type { GameCommand, LlmRoster } from "../../../commands/game-command.js";
 import type { ICharacterRepository } from "../../../repositories/character-repository.js";
 import type { IMonsterRepository } from "../../../repositories/monster-repository.js";
 import type { INPCRepository } from "../../../repositories/npc-repository.js";
@@ -26,7 +33,23 @@ import type { WeaponMasteryProperty } from "../../../../domain/rules/weapon-mast
 
 // ----- Pending action types -----
 
-export type PendingActionType = "INITIATIVE" | "INITIATIVE_SWAP" | "ATTACK" | "DAMAGE" | "DEATH_SAVE" | "SAVING_THROW";
+/**
+ * All valid pending action types as a const tuple.
+ * Adding a new entry here will cause a TypeScript compile error in RollStateMachine
+ * until a corresponding handler is added to the rollHandlers map
+ * (Record<PendingActionType, ...> enforces exhaustive coverage).
+ */
+export const PENDING_ACTION_TYPES = [
+  "INITIATIVE",
+  "INITIATIVE_SWAP",
+  "ATTACK",
+  "DAMAGE",
+  "DEATH_SAVE",
+  "SAVING_THROW",
+] as const;
+
+/** Derived from PENDING_ACTION_TYPES for exhaustive handler map coverage. */
+export type PendingActionType = (typeof PENDING_ACTION_TYPES)[number];
 
 /**
  * Outcome to apply when a saving throw succeeds or fails.
@@ -289,6 +312,20 @@ export interface DamageResult {
   victoryStatus?: CombatVictoryStatus;
 }
 
+/** Result of a death saving throw roll. */
+export interface DeathSaveResult {
+  rollType: "deathSave";
+  rawRoll: number;
+  deathSaveResult: string;
+  deathSaves: DeathSaves;
+  actionComplete: boolean;
+  requiresPlayerInput: boolean;
+  message: string;
+  narration?: string;
+  combatEnded?: boolean;
+  victoryStatus?: CombatVictoryStatus;
+}
+
 /**
  * Result of an auto-resolved saving throw (server rolls for the target).
  */
@@ -314,10 +351,21 @@ export interface SavingThrowAutoResult {
   diceNeeded?: string;
 }
 
+export const ACTION_RESULT_TYPES = [
+  "move",
+  "move_towards",
+  "MOVE_COMPLETE",
+  "JUMP_COMPLETE",
+  "REACTION_CHECK",
+  "REQUEST_ROLL",
+  "SIMPLE_ACTION_COMPLETE",
+] as const;
+export type ActionResultType = (typeof ACTION_RESULT_TYPES)[number];
+
 export interface ActionParseResult {
   requiresPlayerInput: boolean;
   actionComplete: boolean;
-  type: string;
+  type: ActionResultType;
   action?: string;
   message: string;
   narration?: string;
@@ -346,6 +394,40 @@ export interface ActionParseResult {
 }
 
 // ----- Dependency interface -----
+
+// ----- State machine handler types -----
+
+/**
+ * Unified context passed to every roll handler in the pending action state machine.
+ * All fields that any handler may need are present; handlers ignore irrelevant ones.
+ * `command` is undefined for SAVING_THROW (auto-resolved) and INITIATIVE_SWAP (text choice).
+ */
+export interface RollProcessingCtx {
+  sessionId: string;
+  text: string;
+  actorId: string;
+  encounter: CombatEncounterRecord;
+  characters: SessionCharacterRecord[];
+  monsters: SessionMonsterRecord[];
+  npcs: SessionNPCRecord[];
+  roster: LlmRoster;
+  /** Pre-parsed roll command — undefined for SAVING_THROW and INITIATIVE_SWAP. */
+  command?: GameCommand;
+}
+
+/** Uniform signature for all handlers in the pending action state machine. */
+export type RollHandlerFn = (
+  action: TabletopPendingAction,
+  ctx: RollProcessingCtx,
+) => Promise<CombatStartedResult | AttackResult | DamageResult | DeathSaveResult | SavingThrowAutoResult>;
+
+/**
+ * Handler map for all pending action types.
+ * Using Record<PendingActionType, RollHandlerFn> guarantees exhaustive coverage —
+ * adding a new entry to PENDING_ACTION_TYPES produces a compile error here until
+ * the corresponding handler is wired in.
+ */
+export type PendingActionHandlerMap = Record<PendingActionType, RollHandlerFn>;
 
 export interface TabletopCombatServiceDeps {
   characters: ICharacterRepository;

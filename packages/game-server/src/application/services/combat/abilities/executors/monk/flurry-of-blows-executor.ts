@@ -10,7 +10,10 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { FLURRY_OF_BLOWS } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { requireActor, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
+import { hasResourceAvailable } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Flurry of Blows (Monk class feature).
@@ -36,15 +39,7 @@ export class FlurryOfBlowsExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params, actor } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator or TabletopCombatService)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
 
     // Get target from params
     const targetRef = params?.target;
@@ -56,30 +51,14 @@ export class FlurryOfBlowsExecutor implements AbilityExecutor {
       };
     }
 
-    // Validate level requirement (Monk level 2+)
-    const level = params?.level || (actorRef as any).level || 1;
-    if (level < 2) {
-      return {
-        success: false,
-        summary: 'Flurry of Blows requires Monk level 2',
-        error: 'LEVEL_TOO_LOW',
-      };
-    }
+    const featureErr = requireClassFeature(params, FLURRY_OF_BLOWS, "Flurry of Blows (requires Monk level 2+)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
-    // Validate ki points - passed via params.resources
-    const resources = params?.resources;
-    if (!resources) {
-      return {
-        success: false,
-        summary: 'No resources provided for ki validation',
-        error: 'MISSING_RESOURCES',
-      };
-    }
+    const actorRef = params!.actor;
+    const resources = params!.resources;
+    const { level } = extractClassInfo(params);
 
     try {
-      // Import resource utils dynamically to avoid circular deps
-      const { hasResourceAvailable } = await import('../../../helpers/resource-utils.js');
-      
       // Check ki availability
       if (!hasResourceAvailable(resources, 'ki', 1)) {
         return {

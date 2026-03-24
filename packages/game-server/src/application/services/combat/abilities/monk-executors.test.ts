@@ -62,6 +62,8 @@ describe('Monk Ability Executors', () => {
         abilityId: 'patient_defense',
         params: {
           actor: { type: 'Character', characterId: 'monk-123' },
+          className: 'monk',
+          level: 2,
           resources: {
             resourcePools: [{ name: 'ki', current: 3, max: 5 }],
           },
@@ -92,6 +94,8 @@ describe('Monk Ability Executors', () => {
         abilityId: 'patient_defense',
         params: {
           actor: { type: 'Character', characterId: 'monk-123' },
+          className: 'monk',
+          level: 2,
         },
         services: {},
       };
@@ -113,6 +117,8 @@ describe('Monk Ability Executors', () => {
         abilityId: 'patient_defense',
         params: {
           actor: { type: 'Character', characterId: 'monk-123' },
+          className: 'monk',
+          level: 2,
           resources: {
             resourcePools: [{ name: 'ki', current: 0, max: 5 }],
           },
@@ -309,6 +315,8 @@ describe('Monk Ability Executors', () => {
           actor: { type: 'Character', characterId: 'monk-123' },
           target: { type: 'Monster', monsterId: 'goblin-456' },
           targetName: 'Goblin',
+          className: 'monk',
+          level: 1,
         },
         services: {
           attack: mockAttack,
@@ -347,6 +355,8 @@ describe('Monk Ability Executors', () => {
           actor: { type: 'Character', characterId: 'monk-123' },
           target: { type: 'Monster', monsterId: 'goblin-456' },
           targetName: 'Goblin',
+          className: 'monk',
+          level: 1,
         },
         services: {
           attack: mockAttack,

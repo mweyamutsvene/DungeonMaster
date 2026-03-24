@@ -28,7 +28,7 @@ import {
   hasDisadvantageFromEffects,
   type ActiveEffect,
 } from "../../../domain/entities/combat/effects.js";
-import { getAbilityModifier, getProficiencyBonus } from "../../../domain/rules/saving-throws.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../domain/rules/ability-checks.js";
 import type { Ability } from "../../../domain/entities/core/ability-scores.js";
 import { hydrateCombat, extractCombatState, extractActionEconomy } from "./helpers/combat-hydration.js";
 import { hydrateCharacter, hydrateMonster, hydrateNPC } from "./helpers/creature-hydration.js";
@@ -57,11 +57,11 @@ export class CombatService {
     private readonly sessions: IGameSessionRepository,
     private readonly combat: ICombatRepository,
     private readonly victoryPolicy: CombatVictoryPolicy,
-    private readonly events?: IEventRepository,
-    private readonly characters?: ICharacterRepository,
-    private readonly monsters?: IMonsterRepository,
-    private readonly npcs?: INPCRepository,
-    private readonly diceRoller?: DiceRoller,
+    private readonly events: IEventRepository | undefined,
+    private readonly characters: ICharacterRepository,
+    private readonly monsters: IMonsterRepository,
+    private readonly npcs: INPCRepository,
+    private readonly diceRoller: DiceRoller,
   ) {}
 
   async getEncounterState(
@@ -417,199 +417,6 @@ export class CombatService {
     sessionId: string,
     input?: { encounterId?: string; skipDeathSaveAutoRoll?: boolean },
   ): Promise<CombatEncounterRecord> {
-    // Use domain-based implementation if dependencies available
-    if (this.characters && this.monsters && this.npcs && this.diceRoller) {
-      return this.nextTurnDomain(sessionId, input);
-    }
-
-    // Fallback for tests without full dependencies
-    const encounter = await resolveEncounterOrThrow(
-      this.sessions,
-      this.combat,
-      sessionId,
-      input?.encounterId,
-    );
-
-    const combatants = await this.combat.listCombatants(encounter.id);
-    if (combatants.length === 0) {
-      throw new ValidationError(`Encounter has no combatants: ${encounter.id}`);
-    }
-
-    const victoryStatus = await this.victoryPolicy.evaluate({ combatants });
-    if (victoryStatus) {
-      // End the encounter
-      const updated = await this.combat.updateEncounter(encounter.id, {
-        status: victoryStatus,
-      });
-      
-      if (this.events) {
-        await this.events.append(sessionId, {
-          id: nanoid(),
-          type: "CombatEnded",
-          payload: { encounterId: encounter.id, result: victoryStatus },
-        });
-      }
-      
-      return updated;
-    }
-
-    const nextTurn = encounter.turn + 1;
-    const wraps = nextTurn >= combatants.length;
-
-    const updated = await this.combat.updateEncounter(encounter.id, {
-      turn: wraps ? 0 : nextTurn,
-      round: wraps ? encounter.round + 1 : encounter.round,
-    });
-
-    // Reset action availability at start of a combatant's turn.
-    // Resets: actionSpent, reactionUsed, disengaged flags
-
-    // ── Rage End Check (fallback path): check incoming combatant at START of their turn ──
-    // D&D 5e 2024: Rage ends "since the end of your last turn" — check at turn start.
-    const incomingFallback = combatants[updated.turn];
-    if (incomingFallback) {
-      const inRes = normalizeResources(incomingFallback.resources);
-      if (inRes.raging === true) {
-        const attacked = inRes.rageAttackedThisTurn === true;
-        const tookDamage = inRes.rageDamageTakenThisTurn === true;
-        const isUnconscious = incomingFallback.hpCurrent <= 0;
-        if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
-          const effects = getActiveEffects(incomingFallback.resources ?? {});
-          const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
-          let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
-          updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
-          await this.combat.updateCombatantState(incomingFallback.id, { resources: updatedRes as any });
-          console.log(`[CombatService] Rage ended (fallback) for combatant ${incomingFallback.id}`);
-        }
-      }
-    }
-
-    if (wraps) {
-      // New round: clear for everyone.
-      await Promise.all(
-        combatants.map((c) =>
-          this.combat.updateCombatantState(c.id, { resources: resetTurnResources(c.resources) }),
-        ),
-      );
-
-      // ── Zone round cleanup: decrement durations, remove expired zones ──
-      await this.cleanupExpiredZones(updated);
-    } else {
-      const active = combatants[updated.turn];
-      if (!active) {
-        throw new ValidationError(
-          `Encounter turn index out of range: turn=${updated.turn} combatants=${combatants.length}`,
-        );
-      }
-      await this.combat.updateCombatantState(active.id, { resources: resetTurnResources(active.resources) });
-    }
-
-    if (this.events) {
-      await this.events.append(sessionId, {
-        id: nanoid(),
-        type: "TurnAdvanced",
-        payload: { encounterId: encounter.id, round: updated.round, turn: updated.turn },
-      });
-    }
-
-    // Check if the newly active combatant needs a death saving throw.
-    // By default, only Characters make death saves (monsters die immediately at 0 HP).
-    // When skipDeathSaveAutoRoll is true (tabletop mode), skip auto-rolling — the tabletop
-    // service will prompt the player interactively instead.
-    if (!input?.skipDeathSaveAutoRoll) {
-    const updatedCombatants = await this.combat.listCombatants(encounter.id);
-    const activeCombatant = updatedCombatants[updated.turn];
-    if (activeCombatant && activeCombatant.characterId) {
-      const resources = (activeCombatant.resources as any) || {};
-      const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
-      const isStabilized = resources.stabilized === true;
-
-      if (needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) {
-        // Automatically make death saving throw
-        const roll = this.diceRoller ? this.diceRoller.rollDie(20).total : Math.floor(Math.random() * 20) + 1;
-        const saveResult = makeDeathSave(roll, currentDeathSaves);
-
-        let updatedDeathSaves = currentDeathSaves;
-        let updatedHp = activeCombatant.hpCurrent;
-        let updatedStabilized = isStabilized;
-        let resultType: 'success' | 'failure' | 'stabilized' | 'dead' | 'revived' = 'success';
-
-        if (saveResult.outcome === 'dead') {
-          resultType = 'dead';
-          updatedDeathSaves = { ...currentDeathSaves, failures: 3 };
-        } else if (saveResult.outcome === 'stabilized') {
-          resultType = 'stabilized';
-          updatedStabilized = true;
-          updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-        } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
-          resultType = 'revived';
-          updatedHp = 1; // Regain 1 HP
-          updatedDeathSaves = { successes: 0, failures: 0 }; // Reset
-          updatedStabilized = false;
-        } else {
-          // Normal success or failure
-          resultType = saveResult.outcome;
-          updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-        }
-
-        // Update combatant state
-        const updatedResources = {
-          ...resources,
-          deathSaves: updatedDeathSaves,
-          stabilized: updatedStabilized,
-        };
-
-        await this.combat.updateCombatantState(activeCombatant.id, {
-          hpCurrent: updatedHp,
-          resources: updatedResources,
-        });
-
-        // Emit death save event
-        if (this.events) {
-          await this.events.append(sessionId, {
-            id: nanoid(),
-            type: "DeathSave",
-            payload: {
-              encounterId: encounter.id,
-              combatantId: activeCombatant.id,
-              roll,
-              result: resultType,
-              deathSaves: updatedDeathSaves,
-              ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
-            },
-          });
-        }
-
-        // If the combatant died, check victory again
-        if (resultType === 'dead') {
-          const finalCombatants = await this.combat.listCombatants(encounter.id);
-          const victoryAfterDeath = await this.victoryPolicy.evaluate({ combatants: finalCombatants });
-          if (victoryAfterDeath) {
-            await this.combat.updateEncounter(encounter.id, { status: victoryAfterDeath });
-            
-            if (this.events) {
-              await this.events.append(sessionId, {
-                id: nanoid(),
-                type: "CombatEnded",
-                payload: { encounterId: encounter.id, result: victoryAfterDeath },
-              });
-            }
-          }
-        }
-      }
-    }
-    } // end skipDeathSaveAutoRoll guard
-
-    return updated;
-  }
-
-  /**
-   * Domain-driven turn advancement using Combat domain class.
-   */
-  private async nextTurnDomain(
-    sessionId: string,
-    input?: { encounterId?: string; skipDeathSaveAutoRoll?: boolean },
-  ): Promise<CombatEncounterRecord> {
     const encounter = await resolveEncounterOrThrow(
       this.sessions,
       this.combat,
@@ -664,7 +471,7 @@ export class CombatService {
     }
 
     // Hydrate Combat domain instance
-    const combat = hydrateCombat(encounter, combatantRecords, creatures, this.diceRoller!);
+    const combat = hydrateCombat(encounter, combatantRecords, creatures, this.diceRoller);
 
     // --- End-of-turn condition expiry for the outgoing combatant ---
     const outgoingCreatureId = combat.getActiveCreature().getId();
@@ -830,7 +637,7 @@ export class CombatService {
 
       if (needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) {
         // Automatically make death saving throw
-        const roll = this.diceRoller!.rollDie(20).total;
+        const roll = this.diceRoller.rollDie(20).total;
         const saveResult = makeDeathSave(roll, currentDeathSaves);
 
         let updatedDeathSaves = currentDeathSaves;

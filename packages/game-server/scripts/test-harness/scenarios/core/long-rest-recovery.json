@@ -1,0 +1,52 @@
+{
+  "name": "Long Rest: Full Recovery (HP + Spell Slots + Pools)",
+  "description": "Validates that a long rest restores HP to max, refreshes all class resource pools (including long-rest-only pools like rage), and refreshes spell slot pools.",
+  "setup": {
+    "character": {
+      "name": "Resting Ragnar",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 55,
+        "currentHp": 20,
+        "armorClass": 14,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "resourcePools": [
+          { "name": "rage", "current": 0, "max": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": []
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "input": { "restType": "long" },
+      "comment": "Long rest should restore rage (long-rest-only pool) and HP to max",
+      "expect": {
+        "poolsRefreshed": ["rage"],
+        "characterHp": { "name": "Resting Ragnar", "exact": 55 }
+      }
+    }
+  ]
+}

@@ -6,6 +6,9 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { PATIENT_DEFENSE } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { requireActor, requireResources, requireClassFeature } from "../executor-helpers.js";
+import { hasResourceAvailable } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Patient Defense (Monk class feature).
@@ -31,15 +34,8 @@ export class PatientDefenseExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const featureErr = requireClassFeature(params, PATIENT_DEFENSE, "Patient Defense (requires Monk level 2+)"); if (featureErr) return featureErr;
 
     // Check if dodge service is available
     if (!services.dodge) {
@@ -50,20 +46,12 @@ export class PatientDefenseExecutor implements AbilityExecutor {
       };
     }
 
-    // Validate ki points - passed via params.resources
-    const resources = params?.resources;
-    if (!resources) {
-      return {
-        success: false,
-        summary: 'No resources provided for ki validation',
-        error: 'MISSING_RESOURCES',
-      };
-    }
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
+
+    const actorRef = params!.actor;
+    const resources = params!.resources;
 
     try {
-      // Import resource utils dynamically to avoid circular deps
-      const { hasResourceAvailable } = await import('../../../helpers/resource-utils.js');
-      
       // Check ki availability
       if (!hasResourceAvailable(resources, 'ki', 1)) {
         return {

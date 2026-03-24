@@ -11,7 +11,9 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { MARTIAL_ARTS } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { requireActor, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 
 /**
  * Executor for Martial Arts (Monk class feature).
@@ -39,15 +41,7 @@ export class MartialArtsExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params, actor } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
 
     // Get target from params
     const targetRef = params?.target;
@@ -59,15 +53,10 @@ export class MartialArtsExecutor implements AbilityExecutor {
       };
     }
 
-    // Validate level requirement (Monk level 1+)
-    const level = (params?.level as number) || (actorRef as any).level || 1;
-    if (level < 1) {
-      return {
-        success: false,
-        summary: 'Martial Arts requires Monk level 1',
-        error: 'LEVEL_TOO_LOW',
-      };
-    }
+    const featureErr = requireClassFeature(params, MARTIAL_ARTS, "Martial Arts (requires Monk class)"); if (featureErr) return featureErr;
+
+    const actorRef = params!.actor;
+    const { level } = extractClassInfo(params);
 
     // Check if attack service is available
     if (!services.attack) {

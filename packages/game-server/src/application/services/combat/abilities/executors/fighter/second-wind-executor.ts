@@ -7,8 +7,10 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
-import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
+import { SECOND_WIND } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { SeededDiceRoller } from "../../../../../../domain/rules/dice-roller.js";
+import { requireActor, requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
+import { hasResourceAvailable, spendResourceFromPool, hasBonusActionAvailable, useBonusAction } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Second Wind (Fighter class feature).
@@ -37,60 +39,18 @@ export class SecondWindExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { params, sessionId, encounterId } = context;
 
-    // Get actor info from params
-    const actorRef = params?.actor;
-    const sheet = params?.sheet;
-    const resources = params?.resources;
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
+    const featureErr = requireClassFeature(params, SECOND_WIND, "Second Wind (requires Fighter class)"); if (featureErr) return featureErr;
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
+
+    const actorRef = params!.actor;
+    const sheet = params!.sheet;
+    const resources = params!.resources;
     const combatantState = params?.combatantState;
-    const passedClassName = params?.className as string | undefined;
-    const passedLevel = params?.level as number | undefined;
-
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
-
-    if (!sheet) {
-      return {
-        success: false,
-        summary: 'No character sheet in params',
-        error: 'MISSING_SHEET',
-      };
-    }
-
-    const level = passedLevel ?? (sheet as any)?.level ?? 1;
-    const className = passedClassName ?? (sheet as any)?.className ?? "";
-
-    // Check if character is a Fighter (Second Wind is available at level 1)
-    if (!ClassFeatureResolver.isFighter(sheet as any, className)) {
-      return {
-        success: false,
-        summary: 'This character does not have Second Wind (requires Fighter class)',
-        error: 'MISSING_FEATURE',
-      };
-    }
-
-    // Validate Second Wind resource pool
-    if (!resources) {
-      return {
-        success: false,
-        summary: 'No resources provided for Second Wind validation',
-        error: 'MISSING_RESOURCES',
-      };
-    }
+    const { level, className } = extractClassInfo(params);
 
     try {
-      // Import resource utils dynamically to avoid circular deps
-      const { 
-        hasResourceAvailable, 
-        spendResourceFromPool, 
-        hasBonusActionAvailable,
-        useBonusAction,
-      } = await import('../../../helpers/resource-utils.js');
-      
       // Check Second Wind availability
       if (!hasResourceAvailable(resources, 'secondWind', 1)) {
         return {

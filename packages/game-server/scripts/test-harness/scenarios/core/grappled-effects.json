@@ -48,7 +48,7 @@
           },
           "maxHp": 50,
           "hp": 50,
-          "armorClass": 13,
+          "armorClass": 10,
           "speed": 30,
           "challengeRating": 0.25,
           "experienceValue": 50,
@@ -85,11 +85,11 @@
     {
       "type": "action",
       "input": { "text": "grapple Goblin Victim" },
-      "comment": "Contested Athletics: STR 20 (+5 prof 3 = +8) vs Goblin STR 8 (-1) / DEX 14 (+2). Should succeed easily.",
+      "comment": "Unarmed Strike: STR 20 (+5 prof 3 = +8) vs AC 10. Target DEX save +2 vs DC 16. Should succeed. Fighter L5 has Extra Attack so grapple uses 1 of 2 attacks.",
       "expect": {
         "type": "SIMPLE_ACTION_COMPLETE",
         "action": "Grapple",
-        "actionComplete": true
+        "actionComplete": false
       }
     },
     {
@@ -103,8 +103,35 @@
       }
     },
     {
+      "type": "action",
+      "input": { "text": "attack Goblin Victim" },
+      "comment": "Attack the grappled target in the SAME TURN (2nd attack from Extra Attack) - should be NORMAL roll (Grappled does NOT grant advantage per 5e 2024)",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": false,
+        "disadvantage": false
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 10 - hit",
+      "expect": {
+        "hit": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 5 = 11 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
       "type": "endTurn",
-      "comment": "End turn after grapple (grapple uses the action). Goblin can still attack but can't move."
+      "comment": "End turn after grapple + attack (both attacks used via Extra Attack)."
     },
     {
       "type": "waitForTurn",
@@ -118,33 +145,6 @@
           "name": "Goblin Victim",
           "hasConditions": ["Grappled"]
         }
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Goblin Victim" },
-      "comment": "Attack the grappled target on round 2 - should be NORMAL roll (Grappled does NOT grant advantage per 5e 2024)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true,
-        "advantage": false,
-        "disadvantage": false
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "15" },
-      "comment": "15 + 8 = 23 vs AC 13 - hit",
-      "expect": {
-        "hit": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "6" },
-      "comment": "6 + 5 = 11 damage",
-      "expect": {
-        "actionComplete": true
       }
     },
     {

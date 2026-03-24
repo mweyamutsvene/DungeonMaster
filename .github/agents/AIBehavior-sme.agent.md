@@ -41,8 +41,9 @@ AI-controlled combatant behavior: `AiTurnOrchestrator` (orchestrates Monster/NPC
 
 ### When asked to RESEARCH:
 1. Investigate the relevant files in your flow thoroughly
-2. Write structured findings to the specified output file
-3. Include: affected files, current patterns, dependencies, risks, recommendations
+2. Write a **concise** summary (max 200 lines) to the specified output file
+3. Structure: affected files (with why each matters), current patterns relevant to THIS task, dependencies that could break, risks, and recommendations
+4. **Do the deep reading so the orchestrator doesn't have to** — your job is to compress 30K of source into a focused summary
 
 ### When asked to VALIDATE a plan:
 1. Read the plan document at the specified path

@@ -1338,7 +1338,7 @@ export class ActionService {
   /**
    * Escape from a grapple (2024 rules).
    * DC = 8 + grappler's STR mod + grappler's proficiency bonus.
-   * Escapee rolls Athletics (STR) or Acrobatics (DEX) — picks higher.
+   * Escapee rolls Athletics (STR) or Acrobatics (DEX) ï¿½ picks higher.
    * On success the Grappled condition is removed.
    */
   async escapeGrapple(sessionId: string, input: SimpleActionBaseInput): Promise<{
@@ -1386,7 +1386,7 @@ export class ActionService {
       acrobaticsBonus: typeof skills.acrobatics === "number" ? actorStats.proficiencyBonus : 0,
     } : undefined;
 
-    // Find who grappled the actor — look for grapple source on the condition,
+    // Find who grappled the actor ï¿½ look for grapple source on the condition,
     // or fallback to STR +0 / prof +2 if grappler can't be identified
     let grapplerStrMod = 0;
     let grapplerProfBonus = 2;

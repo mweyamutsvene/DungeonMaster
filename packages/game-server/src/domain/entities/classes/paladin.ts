@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface ChannelDivinityState {
@@ -33,7 +33,7 @@ export function resetLayOnHandsOnLongRest(level: number, state: LayOnHandsState)
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
-export function channelDivinityUsesForLevel(level: number): number {
+export function paladinChannelDivinityUsesForLevel(level: number): number {
   if (!Number.isInteger(level) || level < 1 || level > 20) {
     throw new Error(`Invalid level: ${level}`);
   }
@@ -46,7 +46,7 @@ export function channelDivinityUsesForLevel(level: number): number {
 }
 
 export function createChannelDivinityState(level: number): ChannelDivinityState {
-  const max = channelDivinityUsesForLevel(level);
+  const max = paladinChannelDivinityUsesForLevel(level);
   return { pool: { name: "channelDivinity", current: max, max } };
 }
 
@@ -61,7 +61,7 @@ export function resetChannelDivinityOnShortRest(
   level: number,
   state: ChannelDivinityState,
 ): ChannelDivinityState {
-  const max = channelDivinityUsesForLevel(level);
+  const max = paladinChannelDivinityUsesForLevel(level);
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
@@ -109,6 +109,12 @@ export const Paladin: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["wisdom", "charisma"],
   },
+  features: {
+    "lay-on-hands": 1,
+    "divine-smite": 2,
+    "channel-divinity": 3,
+    "extra-attack": 5,
+  },
   resourcesAtLevel: (level) => {
     const pools: ResourcePool[] = [];
     pools.push(createLayOnHandsState(level).pool);
@@ -117,5 +123,36 @@ export const Paladin: CharacterClassDefinition = {
     if (cd.pool.max > 0) pools.push(cd.pool);
 
     return pools;
+  },
+  // resourcePoolFactory preserves original switch-case order: CD first, then LoH.
+  resourcePoolFactory: (level) => {
+    const pools: ResourcePool[] = [];
+
+    const cd = createChannelDivinityState(level);
+    if (cd.pool.max > 0) pools.push(cd.pool);
+
+    const loh = createLayOnHandsState(level);
+    if (loh.pool.max > 0) pools.push(loh.pool);
+
+    return pools;
+  },
+  restRefreshPolicy: [
+    { poolKey: "layOnHands", refreshOn: "long", computeMax: (level) => layOnHandsPoolForLevel(level) },
+    { poolKey: "channelDivinity", refreshOn: "both", computeMax: (level) => paladinChannelDivinityUsesForLevel(level) },
+  ],
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Lay on Hands", economy: "bonusAction", cost: `${layOnHandsPoolForLevel(level)} HP pool/long rest`, effect: "Restore HP from healing pool", abilityId: "class:paladin:lay-on-hands", resourceCost: { pool: "layOnHands", amount: 5 } },
+    ];
+    if (level >= 2) {
+      caps.push({ name: "Divine Smite", economy: "bonusAction", cost: "1 spell slot", requires: "Melee weapon hit", effect: "Add 2d8+ radiant damage on melee hit", abilityId: "class:paladin:divine-smite" });
+    }
+    if (level >= 3) {
+      caps.push({ name: "Channel Divinity", economy: "action", cost: `${paladinChannelDivinityUsesForLevel(level)} uses/short rest`, effect: "Channel divine energy for oath abilities" });
+    }
+    if (level >= 5) {
+      caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
+    }
+    return caps;
   },
 };

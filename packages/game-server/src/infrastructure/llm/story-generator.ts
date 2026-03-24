@@ -57,6 +57,7 @@ export class StoryGenerator implements IStoryGenerator {
     },
   ) {}
 
+  // TODO: Migrate inline messages construction to PromptBuilder (see prompt-builder.ts)
   async generateStoryFramework(input?: { seed?: number }): Promise<StoryFramework> {
     const messages = [
         {

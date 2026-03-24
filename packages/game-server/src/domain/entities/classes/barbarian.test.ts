@@ -4,8 +4,6 @@ import {
   barbarianUnarmoredDefenseAC,
   createRageState,
   endRage,
-  hasDangerSense,
-  hasFeralInstinct,
   isDangerSenseNegated,
   rageDamageBonusForLevel,
   rageUsesForLevel,
@@ -13,7 +11,8 @@ import {
   shouldRageEnd,
   startRage,
 } from "./barbarian.js";
-import { ClassFeatureResolver } from "./class-feature-resolver.js";
+import { classHasFeature } from "./registry.js";
+import { RAGE, RECKLESS_ATTACK, DANGER_SENSE, FERAL_INSTINCT, EXTRA_ATTACK } from "./feature-keys.js";
 
 describe("Barbarian rage", () => {
   it("computes rage uses by level", () => {
@@ -80,38 +79,6 @@ describe("barbarianUnarmoredDefenseAC", () => {
   it("handles zero modifiers", () => {
     expect(barbarianUnarmoredDefenseAC(0, 2)).toBe(12);
     expect(barbarianUnarmoredDefenseAC(3, 0)).toBe(13);
-  });
-});
-
-describe("hasDangerSense", () => {
-  it("returns false at level 1", () => {
-    expect(hasDangerSense(1)).toBe(false);
-  });
-
-  it("returns true at level 2", () => {
-    expect(hasDangerSense(2)).toBe(true);
-  });
-
-  it("returns true at higher levels", () => {
-    expect(hasDangerSense(5)).toBe(true);
-    expect(hasDangerSense(10)).toBe(true);
-    expect(hasDangerSense(20)).toBe(true);
-  });
-});
-
-describe("hasFeralInstinct", () => {
-  it("returns false below level 7", () => {
-    expect(hasFeralInstinct(1)).toBe(false);
-    expect(hasFeralInstinct(6)).toBe(false);
-  });
-
-  it("returns true at level 7", () => {
-    expect(hasFeralInstinct(7)).toBe(true);
-  });
-
-  it("returns true at higher levels", () => {
-    expect(hasFeralInstinct(8)).toBe(true);
-    expect(hasFeralInstinct(20)).toBe(true);
   });
 });
 
@@ -276,89 +243,75 @@ describe("Barbarian ClassDefinition", () => {
   });
 });
 
-describe("ClassFeatureResolver — Barbarian features", () => {
-  const barbarianSheet = { className: "Barbarian", level: 5 };
-  const fighterSheet = { className: "Fighter", level: 10 };
-
-  describe("isBarbarian", () => {
-    it("returns true for Barbarian className", () => {
-      expect(ClassFeatureResolver.isBarbarian(barbarianSheet)).toBe(true);
-    });
-
-    it("returns false for non-Barbarian className", () => {
-      expect(ClassFeatureResolver.isBarbarian(fighterSheet)).toBe(false);
-    });
-
-    it("accepts className override parameter", () => {
-      expect(ClassFeatureResolver.isBarbarian(null, "Barbarian")).toBe(true);
-      expect(ClassFeatureResolver.isBarbarian(null, "barbarian")).toBe(true);
-    });
-  });
-
-  describe("hasDangerSense", () => {
-    it("returns true for Barbarian level 2+", () => {
-      expect(ClassFeatureResolver.hasDangerSense({ className: "Barbarian", level: 2 })).toBe(true);
-      expect(ClassFeatureResolver.hasDangerSense({ className: "Barbarian", level: 5 })).toBe(true);
-    });
-
-    it("returns false for Barbarian level 1", () => {
-      expect(ClassFeatureResolver.hasDangerSense({ className: "Barbarian", level: 1 })).toBe(false);
+describe("classHasFeature — Barbarian features", () => {
+  describe("rage", () => {
+    it("returns true for any Barbarian level", () => {
+      expect(classHasFeature("barbarian", RAGE, 1)).toBe(true);
     });
 
     it("returns false for non-Barbarian", () => {
-      expect(ClassFeatureResolver.hasDangerSense({ className: "Fighter", level: 10 })).toBe(false);
+      expect(classHasFeature("fighter", RAGE, 10)).toBe(false);
     });
 
-    it("accepts className and level override parameters", () => {
-      expect(ClassFeatureResolver.hasDangerSense(null, "Barbarian", 2)).toBe(true);
-      expect(ClassFeatureResolver.hasDangerSense(null, "Barbarian", 1)).toBe(false);
-      expect(ClassFeatureResolver.hasDangerSense(null, "Monk", 5)).toBe(false);
+    it("is case-insensitive on classId", () => {
+      expect(classHasFeature("Barbarian", RAGE, 1)).toBe(true);
+      expect(classHasFeature("BARBARIAN", RAGE, 1)).toBe(true);
     });
   });
 
-  describe("hasFeralInstinct", () => {
+  describe("danger-sense", () => {
+    it("returns true for Barbarian level 2+", () => {
+      expect(classHasFeature("barbarian", DANGER_SENSE, 2)).toBe(true);
+      expect(classHasFeature("barbarian", DANGER_SENSE, 5)).toBe(true);
+    });
+
+    it("returns false for Barbarian level 1", () => {
+      expect(classHasFeature("barbarian", DANGER_SENSE, 1)).toBe(false);
+    });
+
+    it("returns false for non-Barbarian", () => {
+      expect(classHasFeature("fighter", DANGER_SENSE, 10)).toBe(false);
+    });
+  });
+
+  describe("feral-instinct", () => {
     it("returns true for Barbarian level 7+", () => {
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Barbarian", level: 7 })).toBe(true);
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Barbarian", level: 10 })).toBe(true);
+      expect(classHasFeature("barbarian", FERAL_INSTINCT, 7)).toBe(true);
+      expect(classHasFeature("barbarian", FERAL_INSTINCT, 10)).toBe(true);
     });
 
     it("returns false for Barbarian below level 7", () => {
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Barbarian", level: 6 })).toBe(false);
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Barbarian", level: 1 })).toBe(false);
+      expect(classHasFeature("barbarian", FERAL_INSTINCT, 6)).toBe(false);
+      expect(classHasFeature("barbarian", FERAL_INSTINCT, 1)).toBe(false);
     });
 
     it("returns false for non-Barbarian", () => {
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Fighter", level: 10 })).toBe(false);
-      expect(ClassFeatureResolver.hasFeralInstinct({ className: "Monk", level: 7 })).toBe(false);
-    });
-
-    it("accepts className and level override parameters", () => {
-      expect(ClassFeatureResolver.hasFeralInstinct(null, "Barbarian", 7)).toBe(true);
-      expect(ClassFeatureResolver.hasFeralInstinct(null, "Barbarian", 6)).toBe(false);
+      expect(classHasFeature("fighter", FERAL_INSTINCT, 10)).toBe(false);
+      expect(classHasFeature("monk", FERAL_INSTINCT, 7)).toBe(false);
     });
   });
 
-  describe("hasRage", () => {
-    it("returns true for any Barbarian level", () => {
-      expect(ClassFeatureResolver.hasRage({ className: "Barbarian", level: 1 })).toBe(true);
-    });
-
-    it("returns false for non-Barbarian", () => {
-      expect(ClassFeatureResolver.hasRage({ className: "Fighter", level: 10 })).toBe(false);
-    });
-  });
-
-  describe("hasRecklessAttack", () => {
+  describe("reckless-attack", () => {
     it("returns true for Barbarian level 2+", () => {
-      expect(ClassFeatureResolver.hasRecklessAttack({ className: "Barbarian", level: 2 })).toBe(true);
+      expect(classHasFeature("barbarian", RECKLESS_ATTACK, 2)).toBe(true);
     });
 
     it("returns false for Barbarian level 1", () => {
-      expect(ClassFeatureResolver.hasRecklessAttack({ className: "Barbarian", level: 1 })).toBe(false);
+      expect(classHasFeature("barbarian", RECKLESS_ATTACK, 1)).toBe(false);
     });
 
     it("returns false for non-Barbarian", () => {
-      expect(ClassFeatureResolver.hasRecklessAttack({ className: "Fighter", level: 5 })).toBe(false);
+      expect(classHasFeature("fighter", RECKLESS_ATTACK, 5)).toBe(false);
+    });
+  });
+
+  describe("extra-attack", () => {
+    it("returns true for Barbarian level 5+", () => {
+      expect(classHasFeature("barbarian", EXTRA_ATTACK, 5)).toBe(true);
+    });
+
+    it("returns false for Barbarian below level 5", () => {
+      expect(classHasFeature("barbarian", EXTRA_ATTACK, 4)).toBe(false);
     });
   });
 });

@@ -319,6 +319,8 @@ export interface RestResponse {
     id?: string;
     name: string;
     poolsRefreshed: string[];
+    hitDiceSpent?: number;
+    hpRecovered?: number;
   }>;
 }
 

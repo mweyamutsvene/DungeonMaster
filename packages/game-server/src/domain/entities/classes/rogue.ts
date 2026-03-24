@@ -1,4 +1,5 @@
 import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 import { isFinesse } from "../items/weapon-properties.js";
 
 export function sneakAttackDiceForLevel(level: number): number {
@@ -49,6 +50,12 @@ export const Rogue: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["dexterity", "intelligence"],
   },
+  features: {
+    "sneak-attack": 1,
+    "cunning-action": 2,
+    "uncanny-dodge": 5,
+    "evasion": 7,
+  },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Sneak Attack", economy: "free", requires: "Finesse/ranged weapon + advantage or ally adjacent", effect: `${sneakAttackDiceForLevel(level)}d6 extra damage (once/turn)` },
@@ -64,4 +71,23 @@ export const Rogue: CharacterClassDefinition = {
     }
     return caps;
   },
+};
+
+/**
+ * Rogue Combat Text Profile — profile-driven text parsing.
+ *
+ * Action mappings:
+ * - "cunning-action" → bonus action, Dash/Disengage/Hide as bonus action
+ */
+export const ROGUE_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "rogue",
+  actionMappings: [
+    {
+      keyword: "cunning-action",
+      normalizedPatterns: [/cunningaction/, /cunningdash/, /cunningdisengage/, /cunninghide/],
+      abilityId: "class:rogue:cunning-action",
+      category: "bonusAction",
+    },
+  ],
+  attackEnhancements: [],
 };

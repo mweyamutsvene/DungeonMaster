@@ -48,8 +48,19 @@ export const Druid: CharacterClassDefinition = {
   proficiencies: {
     savingThrows: ["intelligence", "wisdom"],
   },
+  features: {
+    "spellcasting": 1,
+    "wild-shape": 2,
+  },
   resourcesAtLevel: (level) => {
     const ws = createWildShapeState(level);
     return ws.pool.max > 0 ? [ws.pool] : [];
   },
+  resourcePoolFactory: (level) => {
+    const ws = createWildShapeState(level);
+    return ws.pool.max > 0 ? [ws.pool] : [];
+  },
+  restRefreshPolicy: [
+    { poolKey: "wildShape", refreshOn: "both", computeMax: (level) => wildShapeUsesForLevel(level) },
+  ],
 };

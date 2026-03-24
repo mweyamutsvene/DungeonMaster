@@ -5,9 +5,11 @@ import type { ICharacterRepository } from "../../repositories/character-reposito
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
 import type { JsonValue, SessionCharacterRecord } from "../../types.js";
-import { refreshClassResourcePools, type RestType } from "../../../domain/rules/rest.js";
+import { refreshClassResourcePools, spendHitDice, recoverHitDice, type RestType } from "../../../domain/rules/rest.js";
+import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import type { ResourcePool } from "../../../domain/entities/combat/resource-pool.js";
 import type { CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
+import { getClassDefinition } from "../../../domain/entities/classes/registry.js";
 import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalog.js";
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
 
@@ -21,6 +23,7 @@ export class CharacterService {
     private readonly sessions: IGameSessionRepository,
     private readonly characters: ICharacterRepository,
     private readonly events?: IEventRepository,
+    private readonly diceRoller?: DiceRoller,
   ) {}
 
   async addCharacter(
@@ -82,16 +85,19 @@ export class CharacterService {
   /**
    * Take a short or long rest for all characters in a session.
    * Refreshes class resource pools and (on long rest) restores HP.
+   * On short rest, optionally spend Hit Dice to recover HP.
+   * On long rest, recover spent Hit Dice (half total, rounded down, min 1).
    */
   async takeSessionRest(
     sessionId: string,
     restType: RestType,
-  ): Promise<{ characters: Array<{ id: string; name: string; poolsRefreshed: string[] }> }> {
+    hitDiceSpending?: Record<string, number>,
+  ): Promise<{ characters: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> }> {
     const session = await this.sessions.getById(sessionId);
     if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
 
     const characters = await this.characters.listBySession(sessionId);
-    const results: Array<{ id: string; name: string; poolsRefreshed: string[] }> = [];
+    const results: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> = [];
 
     for (const char of characters) {
       const sheet = (char.sheet as Record<string, unknown>) ?? {};
@@ -127,24 +133,49 @@ export class CharacterService {
         resourcePools: refreshedPools,
       };
 
-      // Long rest: restore HP to max
-      if (restType === "long") {
+      let hitDiceSpent: number | undefined;
+      let hpRecovered: number | undefined;
+
+      // Resolve hit die info from class definition
+      const classId = className.toLowerCase() as CharacterClassId;
+      const classDef = className ? getClassDefinition(classId) : undefined;
+      const hitDie = classDef?.hitDie ?? 8;
+      const totalHitDice = level;
+      const currentHitDiceRemaining = typeof sheet.hitDiceRemaining === "number"
+        ? sheet.hitDiceRemaining
+        : totalHitDice; // Default to full if not tracked yet
+
+      if (restType === "short" && hitDiceSpending && hitDiceSpending[char.id] && this.diceRoller) {
+        // Short rest: spend Hit Dice to recover HP
+        const count = hitDiceSpending[char.id];
+        const conScore = (sheet.abilityScores as any)?.constitution ?? 10;
+        const conMod = Math.floor((conScore - 10) / 2);
+        const currentHp = (sheet.currentHp as number) ?? (sheet.maxHp as number) ?? 10;
+        const maxHp = (sheet.maxHp as number) ?? currentHp;
+
+        const result = spendHitDice({
+          hitDiceRemaining: currentHitDiceRemaining,
+          hitDie,
+          conModifier: conMod,
+          count,
+          currentHp,
+          maxHp,
+          diceRoller: this.diceRoller,
+        });
+
+        updatedSheet.currentHp = result.newHp;
+        updatedSheet.hitDiceRemaining = result.hitDiceRemaining;
+        hitDiceSpent = currentHitDiceRemaining - result.hitDiceRemaining;
+        hpRecovered = result.hpRecovered;
+      } else if (restType === "long") {
+        // Long rest: restore HP to max and recover Hit Dice
         const maxHp = (sheet.maxHp as number) ?? (sheet.currentHp as number) ?? 10;
         updatedSheet.currentHp = maxHp;
-        
-        // Also refresh spell slot pools
-        for (const pool of refreshedPools) {
-          if (pool.name.startsWith("spellSlot_")) {
-            pool.current = pool.max;
-            if (!poolsRefreshed.includes(pool.name)) {
-              poolsRefreshed.push(pool.name);
-            }
-          }
-        }
+        updatedSheet.hitDiceRemaining = recoverHitDice(currentHitDiceRemaining, totalHitDice);
       }
 
       await this.characters.updateSheet(char.id, updatedSheet as JsonValue);
-      results.push({ id: char.id, name: char.name, poolsRefreshed });
+      results.push({ id: char.id, name: char.name, poolsRefreshed, hitDiceSpent, hpRecovered });
     }
 
     if (this.events) {

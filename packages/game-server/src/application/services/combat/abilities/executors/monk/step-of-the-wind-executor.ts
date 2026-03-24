@@ -7,6 +7,9 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
+import { STEP_OF_THE_WIND } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { requireActor, requireResources, requireClassFeature } from "../executor-helpers.js";
+import { hasResourceAvailable } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Step of the Wind (Monk class feature).
@@ -34,25 +37,10 @@ export class StepOfTheWindExecutor implements AbilityExecutor {
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
     const { services, params, actor } = context;
 
-    // Get actor ref from params (passed by AiTurnOrchestrator)
-    const actorRef = params?.actor;
-    if (!actorRef) {
-      return {
-        success: false,
-        summary: 'No actor reference in params',
-        error: 'MISSING_ACTOR',
-      };
-    }
+    const actorErr = requireActor(params); if (actorErr) return actorErr;
+    const featureErr = requireClassFeature(params, STEP_OF_THE_WIND, "Step of the Wind (requires Monk level 2+)"); if (featureErr) return featureErr;
 
-    // Validate level requirement (Monk level 2+)
-    const level = (params?.level as number) || (actorRef as any).level || 1;
-    if (level < 2) {
-      return {
-        success: false,
-        summary: 'Step of the Wind requires Monk level 2',
-        error: 'LEVEL_TOO_LOW',
-      };
-    }
+    const actorRef = params!.actor;
 
     // Determine choice: disengage or dash
     let choice = params?.choice as string | undefined;
@@ -72,20 +60,11 @@ export class StepOfTheWindExecutor implements AbilityExecutor {
       choice = 'disengage';
     }
 
-    // Validate ki points - passed via params.resources
-    const resources = params?.resources;
-    if (!resources) {
-      return {
-        success: false,
-        summary: 'No resources provided for ki validation',
-        error: 'MISSING_RESOURCES',
-      };
-    }
+    const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
+
+    const resources = params!.resources;
 
     try {
-      // Import resource utils dynamically to avoid circular deps
-      const { hasResourceAvailable } = await import('../../../helpers/resource-utils.js');
-      
       // Check ki availability
       if (!hasResourceAvailable(resources, 'ki', 1)) {
         return {

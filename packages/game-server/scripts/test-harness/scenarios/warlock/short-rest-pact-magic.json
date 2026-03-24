@@ -1,0 +1,51 @@
+{
+  "name": "Short Rest: Warlock Pact Magic Recovery",
+  "description": "Validates that a short rest refreshes Warlock Pact Magic slots. Warlock is unique in recovering spell slots on short rest via Pact Magic.",
+  "setup": {
+    "character": {
+      "name": "Resting Warlock",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 14,
+          "constitution": 13,
+          "intelligence": 12,
+          "wisdom": 10,
+          "charisma": 18
+        },
+        "maxHp": 33,
+        "currentHp": 33,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "resourcePools": [
+          { "name": "pactMagic", "current": 0, "max": 2 }
+        ],
+        "attacks": [
+          {
+            "name": "Eldritch Blast",
+            "kind": "ranged",
+            "range": "120ft",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 4 },
+            "damageType": "force"
+          }
+        ]
+      }
+    },
+    "monsters": []
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "input": { "restType": "short" },
+      "comment": "Short rest should refresh pactMagic pools for warlock",
+      "expect": {
+        "poolsRefreshed": ["pactMagic"]
+      }
+    }
+  ]
+}

@@ -5,6 +5,24 @@ import type { Skill } from "../entities/core/skills.js";
 import { getGoverningAbility } from "../entities/core/skills.js";
 import type { Creature } from "../entities/creatures/creature.js";
 
+/**
+ * Calculate ability modifier from ability score.
+ * @param abilityScore - Ability score (typically 1-30)
+ * @returns Modifier (-5 to +10 for standard range)
+ */
+export function getAbilityModifier(abilityScore: number): number {
+  return Math.floor((abilityScore - 10) / 2);
+}
+
+/**
+ * Calculate proficiency bonus based on character level.
+ * @param level - Character level (1-20)
+ * @returns Proficiency bonus (+2 to +6)
+ */
+export function getProficiencyBonus(level: number): number {
+  return Math.floor((level - 1) / 4) + 2;
+}
+
 export interface AbilityCheckOptions {
   dc: number;
   abilityModifier: number;
@@ -69,11 +87,11 @@ export function savingThrow(
   return abilityCheck(diceRoller, { dc, abilityModifier, mode });
 }
 
-type D20ModeProvider = {
+export type D20ModeProvider = {
   getD20TestModeForAbility?: (ability: Ability, baseMode: RollMode) => RollMode;
 };
 
-function getAdjustedMode(creature: Creature, ability: Ability, baseMode: RollMode): RollMode {
+export function getAdjustedMode(creature: Creature, ability: Ability, baseMode: RollMode): RollMode {
   const maybe = creature as unknown as D20ModeProvider;
   if (typeof maybe.getD20TestModeForAbility !== "function") return baseMode;
   return maybe.getD20TestModeForAbility(ability, baseMode);
