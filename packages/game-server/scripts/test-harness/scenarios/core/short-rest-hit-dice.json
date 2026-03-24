@@ -1,0 +1,59 @@
+{
+  "name": "Short Rest: Hit Dice Spending",
+  "description": "Validates that spending Hit Dice during a short rest recovers HP. Fighter starts at low HP with full HD. Spends 2 Hit Dice; HP recovers by at least 2*(1+CON_mod) = 6 (worst case), hit dice remaining decreases by 2, and class resource pools (secondWind, actionSurge) are also refreshed.",
+  "setup": {
+    "character": {
+      "name": "Wounded Wallace",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 20,
+        "hitDiceRemaining": 5,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "resourcePools": [
+          { "name": "secondWind", "current": 0, "max": 1 },
+          { "name": "actionSurge", "current": 0, "max": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": []
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "input": {
+        "restType": "short",
+        "hitDiceSpending": { "Wounded Wallace": 2 }
+      },
+      "comment": "Short rest: spend 2 d10 hit dice. CON 15 → modifier +2. Min heal = 2*(1+2)=6. Final HP ∈ [26, 42]. HD remaining = 5-2 = 3.",
+      "expect": {
+        "poolsRefreshed": ["secondWind", "actionSurge"],
+        "hpRecovered": { "name": "Wounded Wallace", "min": 6, "max": 24 },
+        "characterHp": { "name": "Wounded Wallace", "min": 26, "max": 42 },
+        "characterHitDice": { "name": "Wounded Wallace", "remaining": 3 }
+      }
+    }
+  ]
+}

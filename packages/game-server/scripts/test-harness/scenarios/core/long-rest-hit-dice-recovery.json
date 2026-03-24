@@ -1,0 +1,55 @@
+{
+  "name": "Long Rest: Hit Dice Recovery",
+  "description": "Validates that a long rest recovers half the character's total Hit Dice (rounded down, minimum 1). Fighter level 5 starts with only 1 Hit Die remaining. After long rest: HP restored to max (42), and hit dice recovered by floor(5/2)=2, giving 1+2=3 remaining.",
+  "setup": {
+    "character": {
+      "name": "Weary Walden",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 10,
+        "hitDiceRemaining": 1,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "resourcePools": [
+          { "name": "secondWind", "current": 0, "max": 1 },
+          { "name": "actionSurge", "current": 0, "max": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": []
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "input": { "restType": "long" },
+      "comment": "Long rest: HP restored to max (42). HD recovery = floor(5/2)=2; starting from 1 → 1+2=3 remaining. Pools restored.",
+      "expect": {
+        "poolsRefreshed": ["secondWind", "actionSurge"],
+        "characterHp": { "name": "Weary Walden", "exact": 42 },
+        "characterHitDice": { "name": "Weary Walden", "remaining": 3 }
+      }
+    }
+  ]
+}

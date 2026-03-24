@@ -355,6 +355,11 @@ interface RestAction {
   type: "rest";
   input: {
     restType: "short" | "long";
+    /**
+     * Short rest only: map of character name → number of Hit Dice to spend.
+     * The runner translates names to IDs before calling the API.
+     */
+    hitDiceSpending?: Record<string, number>;
   };
   comment?: string;
   expect?: {
@@ -362,6 +367,10 @@ interface RestAction {
     poolsRefreshed?: string[];
     /** Verify character HP after rest (by name) */
     characterHp?: { name: string; min?: number; max?: number; exact?: number };
+    /** Verify remaining Hit Dice after rest (by character name) */
+    characterHitDice?: { name: string; remaining: number };
+    /** Verify HP recovered from Hit Dice spending (short rest only) */
+    hpRecovered?: { name: string; min?: number; max?: number; exact?: number };
   };
 }
 
@@ -1573,14 +1582,37 @@ export async function runScenario(
 
         case "rest": {
           const restAction = action as RestAction;
-          const restPayload = { type: restAction.input.restType };
+
+          // Translate name-keyed hitDiceSpending to character-ID-keyed (API expects IDs)
+          let hitDiceSpending: Record<string, number> | undefined;
+          if (restAction.input.hitDiceSpending) {
+            hitDiceSpending = {};
+            for (const [charName, count] of Object.entries(restAction.input.hitDiceSpending)) {
+              const charId = characterMap.get(charName);
+              if (!charId) {
+                throw new Error(`hitDiceSpending: character "${charName}" not found. Available: [${[...characterMap.keys()].join(", ")}]`);
+              }
+              hitDiceSpending[charId] = count;
+            }
+          }
+
+          const restPayload: Record<string, unknown> = { type: restAction.input.restType };
+          if (hitDiceSpending) restPayload.hitDiceSpending = hitDiceSpending;
+
           logRequest("POST", `${baseUrl}/sessions/${sessionId}/rest`, restPayload);
           const res = await httpPost(`${baseUrl}/sessions/${sessionId}/rest`, restPayload);
           logResponse(res.status, res.body);
           if (res.status !== 200) {
             throw new Error(`rest failed: ${JSON.stringify(res.body)}`);
           }
-          const restBody = res.body as { characters?: Array<{ name: string; poolsRefreshed: string[] }> };
+          const restBody = res.body as {
+            characters?: Array<{
+              name: string;
+              poolsRefreshed: string[];
+              hitDiceSpent?: number;
+              hpRecovered?: number;
+            }>;
+          };
           const charSummaries = restBody.characters?.map(c => `${c.name}: [${c.poolsRefreshed.join(", ")}]`).join("; ") ?? "none";
           log(`${colors.green}✓${colors.reset} ${restAction.input.restType} rest: ${charSummaries}`);
 
@@ -1594,26 +1626,64 @@ export async function runScenario(
             }
           }
 
-          // Validate character HP after rest if specified
-          if (restAction.expect?.characterHp) {
-            const expectHp = restAction.expect.characterHp;
+          // Validate HP recovered from Hit Dice spending (from response body)
+          if (restAction.expect?.hpRecovered) {
+            const expHpRec = restAction.expect.hpRecovered;
+            const charResult = restBody.characters?.find(c => c.name === expHpRec.name);
+            if (!charResult) {
+              throw new Error(`hpRecovered check: character "${expHpRec.name}" not found in rest result`);
+            }
+            const actual = charResult.hpRecovered ?? 0;
+            if (expHpRec.exact !== undefined && actual !== expHpRec.exact) {
+              throw new Error(`Expected "${expHpRec.name}" hpRecovered = ${expHpRec.exact}, got ${actual}`);
+            }
+            if (expHpRec.min !== undefined && actual < expHpRec.min) {
+              throw new Error(`Expected "${expHpRec.name}" hpRecovered >= ${expHpRec.min}, got ${actual}`);
+            }
+            if (expHpRec.max !== undefined && actual > expHpRec.max) {
+              throw new Error(`Expected "${expHpRec.name}" hpRecovered <= ${expHpRec.max}, got ${actual}`);
+            }
+            log(`${colors.green}✓${colors.reset} hpRecovered check: ${expHpRec.name} recovered ${actual} HP`);
+          }
+
+          // Validate character HP after rest if specified (fetch session for ground truth)
+          if (restAction.expect?.characterHp || restAction.expect?.characterHitDice) {
             const sessionRes = await httpGet(`${baseUrl}/sessions/${sessionId}`);
-            const sessionBody = sessionRes.body as { characters?: Array<{ name: string; sheet?: { currentHp?: number; maxHp?: number } }> };
-            const char = sessionBody.characters?.find(c => c.name === expectHp.name);
-            if (!char) {
-              throw new Error(`Character "${expectHp.name}" not found in session for HP check`);
+            const sessionBody = sessionRes.body as {
+              characters?: Array<{ name: string; sheet?: { currentHp?: number; maxHp?: number; hitDiceRemaining?: number } }>;
+            };
+
+            if (restAction.expect?.characterHp) {
+              const expectHp = restAction.expect.characterHp;
+              const char = sessionBody.characters?.find(c => c.name === expectHp.name);
+              if (!char) {
+                throw new Error(`Character "${expectHp.name}" not found in session for HP check`);
+              }
+              const hp = char.sheet?.currentHp ?? 0;
+              if (expectHp.exact !== undefined && hp !== expectHp.exact) {
+                throw new Error(`Expected "${expectHp.name}" HP = ${expectHp.exact}, got ${hp}`);
+              }
+              if (expectHp.min !== undefined && hp < expectHp.min) {
+                throw new Error(`Expected "${expectHp.name}" HP >= ${expectHp.min}, got ${hp}`);
+              }
+              if (expectHp.max !== undefined && hp > expectHp.max) {
+                throw new Error(`Expected "${expectHp.name}" HP <= ${expectHp.max}, got ${hp}`);
+              }
+              log(`${colors.green}✓${colors.reset} HP check: ${expectHp.name} HP = ${hp}`);
             }
-            const hp = char.sheet?.currentHp ?? 0;
-            if (expectHp.exact !== undefined && hp !== expectHp.exact) {
-              throw new Error(`Expected "${expectHp.name}" HP = ${expectHp.exact}, got ${hp}`);
+
+            if (restAction.expect?.characterHitDice) {
+              const expHd = restAction.expect.characterHitDice;
+              const char = sessionBody.characters?.find(c => c.name === expHd.name);
+              if (!char) {
+                throw new Error(`Character "${expHd.name}" not found in session for hitDiceRemaining check`);
+              }
+              const remaining = char.sheet?.hitDiceRemaining;
+              if (remaining !== expHd.remaining) {
+                throw new Error(`Expected "${expHd.name}" hitDiceRemaining = ${expHd.remaining}, got ${remaining}`);
+              }
+              log(`${colors.green}✓${colors.reset} hitDiceRemaining check: ${expHd.name} has ${remaining} HD`);
             }
-            if (expectHp.min !== undefined && hp < expectHp.min) {
-              throw new Error(`Expected "${expectHp.name}" HP >= ${expectHp.min}, got ${hp}`);
-            }
-            if (expectHp.max !== undefined && hp > expectHp.max) {
-              throw new Error(`Expected "${expectHp.name}" HP <= ${expectHp.max}, got ${hp}`);
-            }
-            log(`${colors.green}✓${colors.reset} HP check: ${expectHp.name} HP = ${hp}`);
           }
           break;
         }

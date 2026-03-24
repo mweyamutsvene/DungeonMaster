@@ -156,10 +156,9 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 - **Plan**: See `plan-rest-interruption.prompt.md`
 - **Affected flows**: EntityManagement
 
-### 5.2 Hit Dice E2E Scenarios
-- **Priority**: LOW
-- **Issue**: Short rest with hit dice spending + long rest half-HD recovery have unit tests but no E2E scenarios.
-- **Blocked by**: Rest flow not yet supported in the scenario runner.
+### ~~5.2 Hit Dice E2E Scenarios~~ ✅ DONE
+- **Implemented**: Extended `RestAction` in `scenario-runner.ts` to support `hitDiceSpending` input (name-keyed, translated to ID before API call) and new `expect` fields: `characterHitDice` (remaining after rest) and `hpRecovered` (HP healed from HD spending).
+- **Added scenarios**: `core/short-rest-hit-dice.json` (Fighter spends 2 HD, asserts HP ≥ 26 and 3 HD remaining) and `core/long-rest-hit-dice-recovery.json` (HD 1→3 after long rest, HP=42). 155/155 E2E passing.
 - **Affected flows**: Testing
 
 ---
@@ -178,4 +177,4 @@ These are all **opportunistic** — pick up when you're already working in the a
 | Action text parsing | §3.2 Parser registry |
 | Map/terrain features | §3.3 combat-map split, §4.4 cover |
 | Movement/terrain types | §4.1 movement split (deferred — wire jump first) |
-| Rest system expansion | §5.1 interruption, §5.2 E2E scenarios |
+| Rest system expansion | ~~§5.1 interruption~~ ✅ DONE, ~~§5.2 E2E scenarios~~ ✅ DONE |
