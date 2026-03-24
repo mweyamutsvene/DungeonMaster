@@ -1,17 +1,17 @@
 /**
- * D&D 5e Combat Map and Arena System — Barrel Re-export
+ * D&D 5e Combat Map and Arena System ï¿½ Barrel Re-export
  *
  * This file is the public surface for the combat-map module family.
  * All imports that reference `combat-map.js` continue to work unchanged.
  *
  * Sub-modules:
- *   combat-map-types.ts  — TerrainType, CoverLevel, MapCell, MapEntity, CombatMap
- *   combat-map-core.ts   — createCombatMap, getCellAt, setTerrainAt, entity CRUD,
+ *   combat-map-types.ts  ï¿½ TerrainType, CoverLevel, MapCell, MapEntity, CombatMap
+ *   combat-map-core.ts   ï¿½ createCombatMap, getCellAt, setTerrainAt, entity CRUD,
  *                          isOnMap, isPositionPassable, getTerrainSpeedModifier
- *   combat-map-sight.ts  — hasLineOfSight, getCoverLevel, getCoverACBonus,
+ *   combat-map-sight.ts  ï¿½ hasLineOfSight, getCoverLevel, getCoverACBonus,
  *                          getCoverSaveBonus, getEntitiesInRadius, getFactionsInRange
- *   combat-map-zones.ts  — getMapZones, addZone, removeZone, updateZone, setMapZones
- *   combat-map-items.ts  — getGroundItems, addGroundItem, removeGroundItem,
+ *   combat-map-zones.ts  ï¿½ getMapZones, addZone, removeZone, updateZone, setMapZones
+ *   combat-map-items.ts  ï¿½ getGroundItems, addGroundItem, removeGroundItem,
  *                          getGroundItemsAtPosition, getGroundItemsNearPosition
  */
 

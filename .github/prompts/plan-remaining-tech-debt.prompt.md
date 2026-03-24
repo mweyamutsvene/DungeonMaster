@@ -1,15 +1,17 @@
 # Plan: Remaining Technical Debt Backlog
 
-## Status: BACKLOG
+## Status: COMPLETE (ARCHIVED 2026-03-24)
 ## Date: 2026-03-23
+## Completed: 2026-03-24
 ## Source: Remaining items from archived `plan-deferred-technical-debt.prompt.md`
 ## Baseline: 596 unit tests, 151/151 E2E, typecheck clean
+## Final: 662 unit tests, 155/155 E2E, typecheck clean
 
 ---
 
 ## Overview
 
-Low-priority and blocked items remaining after the main tech debt cleanup. All HIGH and MEDIUM items have been resolved. These are opportunistic improvements — pick them up when working in the relevant area, or when a blocker is lifted.
+13/15 items completed, 2 deferred. All HIGH and MEDIUM items resolved. Deferred items moved to `plan-deferred-low-priority.prompt.md`.
 
 ---
 
@@ -94,21 +96,9 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 
 ## 4. DRY / Cleanup
 
-### 4.1 `movement.ts` Mixes Movement + Jump — ⏸ DEFERRED (assessed 2026-03-24)
-- **Priority**: LOW
-- **File**: `domain/rules/movement.ts`
-- **Assessment**: Assessed at 324 lines. Jump functions (`calculateLongJumpDistance`, `calculateHighJumpDistance`, `computeJumpLandingPosition`, `JumpParams`, `JumpResult`) and constants (`MOVEMENT_MODIFIERS`, `STANDARD_SPEEDS`) have **zero usages** across the codebase — they are dead code. Splitting dead code into a new file provides no benefit. Split is only worthwhile when jump mechanics are wired into actual gameplay and the file grows substantially with new movement types (swim, climb, fly). Decision: **Defer until jump wiring work begins**.
-- **Plan**: See `plan-movement-split.prompt.md`
-- **Affected flows**: CombatRules
+### 4.1 `movement.ts` Mixes Movement + Jump — ⏸ DEFERRED → `plan-deferred-low-priority.prompt.md`
 
-### 4.2 `Combat` Class Stateful in Domain Layer — ⏸ DEFERRED (assessed 2026-03-24)
-- **Priority**: LOW
-- **Issue**: `Combat` class holds mutable state in domain layer. Could be made more functional (pure functions operating on combat state records).
-- **Risk**: Large refactor with high regression risk for low benefit. The class works correctly.
-- **Assessment**: Assessed at 255 lines. Only 1 production consumer (`combat-hydration.ts`). The class is a transient, request-scoped object (created, used, discarded per API call). A full functional refactor (class → pure functions) would touch 6+ files with zero behavior change. Decision: **Full refactor deferred**.
-- **Safe wins implemented**: Added `restoreState(state: CombatState)` and `restoreActionEconomy(creatureId, economy)` public methods to eliminate `(combat as any)` reflection hacks in `combat-hydration.ts`. 616 unit tests + 153/153 E2E pass.
-- **Plan**: See `plan-combat-functional-refactor.prompt.md`
-- **Affected flows**: CombatRules
+### 4.2 `Combat` Class Stateful in Domain Layer — ⏸ DEFERRED → `plan-deferred-low-priority.prompt.md`
 
 ### 4.3 `battle-plan-service` Incomplete `shouldReplan` ✅ DONE
 - **Priority**: ~~LOW~~ COMPLETED
@@ -163,18 +153,6 @@ Low-priority and blocked items remaining after the main tech debt cleanup. All H
 
 ---
 
-## Recommended Approach
+## Deferred Items
 
-These are all **opportunistic** — pick up when you're already working in the area:
-
-| When working on... | Consider picking up... |
-|---------------------|----------------------|
-| Multi-attack / Extra Attack rework | ~~§1.1 Grapple economy~~ ✅ DONE |
-| AI improvements | §2.1 NPC fields, §3.4 AI extensibility, ~~§4.3 replan~~ ✅ DONE, §4.5 retreat |
-| Spell system changes | §2.2 Spell path unification |
-| New event types | ~~§2.3 SSE type narrowing~~ ✅ DONE |
-| New class abilities | §3.1 Resource builder generalization |
-| Action text parsing | §3.2 Parser registry |
-| Map/terrain features | §3.3 combat-map split, §4.4 cover |
-| Movement/terrain types | §4.1 movement split (deferred — wire jump first) |
-| Rest system expansion | ~~§5.1 interruption~~ ✅ DONE, ~~§5.2 E2E scenarios~~ ✅ DONE |
+See `plan-deferred-low-priority.prompt.md` for the 2 items that were assessed and deferred.
