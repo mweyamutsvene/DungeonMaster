@@ -203,6 +203,61 @@ describe("Grapple and Shove (2024 rules)", () => {
     });
   });
 
+  describe("escapeGrapple with skill proficiency", () => {
+    it("proficient in Acrobatics with low DEX gets proficiency bonus added", () => {
+      // Escapee: STR mod +0, DEX mod -1, proficient in Acrobatics (prof +2)
+      // Effective: Athletics = +0+0 = 0, Acrobatics = -1+2 = +1 → picks Acrobatics
+      // Grappler: STR mod +2, prof +2 → DC = 8+2+2 = 12
+      // Rolls d20(12) + 1 = 13 → beats DC 12 → success
+      const dice = new FixedDiceRoller(12);
+      const result = escapeGrapple(2, 2, 0, -1, dice, { athleticsBonus: 0, acrobaticsBonus: 2 });
+
+      expect(result.success).toBe(true);
+      expect(result.dc).toBe(12);
+      expect(result.total).toBe(13); // 12 + (-1 + 2)
+      expect(result.abilityUsed).toBe("dexterity");
+    });
+
+    it("no proficiency in either skill uses raw ability modifier (backward compat)", () => {
+      // Escapee: STR mod +1, DEX mod +3, no proficiency → uses DEX (higher raw)
+      // Grappler: STR mod +2, prof +2 → DC = 12
+      // Rolls d20(10) + 3 = 13 → beats DC 12 → success
+      const dice = new FixedDiceRoller(10);
+      const result = escapeGrapple(2, 2, 1, 3, dice);
+
+      expect(result.success).toBe(true);
+      expect(result.dc).toBe(12);
+      expect(result.total).toBe(13);
+      expect(result.abilityUsed).toBe("dexterity");
+    });
+
+    it("proficient in both skills picks the higher total", () => {
+      // Escapee: STR mod +1 + prof +2 = +3, DEX mod +3 + prof +2 = +5 → picks Acrobatics
+      // Grappler: STR mod +2, prof +2 → DC = 12
+      // Rolls d20(5) + 5 = 10 → fails DC 12
+      const dice = new FixedDiceRoller(5);
+      const result = escapeGrapple(2, 2, 1, 3, dice, { athleticsBonus: 2, acrobaticsBonus: 2 });
+
+      expect(result.success).toBe(false);
+      expect(result.dc).toBe(12);
+      expect(result.total).toBe(10); // 5 + (3 + 2)
+      expect(result.abilityUsed).toBe("dexterity");
+    });
+
+    it("null/undefined escapeeSkills falls back to raw modifiers", () => {
+      // Escapee: STR mod +2, DEX mod +0, undefined skills → uses STR (higher raw)
+      // Grappler: STR mod +2, prof +2 → DC = 12
+      // Rolls d20(8) + 2 = 10 → fails DC 12
+      const dice = new FixedDiceRoller(8);
+      const result = escapeGrapple(2, 2, 2, 0, dice, undefined);
+
+      expect(result.success).toBe(false);
+      expect(result.dc).toBe(12);
+      expect(result.total).toBe(10); // 8 + 2
+      expect(result.abilityUsed).toBe("strength");
+    });
+  });
+
   describe("isTargetTooLarge", () => {
     it("should allow grappling same size", () => {
       expect(isTargetTooLarge("Medium", "Medium")).toBe(false);

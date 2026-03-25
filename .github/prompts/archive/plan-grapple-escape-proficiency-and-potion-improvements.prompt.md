@@ -1,6 +1,6 @@
 # Plan: Grapple Escape Proficiency Fix + Potion/UseObject Improvements
 ## Round: 1
-## Status: DRAFT
+## Status: COMPLETE
 ## Affected Flows: CombatRules, AIBehavior, EntityManagement
 
 ## Objective
@@ -34,23 +34,23 @@ export function escapeGrapple(
 **Fix:** The `escapeGrapple()` function should accept proficiency info for both Athletics and Acrobatics. Use `skillCheck()` or equivalent logic to add proficiency when applicable. The caller in `action-service.ts` needs to look up skill proficiencies from combat stats.
 
 #### [File: `packages/game-server/src/domain/rules/grapple-shove.ts`]
-- [ ] Extend `escapeGrapple()` signature to accept skill proficiency info (e.g., `escapeeAthleticsProficient?: boolean`, `escapeeAcrobaticsProficient?: boolean`, `escapeeProfBonus?: number`)
-- [ ] When choosing between STR (Athletics) and DEX (Acrobatics), factor in proficiency bonus for whichever skill the creature is proficient in — pick the one with higher total modifier
-- [ ] Use the proficiency-adjusted modifier in the `abilityCheck()` call
-- [ ] Remove the TODO comment in `action-service.ts` once fixed
+- [x] Extend `escapeGrapple()` signature to accept skill proficiency info (e.g., `escapeeAthleticsProficient?: boolean`, `escapeeAcrobaticsProficient?: boolean`, `escapeeProfBonus?: number`)
+- [x] When choosing between STR (Athletics) and DEX (Acrobatics), factor in proficiency bonus for whichever skill the creature is proficient in — pick the one with higher total modifier
+- [x] Use the proficiency-adjusted modifier in the `abilityCheck()` call
+- [x] Remove the TODO comment in `action-service.ts` once fixed
 
 #### [File: `packages/game-server/src/domain/rules/grapple-shove.test.ts`]
-- [ ] Add test: escapee proficient in Acrobatics with lower DEX still benefits from proficiency (may choose Acrobatics over Athletics)
-- [ ] Add test: escapee with no proficiency in either skill uses raw ability modifier (backward compatible)
-- [ ] Add test: escapee proficient in both picks the higher total
+- [x] Add test: escapee proficient in Acrobatics with lower DEX still benefits from proficiency (may choose Acrobatics over Athletics)
+- [x] Add test: escapee with no proficiency in either skill uses raw ability modifier (backward compatible)
+- [x] Add test: escapee proficient in both picks the higher total
 
 #### [File: `packages/game-server/src/application/services/combat/action-service.ts` (~line 1325)]
-- [ ] Look up escapee's skill proficiencies (Athletics, Acrobatics) from combat stats
-- [ ] Pass proficiency info to `escapeGrapple()` domain function
-- [ ] Remove the TODO comment
+- [x] Look up escapee's skill proficiencies (Athletics, Acrobatics) from combat stats
+- [x] Pass proficiency info to `escapeGrapple()` domain function
+- [x] Remove the TODO comment
 
 #### [File: `packages/game-server/src/application/services/combat/ai/ai-action-executor.ts`]
-- [ ] Verify AI escape grapple path also passes proficiency info (likely delegates to action-service, so should be automatic)
+- [x] Verify AI escape grapple path also passes proficiency info (likely delegates to action-service, so should be automatic)
 
 ---
 
@@ -61,13 +61,13 @@ export function escapeGrapple(
 **Current behavior:** The system prompt says "Only use when you have healing potions and HP is low" but the LLM doesn't always obey. The executor returns `{ ok: false, summary: "No usable objects available" }` which counts as a failure.
 
 #### [File: `packages/game-server/src/infrastructure/llm/ai-decision-maker.ts`]
-- [ ] In the system prompt builder / context section, if the combatant has no healing potions in inventory, either:
+- [x] In the system prompt builder / context section, if the combatant has no healing potions in inventory, either:
   - (a) Omit `useObject` from the available actions list entirely, OR
   - (b) Add a note: `"useObject is NOT available — no healing potions in inventory"` to the context
-- [ ] Check if the AI tactical context already includes inventory info. If not, add a `hasPotions: boolean` field or similar to the context.
+- [x] Check if the AI tactical context already includes inventory info. `hasPotions: boolean` already present in `AiCombatContext`.
 
-#### [File: `packages/game-server/src/application/services/combat/ai/ai-tactical-context.ts` (or wherever context is built)]
-- [ ] Add inventory awareness to AI tactical context — at minimum `hasPotions: boolean`
+#### [File: `packages/game-server/src/application/services/combat/ai/ai-context-builder.ts`]
+- [x] `hasPotions` computed via `potionEffects` check already present and wired up
 
 ---
 
@@ -91,6 +91,6 @@ export function escapeGrapple(
 - **AI context bloat:** Adding inventory info to AI context increases prompt token count. Mitigation: single boolean `hasPotions`, not the full inventory.
 
 ## Test Plan
-- [ ] Unit tests for `escapeGrapple()` with proficiency (new cases in `grapple-shove.test.ts`)
-- [ ] Existing E2E scenario `grapple-escape.json` should continue to pass (no regression)
-- [ ] Manual verify: AI with no potions doesn't pick `useObject`
+- [x] Unit tests for `escapeGrapple()` with proficiency (4 new cases in `grapple-shove.test.ts`) — 24/24 grapple tests pass
+- [x] Existing E2E scenario `grapple-escape.json` continues to pass — 160/160 E2E scenarios pass
+- [x] AI with no potions doesn't pick `useObject` — already double-gated in `ai-decision-maker.ts`

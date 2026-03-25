@@ -348,7 +348,13 @@ export class ActionDispatcher {
       // 18. Use item
       {
         id: "useItem",
-        tryParse: (text) => tryParseUseItemText(text),
+        tryParse: (text) => {
+          // "use <ability name>" should route to classAction, not item use.
+          // Strip the "use " verb and check if the remainder matches any class ability.
+          const stripped = text.replace(/^(?:use|try)\s+/i, "");
+          if (stripped !== text && tryMatchClassAction(stripped, profiles)) return null;
+          return tryParseUseItemText(text);
+        },
         handle: (parsed, ctx) =>
           this.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
       },

@@ -20,11 +20,12 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 
 ## Workflow
 1. Read the plan or task description to understand what changed
-2. Identify all source files that were modified or created
-3. For each modified file, check if a corresponding `.test.ts` file exists
-4. Update existing tests or create new test files to cover the changes
-5. Run: `pnpm -C packages/game-server test` to verify all tests pass
-6. Report: list of test files created/modified, pass/fail status
+2. **If a plan file is provided, read its "Test Plan" section.** Every `- [ ]` item there is a test authorship task — enumerate them explicitly before writing any code.
+3. Identify all source files that were modified or created
+4. For each modified file, check if a corresponding `.test.ts` file exists
+5. Write tests covering: (a) all unchecked Test Plan items, (b) any modified source with no test coverage
+6. Run: `pnpm -C packages/game-server test` to verify all tests pass
+7. Report: list of test files created/modified, which Test Plan items were satisfied, pass/fail status
 
 ## Conventions
 - **Test location**: colocated with source (e.g., `movement.ts` → `movement.test.ts`)

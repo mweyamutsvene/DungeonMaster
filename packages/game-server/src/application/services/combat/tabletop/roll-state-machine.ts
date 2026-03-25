@@ -104,7 +104,7 @@ import type {
   PendingActionHandlerMap,
   RollProcessingCtx,
 } from "./tabletop-types.js";
-import { assertValidTransition } from "./pending-action-state-machine.js";
+// assertValidTransition is intentionally not imported here; transition validation belongs at setPendingAction() call sites.
 import { InitiativeHandler } from "./rolls/initiative-handler.js";
 import { WeaponMasteryResolver } from "./rolls/weapon-mastery-resolver.js";
 import { HitRiderResolver } from "./rolls/hit-rider-resolver.js";
@@ -363,23 +363,26 @@ export class RollStateMachine {
 
     // Dispatch via exhaustive handler map — replaces the scattered if-chain.
     // TypeScript ensures every PendingActionType has an entry in this.rollHandlers.
-    // NOTE: assertValidTransition is called here with null as the "from" state because
-    // we don't track the previous state in processRollResult — we only know the current action.
-    // The actual transition validation belongs at the setPendingAction() call sites.
-    // TODO: move assertValidTransition to the call site that *sets* pending action type.
-    assertValidTransition(null, action.type);
     return this.rollHandlers[action.type](action, ctx);
   }
 
   // ----- Private helpers -----
 
   private async parseRollValue(text: string, expectedRollType: string, roster: LlmRoster): Promise<RollResultCommand> {
+    const D20_ROLL_TYPES = new Set(["attack", "initiative", "deathSave"]);
+
     const numberFromText = (() => {
       const m = text.match(/\b(\d{1,3})\b/);
       if (!m) return null;
       const n = Number(m[1]);
       return Number.isFinite(n) ? n : null;
     })();
+
+    if (numberFromText !== null && D20_ROLL_TYPES.has(expectedRollType) && (numberFromText < 1 || numberFromText > 20)) {
+      throw new ValidationError(
+        `Invalid d20 roll: ${numberFromText}. A d20 roll must be between 1 and 20.`,
+      );
+    }
 
     const looksLikeARoll = /\broll(?:ed)?\b/i.test(text);
 

@@ -341,10 +341,10 @@ export function tryParseHideText(input: string): boolean {
   return /\bhide\b/.test(normalized);
 }
 
-/** Parse "offhand attack", "off-hand attack", "bonus attack", etc. */
+/** Parse "offhand attack", "off-hand attack", "offhand strike", "bonus attack", etc. */
 export function tryParseOffhandAttackText(input: string): boolean {
   const normalized = input.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return /offhandattack|offhand$|bonusattack|twoweaponattack/.test(normalized);
+  return /offhandattack|offhandstrike|offhand$|bonusattack|twoweaponattack/.test(normalized);
 }
 
 /** Parse "search", "I search", "search for hidden", "look around", "search for enemies". */
@@ -530,7 +530,7 @@ export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAtta
 
   // Skip if it's an offhand/bonus attack
   const stripped = normalized.replace(/[^a-z0-9]+/g, "");
-  if (/offhandattack|offhand$|bonusattack|twoweaponattack/.test(stripped)) return null;
+  if (/offhandattack|offhandstrike|offhand$|bonusattack|twoweaponattack/.test(stripped)) return null;
 
   // Unarmed strike / punch / kick — recognized BEFORE the generic attack verb check.
   // Returns no weaponHint; target name is optional (defaults to nearest hostile).

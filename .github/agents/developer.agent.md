@@ -68,6 +68,7 @@ For 1-2 flow changes where you understand the scope well enough to plan directly
 4. **Test**: Dispatch E2EScenarioWriter and VitestWriter.
 5. **Verify**: `typecheck` → `test` → `test:e2e:combat:mock`. Fix or re-dispatch.
 
+**Batch dispatch**: When there are multiple simple items, dispatch each to the relevant implementer agent rather than doing them yourself. Do this in parallel if they are independent.
 ---
 
 ### Tier 3: Complex (Full Orchestration)
@@ -109,7 +110,7 @@ Update plan checkboxes as phases complete.
 2. `pnpm -C packages/game-server test`
 3. `pnpm -C packages/game-server test:e2e:combat:mock`
 4. Fix trivially or re-dispatch to implementer
-5. Confirm all plan items checked off
+5. **Confirm all plan items checked off — including the Test Plan section.** The Test Plan lists test *code* that must be authored. A green test run does NOT satisfy unchecked Test Plan items if no tests were written for them. Each `- [ ]` in the Test Plan requires a corresponding test file edit/creation before it can be checked off.
 6. Clean up `.github/plans/` research/feedback files
 
 #### Step 7: Deep Research (in Parallel)
@@ -146,8 +147,11 @@ Do a deep research on your respective flows to update all architectural docs, di
 - [Risk and mitigation]
 
 ## Test Plan
-- [ ] Unit tests for new/changed logic
-- [ ] E2E scenario for the happy path
+<!-- IMPORTANT: Each item below is a TEST CODE AUTHORSHIP task, not a verification step.
+     A passing `pnpm test` run does NOT check these off — you must write the actual test code.
+     Dispatch VitestWriter / E2EScenarioWriter for these, or write them yourself. -->
+- [ ] Unit tests for new/changed logic (specify: file, function under test, cases covered)
+- [ ] E2E scenario for the happy path (specify: scenario file path)
 - [ ] Edge case scenarios (resource at 0, target dead, concentration active, etc.)
 
 ## SME Approval (Complex only)
