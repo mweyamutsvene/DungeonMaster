@@ -238,6 +238,24 @@ export interface AiDecisionPayload {
   decision: Record<string, unknown>;
 }
 
+export interface LegendaryActionPayload {
+  encounterId: string;
+  combatantId: string;
+  actionName: string;
+  actionType: "attack" | "move" | "special";
+  cost: number;
+  targetId?: string;
+}
+
+export interface LegendaryActionPayload {
+  encounterId: string;
+  combatantId: string;
+  actionName: string;
+  actionType: "attack" | "move" | "special";
+  cost: number;
+  targetId?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Discriminated union of all game events
 // ---------------------------------------------------------------------------
@@ -269,7 +287,8 @@ export type GameEventInput =
   | { type: "UncannyDodge"; payload: UncannyDodgePayload }
   | { type: "AbsorbElements"; payload: AbsorbElementsPayload }
   | { type: "HellishRebuke"; payload: HellishRebukePayload }
-  | { type: "AiDecision"; payload: AiDecisionPayload };
+  | { type: "AiDecision"; payload: AiDecisionPayload }
+  | { type: "LegendaryAction"; payload: LegendaryActionPayload };
 
 /** All valid event type strings — use for exhaustive switch checks or filtering. */
 export type GameEventType = GameEventInput["type"];

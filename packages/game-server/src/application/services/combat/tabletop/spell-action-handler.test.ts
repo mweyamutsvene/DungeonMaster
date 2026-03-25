@@ -29,11 +29,18 @@ const characters = [
           name: "Burning Hands",
           level: 1,
           saveAbility: "dexterity",
-          damageDice: "3d6",
+          damage: { diceCount: 3, diceSides: 6 },
           damageType: "fire",
           concentration: false,
+          upcastScaling: { additionalDice: { diceCount: 1, diceSides: 6 } },
         },
-        { name: "Cure Wounds", level: 1, healing: { dice: "1d8", modifier: 3 }, concentration: false },
+        {
+          name: "Cure Wounds",
+          level: 1,
+          healing: { diceCount: 1, diceSides: 8, modifier: 3 },
+          concentration: false,
+          upcastScaling: { additionalDice: { diceCount: 1, diceSides: 8 } },
+        },
         { name: "Bless", level: 1, concentration: true, effects: [{ type: "buff", duration: 10 }] },
         {
           name: "Spirit Guardians",
@@ -115,6 +122,7 @@ describe("SpellActionHandler", () => {
         resources: {
           resourcePools: [
             { name: "spellSlot_1", current: 4, max: 4 },
+            { name: "spellSlot_2", current: 3, max: 3 },
             { name: "spellSlot_3", current: 2, max: 2 },
           ],
         },
@@ -298,5 +306,91 @@ describe("SpellActionHandler", () => {
 
     expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
     expect(deps.actions.castSpell).toHaveBeenCalled();
+  });
+
+  // ─────────────────────── upcasting (castAtLevel) ────────────────────────
+
+  describe("upcasting (castAtLevel)", () => {
+    it("upcast Cure Wounds (1→2) spends level-2 slot, not level-1 slot", async () => {
+      await combatRepo.updateCombatantState("comb-goblin", { hpCurrent: 5 });
+
+      await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Cure Wounds", targetName: "Goblin", castAtLevel: 2 },
+        characters,
+        roster,
+      );
+
+      const combatants = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const caster = combatants.find((c) => c.characterId === ACTOR_ID)!;
+      const res = caster.resources as Record<string, unknown>;
+      const pools = res.resourcePools as Array<{ name: string; current: number; max: number }>;
+      const slot1 = pools.find((p) => p.name === "spellSlot_1")!;
+      const slot2 = pools.find((p) => p.name === "spellSlot_2")!;
+      // Level-1 slot untouched; level-2 slot consumed
+      expect(slot1.current).toBe(4);
+      expect(slot2.current).toBe(2);
+    });
+
+    it("upcast Burning Hands (1→2) spends level-2 slot, not level-1 slot", async () => {
+      await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Burning Hands", targetName: "Goblin", castAtLevel: 2 },
+        characters,
+        roster,
+      );
+
+      const combatants = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const caster = combatants.find((c) => c.characterId === ACTOR_ID)!;
+      const res = caster.resources as Record<string, unknown>;
+      const pools = res.resourcePools as Array<{ name: string; current: number; max: number }>;
+      const slot1 = pools.find((p) => p.name === "spellSlot_1")!;
+      const slot2 = pools.find((p) => p.name === "spellSlot_2")!;
+      expect(slot1.current).toBe(4);
+      expect(slot2.current).toBe(2);
+    });
+
+    it("throws ValidationError when trying to upcast a cantrip (Fire Bolt)", async () => {
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Fire Bolt", targetName: "Goblin", castAtLevel: 2 },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("throws ValidationError when castAtLevel is below the spell's base level", async () => {
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Spirit Guardians", targetName: "Goblin", castAtLevel: 2 },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("throws ValidationError when castAtLevel exceeds 9", async () => {
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin", castAtLevel: 10 },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
   });
 });
