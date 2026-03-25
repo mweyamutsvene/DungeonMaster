@@ -393,4 +393,397 @@ describe("SpellActionHandler", () => {
       ).rejects.toThrow(ValidationError);
     });
   });
+
+  // ─────────────────────── AoE save spells ────────────────────────
+
+  describe("AoE save spells (Burning Hands with area)", () => {
+    /**
+     * Characters fixture with Burning Hands as a 15ft cone AoE.
+     * No positional data on combatants → exercises the no-position fallback path.
+     */
+    const aoeCharacters = [
+      {
+        id: ACTOR_ID,
+        sheet: {
+          preparedSpells: [
+            {
+              name: "Burning Hands",
+              level: 1,
+              saveAbility: "dexterity",
+              damage: { diceCount: 3, diceSides: 6 },
+              damageType: "fire",
+              halfDamageOnSave: true,
+              area: { type: "cone", size: 15 },
+            },
+          ],
+          spellAttackBonus: 5,
+          spellSaveDC: 13,
+          spellcastingAbility: "intelligence",
+          abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 16, wisdom: 10, charisma: 10 },
+        },
+      },
+    ];
+
+    // Additional monster IDs for multi-target tests
+    const GOBLIN_2_ID = "goblin-2";
+    const GOBLIN_3_ID = "goblin-3";
+    const SKELETON_ID = "skeleton-1";
+
+    /**
+     * Build a minimal roster with the caster + any monster IDs provided.
+     */
+    function makeRoster(monsterIds: Array<{ id: string; name: string }>) {
+      return {
+        characters: [{ id: ACTOR_ID, name: "Gandalf" }],
+        monsters: monsterIds,
+        npcs: [],
+      };
+    }
+
+    describe("no-position fallback path", () => {
+      it("with no grid positions and a named target: affects only that target", async () => {
+        const result = await handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          aoeCharacters,
+          makeRoster([{ id: TARGET_ID, name: "Goblin" }]),
+        );
+
+        expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+        expect(result.actionComplete).toBe(true);
+        expect(result.message).toContain("Burning Hands");
+        // Should mention the Goblin in results
+        expect(result.message).toMatch(/goblin/i);
+      });
+
+      it("with no grid positions and no named target: affects ALL non-caster combatants", async () => {
+        // Add a second goblin to the encounter (no positions on either)
+        await combatRepo.createCombatants(ENCOUNTER_ID, [
+          {
+            id: "comb-goblin-2",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: GOBLIN_2_ID,
+            npcId: null,
+            initiative: 8,
+            hpCurrent: 15,
+            hpMax: 15,
+            conditions: [],
+            resources: { resourcePools: [] },
+          },
+        ]);
+
+        const result = await handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          // No targetName: should hit all non-caster combatants
+          { spellName: "Burning Hands" },
+          aoeCharacters,
+          makeRoster([
+            { id: TARGET_ID, name: "Goblin" },
+            { id: GOBLIN_2_ID, name: "Goblin 2" },
+          ]),
+        );
+
+        expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+        // Both goblins should appear in the result message
+        expect(result.message).toMatch(/goblin/i);
+      });
+
+      it("returns 'No creatures in area' when the only combatant is the caster", async () => {
+        // Use an isolated repo so resolveEncounterContext picks the right encounter
+        const soloRepo = new MemoryCombatRepository();
+        const soloSession = "solo-session";
+        const soloEncId = "solo-enc";
+
+        await soloRepo.createEncounter(soloSession, {
+          id: soloEncId,
+          status: "Active",
+          round: 1,
+          turn: 0,
+        });
+        await soloRepo.createCombatants(soloEncId, [
+          {
+            id: "solo-wizard",
+            combatantType: "Character",
+            characterId: ACTOR_ID,
+            monsterId: null,
+            npcId: null,
+            initiative: 15,
+            hpCurrent: 30,
+            hpMax: 30,
+            conditions: [],
+            resources: {
+              resourcePools: [{ name: "spellSlot_1", current: 4, max: 4 }],
+            },
+          },
+        ]);
+
+        const soloDeps = { ...deps, combatRepo: soloRepo } as unknown as TabletopCombatServiceDeps;
+        const soloHandler = new SpellActionHandler(soloDeps, eventEmitter, false);
+
+        const result = await soloHandler.handleCastSpell(
+          soloSession,
+          soloEncId,
+          ACTOR_ID,
+          { spellName: "Burning Hands" },
+          aoeCharacters,
+          makeRoster([]),
+        );
+
+        expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+        expect(result.message).toMatch(/no creatures were in the area/i);
+      });
+    });
+
+    describe("grid position path", () => {
+      /**
+       * Encounter layout (positions in feet):
+       *   Wizard  at (0,  0) — caster, facing right (+x direction)
+       *   Goblin1 at (5,  0) — inside 15ft cone
+       *   Goblin2 at (10, 0) — inside 15ft cone
+       *   Goblin3 at (5,  5) — inside 15ft cone (at boundary)
+       *   Skeleton at (-5, 0) — BEHIND caster, outside cone
+       *
+       * Uses an isolated MemoryCombatRepository per test to avoid encounter
+       * selection conflicts with the outer describe block's ENCOUNTER_ID.
+       */
+      let aoeRepo: MemoryCombatRepository;
+      let aoeHandler: SpellActionHandler;
+      const AOE_SESSION = "aoe-session";
+      const AOE_ENC = "aoe-enc";
+
+      beforeEach(async () => {
+        aoeRepo = new MemoryCombatRepository();
+        await aoeRepo.createEncounter(AOE_SESSION, {
+          id: AOE_ENC,
+          status: "Active",
+          round: 1,
+          turn: 0,
+        });
+
+        await aoeRepo.createCombatants(AOE_ENC, [
+          {
+            id: "aoe-wizard",
+            combatantType: "Character",
+            characterId: ACTOR_ID,
+            monsterId: null,
+            npcId: null,
+            initiative: 20,
+            hpCurrent: 30,
+            hpMax: 30,
+            conditions: [],
+            resources: {
+              resourcePools: [{ name: "spellSlot_1", current: 4, max: 4 }],
+              position: { x: 0, y: 0 },
+            },
+          },
+          {
+            id: "aoe-goblin1",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: TARGET_ID,
+            npcId: null,
+            initiative: 15,
+            hpCurrent: 20,
+            hpMax: 20,
+            conditions: [],
+            resources: { resourcePools: [], position: { x: 5, y: 0 } },
+          },
+          {
+            id: "aoe-goblin2",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: GOBLIN_2_ID,
+            npcId: null,
+            initiative: 12,
+            hpCurrent: 20,
+            hpMax: 20,
+            conditions: [],
+            resources: { resourcePools: [], position: { x: 10, y: 0 } },
+          },
+          {
+            id: "aoe-goblin3",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: GOBLIN_3_ID,
+            npcId: null,
+            initiative: 10,
+            hpCurrent: 20,
+            hpMax: 20,
+            conditions: [],
+            resources: { resourcePools: [], position: { x: 5, y: 5 } },
+          },
+          {
+            id: "aoe-skeleton",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: SKELETON_ID,
+            npcId: null,
+            initiative: 8,
+            hpCurrent: 30,
+            hpMax: 30,
+            conditions: [],
+            resources: { resourcePools: [], position: { x: -5, y: 0 } },
+          },
+        ]);
+
+        const aoeDeps = { ...deps, combatRepo: aoeRepo } as unknown as TabletopCombatServiceDeps;
+        aoeHandler = new SpellActionHandler(aoeDeps, eventEmitter, false);
+      });
+
+      it("hits 3 goblins in the cone and NOT the skeleton behind the caster", async () => {
+        const aoeRoster = makeRoster([
+          { id: TARGET_ID, name: "Goblin" },
+          { id: GOBLIN_2_ID, name: "Goblin 2" },
+          { id: GOBLIN_3_ID, name: "Goblin 3" },
+          { id: SKELETON_ID, name: "Skeleton" },
+        ]);
+
+        // Target Goblin (at x=5,y=0) to set the cone direction (right)
+        const result = await aoeHandler.handleCastSpell(
+          AOE_SESSION,
+          AOE_ENC,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          aoeCharacters,
+          aoeRoster,
+        );
+
+        expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+        expect(result.actionComplete).toBe(true);
+
+        // All 3 goblins should have taken damage (HP reduced)
+        const combatants = await aoeRepo.listCombatants(AOE_ENC);
+        const g1 = combatants.find((c) => c.monsterId === TARGET_ID)!;
+        const g2 = combatants.find((c) => c.monsterId === GOBLIN_2_ID)!;
+        const g3 = combatants.find((c) => c.monsterId === GOBLIN_3_ID)!;
+        const sk = combatants.find((c) => c.monsterId === SKELETON_ID)!;
+
+        // Goblins in the cone must have taken damage (FixedDiceRoller(10) → d20=10 fails DC 13)
+        // With FixedDiceRoller(10): each save roll = 10 + DEX modifier
+        // Goblins have no stat block in this test → modifier defaults to 0 → total=10 < DC 13 → fail
+        expect(g1.hpCurrent).toBeLessThan(20);
+        expect(g2.hpCurrent).toBeLessThan(20);
+        expect(g3.hpCurrent).toBeLessThan(20);
+
+        // Skeleton is BEHIND the caster — should be unaffected
+        expect(sk.hpCurrent).toBe(30);
+      });
+
+      it("hits no creatures when all the area is empty (no targets in cone)", async () => {
+        // Use an isolated repo with only the caster and a skeleton BEHIND the caster
+        const emptyRepo = new MemoryCombatRepository();
+        const EMPTY_SESSION = "empty-session";
+        const EMPTY_ENC = "empty-enc";
+
+        await emptyRepo.createEncounter(EMPTY_SESSION, {
+          id: EMPTY_ENC,
+          status: "Active",
+          round: 1,
+          turn: 0,
+        });
+        await emptyRepo.createCombatants(EMPTY_ENC, [
+          {
+            id: "emp-wizard",
+            combatantType: "Character",
+            characterId: ACTOR_ID,
+            monsterId: null,
+            npcId: null,
+            initiative: 20,
+            hpCurrent: 30,
+            hpMax: 30,
+            conditions: [],
+            resources: {
+              resourcePools: [{ name: "spellSlot_1", current: 4, max: 4 }],
+              position: { x: 0, y: 0 },
+            },
+          },
+          {
+            id: "emp-skeleton",
+            combatantType: "Monster",
+            characterId: null,
+            monsterId: SKELETON_ID,
+            npcId: null,
+            initiative: 8,
+            hpCurrent: 30,
+            hpMax: 30,
+            conditions: [],
+            resources: { resourcePools: [], position: { x: -15, y: 0 } },
+          },
+        ]);
+
+        const emptyDeps = { ...deps, combatRepo: emptyRepo } as unknown as TabletopCombatServiceDeps;
+        const emptyHandler = new SpellActionHandler(emptyDeps, eventEmitter, false);
+
+        const result = await emptyHandler.handleCastSpell(
+          EMPTY_SESSION,
+          EMPTY_ENC,
+          ACTOR_ID,
+          // No named target → direction defaults to (1,0) but skeleton is at (-15,0) — behind caster
+          { spellName: "Burning Hands" },
+          aoeCharacters,
+          makeRoster([{ id: SKELETON_ID, name: "Skeleton" }]),
+        );
+
+        expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+        expect(result.message).toMatch(/no creatures were in the area/i);
+
+        // Skeleton HP untouched
+        const combatants = await emptyRepo.listCombatants(EMPTY_ENC);
+        const sk = combatants.find((c) => c.monsterId === SKELETON_ID)!;
+        expect(sk.hpCurrent).toBe(30);
+      });
+
+      it("spends a spell slot when casting AoE Burning Hands", async () => {
+        const aoeRoster = makeRoster([
+          { id: TARGET_ID, name: "Goblin" },
+          { id: GOBLIN_2_ID, name: "Goblin 2" },
+        ]);
+
+        await aoeHandler.handleCastSpell(
+          AOE_SESSION,
+          AOE_ENC,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          aoeCharacters,
+          aoeRoster,
+        );
+
+        const combatants = await aoeRepo.listCombatants(AOE_ENC);
+        const wizard = combatants.find((c) => c.characterId === ACTOR_ID)!;
+        const res = wizard.resources as Record<string, unknown>;
+        const pools = res.resourcePools as Array<{ name: string; current: number; max: number }>;
+        const slot1 = pools.find((p) => p.name === "spellSlot_1")!;
+        expect(slot1.current).toBe(3); // one slot spent
+      });
+
+      it("result message lists all affected targets with save results", async () => {
+        const aoeRoster = makeRoster([
+          { id: TARGET_ID, name: "Goblin" },
+          { id: GOBLIN_2_ID, name: "Goblin 2" },
+          { id: GOBLIN_3_ID, name: "Goblin 3" },
+          { id: SKELETON_ID, name: "Skeleton" },
+        ]);
+
+        const result = await aoeHandler.handleCastSpell(
+          AOE_SESSION,
+          AOE_ENC,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          aoeCharacters,
+          aoeRoster,
+        );
+
+        // Message should include AoE description and creature summary
+        expect(result.message).toContain("Burning Hands");
+        expect(result.message).toMatch(/15ft cone/i);
+        // At least one goblin name in message
+        expect(result.message).toMatch(/goblin/i);
+      });
+    });
+  });
 });

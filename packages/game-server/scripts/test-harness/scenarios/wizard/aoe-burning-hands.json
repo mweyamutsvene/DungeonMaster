@@ -1,0 +1,152 @@
+{
+  "name": "Wizard AoE Spells: Burning Hands 15ft Cone",
+  "description": "Tests area-of-effect saving throw spells. Wizard casts Burning Hands (15ft cone) aimed at a cluster of goblins. All creatures inside the cone geometry make independent DEX saves and take damage. A skeleton positioned behind the wizard is NOT affected. Verifies multi-target AoE mechanics: shared damage roll, per-creature saves, correct geometry inclusion/exclusion.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 1 },
+        "preparedSpells": [
+          {
+            "name": "Burning Hands",
+            "level": 1,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 3, "diceSides": 6, "modifier": 0 },
+            "damageType": "fire",
+            "halfDamageOnSave": true,
+            "area": { "type": "cone", "size": 15 }
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Goblin 1 — inside cone (5ft ahead of wizard, on axis)",
+        "name": "Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 20, "hp": 20, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Goblin 2 — inside cone (10ft ahead on axis)",
+        "name": "Goblin 2",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 20, "hp": 20, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Goblin 3 — inside cone (5ft ahead, 5ft to the side — at width boundary)",
+        "name": "Goblin 3",
+        "position": { "x": 15, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 20, "hp": 20, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Skeleton — BEHIND the wizard (x=0 < wizard x=10). Cone goes right; skeleton is excluded by geometry.",
+        "name": "Skeleton",
+        "position": { "x": 0, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I spread my hands wide and cast Burning Hands" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Burning Hands aimed at Goblin (sets cone direction toward x+). All 3 goblins are in the 15ft cone; the skeleton behind the wizard is not. Each goblin makes an independent DEX save (DC 14). Half damage on save.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell", "actionComplete": true }
+    },
+    {
+      "comment": "Spell slot exhausted — second cast should fail with no slots remaining",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin" },
+      "expect": { "error": true, "errorContains": "spell slots remaining" }
+    }
+  ]
+}
