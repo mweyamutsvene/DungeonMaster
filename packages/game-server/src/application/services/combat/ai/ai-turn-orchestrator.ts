@@ -30,6 +30,7 @@ import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
 import { normalizeResources } from "../helpers/resource-utils.js";
 import type { BattlePlanService } from "./battle-plan-service.js";
+import { DeterministicAiDecisionMaker } from "./deterministic-ai.js";
 
 /**
  * LLM-driven tactical decision-making for AI-controlled combatants.
@@ -52,6 +53,9 @@ export class AiTurnOrchestrator {
 
   /** Extracted action executor */
   private readonly actionExecutor: AiActionExecutor;
+
+  /** Deterministic fallback AI for when LLM is unavailable or returns null */
+  private readonly deterministicAi: DeterministicAiDecisionMaker = new DeterministicAiDecisionMaker();
 
   private aiLog(...args: unknown[]): void {
     if (this.aiDebugEnabled) console.log(...args);
@@ -99,16 +103,14 @@ export class AiTurnOrchestrator {
   }
 
   /**
-   * AI decides whether to use a reaction (Opportunity Attack, Counterspell, etc.)
+   * AI decides whether to use a reaction (Opportunity Attack, Shield, Counterspell, etc.)
    * This allows tactical decision-making: save reaction for Shield spell, ignore low-value targets, etc.
    */
   private async aiDecideReaction(
     combatantState: CombatantStateRecord,
-    reactionType: "opportunity_attack" | "shield_spell" | "other",
-    context: { targetName?: string; spellName?: string; hpPercent?: number },
+    reactionType: "opportunity_attack" | "shield_spell" | "counterspell" | "other",
+    context: { targetName?: string; spellName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number },
   ): Promise<boolean> {
-    // Simple heuristic for now (can be enhanced with LLM later):
-
     // Opportunity Attacks: Always use if healthy, skip if below 25% HP
     if (reactionType === "opportunity_attack") {
       const hpPercent = combatantState.hpCurrent / combatantState.hpMax;
@@ -122,8 +124,40 @@ export class AiTurnOrchestrator {
       return true;
     }
 
-    // Counterspell: Always attempt to counter (using spellName context for future logic)
+    // Shield: only use if the attack would hit without Shield but miss with it
+    // Shield grants +5 AC until next turn, so only worth using if attackTotal > currentAC
+    // and attackTotal <= currentAC + 5 (otherwise Shield won't help)
     if (reactionType === "shield_spell") {
+      const { attackTotal, currentAC } = context;
+      if (attackTotal !== undefined && currentAC !== undefined) {
+        const wouldHitWithout = attackTotal >= currentAC;
+        const wouldMissWith = attackTotal < currentAC + 5;
+        if (!wouldHitWithout) {
+          // Attack already misses — don't waste Shield
+          this.aiLog(
+            `[AI Reaction] ${combatantState.id} declining Shield - attack ${attackTotal} already misses AC ${currentAC}`,
+          );
+          return false;
+        }
+        if (!wouldMissWith) {
+          // Attack is too high — Shield +5 AC won't save us
+          this.aiLog(
+            `[AI Reaction] ${combatantState.id} declining Shield - attack ${attackTotal} exceeds AC ${currentAC} + 5`,
+          );
+          return false;
+        }
+        this.aiLog(
+          `[AI Reaction] ${combatantState.id} using Shield - attack ${attackTotal} vs AC ${currentAC}, Shield brings AC to ${currentAC + 5}`,
+        );
+        return true;
+      }
+      // No attack info available — use Shield defensively (conservative)
+      this.aiLog(`[AI Reaction] ${combatantState.id} using Shield (no attack roll info available)`);
+      return true;
+    }
+
+    // Counterspell: Always attempt to counter (high value)
+    if (reactionType === "counterspell") {
       this.aiLog(`[AI Reaction] ${combatantState.id} counterspelling ${context.spellName}`);
       return true;
     }
@@ -314,11 +348,8 @@ export class AiTurnOrchestrator {
       return true;
     }
 
-    // If no AI decision maker available, fall back to simple behavior
-    if (!this.aiDecisionMaker) {
-      await this.fallbackSimpleTurn(sessionId, encounter, entityData, allCombatants);
-      return true;
-    }
+    // Use LLM decision maker if available, otherwise deterministic fallback
+    const decisionMaker: IAiDecisionMaker = this.aiDecisionMaker ?? this.deterministicAi;
 
     // Execute turn loop: LLM decides actions until it explicitly ends turn
     const actionHistory: string[] = [];
@@ -381,15 +412,25 @@ export class AiTurnOrchestrator {
         battlePlanView,
       );
 
-      // Get AI decision
-      const decision = await this.aiDecisionMaker.decide({
+      // Get AI decision (LLM or deterministic fallback)
+      let decision = await decisionMaker.decide({
         combatantName: entityName,
         combatantType: aiCombatant.combatantType,
         context,
       });
 
+      // If LLM returned null, fall back to deterministic AI for remaining actions
+      if (!decision && decisionMaker !== this.deterministicAi) {
+        this.aiLog("[AiTurnOrchestrator] LLM returned null, falling back to deterministic AI");
+        decision = await this.deterministicAi.decide({
+          combatantName: entityName,
+          combatantType: aiCombatant.combatantType,
+          context,
+        });
+      }
+
       if (!decision) {
-        // LLM failed to provide decision, end turn
+        // Even deterministic AI returned null — end turn
         break;
       }
 
@@ -560,92 +601,6 @@ export class AiTurnOrchestrator {
       console.warn("[AiTurnOrchestrator] Failed to load recent narrative:", err);
       return [];
     }
-  }
-
-  /**
-   * Fallback behavior when LLM is not available
-   */
-  private async fallbackSimpleTurn(
-    sessionId: string,
-    encounter: CombatEncounterRecord,
-    entityData: Record<string, unknown>,
-    allCombatants: CombatantStateRecord[],
-  ): Promise<void> {
-    // Only works for monsters with stat blocks
-    if (!entityData.statBlock) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
-      return;
-    }
-
-    const alivePlayerCombatants = allCombatants.filter(
-      (c) => c.combatantType === "Character" && c.hpCurrent > 0,
-    );
-
-    if (alivePlayerCombatants.length === 0) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
-      return;
-    }
-
-    const target = alivePlayerCombatants[0]!;
-    const statBlock = entityData.statBlock as Record<string, unknown>;
-    const attacks = (statBlock.actions as Array<{ name: string }>) || [];
-
-    if (attacks.length === 0) {
-      await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
-      return;
-    }
-
-    try {
-      const monsterId = entityData.id as string;
-      const monsterName = entityData.name as string;
-
-      // Use the AI action executor which supports two-phase reactions (Shield, Deflect, damage reactions)
-      const actorRef = { type: "Monster" as const, monsterId };
-      const targetRef = { type: "Character" as const, characterId: target.characterId! };
-      const targetName = await this.combatantResolver.getName(targetRef, target);
-      const aiCombatant = allCombatants.find((c) => c.monsterId === monsterId) ?? allCombatants[0]!;
-      const decision: AiDecision = {
-        action: "attack",
-        target: targetName,
-        attackName: attacks[0]!.name,
-      };
-
-      const result = await this.actionExecutor.execute(
-        sessionId,
-        encounter.id,
-        aiCombatant,
-        decision,
-        allCombatants,
-      );
-
-      // If awaiting player reaction, don't advance turn
-      if (result.data?.awaitingPlayerInput) {
-        return;
-      }
-
-      if (this.events) {
-        const hit = result.data?.hit ?? false;
-        const damage = result.data?.damage ?? 0;
-        const hitOrMiss = hit ? "hit" : "missed";
-
-        await this.events.append(sessionId, {
-          id: nanoid(),
-          type: "NarrativeText",
-          payload: {
-            encounterId: encounter.id,
-            actor: actorRef,
-            text:
-              (damage as number) > 0
-                ? `${monsterName} attacks and ${hitOrMiss} for ${damage} damage!`
-                : `${monsterName} attacks but ${hitOrMiss}!`,
-          },
-        });
-      }
-    } catch (error) {
-      console.error(`Fallback turn failed for ${entityData.name}:`, error);
-    }
-
-    await this.combatService.nextTurn(sessionId, { encounterId: encounter.id, skipDeathSaveAutoRoll: true });
   }
 
   /**

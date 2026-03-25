@@ -247,8 +247,59 @@ export class ActionService {
     return this.skillHandler.search(sessionId, input);
   }
 
+  /**
+   * Help action (D&D 5e 2024): The first attack roll that an ally makes against
+   * the target before the start of the helper's next turn has Advantage.
+   * Creates a consumable advantage ActiveEffect on the target creature.
+   */
   async help(sessionId: string, input: HelpActionInput): Promise<{ actor: CombatantStateRecord }> {
-    return this.performSimpleAction(sessionId, input, "Help", { target: input.target });
+    const { encounter, combatants, actorState } = await this.resolveActiveActorOrThrow(sessionId, {
+      encounterId: input.encounterId,
+      actor: input.actor,
+      skipActionCheck: input.skipActionCheck,
+    });
+
+    const targetState = findCombatantStateByRef(combatants, input.target);
+    if (!targetState) throw new NotFoundError("Target not found in encounter");
+
+    // Spend the action
+    const updatedResources = input.skipActionCheck
+      ? { ...(normalizeResources(actorState.resources)), bonusActionUsed: true }
+      : { ...(normalizeResources(actorState.resources)), actionSpent: true };
+
+    const updatedActor = await this.combat.updateCombatantState(actorState.id, {
+      resources: updatedResources as JsonValue,
+    });
+
+    // Create consumable advantage effect on the target (advantage on attacks against it)
+    // targetCombatantId uses entity ID (characterId/monsterId/npcId) to match attack handler lookups
+    const targetEntityId = targetState.characterId ?? targetState.monsterId ?? targetState.npcId ?? targetState.id;
+    const helpEffect = createEffect(nanoid(), "advantage", "attack_rolls", "until_triggered", {
+      source: "Help",
+      sourceCombatantId: actorState.id,
+      targetCombatantId: targetEntityId,
+      description: `Advantage on next attack against this creature (Help from ${actorState.characterId ?? actorState.monsterId ?? actorState.npcId ?? "ally"})`,
+    });
+
+    const targetResources = addActiveEffectsToResources(targetState.resources ?? {}, helpEffect);
+    await this.combat.updateCombatantState(targetState.id, {
+      resources: targetResources as JsonValue,
+    });
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "ActionResolved",
+        payload: {
+          encounterId: encounter.id,
+          actor: input.actor,
+          action: "Help",
+          target: input.target,
+        },
+      });
+    }
+
+    return { actor: updatedActor };
   }
 
   async castSpell(sessionId: string, input: CastSpellActionInput): Promise<{ actor: CombatantStateRecord }> {

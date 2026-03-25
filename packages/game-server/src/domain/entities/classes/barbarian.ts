@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface RageState {
@@ -105,6 +105,20 @@ export const BARBARIAN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   attackEnhancements: [],
 };
 
+// ----- Subclasses -----
+
+/** Path of the Berserker subclass (D&D 5e 2024). */
+export const BerserkerSubclass: SubclassDefinition = {
+  id: "berserker",
+  name: "Path of the Berserker",
+  classId: "barbarian",
+  features: {
+    "frenzy": 3,
+    "mindless-rage": 6,
+    "intimidating-presence": 10,
+  },
+};
+
 export const Barbarian: CharacterClassDefinition = {
   id: "barbarian",
   name: "Barbarian",
@@ -115,6 +129,7 @@ export const Barbarian: CharacterClassDefinition = {
   features: {
     "rage": 1,
     "unarmored-defense": 1,
+    "weapon-mastery": 1,
     "reckless-attack": 2,
     "danger-sense": 2,
     "extra-attack": 5,
@@ -142,4 +157,5 @@ export const Barbarian: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [BerserkerSubclass],
 };

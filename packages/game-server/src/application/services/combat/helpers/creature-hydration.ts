@@ -10,6 +10,7 @@ import { Monster, type MonsterData } from "../../../../domain/entities/creatures
 import { NPC, type NPCData } from "../../../../domain/entities/creatures/npc.js";
 import { AbilityScores, type AbilityScoresData } from "../../../../domain/entities/core/ability-scores.js";
 import type { ResourcePool } from "../../../../domain/entities/combat/resource-pool.js";
+import { getSpeciesTraits } from "../../../../domain/entities/creatures/species-registry.js";
 import type { 
   SessionCharacterRecord, 
   SessionMonsterRecord, 
@@ -105,8 +106,17 @@ export function hydrateCharacter(
   // Parse class ID
   const classId = readString(sheet, 'classId') ?? record.className?.toLowerCase();
   
+  // Parse species and look up combat-relevant traits
+  const speciesName = readString(sheet, 'species') ?? readString(sheet, 'race');
+  const speciesTraits = speciesName ? getSpeciesTraits(speciesName) : undefined;
+  
   // Conditions from combat state (not sheet)
   const conditions = combatantState ? extractConditions(combatantState.conditions) : [];
+
+  // Merge species damage resistances with any already on the sheet
+  const sheetResistances = readArray<string>(sheet, 'damageResistances') ?? [];
+  const speciesResistances = speciesTraits?.damageResistances ?? [];
+  const mergedResistances = [...new Set([...sheetResistances, ...speciesResistances])];
 
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
@@ -114,7 +124,7 @@ export function hydrateCharacter(
     maxHP,
     currentHP,
     armorClass,
-    speed,
+    speed: speciesTraits?.speed ?? speed,
     abilityScores: new AbilityScores(abilityScores),
     level,
     characterClass: record.className ?? 'Fighter',
@@ -122,6 +132,8 @@ export function hydrateCharacter(
     experiencePoints,
     resourcePools,
     featIds,
+    darkvisionRange: speciesTraits?.darkvisionRange ?? 0,
+    speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
   };
 
   const character = new Character(data);

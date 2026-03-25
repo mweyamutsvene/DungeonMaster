@@ -20,6 +20,14 @@ import {
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
 import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../../helpers/resource-utils.js";
 import {
+  applyForcedMovement,
+  directionFromTo,
+  type ForcedMovementDirection,
+} from "../../../../../domain/rules/movement.js";
+
+/** Minimal map shape needed for forced-movement collision detection. */
+type PassabilityMap = Parameters<typeof applyForcedMovement>[3];
+import {
   breakConcentration,
   getConcentrationSpellName,
   isConcentrationBreakingCondition,
@@ -31,6 +39,8 @@ import {
   type ActiveEffect,
 } from "../../../../../domain/entities/combat/effects.js";
 import type { SavingThrowPendingAction, SaveOutcome, SavingThrowAutoResult } from "../tabletop-types.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { EVASION } from "../../../../../domain/entities/classes/feature-keys.js";
 
 /**
  * Parameters for creating a saving throw pending action.
@@ -76,6 +86,8 @@ export interface SavingThrowResolution {
   conditionsApplied: string[];
   /** Conditions removed */
   conditionsRemoved: string[];
+  /** Whether the target has Evasion (Rogue 7/Monk 7 — DEX saves only) */
+  hasEvasion?: boolean;
 }
 
 export class SavingThrowResolver {
@@ -268,7 +280,8 @@ export class SavingThrowResolver {
       }
     }
 
-    // Apply movement effects (push)
+    // Apply movement effects (push) using forced movement primitive
+    // Forced movement does NOT provoke opportunity attacks (D&D 5e 2024)
     if (outcome.movement?.push) {
       const combatants = await this.combatRepo.listCombatants(encounterId);
       const targetCombatant = combatants.find(
@@ -285,24 +298,28 @@ export class SavingThrowResolver {
         const sourcePos = getPosition(sourceRes);
 
         if (targetPos && sourcePos) {
-          // Calculate push direction
-          const dir = outcome.movement.direction ?? {
-            x: targetPos.x - sourcePos.x,
-            y: targetPos.y - sourcePos.y,
-          };
-          const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
-          if (len > 0) {
-            const norm = { x: dir.x / len, y: dir.y / len };
-            const pushDist = outcome.movement.push;
-            const newPos = {
-              x: Math.round(targetPos.x + norm.x * pushDist),
-              y: Math.round(targetPos.y + norm.y * pushDist),
-            };
-            const updatedRes = setPosition(targetRes, newPos);
+          const dir = outcome.movement.direction ?? directionFromTo(sourcePos, targetPos);
+          const encounter = await this.combatRepo.getEncounterById(encounterId);
+          const map = encounter?.mapData as unknown as PassabilityMap | undefined;
+          const pushResult = applyForcedMovement(targetPos, dir, outcome.movement.push, map);
+          if (pushResult.distanceMoved > 0) {
+            const updatedRes = setPosition(targetRes, pushResult.finalPosition);
             await this.combatRepo.updateCombatantState(targetCombatant.id, {
               resources: updatedRes as any,
             });
           }
+        }
+      }
+    }
+
+    // ── Evasion detection (Rogue 7, Monk 7) — DEX saves only ──
+    let evasionDetected = false;
+    if (action.ability === "dexterity") {
+      const className = (targetSheet?.className ?? "").toLowerCase();
+      if (className && classHasFeature(className, EVASION, level)) {
+        evasionDetected = true;
+        if (this.debugLogsEnabled) {
+          console.log(`[SavingThrowResolver] Evasion detected for ${className} level ${level} — DEX save adjustments apply`);
         }
       }
     }
@@ -317,6 +334,7 @@ export class SavingThrowResolver {
       appliedOutcome: outcome,
       conditionsApplied,
       conditionsRemoved,
+      hasEvasion: evasionDetected || undefined,
     };
   }
 

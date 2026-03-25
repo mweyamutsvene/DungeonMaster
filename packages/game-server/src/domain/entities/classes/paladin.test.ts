@@ -9,6 +9,8 @@ import {
   spendChannelDivinity,
   spendLayOnHands,
 } from "./paladin.js";
+import { classHasFeature } from "./registry.js";
+import { WEAPON_MASTERY, SPELLCASTING } from "./feature-keys.js";
 
 describe("Paladin channel divinity", () => {
   it("computes uses by level", () => {
@@ -47,5 +49,15 @@ describe("Paladin lay on hands", () => {
     s = resetLayOnHandsOnLongRest(2, s);
     expect(s.pool.current).toBe(10);
     expect(s.pool.max).toBe(10);
+  });
+});
+
+describe("Paladin feature keys", () => {
+  it("has spellcasting at level 1 (D&D 2024)", () => {
+    expect(classHasFeature("paladin", SPELLCASTING, 1)).toBe(true);
+  });
+
+  it("has weapon-mastery at level 1", () => {
+    expect(classHasFeature("paladin", WEAPON_MASTERY, 1)).toBe(true);
   });
 });

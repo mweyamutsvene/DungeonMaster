@@ -14,6 +14,7 @@ export interface CreatureData {
   name: string;
   maxHP: number;
   currentHP: number;
+  tempHP?: number;
   armorClass: number;
   speed: number;
   abilityScores: AbilityScores;
@@ -37,6 +38,7 @@ export abstract class Creature {
   protected name: string;
   protected maxHP: number;
   protected currentHP: number;
+  protected tempHP: number;
   protected armorClass: number;
   protected speed: number;
   protected abilityScores: AbilityScores;
@@ -50,6 +52,7 @@ export abstract class Creature {
     this.name = data.name;
     this.maxHP = data.maxHP;
     this.currentHP = data.currentHP;
+    this.tempHP = data.tempHP ?? 0;
     this.armorClass = data.armorClass;
     this.speed = data.speed;
     this.abilityScores = data.abilityScores;
@@ -187,9 +190,37 @@ export abstract class Creature {
 
   // === Hit Points ===
 
+  getTempHP(): number {
+    return this.tempHP;
+  }
+
+  /**
+   * Set temporary HP. Temp HP doesn't stack — new value replaces old only if higher.
+   * D&D 5e 2024: "If you already have temporary hit points, you decide whether to
+   * keep the ones you have or gain the new ones."
+   * We implement the common convention: higher value replaces.
+   */
+  setTempHP(amount: number): void {
+    if (amount < 0) {
+      throw new Error('Temporary HP cannot be negative');
+    }
+    if (amount > this.tempHP) {
+      this.tempHP = amount;
+    }
+  }
+
   takeDamage(amount: number): void {
     if (amount < 0) {
       throw new Error('Damage amount cannot be negative');
+    }
+    // Temp HP absorbs damage first (D&D 5e 2024)
+    if (this.tempHP > 0) {
+      if (amount <= this.tempHP) {
+        this.tempHP -= amount;
+        return;
+      }
+      amount -= this.tempHP;
+      this.tempHP = 0;
     }
     this.currentHP = Math.max(0, this.currentHP - amount);
   }
@@ -285,6 +316,7 @@ export abstract class Creature {
       name: this.name,
       maxHP: this.maxHP,
       currentHP: this.currentHP,
+      tempHP: this.tempHP,
       armorClass: this.getAC(),
       speed: this.speed,
       abilityScores: this.abilityScores.toJSON(),

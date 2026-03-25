@@ -11,6 +11,9 @@ import {
   isWithinMeleeReach,
   isWithinRange,
   snapToGrid,
+  applyForcedMovement,
+  directionFromTo,
+  getGrappleDragSpeedMultiplier,
   type MovementAttempt,
   type Position,
 } from "./movement.js";
@@ -389,6 +392,124 @@ describe("Movement and Positioning", () => {
       const target: Position = { x: 10, y: 50 };
       const result = computeJumpLandingPosition(origin, 20, "long", target);
       expect(result).toEqual({ x: 10, y: 20 });
+    });
+  });
+
+  describe("applyForcedMovement", () => {
+    it("should push creature 10ft in a direction", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const direction = { x: 1, y: 0 }; // push east
+      const result = applyForcedMovement(origin, direction, 10);
+      expect(result.finalPosition).toEqual({ x: 30, y: 20 });
+      expect(result.distanceMoved).toBe(10);
+      expect(result.blocked).toBe(false);
+    });
+
+    it("should push creature 15ft (Open Hand Technique)", () => {
+      const origin: Position = { x: 10, y: 10 };
+      const direction = { x: 0, y: 1 }; // push south
+      const result = applyForcedMovement(origin, direction, 15);
+      expect(result.finalPosition).toEqual({ x: 10, y: 25 });
+      expect(result.distanceMoved).toBe(15);
+      expect(result.blocked).toBe(false);
+    });
+
+    it("should stop at map edge", () => {
+      const origin: Position = { x: 90, y: 50 };
+      const direction = { x: 1, y: 0 }; // push east
+      const map = {
+        width: 100,
+        height: 100,
+        gridSize: 5,
+        cells: Array.from({ length: 21 * 21 }, (_, i) => ({
+          position: { x: (i % 21) * 5, y: Math.floor(i / 21) * 5 },
+          passable: true,
+        })),
+      };
+      const result = applyForcedMovement(origin, direction, 20, map);
+      expect(result.finalPosition.x).toBeLessThanOrEqual(100);
+      expect(result.blocked).toBe(true);
+      expect(result.distanceMoved).toBeLessThan(20);
+    });
+
+    it("should stop at wall/obstacle", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const direction = { x: 1, y: 0 }; // push east
+      // Create a simple map with a wall at x=30
+      const cells = [];
+      for (let x = 0; x <= 50; x += 5) {
+        for (let y = 0; y <= 50; y += 5) {
+          cells.push({
+            position: { x, y },
+            passable: x !== 30 || y !== 20 ? true : false, // wall at (30, 20)
+          });
+        }
+      }
+      const map = { width: 50, height: 50, gridSize: 5, cells };
+      const result = applyForcedMovement(origin, direction, 15, map);
+      expect(result.finalPosition).toEqual({ x: 25, y: 20 });
+      expect(result.blocked).toBe(true);
+      expect(result.distanceMoved).toBe(5);
+    });
+
+    it("should return zero movement for zero distance", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const result = applyForcedMovement(origin, { x: 1, y: 0 }, 0);
+      expect(result.finalPosition).toEqual(origin);
+      expect(result.distanceMoved).toBe(0);
+      expect(result.blocked).toBe(false);
+    });
+
+    it("should return zero movement for zero direction vector", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const result = applyForcedMovement(origin, { x: 0, y: 0 }, 10);
+      expect(result.finalPosition).toEqual(origin);
+      expect(result.distanceMoved).toBe(0);
+      expect(result.blocked).toBe(false);
+    });
+
+    it("should handle diagonal push", () => {
+      const origin: Position = { x: 20, y: 20 };
+      const direction = { x: 1, y: 1 }; // push diagonally
+      const result = applyForcedMovement(origin, direction, 10);
+      // Should snap to grid — moved roughly 10ft diagonally
+      expect(result.distanceMoved).toBeGreaterThan(0);
+      expect(result.blocked).toBe(false);
+    });
+  });
+
+  describe("directionFromTo", () => {
+    it("should compute direction from source to target", () => {
+      const from: Position = { x: 10, y: 10 };
+      const to: Position = { x: 30, y: 10 };
+      const dir = directionFromTo(from, to);
+      expect(dir.x).toBe(20);
+      expect(dir.y).toBe(0);
+    });
+  });
+
+  describe("getGrappleDragSpeedMultiplier", () => {
+    it("should return 0.5 for same-size creatures", () => {
+      expect(getGrappleDragSpeedMultiplier("Medium", "Medium")).toBe(0.5);
+    });
+
+    it("should return 0.5 for one-size-smaller creature", () => {
+      expect(getGrappleDragSpeedMultiplier("Large", "Medium")).toBe(0.5);
+    });
+
+    it("should return 1.0 for Tiny creature (always free)", () => {
+      expect(getGrappleDragSpeedMultiplier("Medium", "Tiny")).toBe(1.0);
+      expect(getGrappleDragSpeedMultiplier("Large", "Tiny")).toBe(1.0);
+    });
+
+    it("should return 1.0 when grappled is 2+ sizes smaller", () => {
+      expect(getGrappleDragSpeedMultiplier("Large", "Small")).toBe(1.0);
+      expect(getGrappleDragSpeedMultiplier("Huge", "Medium")).toBe(1.0);
+      expect(getGrappleDragSpeedMultiplier("Gargantuan", "Medium")).toBe(1.0);
+    });
+
+    it("should return 0.5 when dragging larger creature", () => {
+      expect(getGrappleDragSpeedMultiplier("Small", "Medium")).toBe(0.5);
     });
   });
 });

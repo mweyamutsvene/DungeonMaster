@@ -143,8 +143,8 @@ export class TwoPhaseActionService {
       casterId: string;
       casterName: string;
       success: boolean;
-      saveDC?: number;
-      saveRoll?: number;
+      abilityCheckDC?: number;
+      abilityCheckRoll?: number;
     }>;
   }> {
     return this.spellHandler.complete(sessionId, input);

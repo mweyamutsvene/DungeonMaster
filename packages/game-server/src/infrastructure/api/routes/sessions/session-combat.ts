@@ -266,4 +266,38 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
 
     return { success: true, itemsPlaced: items.length };
   });
+
+  /**
+   * POST /sessions/:id/combat/end
+   * Manually end combat with a reason (dm_end, flee, surrender).
+   * Body: { encounterId?: string; reason: "dm_end" | "flee" | "surrender"; result?: "Victory" | "Defeat" | "Draw" }
+   */
+  app.post<{
+    Params: { id: string };
+    Body: {
+      encounterId?: string;
+      reason: "dm_end" | "flee" | "surrender";
+      result?: "Victory" | "Defeat" | "Draw";
+    };
+  }>("/sessions/:id/combat/end", async (req) => {
+    const sessionId = req.params.id;
+    const { reason, result, encounterId } = req.body;
+
+    if (!reason || !["dm_end", "flee", "surrender"].includes(reason)) {
+      throw new ValidationError("reason must be 'dm_end', 'flee', or 'surrender'");
+    }
+
+    if (result && !["Victory", "Defeat", "Draw"].includes(result)) {
+      throw new ValidationError("result must be 'Victory', 'Defeat', or 'Draw'");
+    }
+
+    if (deps.unitOfWork) {
+      return deps.unitOfWork.run(async (repos) => {
+        const services = deps.createServicesForRepos(repos);
+        return services.combat.endCombat(sessionId, { encounterId, reason, result });
+      });
+    }
+
+    return deps.combat.endCombat(sessionId, { encounterId, reason, result });
+  });
 }

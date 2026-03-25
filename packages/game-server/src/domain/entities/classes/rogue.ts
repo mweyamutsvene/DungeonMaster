@@ -1,5 +1,5 @@
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
-import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
+import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
 import { isFinesse } from "../items/weapon-properties.js";
 
 export function sneakAttackDiceForLevel(level: number): number {
@@ -43,6 +43,20 @@ export function isSneakAttackEligible(params: {
   return params.hasAdvantage || params.allyAdjacentToTarget;
 }
 
+// ----- Subclasses -----
+
+/** Thief subclass (D&D 5e 2024). */
+export const ThiefSubclass: SubclassDefinition = {
+  id: "thief",
+  name: "Thief",
+  classId: "rogue",
+  features: {
+    "fast-hands": 3,
+    "second-story-work": 3,
+    "supreme-sneak": 9,
+  },
+};
+
 export const Rogue: CharacterClassDefinition = {
   id: "rogue",
   name: "Rogue",
@@ -52,6 +66,7 @@ export const Rogue: CharacterClassDefinition = {
   },
   features: {
     "sneak-attack": 1,
+    "weapon-mastery": 1,
     "cunning-action": 2,
     "uncanny-dodge": 5,
     "evasion": 7,
@@ -71,6 +86,7 @@ export const Rogue: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [ThiefSubclass],
 };
 
 /**
@@ -78,7 +94,37 @@ export const Rogue: CharacterClassDefinition = {
  *
  * Action mappings:
  * - "cunning-action" → bonus action, Dash/Disengage/Hide as bonus action
+ *
+ * Attack reactions:
+ * - Uncanny Dodge (level 5+) → halves damage from an attack you can see
  */
+
+// ----- Attack Reaction: Uncanny Dodge -----
+
+/**
+ * Uncanny Dodge reaction detection (Rogue level 5+).
+ * D&D 5e 2024: When an attacker you can see hits you with an attack,
+ * you can use your reaction to halve the incoming damage.
+ * Uses reaction; no resource cost.
+ */
+const UNCANNY_DODGE_REACTION: AttackReactionDef = {
+  reactionType: "uncanny_dodge",
+  classId: "rogue",
+  detect(input: AttackReactionInput): DetectedAttackReaction | null {
+    if (!input.hasReaction || !input.isCharacter) return null;
+    if (input.className !== "rogue") return null;
+    if (input.level < 5) return null;
+
+    return {
+      reactionType: "uncanny_dodge",
+      context: {
+        attackerId: input.attackerId,
+        attackRoll: input.attackRoll,
+      },
+    };
+  },
+};
+
 export const ROGUE_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "rogue",
   actionMappings: [
@@ -90,4 +136,5 @@ export const ROGUE_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     },
   ],
   attackEnhancements: [],
+  attackReactions: [UNCANNY_DODGE_REACTION],
 };

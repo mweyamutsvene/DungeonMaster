@@ -379,3 +379,201 @@ describe("Character armor class (equipment)", () => {
     expect(c.getAC()).toBe(12);
   });
 });
+
+describe("Character Unarmored Defense", () => {
+  it("Monk with no armor: AC = 10 + DEX + WIS", () => {
+    const monk = new Character({
+      id: "ud-monk",
+      name: "Monk",
+      maxHP: 8,
+      currentHP: 8,
+      armorClass: 10, // should be overridden
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 10,
+        dexterity: 16, // +3
+        constitution: 12,
+        intelligence: 10,
+        wisdom: 16, // +3
+        charisma: 8,
+      }),
+      level: 1,
+      characterClass: "Monk",
+      classId: "monk",
+      experiencePoints: 0,
+    });
+
+    // 10 + DEX(3) + WIS(3) = 16
+    expect(monk.getAC()).toBe(16);
+  });
+
+  it("Barbarian with no armor: AC = 10 + DEX + CON", () => {
+    const barb = new Character({
+      id: "ud-barb",
+      name: "Barb",
+      maxHP: 12,
+      currentHP: 12,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 14, // +2
+        constitution: 16, // +3
+        intelligence: 8,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Barbarian",
+      classId: "barbarian",
+      experiencePoints: 0,
+    });
+
+    // 10 + DEX(2) + CON(3) = 15
+    expect(barb.getAC()).toBe(15);
+  });
+
+  it("Monk wearing armor uses normal AC, not unarmored", () => {
+    const monk = new Character({
+      id: "ud-monk-armor",
+      name: "ArmoredMonk",
+      maxHP: 8,
+      currentHP: 8,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 10,
+        dexterity: 16, // +3
+        constitution: 12,
+        intelligence: 10,
+        wisdom: 16, // +3
+        charisma: 8,
+      }),
+      level: 1,
+      characterClass: "Monk",
+      classId: "monk",
+      experiencePoints: 0,
+      equipment: {
+        armor: {
+          name: "Leather Armor",
+          category: "light",
+          armorClass: { base: 11, addDexterityModifier: true },
+        },
+      },
+    });
+
+    // Leather + DEX(3) = 14, NOT unarmored (16)
+    expect(monk.getAC()).toBe(14);
+  });
+
+  it("Monk unarmored + shield still adds shield bonus", () => {
+    const monk = new Character({
+      id: "ud-monk-shield",
+      name: "ShieldMonk",
+      maxHP: 8,
+      currentHP: 8,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 10,
+        dexterity: 16, // +3
+        constitution: 12,
+        intelligence: 10,
+        wisdom: 14, // +2
+        charisma: 8,
+      }),
+      level: 1,
+      characterClass: "Monk",
+      classId: "monk",
+      experiencePoints: 0,
+      equipment: {
+        shield: { name: "Shield", armorClassBonus: 2 },
+      },
+    });
+
+    // 10 + DEX(3) + WIS(2) + shield(2) = 17
+    expect(monk.getAC()).toBe(17);
+  });
+
+  it("Fighter (non-unarmored-defense class) uses normal AC formula when unarmored", () => {
+    const fighter = new Character({
+      id: "ud-fighter",
+      name: "Fighter",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 12, // fallback when no equipment
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 14,
+        constitution: 14,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+    });
+
+    // No equipment → falls back to armorClass field = 12
+    expect(fighter.getAC()).toBe(12);
+  });
+});
+
+describe("Character species traits", () => {
+  it("stores darkvision and species damage resistances", () => {
+    const c = new Character({
+      id: "sp1",
+      name: "Dwarf",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 12,
+      speed: 25,
+      abilityScores: new AbilityScores({
+        strength: 14,
+        dexterity: 10,
+        constitution: 16,
+        intelligence: 10,
+        wisdom: 12,
+        charisma: 8,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      darkvisionRange: 60,
+      speciesDamageResistances: ["poison"],
+    });
+
+    expect(c.getDarkvisionRange()).toBe(60);
+    expect(c.getSpeciesDamageResistances()).toEqual(["poison"]);
+  });
+
+  it("defaults darkvision to 0 and resistances to empty", () => {
+    const c = new Character({
+      id: "sp2",
+      name: "Human",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 12,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+    });
+
+    expect(c.getDarkvisionRange()).toBe(0);
+    expect(c.getSpeciesDamageResistances()).toEqual([]);
+  });
+});

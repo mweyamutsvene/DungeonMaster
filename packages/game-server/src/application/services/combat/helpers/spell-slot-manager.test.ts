@@ -204,4 +204,55 @@ describe("prepareSpellCast", () => {
       expect(update.resources.concentrationSpellName).toBeUndefined();
     });
   });
+
+  describe("Warlock Pact Magic fallback", () => {
+    it("uses pactMagic pool when no standard spell slot is available", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "spellSlot_1", current: 0, max: 0 },
+          { name: "pactMagic", current: 2, max: 2 },
+        ],
+      });
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hex", 1, false, repo);
+
+      expect(repo.updateCombatantState).toHaveBeenCalledOnce();
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const pactPool = update.resources.resourcePools.find((p) => p.name === "pactMagic");
+      expect(pactPool?.current).toBe(1);
+    });
+
+    it("prefers standard spell slot over pactMagic when both available", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "spellSlot_1", current: 2, max: 4 },
+          { name: "pactMagic", current: 2, max: 2 },
+        ],
+      });
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hex", 1, false, repo);
+
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const spellSlot = update.resources.resourcePools.find((p) => p.name === "spellSlot_1");
+      const pactPool = update.resources.resourcePools.find((p) => p.name === "pactMagic");
+      expect(spellSlot?.current).toBe(1);
+      expect(pactPool?.current).toBe(2);
+    });
+
+    it("throws ValidationError when both standard slot and pactMagic are empty", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "spellSlot_1", current: 0, max: 4 },
+          { name: "pactMagic", current: 0, max: 2 },
+        ],
+      });
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hex", 1, false, repo),
+      ).rejects.toThrow(ValidationError);
+    });
+  });
 });

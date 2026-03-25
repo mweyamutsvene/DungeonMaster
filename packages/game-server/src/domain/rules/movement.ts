@@ -297,6 +297,152 @@ export function computeJumpLandingPosition(
   return snapToGrid({ x: rawX, y: rawY });
 }
 
+// ——————————————————————————————————————————————
+// Forced Movement (D&D 5e 2024)
+// ——————————————————————————————————————————————
+
+/**
+ * Direction vector for forced movement. Does not need to be normalized — the
+ * function normalizes it internally. A zero vector means "away from source"
+ * and should be resolved by the caller before passing in.
+ */
+export interface ForcedMovementDirection {
+  x: number;
+  y: number;
+}
+
+export interface ForcedMovementResult {
+  /** Final position after forced movement */
+  finalPosition: Position;
+  /** How far (in feet) the creature actually moved */
+  distanceMoved: number;
+  /** Whether movement was stopped early by an obstacle or map edge */
+  blocked: boolean;
+  /** Human-readable reason if blocked */
+  reason?: string;
+}
+
+/**
+ * Check if a position is passable on the map.
+ * Used internally for forced-movement collision detection.
+ * If no map is provided, only checks map boundaries.
+ */
+interface PassabilityMap {
+  width: number;
+  height: number;
+  gridSize: number;
+  cells?: Array<{ position: Position; passable: boolean }>;
+}
+
+function isPassable(map: PassabilityMap | undefined, pos: Position): boolean {
+  if (!map) return true;
+  if (pos.x < 0 || pos.x > map.width || pos.y < 0 || pos.y > map.height) return false;
+  if (!map.cells) return true;
+  const gridX = Math.round(pos.x / map.gridSize) * map.gridSize;
+  const gridY = Math.round(pos.y / map.gridSize) * map.gridSize;
+  const cell = map.cells.find(c => c.position.x === gridX && c.position.y === gridY);
+  return cell?.passable ?? true;
+}
+
+/**
+ * Apply forced movement to a creature.
+ *
+ * D&D 5e 2024 Rules:
+ * - Forced movement does NOT provoke opportunity attacks.
+ * - Forced movement stops at impassable terrain (walls, obstacles).
+ * - Forced movement stops at map edges.
+ * - Forced movement is NOT affected by difficult terrain.
+ * - Movement is applied in 5ft increments along the direction vector.
+ *
+ * @param origin       Current position of the creature being moved
+ * @param direction    Direction vector (will be normalized)
+ * @param distanceFeet Distance to push/pull in feet
+ * @param map          Optional combat map for collision detection
+ */
+export function applyForcedMovement(
+  origin: Position,
+  direction: ForcedMovementDirection,
+  distanceFeet: number,
+  map?: PassabilityMap,
+): ForcedMovementResult {
+  if (distanceFeet <= 0) {
+    return { finalPosition: { ...origin }, distanceMoved: 0, blocked: false };
+  }
+
+  const len = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+  if (len === 0) {
+    return { finalPosition: { ...origin }, distanceMoved: 0, blocked: false };
+  }
+
+  const norm = { x: direction.x / len, y: direction.y / len };
+  const gridSize = map?.gridSize ?? 5;
+
+  let currentPos = { ...origin };
+  let totalMoved = 0;
+
+  // Move in grid-size increments
+  while (totalMoved < distanceFeet) {
+    const step = Math.min(gridSize, distanceFeet - totalMoved);
+    const nextPos = snapToGrid({
+      x: currentPos.x + norm.x * step,
+      y: currentPos.y + norm.y * step,
+    }, gridSize);
+
+    // Check if we actually moved (avoid infinite loop at edges)
+    if (nextPos.x === currentPos.x && nextPos.y === currentPos.y) {
+      return { finalPosition: currentPos, distanceMoved: totalMoved, blocked: true, reason: "Cannot move further in this direction" };
+    }
+
+    if (!isPassable(map, nextPos)) {
+      return { finalPosition: currentPos, distanceMoved: totalMoved, blocked: true, reason: "Blocked by obstacle or map edge" };
+    }
+
+    currentPos = nextPos;
+    totalMoved += step;
+  }
+
+  return { finalPosition: currentPos, distanceMoved: totalMoved, blocked: false };
+}
+
+/**
+ * Compute the direction vector from a source position to a target position.
+ * Useful for Push effects (away from attacker).
+ */
+export function directionFromTo(from: Position, to: Position): ForcedMovementDirection {
+  return { x: to.x - from.x, y: to.y - from.y };
+}
+
+// ——————————————————————————————————————————————
+// Grapple Drag (D&D 5e 2024)
+// ——————————————————————————————————————————————
+
+/** Creature size tiers ordered smallest to largest. */
+const SIZE_ORDER = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"] as const;
+export type CreatureSizeForDrag = (typeof SIZE_ORDER)[number];
+
+/**
+ * Whether the grappler moves at half speed when dragging a grappled creature.
+ *
+ * D&D 5e 2024: "your Speed is halved, unless the creature is Tiny or two or more
+ * Sizes smaller than you."
+ *
+ * @returns The speed multiplier: 0.5 for normal drag, 1.0 if the grappled creature
+ *          is Tiny or 2+ sizes smaller than the grappler.
+ */
+export function getGrappleDragSpeedMultiplier(
+  grapplerSize: CreatureSizeForDrag,
+  grappledSize: CreatureSizeForDrag,
+): number {
+  const grapplerIdx = SIZE_ORDER.indexOf(grapplerSize);
+  const grappledIdx = SIZE_ORDER.indexOf(grappledSize);
+
+  // Free drag: grappled creature is Tiny OR 2+ sizes smaller
+  if (grappledSize === "Tiny") return 1.0;
+  if (grapplerIdx - grappledIdx >= 2) return 1.0;
+
+  return 0.5;
+}
+
 /**
  * Common movement speed modifiers.
  */

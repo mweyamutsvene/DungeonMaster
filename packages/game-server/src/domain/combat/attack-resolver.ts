@@ -12,6 +12,7 @@ import {
 import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
 import { hasProperty } from "../entities/items/weapon-properties.js";
 import { getAdjustedMode } from "../rules/ability-checks.js";
+import { getCriticalHitThreshold } from "../entities/classes/registry.js";
 
 export interface DamageSpec {
   diceCount: number;
@@ -67,12 +68,36 @@ export interface AttackResult {
   };
 }
 
+export interface AttackResolveOptions {
+  targetDefenses?: DamageDefenses;
+  /** Distance in feet between attacker and target. Used for auto-crit on Paralyzed/Unconscious. */
+  attackerDistance?: number;
+}
+
+/**
+ * D&D 5e 2024: A melee hit on a Paralyzed or Unconscious creature is automatically
+ * a critical hit if the attacker is within 5 feet.
+ */
+export function isAutoCriticalHit(
+  target: Creature,
+  attackKind: AttackKind | undefined,
+  attackerDistance: number | undefined,
+): boolean {
+  const isMelee = attackKind !== "ranged";
+  const isWithin5Feet = attackerDistance !== undefined ? attackerDistance <= 5 : true;
+  // Guard: adapter objects may lack hasCondition()
+  if (typeof target.hasCondition !== "function") return false;
+  const hasAutocrittableCondition =
+    target.hasCondition("paralyzed") || target.hasCondition("unconscious");
+  return isMelee && isWithin5Feet && hasAutocrittableCondition;
+}
+
 export function resolveAttack(
   diceRoller: DiceRoller,
   attacker: Creature,
   target: Creature,
   spec: AttackSpec,
-  options?: { targetDefenses?: DamageDefenses },
+  options?: AttackResolveOptions,
 ): AttackResult {
   // Stage 2.2: basic attack resolution.
   // Advantage/disadvantage and special effects come later (Stage 3).
@@ -93,7 +118,24 @@ export function resolveAttack(
 
   const outcome = rollD20(diceRoller, mode);
   const d20 = outcome.chosen;
-  const critical = d20 === 20;
+  const naturalMiss = d20 === 1;
+  let critical = d20 === 20;
+
+  // Champion Fighter: expanded critical range (Improved Critical 19+, Superior Critical 18+)
+  if (!critical) {
+    const maybeClassId = (attacker as unknown as { getClassId?: () => string | undefined }).getClassId;
+    const maybeSubclass = (attacker as unknown as { getSubclass?: () => string | undefined }).getSubclass;
+    const maybeLevel = (attacker as unknown as { getLevel?: () => number }).getLevel;
+    if (typeof maybeClassId === "function" && typeof maybeLevel === "function") {
+      const classId = maybeClassId.call(attacker);
+      const subclassId = typeof maybeSubclass === "function" ? maybeSubclass.call(attacker) : undefined;
+      const charLevel = maybeLevel.call(attacker);
+      if (classId && charLevel) {
+        const critThreshold = getCriticalHitThreshold(classId, charLevel, subclassId);
+        if (d20 >= critThreshold) critical = true;
+      }
+    }
+  }
 
   const maybeFeatIds = (attacker as unknown as { getFeatIds?: () => readonly string[] }).getFeatIds;
   const featIds = typeof maybeFeatIds === "function" ? maybeFeatIds.call(attacker) : [];
@@ -105,7 +147,12 @@ export function resolveAttack(
   }
 
   const total = d20 + attackBonus;
-  const hit = critical || total >= target.getAC();
+  const hit = !naturalMiss && (critical || total >= target.getAC());
+
+  // D&D 5e 2024: Paralyzed/Unconscious auto-crit on melee within 5ft
+  if (hit && !critical && isAutoCriticalHit(target, spec.kind, options?.attackerDistance)) {
+    critical = true;
+  }
 
   const damageDiceCount = critical ? spec.damage.diceCount * 2 : spec.damage.diceCount;
   let damageRoll = diceRoller.rollDie(

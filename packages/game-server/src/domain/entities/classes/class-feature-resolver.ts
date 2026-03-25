@@ -150,7 +150,7 @@ export class ClassFeatureResolver {
 
   /**
    * Check if a character has Open Hand Technique (Monk level 3+ with Way of the Open Hand subclass).
-   * Kept as a method because it has a subclass requirement that can't be expressed in the features map alone.
+   * Uses the subclass framework — open-hand-technique is a subclass feature, not a class feature.
    */
   static hasOpenHandTechnique(
     sheet: CharacterSheetLike | null | undefined,
@@ -160,8 +160,8 @@ export class ClassFeatureResolver {
   ): boolean {
     const name = (className ?? sheet?.className ?? "").toLowerCase();
     const effectiveLevel = ClassFeatureResolver.getLevel(sheet, level);
-    if (!classHasFeature(name, "open-hand-technique", effectiveLevel)) return false;
     const sub = subclass ?? sheet?.subclass ?? "";
-    return sub.toLowerCase().replace(/\s+/g, "") === "openhand";
+    if (!sub) return false;
+    return classHasFeature(name, "open-hand-technique", effectiveLevel, sub);
   }
 }

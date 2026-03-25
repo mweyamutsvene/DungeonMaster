@@ -1,6 +1,7 @@
 import type { Ability } from "../core/ability-scores.js";
 import type { Skill } from "../core/skills.js";
 import type { ResourcePool } from "../combat/resource-pool.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export type CharacterClassId =
   | "barbarian"
@@ -130,4 +131,29 @@ export interface CharacterClassDefinition {
    * Optional — classes without special abilities don't need this.
    */
   capabilitiesForLevel?: (level: number) => readonly ClassCapability[];
+
+  /**
+   * Subclass definitions available for this class.
+   * Each subclass has its own features map (same pattern as class features).
+   * Optional — classes without implemented subclasses omit this field.
+   */
+  subclasses?: readonly SubclassDefinition[];
+}
+
+/**
+ * Subclass definition — a specialization within a character class.
+ * Features map works the same as class features: featureId → minimum class level.
+ * Optional combatTextProfile adds subclass-specific text parsing.
+ */
+export interface SubclassDefinition {
+  /** Kebab-case identifier (e.g. "champion", "open-hand", "berserker"). */
+  id: string;
+  /** Display name (e.g. "Champion", "Way of the Open Hand"). */
+  name: string;
+  /** Parent class ID. */
+  classId: CharacterClassId;
+  /** Feature availability map: featureId → minimum class level required. */
+  features: Record<string, number>;
+  /** Optional combat text profile for subclass-specific ability parsing. */
+  combatTextProfile?: ClassCombatTextProfile;
 }

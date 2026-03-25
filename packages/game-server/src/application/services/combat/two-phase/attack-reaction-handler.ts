@@ -313,6 +313,12 @@ export class AttackReactionHandler {
       ? pendingAction.reactionOpportunities.find((o) => o.id === deflectReaction.opportunityId)
       : null;
 
+    // Check if Uncanny Dodge was used (Rogue level 5+)
+    const uncannyDodgeReaction = pendingAction.resolvedReactions.find(
+      (r: ReactionResponse) => r.choice === "use" &&
+        pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "uncanny_dodge",
+    );
+
     const targetResources = normalizeResources(target.resources);
     let finalAC: number;
     if (typeof attackData.targetAC === "number") {
@@ -517,6 +523,32 @@ export class AttackReactionHandler {
               };
             }
           }
+        }
+      }
+
+      // Apply Uncanny Dodge damage halving (Rogue reaction)
+      if (damageApplied > 0 && uncannyDodgeReaction) {
+        damageApplied = Math.floor(damageApplied / 2);
+
+        // Mark reaction as used
+        const targetRes = normalizeResources(target.resources);
+        await this.combat.updateCombatantState(target.id, {
+          resources: { ...targetRes, reactionUsed: true } as JsonValue,
+        });
+
+        // Emit Uncanny Dodge event
+        if (this.events) {
+          const targetName = await this.combatants.getName(attackData.target, target);
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: "UncannyDodge",
+            payload: {
+              encounterId: encounter.id,
+              dodgerId: target.id,
+              dodgerName: targetName,
+              damageAfterReduction: damageApplied,
+            },
+          });
         }
       }
 

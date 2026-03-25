@@ -196,6 +196,9 @@ export function resetTurnResources(resources: JsonValue): JsonValue {
     loadingWeaponFiredThisTurn: false,
     // Ready action: clear readied action at start of next turn (D&D 5e 2024)
     readiedAction: undefined,
+    // Bonus action spell restriction (D&D 5e 2024): reset each turn
+    bonusActionSpellCastThisTurn: false,
+    actionSpellCastThisTurn: false,
     // Note: attacksAllowedThisTurn should be set separately based on character features
   } as JsonValue;
 }

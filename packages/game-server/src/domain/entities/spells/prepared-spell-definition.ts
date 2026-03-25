@@ -79,3 +79,18 @@ export interface PreparedSpellDefinition {
   readonly effects?: SpellEffectDeclaration[];
   readonly zone?: SpellZoneDeclaration;
 }
+
+/**
+ * Cantrip damage scaling per D&D 5e 2024.
+ * Cantrips scale at character levels 5, 11, and 17:
+ *   - Levels 1–4:  baseDiceCount dice
+ *   - Levels 5–10: baseDiceCount × 2
+ *   - Levels 11–16: baseDiceCount × 3
+ *   - Levels 17+:  baseDiceCount × 4
+ */
+export function getCantripDamageDice(baseDiceCount: number, characterLevel: number): number {
+  if (characterLevel >= 17) return baseDiceCount * 4;
+  if (characterLevel >= 11) return baseDiceCount * 3;
+  if (characterLevel >= 5) return baseDiceCount * 2;
+  return baseDiceCount;
+}

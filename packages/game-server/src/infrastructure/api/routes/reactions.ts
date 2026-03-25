@@ -181,7 +181,7 @@ export function registerReactionRoutes(
           // Expected: AI turn may have ended naturally
         }
 
-        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : "Reaction";
+        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : opportunity.reactionType === "uncanny_dodge" ? "Uncanny Dodge" : "Reaction";
         return {
           success: true,
           pendingActionId,

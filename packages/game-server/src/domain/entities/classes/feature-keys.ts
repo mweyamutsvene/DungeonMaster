@@ -13,12 +13,17 @@ export const RAGE = "rage";
 export const RECKLESS_ATTACK = "reckless-attack";
 export const DANGER_SENSE = "danger-sense";
 export const FERAL_INSTINCT = "feral-instinct";
+// Path of the Berserker subclass
+export const FRENZY = "frenzy";
 
 // ── Fighter ─────────────────────────────────────────────────
 export const ACTION_SURGE = "action-surge";
 export const SECOND_WIND = "second-wind";
 export const TWO_EXTRA_ATTACKS = "two-extra-attacks";
 export const THREE_EXTRA_ATTACKS = "three-extra-attacks";
+// Champion subclass
+export const IMPROVED_CRITICAL = "improved-critical";
+export const SUPERIOR_CRITICAL = "superior-critical";
 
 // ── Monk ────────────────────────────────────────────────────
 export const MARTIAL_ARTS = "martial-arts";
@@ -36,6 +41,8 @@ export const SNEAK_ATTACK = "sneak-attack";
 export const CUNNING_ACTION = "cunning-action";
 export const UNCANNY_DODGE = "uncanny-dodge";
 export const EVASION = "evasion";
+// Thief subclass
+export const FAST_HANDS = "fast-hands";
 
 // ── Paladin ─────────────────────────────────────────────────
 export const DIVINE_SMITE = "divine-smite";
@@ -48,6 +55,8 @@ export const TURN_UNDEAD = "turn-undead";
 // ── Cross-class (martial) ───────────────────────────────────
 export const EXTRA_ATTACK = "extra-attack";
 export const UNARMORED_DEFENSE = "unarmored-defense";
+export const WEAPON_MASTERY = "weapon-mastery";
+export const FIGHTING_STYLE = "fighting-style";
 
 // ── Spellcasting ────────────────────────────────────────────
 export const SPELLCASTING = "spellcasting";

@@ -26,8 +26,9 @@ export function resolveToHit(
   const outcome = rollD20(diceRoller, mode);
   const d20 = outcome.chosen;
   const critical = d20 === 20;
+  const naturalMiss = d20 === 1;
   const totalToHit = d20 + attackBonus;
-  const hit = critical || totalToHit >= targetAC;
+  const hit = !naturalMiss && (critical || totalToHit >= targetAC);
 
   return {
     mode,

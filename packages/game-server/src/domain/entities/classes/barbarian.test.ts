@@ -12,7 +12,7 @@ import {
   startRage,
 } from "./barbarian.js";
 import { classHasFeature } from "./registry.js";
-import { RAGE, RECKLESS_ATTACK, DANGER_SENSE, FERAL_INSTINCT, EXTRA_ATTACK } from "./feature-keys.js";
+import { RAGE, RECKLESS_ATTACK, DANGER_SENSE, FERAL_INSTINCT, EXTRA_ATTACK, WEAPON_MASTERY } from "./feature-keys.js";
 
 describe("Barbarian rage", () => {
   it("computes rage uses by level", () => {
@@ -312,6 +312,12 @@ describe("classHasFeature — Barbarian features", () => {
 
     it("returns false for Barbarian below level 5", () => {
       expect(classHasFeature("barbarian", EXTRA_ATTACK, 4)).toBe(false);
+    });
+  });
+
+  describe("weapon-mastery", () => {
+    it("returns true for Barbarian level 1+", () => {
+      expect(classHasFeature("barbarian", WEAPON_MASTERY, 1)).toBe(true);
     });
   });
 });

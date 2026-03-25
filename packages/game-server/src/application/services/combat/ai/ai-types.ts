@@ -190,6 +190,8 @@ export interface AiCombatContext {
     damageVulnerabilities?: string[];
     concentrationSpell?: string;
     deathSaves?: { successes: number; failures: number };
+    /** Cover level this enemy has from the AI combatant's position */
+    coverFromMe?: "none" | "half" | "three-quarters" | "full";
   }>;
   battlefield?: {
     grid: string;

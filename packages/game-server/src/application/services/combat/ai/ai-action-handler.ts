@@ -29,8 +29,8 @@ export type AiLogger = (msg: string) => void;
 /** AI reaction decision callback type. */
 export type AiReactionDecider = (
   combatant: CombatantStateRecord,
-  reactionType: "opportunity_attack" | "shield_spell" | "other",
-  context: { targetName?: string; hpPercent?: number },
+  reactionType: "opportunity_attack" | "shield_spell" | "counterspell" | "other",
+  context: { targetName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number; spellName?: string },
 ) => Promise<boolean>;
 
 /**

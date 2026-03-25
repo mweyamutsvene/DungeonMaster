@@ -38,6 +38,7 @@ export interface CombatStartedPayload {
 export interface CombatEndedPayload {
   encounterId: string;
   result: string;
+  reason?: string;
 }
 
 export interface TurnAdvancedPayload {
@@ -165,8 +166,10 @@ export interface CounterspellPayload {
   counterspellerId: string;
   counterspellerName: string;
   targetSpell: string;
-  spellSaveDC: number;
-  saveRoll: number;
+  counterspellLevel: number;
+  targetSpellLevel: number;
+  abilityCheckDC?: number;
+  abilityCheckRoll?: number;
   success: boolean;
 }
 
@@ -202,6 +205,13 @@ export interface DeflectAttacksRedirectPayload {
   martialArtsDieSize: number;
   dexMod: number;
   proficiencyBonus: number;
+}
+
+export interface UncannyDodgePayload {
+  encounterId: string;
+  dodgerId: string;
+  dodgerName: string;
+  damageAfterReduction: number;
 }
 
 export interface AbsorbElementsPayload {
@@ -256,6 +266,7 @@ export type GameEventInput =
   | { type: "ShieldCast"; payload: ShieldCastPayload }
   | { type: "DeflectAttacks"; payload: DeflectAttacksPayload }
   | { type: "DeflectAttacksRedirect"; payload: DeflectAttacksRedirectPayload }
+  | { type: "UncannyDodge"; payload: UncannyDodgePayload }
   | { type: "AbsorbElements"; payload: AbsorbElementsPayload }
   | { type: "HellishRebuke"; payload: HellishRebukePayload }
   | { type: "AiDecision"; payload: AiDecisionPayload };

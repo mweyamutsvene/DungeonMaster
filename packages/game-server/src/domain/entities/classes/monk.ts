@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { getMartialArtsDieSize } from "../../rules/martial-arts-die.js";
@@ -30,6 +30,14 @@ export function spendKi(state: KiState, amount: number): KiState {
 export function resetKiOnShortRest(level: number, state: KiState): KiState {
   const max = kiPointsForLevel(level);
   return { pool: { name: state.pool.name, current: max, max } };
+}
+
+/**
+ * Monk Unarmored Defense AC (D&D 5e 2024).
+ * AC = 10 + DEX modifier + WIS modifier (no armor, shield allowed).
+ */
+export function monkUnarmoredDefenseAC(dexMod: number, wisMod: number): number {
+  return 10 + dexMod + wisMod;
 }
 
 /**
@@ -71,6 +79,18 @@ export function getMonkResourcePools(level: number, wisdomModifier = 0): Resourc
   return pools;
 }
 
+// ----- Subclasses -----
+
+/** Way of the Open Hand subclass (D&D 5e 2024). */
+export const OpenHandSubclass: SubclassDefinition = {
+  id: "open-hand",
+  name: "Way of the Open Hand",
+  classId: "monk",
+  features: {
+    "open-hand-technique": 3,
+  },
+};
+
 export const Monk: CharacterClassDefinition = {
   id: "monk",
   name: "Monk",
@@ -86,10 +106,10 @@ export const Monk: CharacterClassDefinition = {
     "step-of-the-wind": 2,
     "uncanny-metabolism": 2,
     "deflect-attacks": 3,
-    "open-hand-technique": 3, // also requires Open Hand subclass (executor guards)
     "stunning-strike": 5,
     "extra-attack": 5,
-    "wholeness-of-body": 6, // also requires Open Hand subclass (executor guards)
+    "wholeness-of-body": 6,
+    "evasion": 7,
   },
   resourcesAtLevel: (level, abilityModifiers) => {
     const wisdomModifier = abilityModifiers?.wisdom ?? 0;
@@ -123,6 +143,7 @@ export const Monk: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [OpenHandSubclass],
 };
 
 // ----- Attack Reaction: Deflect Attacks -----

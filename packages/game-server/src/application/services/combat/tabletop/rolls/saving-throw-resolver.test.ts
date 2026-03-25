@@ -321,4 +321,113 @@ describe("SavingThrowResolver", () => {
       expect(resolution.success).toBe(true); // nat-1 does NOT auto-fail saves
     });
   });
+
+  describe("Evasion (Rogue 7/Monk 7)", () => {
+    // Rogue level 7 with DEX 16 (+3 mod)
+    const rogueCharacter = {
+      id: "rogue-1",
+      sheet: {
+        abilityScores: { strength: 10, dexterity: 16, constitution: 12, intelligence: 10, wisdom: 12, charisma: 8 },
+        saveProficiencies: ["dexterity_save"],
+        level: 7,
+        className: "Rogue",
+      },
+    };
+
+    // Monk level 7 with DEX 16 (+3 mod)
+    const monkCharacter = {
+      id: "monk-1",
+      sheet: {
+        abilityScores: { strength: 10, dexterity: 16, constitution: 12, intelligence: 10, wisdom: 14, charisma: 8 },
+        saveProficiencies: ["dexterity_save"],
+        level: 7,
+        className: "Monk",
+      },
+    };
+
+    // Rogue level 6 (no Evasion yet)
+    const lowLevelRogue = {
+      id: "rogue-low",
+      sheet: {
+        abilityScores: { strength: 10, dexterity: 16, constitution: 12, intelligence: 10, wisdom: 12, charisma: 8 },
+        saveProficiencies: ["dexterity_save"],
+        level: 6,
+        className: "Rogue",
+      },
+    };
+
+    it("sets hasEvasion on DEX save for Rogue level 7+", async () => {
+      const diceRoller = new FixedDiceRoller(15);
+      const resolver = new SavingThrowResolver(combatRepo, diceRoller);
+
+      await combatRepo.createCombatants(encounterId, [{
+        id: "cbt-rogue", combatantType: "Character", characterId: "rogue-1",
+        monsterId: null, npcId: null, initiative: 10, hpCurrent: 30, hpMax: 30,
+        conditions: [], resources: {},
+      }]);
+
+      const action = makeAction({ actorId: "rogue-1", ability: "dexterity", dc: 14 });
+      const resolution = await resolver.resolve(action, encounterId, [rogueCharacter], [], []);
+
+      expect(resolution.hasEvasion).toBe(true);
+    });
+
+    it("sets hasEvasion on DEX save for Monk level 7+", async () => {
+      const diceRoller = new FixedDiceRoller(15);
+      const resolver = new SavingThrowResolver(combatRepo, diceRoller);
+
+      await combatRepo.createCombatants(encounterId, [{
+        id: "cbt-monk", combatantType: "Character", characterId: "monk-1",
+        monsterId: null, npcId: null, initiative: 10, hpCurrent: 30, hpMax: 30,
+        conditions: [], resources: {},
+      }]);
+
+      const action = makeAction({ actorId: "monk-1", ability: "dexterity", dc: 14 });
+      const resolution = await resolver.resolve(action, encounterId, [monkCharacter], [], []);
+
+      expect(resolution.hasEvasion).toBe(true);
+    });
+
+    it("does NOT set hasEvasion for Rogue below level 7", async () => {
+      const diceRoller = new FixedDiceRoller(15);
+      const resolver = new SavingThrowResolver(combatRepo, diceRoller);
+
+      await combatRepo.createCombatants(encounterId, [{
+        id: "cbt-rogue-low", combatantType: "Character", characterId: "rogue-low",
+        monsterId: null, npcId: null, initiative: 10, hpCurrent: 30, hpMax: 30,
+        conditions: [], resources: {},
+      }]);
+
+      const action = makeAction({ actorId: "rogue-low", ability: "dexterity", dc: 14 });
+      const resolution = await resolver.resolve(action, encounterId, [lowLevelRogue], [], []);
+
+      expect(resolution.hasEvasion).toBeUndefined();
+    });
+
+    it("does NOT set hasEvasion on non-DEX saves", async () => {
+      const diceRoller = new FixedDiceRoller(15);
+      const resolver = new SavingThrowResolver(combatRepo, diceRoller);
+
+      await combatRepo.createCombatants(encounterId, [{
+        id: "cbt-rogue-wis", combatantType: "Character", characterId: "rogue-1",
+        monsterId: null, npcId: null, initiative: 10, hpCurrent: 30, hpMax: 30,
+        conditions: [], resources: {},
+      }]);
+
+      const action = makeAction({ actorId: "rogue-1", ability: "wisdom", dc: 14 });
+      const resolution = await resolver.resolve(action, encounterId, [rogueCharacter], [], []);
+
+      expect(resolution.hasEvasion).toBeUndefined();
+    });
+
+    it("does NOT set hasEvasion for monsters", async () => {
+      const diceRoller = new FixedDiceRoller(15);
+      const resolver = new SavingThrowResolver(combatRepo, diceRoller);
+
+      const action = makeAction({ actorId: monsterId, ability: "dexterity", dc: 14 });
+      const resolution = await resolver.resolve(action, encounterId, [], [goblinMonster], []);
+
+      expect(resolution.hasEvasion).toBeUndefined();
+    });
+  });
 });

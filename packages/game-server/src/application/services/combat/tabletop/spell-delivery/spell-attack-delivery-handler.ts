@@ -5,6 +5,7 @@
 
 import { ValidationError } from '../../../../errors.js';
 import { readConditionNames } from '../../../../../domain/entities/combat/conditions.js';
+import { getCantripDamageDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { deriveRollModeFromConditions, findCombatantByName } from '../combat-text-parser.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
@@ -37,7 +38,15 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
     const spellAttackBonus = sheet?.spellAttackBonus ?? 5;
 
     const spellDamage = spellMatch.damage ?? { diceCount: 1, diceSides: 10, modifier: 0 };
-    const damageFormula = `${spellDamage.diceCount}d${spellDamage.diceSides}${
+
+    // Cantrip scaling: scale damage dice by character level (D&D 5e 2024)
+    let diceCount = spellDamage.diceCount;
+    if (spellMatch.level === 0) {
+      const characterLevel: number = typeof sheet?.level === "number" && sheet.level >= 1 ? sheet.level : 1;
+      diceCount = getCantripDamageDice(spellDamage.diceCount, characterLevel);
+    }
+
+    const damageFormula = `${diceCount}d${spellDamage.diceSides}${
       (spellDamage.modifier ?? 0) > 0
         ? `+${spellDamage.modifier}`
         : (spellDamage.modifier ?? 0) < 0
@@ -50,7 +59,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       kind: spellMatch.attackType === "melee_spell" ? "melee" : "ranged",
       attackBonus: spellAttackBonus,
       damage: {
-        diceCount: spellDamage.diceCount,
+        diceCount,
         diceSides: spellDamage.diceSides,
         modifier: spellDamage.modifier ?? 0,
       },

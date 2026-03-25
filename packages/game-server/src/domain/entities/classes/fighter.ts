@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface ActionSurgeState {
@@ -61,6 +61,21 @@ export function resetSecondWindOnShortRest(level: number, state: SecondWindState
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+// ----- Subclasses -----
+
+/** Champion Fighter subclass (D&D 5e 2024). */
+export const ChampionSubclass: SubclassDefinition = {
+  id: "champion",
+  name: "Champion",
+  classId: "fighter",
+  features: {
+    "improved-critical": 3,
+    "remarkable-athlete": 3,
+    "additional-fighting-style": 7,
+    "superior-critical": 15,
+  },
+};
+
 export const Fighter: CharacterClassDefinition = {
   id: "fighter",
   name: "Fighter",
@@ -69,6 +84,7 @@ export const Fighter: CharacterClassDefinition = {
     savingThrows: ["strength", "constitution"],
   },
   features: {
+    "weapon-mastery": 1,
     "second-wind": 1,
     "action-surge": 2,
     "extra-attack": 5,
@@ -114,6 +130,7 @@ export const Fighter: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [ChampionSubclass],
 };
 
 /** Combat text profile — maps text patterns to Fighter ability IDs. */

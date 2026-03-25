@@ -137,6 +137,11 @@ export function extractActionEconomy(
     reactionUsed: isFreshEconomy ? false : (resources as any).reactionUsed ?? false,
     // D&D 5e 2024: Free Object Interaction resets each turn
     objectInteractionUsed: isFreshEconomy ? false : (resources as any).objectInteractionUsed ?? false,
+    // Bonus action spell restriction (D&D 5e 2024)
+    bonusActionSpellCastThisTurn: isFreshEconomy ? false : (resources as any).bonusActionSpellCastThisTurn ?? false,
+    actionSpellCastThisTurn: isFreshEconomy ? false : (resources as any).actionSpellCastThisTurn ?? false,
+    // D&D 5e 2024: "If the trigger doesn't occur before the start of your next turn, you lose the action"
+    readiedAction: isFreshEconomy ? undefined : (resources as any).readiedAction,
   };
 }
 

@@ -732,6 +732,23 @@ export class AttackHandlers {
       if (this.debugLogsEnabled) console.log(`[AttackHandlers] Vex mastery (ActiveEffect): +1 advantage vs ${targetId}`);
     }
 
+    // Help action: consume until_triggered advantage effects on the target (one-use)
+    const helpEffects = targetActiveEffects.filter(
+      e => e.source === 'Help' && e.type === 'advantage' && e.duration === 'until_triggered'
+        && e.targetCombatantId === targetId
+    );
+    if (helpEffects.length > 0) {
+      // Remove all Help advantage effects from target (consumed on first attack)
+      let updatedTargetRes: Record<string, unknown> = (targetCombatant.resources ?? {}) as Record<string, unknown>;
+      for (const helpEff of helpEffects) {
+        updatedTargetRes = removeActiveEffectById(updatedTargetRes, helpEff.id) as Record<string, unknown>;
+      }
+      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+        resources: updatedTargetRes as any,
+      });
+      if (this.debugLogsEnabled) console.log(`[AttackHandlers] Help action advantage consumed on attack against ${targetId}`);
+    }
+
     const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, inferredKind, extraAdvantage, extraDisadvantage);
 
     // Parse attack enhancement declarations via class combat text profiles

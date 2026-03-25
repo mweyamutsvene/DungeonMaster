@@ -1,3 +1,5 @@
+import type { Ability } from "../core/ability-scores.js";
+
 /**
  * D&D 5e Conditions System
  * 
@@ -69,6 +71,7 @@ export interface ConditionEffects {
   // Movement
   readonly movementImpaired: boolean; // Speed reduced to 0 or disadvantage on movement
   readonly cannotMove: boolean; // Speed is 0
+  readonly cannotMoveCloserToSource: boolean; // Cannot willingly move closer to fear source (Frightened)
   
   // Actions
   readonly cannotTakeActions: boolean; // Cannot take actions
@@ -78,8 +81,14 @@ export interface ConditionEffects {
   // Attack/Defense
   readonly attackRollsHaveAdvantage: boolean; // Attacks against have advantage
   readonly attackRollsHaveDisadvantage: boolean; // Attack rolls have disadvantage
+  readonly meleeAttackAdvantage: boolean; // Melee attacks (within 5ft) against this creature have advantage (Prone)
+  readonly rangedAttackDisadvantage: boolean; // Ranged attacks (beyond 5ft) against this creature have disadvantage (Prone)
+  readonly selfAttackAdvantage: boolean; // This creature has advantage on its own attack rolls (Invisible)
+  readonly incomingAttackDisadvantage: boolean; // Attacks against this creature have disadvantage (Invisible)
   readonly autoMissAttacks: boolean; // All attacks automatically miss
   readonly autoFailStrDexSaves: boolean; // Automatically fail Str/Dex saves
+  readonly savingThrowDisadvantage: readonly Ability[]; // Disadvantage on saves for these abilities
+  readonly abilityCheckDisadvantage: boolean; // Disadvantage on ability checks (Poisoned)
   
   // Other
   readonly cannotSpeak: boolean; // Cannot speak or cast spells with verbal components
@@ -94,13 +103,20 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
   const baseEffects: ConditionEffects = {
     movementImpaired: false,
     cannotMove: false,
+    cannotMoveCloserToSource: false,
     cannotTakeActions: false,
     cannotTakeBonusActions: false,
     cannotTakeReactions: false,
     attackRollsHaveAdvantage: false,
     attackRollsHaveDisadvantage: false,
+    meleeAttackAdvantage: false,
+    rangedAttackDisadvantage: false,
+    selfAttackAdvantage: false,
+    incomingAttackDisadvantage: false,
     autoMissAttacks: false,
     autoFailStrDexSaves: false,
+    savingThrowDisadvantage: [],
+    abilityCheckDisadvantage: false,
     cannotSpeak: false,
     cannotSee: false,
     cannotHear: false,
@@ -131,7 +147,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       return {
         ...baseEffects,
         attackRollsHaveDisadvantage: true,
-        // Cannot willingly move closer to source of fear
+        abilityCheckDisadvantage: true,
+        cannotMoveCloserToSource: true,
       };
 
     case 'Grappled':
@@ -151,7 +168,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     case 'Invisible':
       return {
         ...baseEffects,
-        attackRollsHaveAdvantage: true, // Attacks against have disadvantage (inverse)
+        selfAttackAdvantage: true,
+        incomingAttackDisadvantage: true,
       };
 
     case 'Paralyzed':
@@ -184,16 +202,16 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       return {
         ...baseEffects,
         attackRollsHaveDisadvantage: true,
-        // Disadvantage on ability checks too
+        abilityCheckDisadvantage: true,
       };
 
     case 'Prone':
       return {
         ...baseEffects,
         movementImpaired: true, // Must use movement to stand
-        attackRollsHaveDisadvantage: true,
-        attackRollsHaveAdvantage: true, // Melee attacks against have advantage
-        // Ranged attacks against have disadvantage
+        attackRollsHaveDisadvantage: true, // Prone creature's own attacks have disadvantage
+        meleeAttackAdvantage: true, // Melee attacks within 5ft against prone creature have advantage
+        rangedAttackDisadvantage: true, // Ranged attacks beyond 5ft against prone creature have disadvantage
       };
 
     case 'Restrained':
@@ -202,7 +220,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotMove: true,
         attackRollsHaveDisadvantage: true,
         attackRollsHaveAdvantage: true, // Attacks against
-        autoFailStrDexSaves: true, // Disadvantage on Dex saves
+        savingThrowDisadvantage: ['dexterity'], // D&D 2024: disadvantage on DEX saves only
       };
 
     case 'Stunned':
@@ -233,11 +251,14 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       };
 
     case 'Exhaustion':
-      // Exhaustion has levels (1-6) but we simplify to single condition
+      // D&D 2024 exhaustion has levels 1-6 tracked via ActiveCondition.
+      // Static effects here represent the minimum (level 1) indicators.
+      // Actual penalties are computed by getExhaustionPenalty() / getExhaustionSpeedReduction()
+      // based on the exhaustion level stored in the ActiveCondition.
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: true,
-        movementImpaired: true,
+        attackRollsHaveDisadvantage: false, // Replaced by d20 penalty system
+        movementImpaired: true, // Speed reduced by 5 × level
       };
 
     case 'Sapped':
@@ -317,6 +338,159 @@ export function hasAttackDisadvantage(conditions: readonly ActiveCondition[]): b
     const effects = getConditionEffects(c.condition);
     return effects.attackRollsHaveDisadvantage;
   });
+}
+
+/**
+ * D&D 2024 Prone: Melee attacks within 5ft have advantage against prone target.
+ * Ranged attacks beyond 5ft have disadvantage against prone target.
+ * Returns the roll mode adjustment for attacks AGAINST a target with these conditions.
+ */
+export function getProneAttackModifier(
+  targetConditions: readonly ActiveCondition[],
+  attackerDistanceFt: number,
+  attackKind: 'melee' | 'ranged',
+): 'advantage' | 'disadvantage' | 'none' {
+  const hasProne = targetConditions.some(c => c.condition === 'Prone');
+  if (!hasProne) return 'none';
+
+  if (attackKind === 'melee' && attackerDistanceFt <= 5) {
+    return 'advantage';
+  }
+  if (attackKind === 'ranged' || attackerDistanceFt > 5) {
+    return 'disadvantage';
+  }
+  return 'none';
+}
+
+/**
+ * Check if any condition grants the creature advantage on its own attacks (e.g. Invisible).
+ */
+export function hasSelfAttackAdvantage(conditions: readonly ActiveCondition[]): boolean {
+  return conditions.some(c => {
+    const effects = getConditionEffects(c.condition);
+    return effects.selfAttackAdvantage;
+  });
+}
+
+/**
+ * Check if any condition imposes disadvantage on incoming attacks against this creature (e.g. Invisible).
+ */
+export function hasIncomingAttackDisadvantage(conditions: readonly ActiveCondition[]): boolean {
+  return conditions.some(c => {
+    const effects = getConditionEffects(c.condition);
+    return effects.incomingAttackDisadvantage;
+  });
+}
+
+/**
+ * Check if any condition imposes disadvantage on ability checks (e.g. Poisoned, Frightened).
+ */
+export function hasAbilityCheckDisadvantage(conditions: readonly ActiveCondition[]): boolean {
+  return conditions.some(c => {
+    const effects = getConditionEffects(c.condition);
+    return effects.abilityCheckDisadvantage;
+  });
+}
+
+/**
+ * D&D 2024 Frightened: Cannot willingly move closer to fear source.
+ * Returns true if the movement should be blocked because it brings the creature
+ * closer to its fear source.
+ * @param conditions - The creature's active conditions
+ * @param currentDistanceToSource - Current distance to the fear source in feet
+ * @param newDistanceToSource - Distance to the fear source after the proposed move
+ */
+export function isFrightenedMovementBlocked(
+  conditions: readonly ActiveCondition[],
+  currentDistanceToSource: number,
+  newDistanceToSource: number,
+): boolean {
+  const frightenedCondition = conditions.find(
+    c => c.condition === 'Frightened' && c.source,
+  );
+  if (!frightenedCondition) return false;
+
+  // Block if moving closer to fear source
+  return newDistanceToSource < currentDistanceToSource;
+}
+
+/**
+ * Get the fear source ID from a Frightened condition, if present.
+ */
+export function getFrightenedSourceId(conditions: readonly ActiveCondition[]): string | undefined {
+  const frightenedCondition = conditions.find(
+    c => c.condition === 'Frightened' && c.source,
+  );
+  return frightenedCondition?.source;
+}
+
+// ----- Exhaustion Level System (D&D 2024) -----
+
+/**
+ * D&D 2024 Exhaustion: Each level gives -2 penalty to all d20 tests
+ * (attack rolls, ability checks, saving throws).
+ * @param level - Exhaustion level (1-6)
+ * @returns The penalty to apply to d20 rolls (negative number)
+ */
+export function getExhaustionPenalty(level: number): number {
+  const clamped = Math.max(0, Math.min(6, Math.floor(level)));
+  return clamped === 0 ? 0 : -(clamped * 2);
+}
+
+/**
+ * D&D 2024 Exhaustion: Speed reduced by 5 × level feet.
+ * @param level - Exhaustion level (1-6)
+ * @returns The speed reduction in feet (positive number)
+ */
+export function getExhaustionSpeedReduction(level: number): number {
+  const clamped = Math.max(0, Math.min(6, Math.floor(level)));
+  return clamped * 5;
+}
+
+/**
+ * D&D 2024 Exhaustion: Level 6 is lethal.
+ * @param level - Exhaustion level
+ * @returns true if the creature dies from exhaustion
+ */
+export function isExhaustionLethal(level: number): boolean {
+  return level >= 6;
+}
+
+/**
+ * Get the exhaustion level from a creature's conditions.
+ * Exhaustion level is stored in the `source` field of the Exhaustion ActiveCondition
+ * as "exhaustion:<level>" (e.g., "exhaustion:3").
+ * Returns 0 if no exhaustion condition is present.
+ */
+export function getExhaustionLevel(conditions: readonly ActiveCondition[]): number {
+  const exhaustionCondition = conditions.find(c => c.condition === 'Exhaustion');
+  if (!exhaustionCondition) return 0;
+
+  // Parse level from source field: "exhaustion:<level>"
+  if (exhaustionCondition.source?.startsWith('exhaustion:')) {
+    const parsed = parseInt(exhaustionCondition.source.split(':')[1], 10);
+    if (!isNaN(parsed)) return Math.max(0, Math.min(6, parsed));
+  }
+
+  // Default to level 1 if exhaustion present without level info
+  return 1;
+}
+
+/**
+ * Create an Exhaustion condition with the specified level.
+ */
+export function createExhaustionCondition(level: number): ActiveCondition {
+  const clamped = Math.max(1, Math.min(6, Math.floor(level)));
+  return createCondition('Exhaustion', 'until_removed', {
+    source: `exhaustion:${clamped}`,
+  });
+}
+
+/**
+ * Get the total exhaustion penalty from a creature's conditions for d20 tests.
+ */
+export function getExhaustionD20Penalty(conditions: readonly ActiveCondition[]): number {
+  return getExhaustionPenalty(getExhaustionLevel(conditions));
 }
 
 /**

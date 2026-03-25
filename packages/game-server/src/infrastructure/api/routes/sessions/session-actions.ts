@@ -67,6 +67,29 @@ export function registerSessionActionsRoutes(app: FastifyInstance, deps: Session
     }
 
     if (req.body?.kind !== "attack") {
+      // Check for help action
+      const body = req.body as any;
+      if (body?.kind === "help") {
+        if (!body.actor || !body.target) {
+          throw new ValidationError("help action requires actor and target");
+        }
+        if (deps.unitOfWork) {
+          return deps.unitOfWork.run(async (repos) => {
+            const services = deps.createServicesForRepos(repos);
+            return services.actions.help(sessionId, {
+              encounterId: body.encounterId,
+              actor: body.actor,
+              target: body.target,
+            });
+          });
+        }
+        return deps.actions.help(sessionId, {
+          encounterId: body.encounterId,
+          actor: body.actor,
+          target: body.target,
+        });
+      }
+
       throw new ValidationError("Unsupported action kind");
     }
 

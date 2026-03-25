@@ -24,3 +24,9 @@ export * from "./ai-action-executor.js";
 
 // Main orchestrator (with backward-compatible alias)
 export * from "./ai-turn-orchestrator.js";
+
+// Target scorer
+export * from "./ai-target-scorer.js";
+
+// Deterministic fallback AI
+export * from "./deterministic-ai.js";

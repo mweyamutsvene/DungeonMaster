@@ -11,6 +11,10 @@ import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassId } from "../classes/class-definition.js";
 import { isCharacterClassId } from "../classes/class-definition.js";
 import { getClassDefinition } from "../classes/registry.js";
+import { classHasFeature } from "../classes/registry.js";
+import { UNARMORED_DEFENSE } from "../classes/feature-keys.js";
+import { barbarianUnarmoredDefenseAC } from "../classes/barbarian.js";
+import { monkUnarmoredDefenseAC } from "../classes/monk.js";
 import type { RestType } from "../../rules/rest.js";
 import { refreshClassResourcePools } from "../../rules/rest.js";
 import { defaultResourcePoolsForClass } from "../../rules/class-resources.js";
@@ -71,6 +75,16 @@ export interface CharacterData extends CreatureData {
    * Chosen feats by id (e.g. "feat_alert").
    */
   featIds?: readonly string[];
+
+  /**
+   * Darkvision range in feet (0 means none). Typically from species traits.
+   */
+  darkvisionRange?: number;
+
+  /**
+   * Damage resistances from species traits (e.g. ["poison"] for Dwarf, ["fire"] for Tiefling).
+   */
+  speciesDamageResistances?: readonly string[];
 }
 
 export class Character extends Creature {
@@ -82,6 +96,8 @@ export class Character extends Creature {
   private experiencePoints: number;
   private resourcePools: ResourcePool[];
   private featIds: string[];
+  private darkvisionRange: number;
+  private speciesDamageResistances: string[];
 
   constructor(data: CharacterData) {
     super(data);
@@ -97,6 +113,8 @@ export class Character extends Creature {
       }
     }
     this.experiencePoints = data.experiencePoints;
+    this.darkvisionRange = data.darkvisionRange ?? 0;
+    this.speciesDamageResistances = data.speciesDamageResistances ? [...data.speciesDamageResistances] : [];
     if (data.resourcePools) {
       this.resourcePools = [...data.resourcePools];
     } else if (this.classId) {
@@ -144,6 +162,14 @@ export class Character extends Creature {
 
   getFeatIds(): readonly string[] {
     return [...this.featIds];
+  }
+
+  getDarkvisionRange(): number {
+    return this.darkvisionRange;
+  }
+
+  getSpeciesDamageResistances(): readonly string[] {
+    return [...this.speciesDamageResistances];
   }
 
   canSpendResource(poolName: string, amount: number): boolean {
@@ -207,9 +233,32 @@ export class Character extends Creature {
   // === Armor Class ===
 
   override getAC(): number {
-    const ac = super.getAC();
-    const mods = computeFeatModifiers(this.featIds);
     const wearingArmor = !!this.getEquipment()?.armor;
+    const mods = computeFeatModifiers(this.featIds);
+
+    // Unarmored Defense: Barbarian (10 + DEX + CON) or Monk (10 + DEX + WIS)
+    if (!wearingArmor && this.classId && classHasFeature(this.classId, UNARMORED_DEFENSE, this.level)) {
+      let unarmoredAC: number | undefined;
+      if (this.classId === "barbarian") {
+        unarmoredAC = barbarianUnarmoredDefenseAC(
+          this.getAbilityModifier("dexterity"),
+          this.getAbilityModifier("constitution"),
+        );
+      } else if (this.classId === "monk") {
+        unarmoredAC = monkUnarmoredDefenseAC(
+          this.getAbilityModifier("dexterity"),
+          this.getAbilityModifier("wisdom"),
+        );
+      }
+      if (unarmoredAC !== undefined) {
+        // Shield bonus applies on top of Unarmored Defense
+        const shield = this.getEquipment()?.shield;
+        const shieldBonus = shield && this.getArmorTraining().shield ? shield.armorClassBonus : 0;
+        return unarmoredAC + shieldBonus;
+      }
+    }
+
+    const ac = super.getAC();
     return wearingArmor && mods.armorClassBonusWhileArmored ? ac + mods.armorClassBonusWhileArmored : ac;
   }
 
@@ -272,6 +321,8 @@ export class Character extends Creature {
       proficiencyBonus: this.getProficiencyBonus(),
       resourcePools: this.resourcePools,
       featIds: this.featIds,
+      darkvisionRange: this.darkvisionRange,
+      speciesDamageResistances: this.speciesDamageResistances,
     };
   }
 }

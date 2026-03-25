@@ -325,8 +325,22 @@ TACTICAL POSITIONING:
 - Use context.combatant.position and enemies[].position if available
 - Consider range: melee (5-10ft), ranged (30-120ft typical)
 - Use terrain: cover provides AC bonuses, difficult terrain slows movement
+- Check context.enemies[].coverFromMe: prefer targets without cover, reposition to avoid cover
 - Opportunity attacks: leaving enemy reach without Disengage triggers free attack
 - Flanking: position allies on opposite sides of enemy for advantage
+
+COVER (attack modifiers):
+- context.enemies[].coverFromMe — if present ("half", "three-quarters", "full"), indicates the enemy has cover from your position.
+- Half cover: +2 AC and +2 to DEX saves. Three-quarters cover: +5 AC and +5 to DEX saves. Full cover: untargetable.
+- Prefer targets with NO cover or only half cover. Avoid attacking targets with three-quarters or full cover.
+- Consider repositioning (move action) to a position that avoids cover before attacking.
+
+CLASS-SPECIFIC TACTICS (use when applicable based on context.combatant.class):
+- **Barbarian**: Use Rage on your first melee turn if not already raging (check activeBuffs for "Raging"). While raging, prefer STR-based melee attacks for the bonus damage. Use Reckless Attack when you need to hit reliably and can absorb the retaliation.
+- **Fighter**: Use Action Surge when multiple enemies are in range and you haven't used it this combat (check resourcePools for "actionSurge" with current > 0). This gives you a second action — devastating with Extra Attack.
+- **Paladin**: Use Divine Smite on critical hits or against high-priority targets (undead, fiends, boss enemies). Don't waste smite slots on low-threat enemies.
+- **Rogue**: Position for Sneak Attack — you need advantage OR an ally within 5ft of your target. If neither condition is met, use Cunning Action to reposition first.
+- **Monk**: Use Flurry of Blows when engaged in melee for burst damage. Use Patient Defense (Dodge as bonus action) when surrounded by multiple enemies. Use Step of the Wind to escape dangerous positions.
 
 GROUP TACTICS:
 - Coordinate with allies: focus fire on wounded enemies, protect injured allies

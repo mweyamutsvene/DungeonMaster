@@ -149,8 +149,15 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       let totalDamage = damageRoll.total + (spellDamage.modifier ?? 0);
 
       // Half damage on save (D&D 5e standard for many save spells)
+      // Evasion (Rogue 7/Monk 7): DEX save success = 0 damage, failure = half damage
       const halfOnSave = spellMatch.halfDamageOnSave ?? true;
-      if (saveSuccess && halfOnSave) {
+      if (resolution.hasEvasion) {
+        if (saveSuccess) {
+          totalDamage = 0;
+        } else {
+          totalDamage = Math.floor(totalDamage / 2);
+        }
+      } else if (saveSuccess && halfOnSave) {
         totalDamage = Math.floor(totalDamage / 2);
       } else if (saveSuccess && !halfOnSave) {
         totalDamage = 0;

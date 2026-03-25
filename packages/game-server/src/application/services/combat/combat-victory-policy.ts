@@ -3,6 +3,9 @@ import type { FactionService } from "./helpers/faction-service.js";
 
 export type CombatVictoryStatus = "Victory" | "Defeat";
 
+/** Reason combat ended — used in CombatEnded event payloads. */
+export type CombatEndReason = "elimination" | "flee" | "surrender" | "dm_end";
+
 export interface CombatVictoryPolicy {
   evaluate(input: { combatants: CombatantStateRecord[] }): Promise<CombatVictoryStatus | null>;
 }
@@ -20,6 +23,15 @@ function isDying(combatant: CombatantStateRecord): boolean {
   // If no death saves initialized yet (just dropped to 0), they're dying
   if (!deathSaves) return true;
   return deathSaves.failures < 3;
+}
+
+/**
+ * Check if a combatant has fled the battlefield.
+ * Fled combatants are alive but no longer participating in combat.
+ */
+export function hasFled(combatant: CombatantStateRecord): boolean {
+  const resources = (combatant.resources ?? {}) as Record<string, unknown>;
+  return resources.fled === true;
 }
 
 /**
@@ -42,8 +54,8 @@ export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
 
       const stats = factions.get(faction) || { alive: 0, total: 0 };
       stats.total += 1;
-      // A combatant is "alive" if HP > 0 OR if they are dying (making death saves)
-      if (combatant.hpCurrent > 0 || isDying(combatant)) stats.alive += 1;
+      // A combatant is "alive" if (HP > 0 OR dying) AND has not fled
+      if ((combatant.hpCurrent > 0 || isDying(combatant)) && !hasFled(combatant)) stats.alive += 1;
       factions.set(faction, stats);
     }
 

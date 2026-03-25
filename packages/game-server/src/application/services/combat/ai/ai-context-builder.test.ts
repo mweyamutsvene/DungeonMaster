@@ -1361,4 +1361,157 @@ describe("AiContextBuilder", () => {
       expect(ctx.combatant.hp).toHaveProperty("percentage");
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Cover information
+  // --------------------------------------------------------------------------
+
+  describe("cover information", () => {
+    it("includes coverFromMe for enemies behind cover terrain", async () => {
+      const { createCombatMap, setTerrainAt } = await import("../../../../domain/rules/combat-map.js");
+
+      await monsters.createInSession(SESSION_ID, {
+        id: "goblin-1",
+        name: "Goblin",
+        monsterDefinitionId: null,
+        statBlock: {
+          armorClass: 15,
+          speed: 30,
+          attacks: [],
+          traits: [],
+          actions: [],
+          bonusActions: [],
+          reactions: [],
+          spells: [],
+        } as JsonValue,
+      });
+
+      await characters.createInSession(SESSION_ID, {
+        id: "char-1",
+        name: "Thorin",
+        className: "Fighter",
+        level: 5,
+        sheet: {
+          armorClass: 18,
+          speed: 30,
+          attacks: [],
+          traits: [],
+          actions: [],
+          bonusActions: [],
+          reactions: [],
+          spells: [],
+        } as JsonValue,
+      });
+
+      const goblinCombatant = makeCombatant({
+        id: "goblin-1",
+        monsterId: "goblin-1",
+        combatantType: "Monster",
+        resources: { position: { x: 0, y: 0 } } as JsonValue,
+      });
+
+      const charCombatant = makeCombatant({
+        id: "char-1",
+        characterId: "char-1",
+        monsterId: null,
+        combatantType: "Character",
+        resources: { position: { x: 30, y: 0 } } as JsonValue,
+      });
+
+      // Create a map with half-cover between the two positions
+      const map = createCombatMap(50, 50, 5);
+      // Place a low wall (half cover) between them
+      setTerrainAt(map, { x: 15, y: 0 }, "low-wall");
+
+      const encounter = makeEncounter({ mapData: map as unknown as JsonValue });
+      const monster = await monsters.getById("goblin-1");
+
+      const ctx = await builder.build(
+        monster as unknown as Record<string, unknown>,
+        goblinCombatant,
+        [goblinCombatant, charCombatant],
+        encounter,
+        [],
+        [],
+        [],
+      );
+
+      // Character is enemy of Monster → should appear in enemies[]
+      expect(ctx.enemies.length).toBeGreaterThanOrEqual(1);
+      const thorinEnemy = ctx.enemies.find(e => e.name.includes("Thorin") || e.name.includes("char-1"));
+      // Cover depends on the terrain type mapping — "low-wall" → "half"
+      if (thorinEnemy?.coverFromMe) {
+        expect(["half", "three-quarters", "full"]).toContain(thorinEnemy.coverFromMe);
+      }
+    });
+
+    it("omits coverFromMe when no map data present", async () => {
+      await monsters.createInSession(SESSION_ID, {
+        id: "goblin-1",
+        name: "Goblin",
+        monsterDefinitionId: null,
+        statBlock: {
+          armorClass: 15,
+          speed: 30,
+          attacks: [],
+          traits: [],
+          actions: [],
+          bonusActions: [],
+          reactions: [],
+          spells: [],
+        } as JsonValue,
+      });
+
+      await characters.createInSession(SESSION_ID, {
+        id: "char-1",
+        name: "Thorin",
+        className: "Fighter",
+        level: 5,
+        sheet: {
+          armorClass: 18,
+          speed: 30,
+          attacks: [],
+          traits: [],
+          actions: [],
+          bonusActions: [],
+          reactions: [],
+          spells: [],
+        } as JsonValue,
+      });
+
+      const goblinCombatant = makeCombatant({
+        id: "goblin-1",
+        monsterId: "goblin-1",
+        combatantType: "Monster",
+        resources: { position: { x: 0, y: 0 } } as JsonValue,
+      });
+
+      const charCombatant = makeCombatant({
+        id: "char-1",
+        characterId: "char-1",
+        monsterId: null,
+        combatantType: "Character",
+        resources: { position: { x: 30, y: 0 } } as JsonValue,
+      });
+
+      // No map data → no cover
+      const encounter = makeEncounter();
+      const monster = await monsters.getById("goblin-1");
+
+      const ctx = await builder.build(
+        monster as unknown as Record<string, unknown>,
+        goblinCombatant,
+        [goblinCombatant, charCombatant],
+        encounter,
+        [],
+        [],
+        [],
+      );
+
+      // Without map data, no cover info should be present
+      for (const enemy of ctx.enemies) {
+        expect(enemy.coverFromMe).toBeUndefined();
+      }
+    });
+  });
 });

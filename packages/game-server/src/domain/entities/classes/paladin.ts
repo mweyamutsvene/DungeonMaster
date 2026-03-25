@@ -111,6 +111,8 @@ export const Paladin: CharacterClassDefinition = {
   },
   features: {
     "lay-on-hands": 1,
+    "spellcasting": 1,
+    "weapon-mastery": 1,
     "divine-smite": 2,
     "channel-divinity": 3,
     "extra-attack": 5,

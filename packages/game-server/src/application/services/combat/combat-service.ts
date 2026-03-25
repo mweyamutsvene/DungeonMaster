@@ -413,6 +413,43 @@ export class CombatService {
     await this.combat.updateEncounter(encounterId, { status: "Active", round: 1, turn: 0 });
   }
 
+  /**
+   * Manually end combat with a reason (dm_end, flee, surrender).
+   * Sets encounter status and emits CombatEnded event.
+   */
+  async endCombat(
+    sessionId: string,
+    input: {
+      encounterId?: string;
+      reason: "dm_end" | "flee" | "surrender";
+      result?: "Victory" | "Defeat" | "Draw";
+    },
+  ): Promise<CombatEncounterRecord> {
+    const encounter = await resolveEncounterOrThrow(
+      this.sessions,
+      this.combat,
+      sessionId,
+      input.encounterId,
+    );
+
+    if (encounter.status !== "Active") {
+      throw new ValidationError(`Encounter is not active: status=${encounter.status}`);
+    }
+
+    const status = input.result ?? "Victory";
+    const updated = await this.combat.updateEncounter(encounter.id, { status });
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "CombatEnded",
+        payload: { encounterId: encounter.id, result: status, reason: input.reason },
+      });
+    }
+
+    return updated;
+  }
+
   async nextTurn(
     sessionId: string,
     input?: { encounterId?: string; skipDeathSaveAutoRoll?: boolean },

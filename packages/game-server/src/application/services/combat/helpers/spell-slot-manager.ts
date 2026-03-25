@@ -22,7 +22,7 @@
  */
 
 import { ValidationError } from "../../../errors.js";
-import { hasResourceAvailable, spendResourceFromPool, normalizeResources } from "./resource-utils.js";
+import { hasResourceAvailable, spendResourceFromPool, normalizeResources, getResourcePools } from "./resource-utils.js";
 import { breakConcentration } from "./concentration-helper.js";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
 import type { PreparedSpellDefinition } from "../../../../domain/entities/spells/prepared-spell-definition.js";
@@ -96,11 +96,23 @@ export async function prepareSpellCast(
   const poolName = `spellSlot_${spellLevel}`;
   const resources = actorCombatant.resources;
 
-  if (!hasResourceAvailable(resources, poolName, 1)) {
-    throw new ValidationError(`No level ${spellLevel} spell slots remaining`);
+  // Try standard spell slot first, then fall back to Pact Magic
+  let slotPoolName: string;
+  if (hasResourceAvailable(resources, poolName, 1)) {
+    slotPoolName = poolName;
+  } else {
+    // Warlock Pact Magic fallback: pactMagic pool can be used for any spell level
+    // that the pact slot level can cover (pact slot level determined by warlock level,
+    // validated at character creation/import time — here we just check availability)
+    if (hasResourceAvailable(resources, "pactMagic", 1)) {
+      log?.(`[SpellSlotManager] No standard level ${spellLevel} slot; using Pact Magic slot`);
+      slotPoolName = "pactMagic";
+    } else {
+      throw new ValidationError(`No level ${spellLevel} spell slots remaining`);
+    }
   }
 
-  let updatedResources: JsonValue = spendResourceFromPool(resources, poolName, 1);
+  let updatedResources: JsonValue = spendResourceFromPool(resources, slotPoolName, 1);
 
   // ── Concentration management ──────────────────────────────────────
   if (isConcentration) {

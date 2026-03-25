@@ -10,7 +10,7 @@ import type { ICharacterRepository, IMonsterRepository, INPCRepository } from ".
 import type { FactionService } from "../helpers/faction-service.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
-import { getMapZones } from "../../../../domain/rules/combat-map.js";
+import { getMapZones, getCoverLevel } from "../../../../domain/rules/combat-map.js";
 import { renderBattlefield, createCombatantEntity } from "../../../../domain/rules/battlefield-renderer.js";
 import { listCreatureAbilities, getClassAbilities } from "../../../../domain/abilities/creature-abilities.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
@@ -690,6 +690,19 @@ export class AiContextBuilder {
       for (const ally of allyDetails) {
         if (ally.position) {
           ally.distanceFeet = Math.round(calculateDistance(selfPos, ally.position));
+        }
+      }
+    }
+
+    // Inject cover levels from self to each enemy (requires map data)
+    const mapForCover = encounter.mapData as unknown as CombatMap | undefined;
+    if (selfPos && mapForCover) {
+      for (const enemy of enemyDetails) {
+        if (enemy.position) {
+          const cover = getCoverLevel(mapForCover, selfPos, enemy.position);
+          if (cover !== "none") {
+            enemy.coverFromMe = cover;
+          }
         }
       }
     }

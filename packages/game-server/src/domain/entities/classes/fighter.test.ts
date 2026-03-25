@@ -9,6 +9,8 @@ import {
   spendSecondWind,
   secondWindUsesForLevel,
 } from "./fighter.js";
+import { classHasFeature } from "./registry.js";
+import { WEAPON_MASTERY } from "./feature-keys.js";
 
 describe("Fighter resources", () => {
   it("computes action surge uses by level", () => {
@@ -45,5 +47,11 @@ describe("Fighter resources", () => {
     s = resetSecondWindOnShortRest(1, s);
     expect(s.pool.current).toBe(1);
     expect(s.pool.max).toBe(1);
+  });
+});
+
+describe("Fighter feature keys", () => {
+  it("has weapon-mastery at level 1", () => {
+    expect(classHasFeature("fighter", WEAPON_MASTERY, 1)).toBe(true);
   });
 });

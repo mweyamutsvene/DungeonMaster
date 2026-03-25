@@ -8,6 +8,7 @@ export const Ranger: CharacterClassDefinition = {
     savingThrows: ["strength", "dexterity"],
   },
   features: {
+    "weapon-mastery": 1,
     "spellcasting": 2,
     "extra-attack": 5,
   },

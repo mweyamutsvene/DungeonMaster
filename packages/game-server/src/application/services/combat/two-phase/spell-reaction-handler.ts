@@ -218,8 +218,8 @@ export class SpellReactionHandler {
       casterId: string;
       casterName: string;
       success: boolean;
-      saveDC?: number;
-      saveRoll?: number;
+      abilityCheckDC?: number;
+      abilityCheckRoll?: number;
     }>;
   }> {
     const pendingAction = await this.pendingActions.getById(input.pendingActionId);
@@ -241,8 +241,8 @@ export class SpellReactionHandler {
       casterId: string;
       casterName: string;
       success: boolean;
-      saveDC?: number;
-      saveRoll?: number;
+      abilityCheckDC?: number;
+      abilityCheckRoll?: number;
     }> = [];
 
     for (const resolved of pendingAction.resolvedReactions) {
@@ -263,32 +263,58 @@ export class SpellReactionHandler {
         counterspellerState,
       );
 
-      const spellSaveDC = typeof opp.context.spellSaveDC === "number" ? opp.context.spellSaveDC : 13;
       const slotToSpend = typeof opp.context.slotToSpend === "string" ? opp.context.slotToSpend : "spellSlot_3";
+      const targetSpellLevel = (pendingAction.data as PendingSpellCastData).spellLevel;
 
-      // Original caster makes CON save
-      let saveTotal = 10;
-      if (input.diceRoller) {
-        const casterState = findCombatantStateByRef(combatants, pendingAction.actor);
-        let conMod = 0;
-        if (casterState) {
+      // D&D 5e 2024 Counterspell mechanic:
+      // Determine the level at which Counterspell is being cast from the slot spent
+      const counterspellLevel = slotToSpend.startsWith("spellSlot_")
+        ? parseInt(slotToSpend.replace("spellSlot_", ""), 10) || 3
+        : 3;
+
+      let success: boolean;
+      let abilityCheckDC: number | undefined;
+      let abilityCheckTotal: number | undefined;
+
+      if (counterspellLevel >= targetSpellLevel) {
+        // Auto-counter: Counterspell level >= target spell level
+        success = true;
+      } else {
+        // Counterspeller makes a spellcasting ability check
+        // DC = 10 + target spell's level
+        abilityCheckDC = 10 + targetSpellLevel;
+
+        let spellcastingMod = 0;
+        if (input.diceRoller) {
           try {
-            const casterStats = await this.combatants.getCombatStats(pendingAction.actor);
-            const con = (casterStats.abilityScores as Record<string, number>).constitution ?? 10;
-            conMod = Math.floor((con - 10) / 2);
+            const csRef = counterspellerState.characterId
+              ? { type: "Character" as const, characterId: counterspellerState.characterId }
+              : { type: "Monster" as const, monsterId: counterspellerState.monsterId ?? "" };
+            const csStats = await this.combatants.getCombatStats(csRef);
+            // Use the counterspeller's spellcasting ability modifier + proficiency
+            const spellcastingAbility = (csStats as any).spellcastingAbility ?? "intelligence";
+            const abilityScore = (csStats.abilityScores as Record<string, number>)?.[spellcastingAbility] ?? 10;
+            const abilityMod = Math.floor((abilityScore - 10) / 2);
+            const profBonus = csStats.proficiencyBonus ?? 2;
+            spellcastingMod = abilityMod + profBonus;
           } catch { /* default 0 */ }
+
+          const checkRoll = input.diceRoller.rollDie(20);
+          abilityCheckTotal = checkRoll.total + spellcastingMod;
+          success = abilityCheckTotal >= abilityCheckDC;
+        } else {
+          // No dice roller — default to failure (conservative)
+          abilityCheckTotal = 10;
+          success = abilityCheckTotal >= abilityCheckDC;
         }
-        const saveRoll = input.diceRoller.rollDie(20);
-        saveTotal = saveRoll.total + conMod;
       }
 
-      const success = saveTotal < spellSaveDC;
       counterspells.push({
         casterId: opp.combatantId,
         casterName: counterspellerName,
         success,
-        saveDC: spellSaveDC,
-        saveRoll: saveTotal,
+        abilityCheckDC,
+        abilityCheckRoll: abilityCheckTotal,
       });
 
       // Spend the counterspeller's spell slot and mark reaction used
@@ -317,8 +343,10 @@ export class SpellReactionHandler {
             counterspellerId: opp.combatantId,
             counterspellerName,
             targetSpell: (pendingAction.data as PendingSpellCastData).spellName,
-            spellSaveDC,
-            saveRoll: saveTotal,
+            counterspellLevel,
+            targetSpellLevel,
+            abilityCheckDC,
+            abilityCheckRoll: abilityCheckTotal,
             success,
           },
         });

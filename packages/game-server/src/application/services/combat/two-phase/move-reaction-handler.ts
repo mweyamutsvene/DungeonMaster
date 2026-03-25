@@ -21,7 +21,9 @@ import {
   attemptMovement,
   crossesThroughReach,
   calculateDistance,
+  getGrappleDragSpeedMultiplier,
   type MovementAttempt,
+  type CreatureSizeForDrag,
 } from "../../../../domain/rules/movement.js";
 import { getTerrainSpeedModifier, type CombatMap } from "../../../../domain/rules/combat-map.js";
 import { canMakeOpportunityAttack, hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
@@ -126,6 +128,45 @@ export class MoveReactionHandler {
         conditions: updatedConditions as any,
         resources: { ...resources, movementRemaining: postStandUpRemaining } as JsonValue,
       });
+    }
+
+    // --- Grapple drag: D&D 5e 2024 ---
+    // When a grappling creature moves, the grappled creature moves with them.
+    // Speed is halved unless the grappled creature is Tiny or 2+ sizes smaller.
+    let isDraggingGrappled = false;
+    const grappledCombatants: Array<typeof combatants[number]> = [];
+    for (const other of combatants) {
+      if (other.id === actor.id) continue;
+      if (other.hpCurrent <= 0) continue;
+      const otherConditions = normalizeConditions(other.conditions as unknown[]);
+      const grappledCondition = otherConditions.find(
+        c => c.condition === "Grappled" && c.source === actor.id,
+      );
+      if (grappledCondition) {
+        grappledCombatants.push(other);
+      }
+    }
+
+    if (grappledCombatants.length > 0) {
+      isDraggingGrappled = true;
+      // Apply drag speed penalty: check if any grappled creature requires half speed
+      const actorSize = (resources.size as CreatureSizeForDrag) ?? "Medium";
+      let needsHalfSpeed = false;
+      for (const grappledCombatant of grappledCombatants) {
+        const grappledRes = normalizeResources(grappledCombatant.resources);
+        const grappledSize = (grappledRes.size as CreatureSizeForDrag) ?? "Medium";
+        const dragMultiplier = getGrappleDragSpeedMultiplier(actorSize, grappledSize);
+        if (dragMultiplier < 1.0) {
+          needsHalfSpeed = true;
+          break;
+        }
+      }
+      if (needsHalfSpeed) {
+        effectiveSpeed = Math.floor(effectiveSpeed * 0.5);
+        if (effectiveSpeed <= 0) {
+          throw new ValidationError("Cannot move — dragging a grappled creature reduces speed to 0");
+        }
+      }
     }
 
     // Compute speed modifier from terrain + conditions
@@ -473,6 +514,26 @@ export class MoveReactionHandler {
     // Sync aura zones for this combatant
     const actorEntityId = actor.characterId ?? actor.monsterId ?? actor.npcId ?? actor.id;
     await syncAuraZones(this.combat, encounter.id, actorEntityId, finalPosition);
+
+    // --- Grapple drag: move grappled creatures to mover's new position ---
+    if (targetStillAlive) {
+      for (const other of combatants) {
+        if (other.id === actor.id) continue;
+        if (other.hpCurrent <= 0) continue;
+        const otherConditions = normalizeConditions(other.conditions as unknown[]);
+        const grappledByActor = otherConditions.some(
+          c => c.condition === "Grappled" && c.source === actor.id,
+        );
+        if (grappledByActor) {
+          const otherRes = normalizeResources(other.resources);
+          const updatedOtherRes = { ...otherRes, position: finalPosition } as JsonValue;
+          await this.combat.updateCombatantState(other.id, {
+            resources: updatedOtherRes,
+          });
+          await syncEntityPosition(this.combat, encounter.id, other.id, finalPosition);
+        }
+      }
+    }
 
     // --- Zone damage during movement (if creature survived OAs) ---
     if (targetStillAlive) {
