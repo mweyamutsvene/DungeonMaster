@@ -21,6 +21,8 @@ import { defaultResourcePoolsForClass } from "../../rules/class-resources.js";
 import type { DiceRoller } from "../../rules/dice-roller.js";
 import { maxHitPoints } from "../../rules/hit-points.js";
 import { computeFeatModifiers } from "../../rules/feat-modifiers.js";
+import type { FightingStyleId } from "../classes/fighting-style.js";
+import { getFightingStyleFeatId } from "../classes/fighting-style.js";
 
 export interface LevelUpOptions {
   hpMethod?: "average" | "roll";
@@ -77,6 +79,13 @@ export interface CharacterData extends CreatureData {
   featIds?: readonly string[];
 
   /**
+   * Chosen fighting style (e.g. "archery", "defense").
+   * Granted by Fighter (level 1), Paladin (level 2), Ranger (level 2),
+   * or the Fighting Initiate feat.
+   */
+  fightingStyle?: FightingStyleId;
+
+  /**
    * Darkvision range in feet (0 means none). Typically from species traits.
    */
   darkvisionRange?: number;
@@ -96,6 +105,7 @@ export class Character extends Creature {
   private experiencePoints: number;
   private resourcePools: ResourcePool[];
   private featIds: string[];
+  private fightingStyle?: FightingStyleId;
   private darkvisionRange: number;
   private speciesDamageResistances: string[];
 
@@ -128,6 +138,7 @@ export class Character extends Creature {
     }
 
     this.featIds = data.featIds ? [...data.featIds] : [];
+    this.fightingStyle = data.fightingStyle;
   }
 
   // === Getters ===
@@ -161,7 +172,19 @@ export class Character extends Creature {
   }
 
   getFeatIds(): readonly string[] {
-    return [...this.featIds];
+    const ids = [...this.featIds];
+    // Unify: fighting style grants an equivalent feat effect
+    if (this.fightingStyle) {
+      const fsFeatId = getFightingStyleFeatId(this.fightingStyle);
+      if (fsFeatId && !ids.includes(fsFeatId)) {
+        ids.push(fsFeatId);
+      }
+    }
+    return ids;
+  }
+
+  getFightingStyle(): FightingStyleId | undefined {
+    return this.fightingStyle;
   }
 
   getDarkvisionRange(): number {
@@ -225,7 +248,7 @@ export class Character extends Creature {
 
   override getInitiativeModifier(): number {
     const base = super.getInitiativeModifier();
-    const mods = computeFeatModifiers(this.featIds);
+    const mods = computeFeatModifiers(this.getFeatIds());
     if (!mods.initiativeAddProficiency) return base;
     return base + this.getProficiencyBonus();
   }
@@ -234,7 +257,7 @@ export class Character extends Creature {
 
   override getAC(): number {
     const wearingArmor = !!this.getEquipment()?.armor;
-    const mods = computeFeatModifiers(this.featIds);
+    const mods = computeFeatModifiers(this.getFeatIds());
 
     // Unarmored Defense: Barbarian (10 + DEX + CON) or Monk (10 + DEX + WIS)
     if (!wearingArmor && this.classId && classHasFeature(this.classId, UNARMORED_DEFENSE, this.level)) {
