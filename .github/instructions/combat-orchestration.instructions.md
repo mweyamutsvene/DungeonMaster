@@ -100,40 +100,47 @@ classDiagram
 |--------|---------------|-------|-------|
 | **Tabletop subsystem** | | | |
 | `tabletop-combat-service.ts` | Thin facade, 4 public methods | ~435 | — |
-| `tabletop/action-dispatcher.ts` | Parser chain facade, delegates to handler classes | ~575 | — |
-| `tabletop/dispatch/movement-handlers.ts` | Move, moveToward, jump dispatch handlers | ~480 | ActionDispatcher |
-| `tabletop/dispatch/attack-handlers.ts` | Attack, offhand, TWF dispatch handlers | ~789 | ActionDispatcher |
-| `tabletop/dispatch/class-ability-handlers.ts` | Class ability + bonus action dispatch handlers | ~549 | ActionDispatcher |
-| `tabletop/dispatch/interaction-handlers.ts` | Pickup, drop, draw, sheathe, use-item handlers | ~471 | ActionDispatcher |
+| `tabletop/action-dispatcher.ts` | Parser chain facade, delegates to handler classes | ~515 | — |
+| `tabletop/dispatch/movement-handlers.ts` | Move, moveToward, jump dispatch handlers | ~613 | ActionDispatcher |
+| `tabletop/dispatch/attack-handlers.ts` | Attack, offhand, TWF dispatch handlers | ~718 | ActionDispatcher |
+| `tabletop/dispatch/class-ability-handlers.ts` | Class ability + bonus action dispatch handlers | ~487 | ActionDispatcher |
+| `tabletop/dispatch/interaction-handlers.ts` | Pickup, drop, draw, sheathe, use-item handlers | ~567 | ActionDispatcher |
 | `tabletop/dispatch/grapple-handlers.ts` | Shove, grapple, escape-grapple handlers | ~123 | ActionDispatcher |
 | `tabletop/dispatch/social-handlers.ts` | Dash, dodge, disengage, ready, help, hide, search | ~197 | ActionDispatcher |
-| `tabletop/roll-state-machine.ts` | All dice roll resolution | ~1555 | — |
+| `tabletop/roll-state-machine.ts` | All dice roll resolution | ~1556 | — |
 | `tabletop/rolls/initiative-handler.ts` | Initiative roll, resource init, Alert feat | ~600 | RollStateMachine |
 | `tabletop/rolls/hit-rider-resolver.ts` | Post-damage enhancement effects | ~148 | RollStateMachine |
 | `tabletop/rolls/weapon-mastery-resolver.ts` | Weapon mastery effect resolution | ~308 | RollStateMachine |
 | `tabletop/combat-text-parser.ts` | 20+ pure text parsing functions | ~616 | Multiple |
 | `tabletop/rolls/saving-throw-resolver.ts` | Save-based effect resolution | ~337 | Multiple |
-| `tabletop/spell-action-handler.ts` | Spell delivery facade | ~157 | ActionDispatcher |
+| `tabletop/spell-action-handler.ts` | Spell delivery facade (dispatches to `spell-delivery/`) | ~157 | ActionDispatcher |
 | `tabletop/tabletop-types.ts` | All shared types/interfaces | ~418 | Multiple |
 | `tabletop/tabletop-event-emitter.ts` | Narration + event helpers | ~250 | Multiple |
 | `tabletop/action-parser-chain.ts` | Parser chain types | ~44 | ActionDispatcher |
 | `tabletop/pending-action-state-machine.ts` | State transition validation | ~56 | Multiple |
 | `tabletop/tabletop-utils.ts` | Initiative utilities | ~96 | Multiple |
 | `tabletop/path-narrator.ts` | Movement narration text | ~119 | Multiple |
+| **Spell Delivery subsystem** (see [spell-system.instructions.md](spell-system.instructions.md)) | | | |
+| `tabletop/spell-delivery/spell-delivery-handler.ts` | Strategy interface + `SpellCastingContext` type | ~52 | SpellActionHandler |
+| `tabletop/spell-delivery/spell-attack-delivery-handler.ts` | Attack-roll spells (Fire Bolt, Guiding Bolt) | ~79 | SpellActionHandler |
+| `tabletop/spell-delivery/healing-spell-delivery-handler.ts` | Healing spells (Cure Wounds, Healing Word) | ~146 | SpellActionHandler |
+| `tabletop/spell-delivery/save-spell-delivery-handler.ts` | Save-based spells (Burning Hands, Hold Person) | ~218 | SpellActionHandler |
+| `tabletop/spell-delivery/zone-spell-delivery-handler.ts` | Zone/AoE spells (Spirit Guardians, Cloud of Daggers) | ~159 | SpellActionHandler |
+| `tabletop/spell-delivery/buff-debuff-spell-delivery-handler.ts` | Buff/debuff ActiveEffect spells (Bless, Shield of Faith) | ~150 | SpellActionHandler |
 | **ActionService subsystem** | | | |
 | `action-service.ts` | Programmatic action facade | ~568 | — |
-| `action-handlers/attack-action-handler.ts` | Programmatic attack resolution | ~388 | ActionService |
-| `action-handlers/grapple-action-handler.ts` | Programmatic grapple/shove resolution | ~542 | ActionService |
-| `action-handlers/skill-action-handler.ts` | Programmatic hide/search/help | ~285 | ActionService |
+| `action-handlers/attack-action-handler.ts` | Programmatic attack resolution | ~343 | ActionService |
+| `action-handlers/grapple-action-handler.ts` | Programmatic grapple/shove resolution | ~479 | ActionService |
+| `action-handlers/skill-action-handler.ts` | Programmatic hide/search/help | ~247 | ActionService |
 | **TwoPhaseAction subsystem** | | | |
 | `two-phase-action-service.ts` | Reaction resolution facade | ~422 | — |
-| `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~450 | TwoPhaseActionService |
-| `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect) | ~450 | TwoPhaseActionService |
-| `two-phase/spell-reaction-handler.ts` | Spell reactions (counterspell) | ~320 | TwoPhaseActionService |
+| `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~485 | TwoPhaseActionService |
+| `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect) + damage reactions | ~598 | TwoPhaseActionService |
+| `two-phase/spell-reaction-handler.ts` | Spell reactions (counterspell) | ~299 | TwoPhaseActionService |
 | **Combat lifecycle** | | | |
-| `combat-service.ts` | Turn advancement, combat lifecycle | ~1083 | — |
-| `tactical-view-service.ts` | Tactical view assembly | ~547 | — |
-| `combat-victory-policy.ts` | Win/loss condition checks | ~53 | — |
+| `combat-service.ts` | Turn advancement, combat lifecycle, zone/effect processing | ~1083 | — |
+| `tactical-view-service.ts` | Tactical view assembly, OA prediction, query context | ~547 | — |
+| `combat-victory-policy.ts` | Faction-based win/loss condition checks | ~53 | — |
 
 ## Key Contracts
 
@@ -170,10 +177,93 @@ classDiagram
 - Complex pre-dispatch logic (TWF validation, target resolution) lives in the entry's `handle` method
 - LLM fallback runs **after** the entire chain when no parser matches
 
+## Spell Delivery Subsystem (cross-reference)
+
+`tabletop/spell-delivery/` contains 5 strategy handlers dispatched by `spell-action-handler.ts`. **Owned by [spell-system.instructions.md](spell-system.instructions.md)** — see that file for delivery handler internals, spell slot management, and concentration lifecycle.
+
+| Handler | `canHandle()` gate | Spells covered |
+|---------|-------------------|----------------|
+| `SpellAttackDeliveryHandler` | `spell.attackType` exists | Fire Bolt, Guiding Bolt, Inflict Wounds |
+| `HealingSpellDeliveryHandler` | `spell.isHealing` | Cure Wounds, Healing Word |
+| `SaveSpellDeliveryHandler` | `spell.saveAbility` exists | Burning Hands, Hold Person, Thunderwave |
+| `ZoneSpellDeliveryHandler` | `spell.zone` exists | Spirit Guardians, Cloud of Daggers, Spike Growth |
+| `BuffDebuffSpellDeliveryHandler` | `spell.effects` non-empty | Bless, Shield of Faith, Faerie Fire |
+
+Dispatch order: `find(h => h.canHandle(spell))` — first match wins. The shared `SpellDeliveryHandler` interface and `SpellCastingContext` type live in `spell-delivery-handler.ts`.
+
+## Combat Service Lifecycle (`combat-service.ts`)
+
+`CombatService.nextTurn()` orchestrates the full turn-advancement lifecycle. The sequence within a single `nextTurn()` call:
+
+1. **Victory check** — `victoryPolicy.evaluate()` before any turn advancement. Returns early with `CombatEnded` event if a faction is wiped.
+2. **End-of-turn cleanup (outgoing combatant)**:
+   - Condition expiry: `removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId)`
+   - ActiveEffect processing: `processActiveEffectsAtTurnEvent(..., "end_of_turn", ...)` — Phase A executes ongoing effects (damage, recurring temp HP, save-to-end), Phase B removes expired effects and decrements round counters.
+   - Zone triggers: `processZoneTurnTriggers(..., "on_end_turn", ...)` — Cloud of Daggers, Spirit Guardians end-of-turn damage.
+3. **Advance turn** — `combat.endTurn()` + skip defeated non-characters (monsters at 0 HP don't get turns).
+4. **Rage-end check (incoming barbarian)** — Checked at **START** of the barbarian's turn (not end of previous). Reads `rageAttackedThisTurn`/`rageDamageTakenThisTurn` flags **before** `extractActionEconomy()` resets them. Calls `shouldRageEnd()` from domain.
+5. **Action economy persist** — `extractActionEconomy()` for all combatants; new round resets all.
+6. **Start-of-turn processing (incoming combatant)**:
+   - Condition expiry at `"start_of_turn"` + `StunningStrikePartial` removal
+   - ActiveEffect start-of-turn processing (same Phase A + B pattern)
+   - Zone triggers: `processZoneTurnTriggers(..., "on_start_turn", ...)`
+7. **Death save auto-roll** — Only for characters at 0 HP. Skipped when `skipDeathSaveAutoRoll: true` (tabletop mode sends death saves through RollStateMachine instead).
+8. **AI orchestrator trigger** — If active combatant is AI-controlled (monster/NPC), triggers `aiOrchestrator.handleAiTurn()`.
+
+### Zone processing helpers
+- `processZoneTurnTriggers()` — applies zone damage/conditions to creatures in zone at turn start/end
+- `cleanupExpiredZones()` — decrements zone round counters at round boundary, removes expired zones from map
+
+## Damage Reaction Detection
+
+`AttackReactionHandler.completeAttackReaction()` handles **two** reaction timing windows:
+
+1. **Pre-damage reactions** (existing): Shield, Deflect Attacks — detected via `detectAttackReactions()` from `ClassCombatTextProfile.attackReactions`. Fires before the attack roll resolves. Target can raise AC or reduce damage.
+
+2. **Post-damage reactions** (newer): Absorb Elements, Hellish Rebuke — detected via `detectDamageReactions()` after attack completion confirms a hit with `damageApplied > 0`. Only triggers for:
+   - **Character** targets (not monsters/NPCs)
+   - Target still alive (`hpCurrent > 0`)
+   - Target still has reaction available
+   - Attack dealt typed damage (`damageSpec.damageType` present)
+
+The `DamageReactionInitiator` interface (exported from `attack-reaction-handler.ts`) allows TwoPhaseActionService to create a new pending action for the damage reaction, keeping it in the same two-phase flow. The result includes `damageReaction?: { pendingActionId, reactionType }` alongside the existing `hit`/`shieldUsed`/`redirect` fields.
+
+## Tactical View Service (`tactical-view-service.ts`)
+
+Three public methods:
+
+| Method | Purpose |
+|--------|---------|
+| `getTacticalView()` | Full combat state snapshot — combatant positions, HP, conditions, action economy, resource pools, distances, ground items |
+| `buildCombatQueryContext()` | Enriched context for LLM combat queries — includes OA prediction, actor capabilities, class features, attack options |
+| `predictOpportunityAttacks()` (private) | Parses destination from query text, computes `crossesThroughReach()` for each enemy, returns `oaRisks[]` with reach/reaction availability |
+
+Action economy reported per combatant: `actionAvailable`, `bonusActionAvailable`, `reactionAvailable`, `movementRemainingFeet`, `attacksUsed`, `attacksAllowed`.
+
+Note: Path preview (`POST .../path-preview`) is handled directly in the route layer (`session-tactical.ts`) using A* pathfinding — it does not go through TacticalViewService.
+
+## Shared Helpers (`helpers/`)
+
+`helpers/` is a shared dependency used across all combat service modules. Key files:
+
+| File | Lines | Key exports |
+|------|-------|-------------|
+| `resource-utils.ts` | ~442 | `normalizeResources()`, `getPosition()`, `readBoolean()`, `getEffectiveSpeed()`, `getActiveEffects()`, `addActiveEffectsToResources()`, action economy helpers (`hasSpentAction`, `canMakeAttack`, `useAttack`, `hasBonusActionAvailable`, etc.) |
+| `ko-handler.ts` | — | `applyKoEffectsIfNeeded()` — Unconscious condition application |
+| `concentration-helper.ts` | — | Concentration check + drop helpers |
+| `spell-slot-manager.ts` | — | Spell slot spending + validation |
+| `combat-hydration.ts` | — | `hydrateCombat()` — builds domain Combat from records |
+| `faction-service.ts` | — | Faction resolution for victory policy |
+| `zone-damage-resolver.ts` | — | Zone enter/movement damage resolution |
+| `opportunity-attack-resolver.ts` | — | OA eligibility checks for movement |
+| `movement-trigger-resolver.ts` | — | Zone/OA triggers during pathfinding |
+
+These are **not** private to any single facade — imported by tabletop, action-handlers, two-phase, combat-service, and tactical-view-service alike.
+
 ## Known Gotchas
 
 1. **Facade stays thin** — 4 public method signatures ripple across all route handlers when changed
-2. **RollStateMachine is ~1700 lines** — handles initiative, attack, damage, death save, concentration rolls, Sneak Attack, Divine Smite, mastery effects, resource pool init
+2. **RollStateMachine is ~1556 lines** — handles initiative, attack, damage, death save, concentration rolls, Sneak Attack, Divine Smite, mastery effects, resource pool init
 3. **New action types**: add a parser entry to `buildParserChain()` in `action-dispatcher.ts` + a pure `tryParseXxxText()` in `combat-text-parser.ts`
 4. **CombatTextParser functions are pure** — no `this.deps`, no side effects, testable in isolation
 5. **Pending action state machine**: `initiate → (attack_pending | damage_pending | save_pending | death_save_pending) → resolved` — invalid transitions must be rejected
