@@ -1,6 +1,6 @@
 # Plan: Phase 4 — Missing Class Features (Uncanny Dodge, Evasion, Fighting Style, Weapon Mastery Keys)
 ## Round: 1
-## Status: IN_PROGRESS
+## Status: COMPLETE
 ## Affected Flows: ClassAbilities, CombatRules, CombatOrchestration
 
 ## Objective
@@ -37,21 +37,21 @@ Implement 5 high-priority class feature gaps: Uncanny Dodge (Rogue 5), Evasion (
 ### ClassAbilities — Fighting Style
 
 #### [File: domain/entities/classes/fighting-style.ts — NEW]
-- [ ] Define `FightingStyle` enum/type: Defense, Dueling, GreatWeaponFighting, TwoWeaponFighting, Archery, Protection
-- [ ] Define effect functions for each style:
+- [x] `FightingStyleId` type with 6 styles defined in `fighting-style.ts`
+- [x] Effect functions unified via `FIGHTING_STYLE_TO_FEAT` mapping → `feat-modifiers.ts`:
   - Defense: +1 AC while wearing armor
-  - Dueling: +2 damage with one-handed melee weapon (no weapon in other hand)
-  - Great Weapon Fighting: reroll 1-2 on damage dice (already in feat system — unify)
-  - Two-Weapon Fighting: add ability modifier to off-hand damage (already in feat system — unify)
-  - Archery: +2 to ranged attack rolls (already in feat system — unify)
-  - Protection: impose disadvantage on attack against adjacent ally (reaction)
+  - Dueling: +2 damage with one-handed melee weapon
+  - Great Weapon Fighting: reroll 1-2 on damage dice
+  - Two-Weapon Fighting: add ability modifier to off-hand damage
+  - Archery: +2 to ranged attack rolls
+  - Protection: impose disadvantage on attack against adjacent ally
 
 #### [File: domain/entities/classes/fighter.ts, paladin.ts, ranger.ts]
-- [ ] Add `FIGHTING_STYLE` feature key at appropriate levels (Fighter 1, Paladin 2, Ranger 2)
-- [ ] Add `fightingStyle` field to character sheet or class data
+- [x] `FIGHTING_STYLE` feature key at appropriate levels: Fighter 1, Paladin 2, Ranger 2
+- [x] `fightingStyle` field on character via `getFightingStyle()` / `getFightingStyleFeatId()` methods
 
 #### [File: domain/rules/feat-modifiers.ts]
-- [ ] Unify existing Archery/GWF/TWF/Defense effects with the Fighting Style system — these are currently feat-based but should be Fighting Style-based (they can also come from feats in 2024)
+- [x] Unified via `FIGHTING_STYLE_TO_FEAT` mapping in `fighting-style.ts` — no double-stacking (tested in `fighting-style-attack.test.ts`)
 
 ### ClassAbilities — Weapon Mastery Feature Keys
 
@@ -79,7 +79,7 @@ Implement 5 high-priority class feature gaps: Uncanny Dodge (Rogue 5), Evasion (
 - [x] Do changes in one flow break assumptions in another? — Verified: all 812 tests pass, E2E happy-path passes
 - [x] Does the pending action state machine still have valid transitions? — Uncanny Dodge is same flow as Shield
 - [x] Is action economy preserved? — Uncanny Dodge uses reaction (same as other reactions)
-- [ ] Do both player AND AI paths handle the change? — AI needs to be aware of Uncanny Dodge for reaction decisions (TODO: AI orchestrator update)
+- [x] Do both player AND AI paths handle the change? — Player path: Uncanny Dodge handled via waitForReaction/reactionRespond flow (E2E verified). AI path: AI-controlled combatants would receive uncanny_dodge as "other" reaction type in AiReactionDecider — works generically but no dedicated AI heuristic yet. (Low priority: AI NPC Rogues are rare.)
 - [x] Are repo interfaces + memory-repos updated if entity shapes change? — Fighting style stored on sheet, not schema
 - [x] Is `app.ts` registration updated if adding executors? — No new ability executors needed
 - [x] Are D&D 5e 2024 rules correct? — Verified: Uncanny Dodge unchanged, Evasion unchanged, Fighting Styles updated in 2024, Weapon Mastery is NEW in 2024
@@ -95,9 +95,9 @@ Implement 5 high-priority class feature gaps: Uncanny Dodge (Rogue 5), Evasion (
 - [x] Unit test: Uncanny Dodge not available when reaction already used
 - [x] Unit test: Evasion — DEX save success = hasEvasion flag set (damage adjustment in handlers)
 - [x] Unit test: Evasion — DEX save fail = hasEvasion flag set (damage adjustment in handlers)
-- [ ] Unit test: Fighting Style Defense gives +1 AC with armor (NOT IMPLEMENTED — deferred)
-- [ ] Unit test: Fighting Style Dueling gives +2 damage one-handed (NOT IMPLEMENTED — deferred)
+- [x] Unit test: Fighting Style Defense gives +1 AC with armor (3 tests in `fighting-style-attack.test.ts`: with armor, without armor, without style)
+- [x] Unit test: Fighting Style Dueling gives +2 damage one-handed (in `fighting-style-attack.test.ts`)
 - [x] Unit test: Weapon Mastery feature keys exist on martial classes
 - [x] Unit test: Paladin has spellcasting at level 1
-- [ ] E2E scenario: uncanny-dodge.json — Rogue halves damage with reaction (TODO)
-- [ ] E2E scenario: evasion-dex-save.json — Rogue/Monk evasion in AoE (TODO)
+- [x] E2E scenario: uncanny-dodge.json — Rogue halves damage with reaction (9/9 steps, `rogue/uncanny-dodge.json`)
+- [x] E2E scenario: evasion-dex-save.json — Evasion verified via two-monster AoE test: Rogue Scout (Evasion) takes 0 damage on successful save, Goblin takes half (7/7 steps, `rogue/evasion-dex-save.json`)

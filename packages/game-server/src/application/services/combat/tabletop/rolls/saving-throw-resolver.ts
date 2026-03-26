@@ -259,8 +259,11 @@ export class SavingThrowResolver {
             }
             // Try to get expiry info from context
             const expiresAt = (action.context?.expiresAt as { event: 'start_of_turn' | 'end_of_turn'; combatantId: string } | undefined);
+            // Use sourceId (caster combatant ID) for conditions like Frightened that need
+            // to track who applied them. Fall back to reason (spell name) for display.
+            const condSource = action.sourceId ?? action.reason;
             const newCond = createCondition(condName as Condition, expiresAt ? 'until_start_of_next_turn' : 'until_removed', {
-              source: action.reason,
+              source: condSource,
               expiresAt,
             });
             conditions = addCondition(conditions, newCond);
@@ -326,7 +329,7 @@ export class SavingThrowResolver {
     // ── Evasion detection (Rogue 7, Monk 7) — DEX saves only ──
     let evasionDetected = false;
     if (action.ability === "dexterity") {
-      const className = (targetSheet?.className ?? "").toLowerCase();
+      const className = (targetSheet?.className ?? (target as any)?.className ?? "").toLowerCase();
       if (className && classHasFeature(className, EVASION, level)) {
         evasionDetected = true;
         if (this.debugLogsEnabled) {

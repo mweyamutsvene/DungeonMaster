@@ -1,0 +1,124 @@
+{
+  "name": "Evasion: DEX Save AoE Damage Negation",
+  "description": "Tests Evasion feature (Rogue 7/Monk 7). A Wizard casts Burning Hands at two targets: a Rogue Scout (className Rogue, level 7 — has Evasion) and a regular Goblin (no Evasion). Both have very high DEX (+10 modifier, +13 total save) vs DC 14, guaranteeing the DEX save always succeeds. With Evasion, save success = 0 damage. Without Evasion, save success = half damage. Verifies Evasion is correctly detected via className+level and applied through the save-spell-delivery pipeline.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 2 },
+        "preparedSpells": [
+          {
+            "name": "Burning Hands",
+            "level": 1,
+            "saveAbility": "dexterity",
+            "damage": { "diceCount": 3, "diceSides": 6, "modifier": 0 },
+            "damageType": "fire",
+            "halfDamageOnSave": true,
+            "area": { "type": "cone", "size": 15 }
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Rogue Scout — has Evasion (className Rogue, level 7). Very high DEX ensures save always succeeds. With Evasion: success = 0 damage.",
+        "name": "Rogue Scout",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "className": "Rogue",
+          "level": 7,
+          "abilityScores": {
+            "strength": 10, "dexterity": 30, "constitution": 12,
+            "intelligence": 14, "wisdom": 12, "charisma": 10
+          },
+          "saveProficiencies": ["dexterity"],
+          "maxHp": 40, "hp": 40, "armorClass": 15, "speed": 30,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Goblin — no Evasion. Same very high DEX ensures save succeeds. Without Evasion: success = half damage (at least 1).",
+        "name": "Goblin",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 30, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "saveProficiencies": ["dexterity"],
+          "maxHp": 40, "hp": 40, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I spread my hands wide and cast Burning Hands" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Burning Hands aimed at Rogue Scout. Both Rogue Scout (15,10) and Goblin (20,10) are in the 15ft cone along the x-axis. Both have DEX save +13 vs DC 14 — always succeeds. Rogue Scout has Evasion (0 damage on success). Goblin takes half.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Rogue Scout" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell", "actionComplete": true }
+    },
+    {
+      "comment": "Rogue Scout with Evasion: DEX save always succeeds, Evasion makes damage 0. HP stays at 40.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Rogue Scout", "exact": 40 }
+      }
+    },
+    {
+      "comment": "Goblin without Evasion: DEX save succeeds but no Evasion, takes half damage. 3d6 = 3-18, half = 1-9. HP: 40 - (1-9) = 31-39.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin", "min": 31, "max": 39 }
+      }
+    }
+  ]
+}

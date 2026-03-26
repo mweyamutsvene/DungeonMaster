@@ -213,3 +213,49 @@ describe("Fighting style through feat and class unification", () => {
     expect(result.attack.total).toBe(17); // 10 + 5 + 2
   });
 });
+
+describe("Defense fighting style — AC bonus", () => {
+  it("gives +1 AC when character is wearing armor", () => {
+    const fighter = makeAttacker({
+      fightingStyle: "defense",
+      armorClass: 16,
+      equipment: {
+        armor: {
+          name: "Chain Mail",
+          category: "heavy",
+          armorClass: { base: 16, addDexterityModifier: false },
+        },
+      },
+    });
+
+    // Chain Mail base AC 16 + Defense +1 = 17
+    expect(fighter.getAC()).toBe(17);
+  });
+
+  it("does not give +1 AC without armor", () => {
+    const fighter = makeAttacker({
+      fightingStyle: "defense",
+      armorClass: 12,
+      // No equipment — not wearing armor
+    });
+
+    // Base AC 12, no armor → Defense does not apply
+    expect(fighter.getAC()).toBe(12);
+  });
+
+  it("does not give +1 AC without defense fighting style", () => {
+    const fighter = makeAttacker({
+      armorClass: 16,
+      equipment: {
+        armor: {
+          name: "Chain Mail",
+          category: "heavy",
+          armorClass: { base: 16, addDexterityModifier: false },
+        },
+      },
+    });
+
+    // Chain Mail base AC 16, no Defense style
+    expect(fighter.getAC()).toBe(16);
+  });
+});
