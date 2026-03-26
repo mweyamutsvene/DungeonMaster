@@ -1202,6 +1202,204 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("tabletop damage roll emits damage reaction opportunity for eligible character targets", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent({ text, schemaHint }: any) {
+        const rosterJson =
+          typeof schemaHint === "string" && schemaHint.includes("Roster (valid IDs):")
+            ? schemaHint.split("Roster (valid IDs):").pop()?.trim()
+            : null;
+        const roster = rosterJson ? (JSON.parse(rosterJson) as any) : null;
+        const attackerId = roster?.characters?.[0]?.id as string | undefined;
+        const targetId = roster?.characters?.[1]?.id as string | undefined;
+
+        if (typeof text === "string" && text.toLowerCase().includes("attack") && attackerId && targetId) {
+          return {
+            kind: "attack",
+            attacker: { type: "Character", characterId: attackerId },
+            target: { type: "Character", characterId: targetId },
+            spec: {
+              kind: "melee",
+              attackBonus: 7,
+              damage: { diceCount: 1, diceSides: 8, modifier: 4 },
+              damageType: "slashing",
+            },
+          } as any;
+        }
+
+        return {} as any;
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const attackerRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Attacker",
+        level: 5,
+        className: "fighter",
+        sheet: {
+          armorClass: 16,
+          abilityScores: { strength: 18, dexterity: 12, constitution: 14 },
+          proficiencyBonus: 3,
+          maxHp: 38,
+          attacks: [
+            {
+              name: "Longsword",
+              kind: "melee",
+              attackBonus: 7,
+              damage: { diceCount: 1, diceSides: 8, modifier: 4 },
+              damageType: "slashing",
+            },
+          ],
+        },
+      },
+    });
+    const attackerId = (attackerRes.json() as any).id as string;
+
+    const targetRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Hexblade",
+        level: 5,
+        className: "warlock",
+        sheet: {
+          armorClass: 12,
+          abilityScores: { strength: 10, dexterity: 14, constitution: 14, charisma: 16 },
+          proficiencyBonus: 3,
+          maxHp: 30,
+          resources: {
+            hasHellishRebukePrepared: true,
+            reactionUsed: false,
+            resourcePools: [{ name: "pactMagic", current: 2, max: 2 }],
+          },
+        },
+      },
+    });
+    const targetId = (targetRes.json() as any).id as string;
+
+    const started = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId: attackerId,
+            initiative: 20,
+            hpCurrent: 38,
+            hpMax: 38,
+            resources: { position: { x: 10, y: 10 }, speed: 30 },
+          },
+          {
+            combatantType: "Character",
+            characterId: targetId,
+            initiative: 10,
+            hpCurrent: 30,
+            hpMax: 30,
+            resources: {
+              position: { x: 15, y: 10 },
+              speed: 30,
+              hasHellishRebukePrepared: true,
+              reactionUsed: false,
+              resourcePools: [{ name: "pactMagic", current: 2, max: 2 }],
+            },
+          },
+        ],
+      },
+    });
+    expect(started.statusCode).toBe(200);
+    const encounterId = (started.json() as any).id as string;
+
+    const stateRes = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat?encounterId=${encounterId}`,
+    });
+    expect(stateRes.statusCode).toBe(200);
+    const stateBody = stateRes.json() as any;
+    const targetCombatant = (stateBody.combatants as any[]).find((c) => c.characterId === targetId);
+    expect(targetCombatant).toBeTruthy();
+
+    const patchTargetRes = await app.inject({
+      method: "PATCH",
+      url: `/sessions/${sessionId}/combat/${encounterId}/combatants/${targetCombatant.id}`,
+      payload: {
+        resources: {
+          ...(targetCombatant.resources ?? {}),
+          hasHellishRebukePrepared: true,
+          reactionUsed: false,
+          resourcePools: [{ name: "pactMagic", current: 2, max: 2 }],
+        },
+      },
+    });
+    expect(patchTargetRes.statusCode).toBe(200);
+
+    const actionRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: { text: "attack Hexblade with Longsword", actorId: attackerId, encounterId },
+    });
+    expect(actionRes.statusCode).toBe(200);
+    const actionBody = actionRes.json() as any;
+    expect(actionBody.rollType).toBe("attack");
+
+    const attackRollRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 15", actorId: attackerId },
+    });
+    expect(attackRollRes.statusCode).toBe(200);
+    const attackRollBody = attackRollRes.json() as any;
+    expect(attackRollBody.rollType).toBe("damage");
+
+    const damageRollRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 6", actorId: attackerId },
+    });
+    expect(damageRollRes.statusCode).toBe(200);
+    const damageRollBody = damageRollRes.json() as any;
+    expect(damageRollBody.damageReaction).toBeTruthy();
+    expect(damageRollBody.damageReaction.reactionType).toBe("hellish_rebuke");
+    expect(typeof damageRollBody.damageReaction.pendingActionId).toBe("string");
+
+    const pendingReactionsRes = await app.inject({
+      method: "GET",
+      url: `/encounters/${encounterId}/reactions`,
+    });
+    expect(pendingReactionsRes.statusCode).toBe(200);
+    const pendingReactionsBody = pendingReactionsRes.json() as any;
+    const damageReactionPending = (pendingReactionsBody.pendingActions as any[]).find(
+      (action) => action.id === damageRollBody.damageReaction.pendingActionId,
+    );
+    expect(damageReactionPending).toBeTruthy();
+    expect(damageReactionPending.type).toBe("damage_reaction");
+    expect(damageReactionPending.reactionOpportunities[0].reactionType).toBe("hellish_rebuke");
+
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/events-json?limit=100`,
+    });
+    expect(eventsRes.statusCode).toBe(200);
+    const eventsBody = eventsRes.json() as any[];
+    const reactionPrompt = eventsBody.find(
+      (event) => event.type === "ReactionPrompt" && event.payload?.pendingActionId === damageRollBody.damageReaction.pendingActionId,
+    );
+    expect(reactionPrompt).toBeTruthy();
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/combat/action supports direct move text without LLM", async () => {
     const { app } = buildTestApp();
 

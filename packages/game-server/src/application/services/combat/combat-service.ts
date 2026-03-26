@@ -707,86 +707,88 @@ export class CombatService {
     // By default, only Characters make death saves (monsters typically die at 0 HP).
     // When skipDeathSaveAutoRoll is true (tabletop mode), skip auto-rolling.
     if (!input?.skipDeathSaveAutoRoll) {
-    const activeCombatant = combatantRecords[turn];
-    if (activeCombatant && activeCombatant.characterId) {
-      const resources = (activeCombatant.resources as any) || {};
-      const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
-      const isStabilized = resources.stabilized === true;
+      const activeCombatantId = combat.getActiveCreature().getId();
+      const postAdvanceCombatants = await this.combat.listCombatants(encounter.id);
+      const activeCombatant = postAdvanceCombatants.find((c) => c.id === activeCombatantId);
+      if (activeCombatant && activeCombatant.characterId) {
+        const resources = (activeCombatant.resources as any) || {};
+        const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
+        const isStabilized = resources.stabilized === true;
 
-      if (needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) {
-        // Automatically make death saving throw
-        const roll = this.diceRoller.rollDie(20).total;
-        const saveResult = makeDeathSave(roll, currentDeathSaves);
+        if (needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) {
+          // Automatically make death saving throw
+          const roll = this.diceRoller.rollDie(20).total;
+          const saveResult = makeDeathSave(roll, currentDeathSaves);
 
-        let updatedDeathSaves = currentDeathSaves;
-        let updatedHp = activeCombatant.hpCurrent;
-        let updatedStabilized = isStabilized;
-        let resultType: 'success' | 'failure' | 'stabilized' | 'dead' | 'revived' = 'success';
+          let updatedDeathSaves = currentDeathSaves;
+          let updatedHp = activeCombatant.hpCurrent;
+          let updatedStabilized = isStabilized;
+          let resultType: 'success' | 'failure' | 'stabilized' | 'dead' | 'revived' = 'success';
 
-        if (saveResult.outcome === 'dead') {
-          resultType = 'dead';
-          updatedDeathSaves = { ...currentDeathSaves, failures: 3 };
-        } else if (saveResult.outcome === 'stabilized') {
-          resultType = 'stabilized';
-          updatedStabilized = true;
-          updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-        } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
-          resultType = 'revived';
-          updatedHp = 1; // Regain 1 HP
-          updatedDeathSaves = { successes: 0, failures: 0 }; // Reset
-          updatedStabilized = false;
-        } else {
-          // Normal success or failure
-          resultType = saveResult.outcome;
-          updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-        }
+          if (saveResult.outcome === 'dead') {
+            resultType = 'dead';
+            updatedDeathSaves = { ...currentDeathSaves, failures: 3 };
+          } else if (saveResult.outcome === 'stabilized') {
+            resultType = 'stabilized';
+            updatedStabilized = true;
+            updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
+          } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
+            resultType = 'revived';
+            updatedHp = 1; // Regain 1 HP
+            updatedDeathSaves = { successes: 0, failures: 0 }; // Reset
+            updatedStabilized = false;
+          } else {
+            // Normal success or failure
+            resultType = saveResult.outcome;
+            updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
+          }
 
-        // Update combatant state
-        const updatedResources = {
-          ...resources,
-          deathSaves: updatedDeathSaves,
-          stabilized: updatedStabilized,
-        };
+          // Update combatant state
+          const updatedResources = {
+            ...resources,
+            deathSaves: updatedDeathSaves,
+            stabilized: updatedStabilized,
+          };
 
-        await this.combat.updateCombatantState(activeCombatant.id, {
-          hpCurrent: updatedHp,
-          resources: updatedResources,
-        });
-
-        // Emit death save event
-        if (this.events) {
-          await this.events.append(sessionId, {
-            id: nanoid(),
-            type: "DeathSave",
-            payload: {
-              encounterId: encounter.id,
-              combatantId: activeCombatant.id,
-              roll,
-              result: resultType,
-              deathSaves: updatedDeathSaves,
-              ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
-            },
+          await this.combat.updateCombatantState(activeCombatant.id, {
+            hpCurrent: updatedHp,
+            resources: updatedResources,
           });
-        }
 
-        // If the combatant died, check victory again
-        if (resultType === 'dead') {
-          const updatedCombatants = await this.combat.listCombatants(encounter.id);
-          const victoryAfterDeath = await this.victoryPolicy.evaluate({ combatants: updatedCombatants });
-          if (victoryAfterDeath) {
-            await this.combat.updateEncounter(encounter.id, { status: victoryAfterDeath });
-            
-            if (this.events) {
-              await this.events.append(sessionId, {
-                id: nanoid(),
-                type: "CombatEnded",
-                payload: { encounterId: encounter.id, result: victoryAfterDeath },
-              });
+          // Emit death save event
+          if (this.events) {
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "DeathSave",
+              payload: {
+                encounterId: encounter.id,
+                combatantId: activeCombatant.id,
+                roll,
+                result: resultType,
+                deathSaves: updatedDeathSaves,
+                ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
+              },
+            });
+          }
+
+          // If the combatant died, check victory again
+          if (resultType === 'dead') {
+            const updatedCombatants = await this.combat.listCombatants(encounter.id);
+            const victoryAfterDeath = await this.victoryPolicy.evaluate({ combatants: updatedCombatants });
+            if (victoryAfterDeath) {
+              await this.combat.updateEncounter(encounter.id, { status: victoryAfterDeath });
+
+              if (this.events) {
+                await this.events.append(sessionId, {
+                  id: nanoid(),
+                  type: "CombatEnded",
+                  payload: { encounterId: encounter.id, result: victoryAfterDeath },
+                });
+              }
             }
           }
         }
       }
-    }
     } // end skipDeathSaveAutoRoll guard (nextTurnDomain)
 
     return updated;

@@ -228,6 +228,116 @@ describe("BasicCombatVictoryPolicy with fled status", () => {
     const result = await policy.evaluate({ combatants });
     expect(result).toBeNull();
   });
+
+  it("does not return Defeat when player is down but a party NPC ally survives", async () => {
+    const mockFactionService = {
+      getFactions: async () =>
+        new Map<string, string>([
+          ["player-1", "player"],
+          ["party-1", "party"],
+          ["enemy-1", "enemy"],
+        ]),
+    };
+
+    const policy = new BasicCombatVictoryPolicy(mockFactionService as any);
+
+    const combatants: CombatantStateRecord[] = [
+      {
+        id: "player-1",
+        combatantType: "Character",
+        characterId: "hero",
+        monsterId: null,
+        npcId: null,
+        initiative: 20,
+        hpCurrent: 0,
+        hpMax: 40,
+        conditions: [],
+        resources: { deathSaves: { successes: 0, failures: 3 } },
+      } as CombatantStateRecord,
+      {
+        id: "party-1",
+        combatantType: "NPC",
+        characterId: null,
+        monsterId: null,
+        npcId: "ally-npc",
+        initiative: 18,
+        hpCurrent: 12,
+        hpMax: 12,
+        conditions: [],
+        resources: {},
+      } as CombatantStateRecord,
+      {
+        id: "enemy-1",
+        combatantType: "Monster",
+        characterId: null,
+        monsterId: "goblin",
+        npcId: null,
+        initiative: 10,
+        hpCurrent: 7,
+        hpMax: 7,
+        conditions: [],
+        resources: {},
+      } as CombatantStateRecord,
+    ];
+
+    const result = await policy.evaluate({ combatants });
+    expect(result).toBeNull();
+  });
+
+  it("returns Defeat when no player or party allies remain alive", async () => {
+    const mockFactionService = {
+      getFactions: async () =>
+        new Map<string, string>([
+          ["player-1", "player"],
+          ["party-1", "party"],
+          ["enemy-1", "enemy"],
+        ]),
+    };
+
+    const policy = new BasicCombatVictoryPolicy(mockFactionService as any);
+
+    const combatants: CombatantStateRecord[] = [
+      {
+        id: "player-1",
+        combatantType: "Character",
+        characterId: "hero",
+        monsterId: null,
+        npcId: null,
+        initiative: 20,
+        hpCurrent: 0,
+        hpMax: 40,
+        conditions: [],
+        resources: { deathSaves: { successes: 0, failures: 3 } },
+      } as CombatantStateRecord,
+      {
+        id: "party-1",
+        combatantType: "NPC",
+        characterId: null,
+        monsterId: null,
+        npcId: "ally-npc",
+        initiative: 18,
+        hpCurrent: 0,
+        hpMax: 12,
+        conditions: [],
+        resources: {},
+      } as CombatantStateRecord,
+      {
+        id: "enemy-1",
+        combatantType: "Monster",
+        characterId: null,
+        monsterId: "goblin",
+        npcId: null,
+        initiative: 10,
+        hpCurrent: 7,
+        hpMax: 7,
+        conditions: [],
+        resources: {},
+      } as CombatantStateRecord,
+    ];
+
+    const result = await policy.evaluate({ combatants });
+    expect(result).toBe("Defeat");
+  });
 });
 
 // ─── Manual combat end (POST /sessions/:id/combat/end) ──────────────────────

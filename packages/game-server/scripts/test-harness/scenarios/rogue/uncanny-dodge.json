@@ -1,11 +1,11 @@
 {
   "name": "Rogue Uncanny Dodge: Halve Attack Damage",
-  "description": "A level 5 Rogue with Uncanny Dodge uses their reaction to halve damage from a melee attack. Monster has a very high attack bonus and the Rogue has very low AC to guarantee the hit. Tests: Uncanny Dodge reaction detection, two-phase attack flow, reaction consumption, and damage halving.",
+  "description": "A level 7 Rogue with Uncanny Dodge uses their reaction to halve damage from a melee attack. Monster has a very high attack bonus and the Rogue has very low AC to guarantee the hit. Tests: Uncanny Dodge reaction detection, two-phase attack flow, reaction consumption, and damage halving.",
   "setup": {
     "character": {
       "name": "Shadow",
       "className": "Rogue",
-      "level": 5,
+      "level": 7,
       "position": { "x": 10, "y": 10 },
       "sheet": {
         "abilityScores": {

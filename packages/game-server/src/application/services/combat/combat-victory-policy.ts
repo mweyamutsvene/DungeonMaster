@@ -59,7 +59,14 @@ export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
       factions.set(faction, stats);
     }
 
-    const party = factions.get("party") || { alive: 0, total: 0 };
+    const allies = ["player", "party"].reduce(
+      (sum, faction) => {
+        const stats = factions.get(faction);
+        if (!stats) return sum;
+        return { alive: sum.alive + stats.alive, total: sum.total + stats.total };
+      },
+      { alive: 0, total: 0 },
+    );
 
     const enemies = Array.from(factions.entries())
       .filter(([faction]) => faction === "enemy" || faction === "hostile")
@@ -70,7 +77,7 @@ export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
       .reduce((sum, [, stats]) => sum + stats.total, 0);
 
     if (totalEnemies > 0 && enemies === 0) return "Victory";
-    if (party.total > 0 && party.alive === 0) return "Defeat";
+    if (allies.total > 0 && allies.alive === 0) return "Defeat";
 
     return null;
   }

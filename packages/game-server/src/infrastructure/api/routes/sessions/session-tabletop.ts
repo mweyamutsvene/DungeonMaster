@@ -13,6 +13,158 @@
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { ValidationError } from "../../../../application/errors.js";
+import type { CombatantStateRecord, CombatEncounterRecord } from "../../../../application/types.js";
+import type { DamagePendingAction } from "../../../../application/services/combat/tabletop/tabletop-types.js";
+import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
+import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
+import { normalizeResources, readBoolean } from "../../../../application/services/combat/helpers/resource-utils.js";
+import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
+import { combatantRefFromState } from "../../../../application/services/combat/helpers/combatant-ref.js";
+
+function findEncounterForTabletopRoll(encounters: CombatEncounterRecord[]): CombatEncounterRecord | null {
+  return encounters.find((encounter) => encounter.status === "Pending" || encounter.status === "Active")
+    ?? encounters[0]
+    ?? null;
+}
+
+function isDamagePendingAction(value: unknown): value is DamagePendingAction {
+  if (!value || typeof value !== "object") return false;
+  const pending = value as Partial<DamagePendingAction>;
+  return pending.type === "DAMAGE"
+    && typeof pending.actorId === "string"
+    && typeof pending.targetId === "string";
+}
+
+function findCombatantByEntityId(combatants: CombatantStateRecord[], entityId: string): CombatantStateRecord | undefined {
+  return combatants.find((combatant) =>
+    combatant.characterId === entityId || combatant.monsterId === entityId || combatant.npcId === entityId,
+  );
+}
+
+async function tryInitiateDamageReaction(
+  deps: SessionRouteDeps,
+  sessionId: string,
+  encounterId: string,
+  pendingDamage: DamagePendingAction,
+  rollResult: unknown,
+): Promise<{ pendingActionId: string; reactionType: string } | null> {
+  const totalDamage = typeof (rollResult as { totalDamage?: unknown })?.totalDamage === "number"
+    ? (rollResult as { totalDamage: number }).totalDamage
+    : 0;
+  if (totalDamage <= 0) return null;
+
+  const combatEnded = (rollResult as { combatEnded?: unknown })?.combatEnded;
+  if (combatEnded === true) return null;
+
+  const damageType = pendingDamage.weaponSpec?.damageType;
+  if (typeof damageType !== "string" || damageType.trim().length === 0) return null;
+
+  const encounter = await deps.combatRepo.getEncounterById(encounterId);
+  if (!encounter || encounter.status !== "Active") return null;
+
+  // Avoid clobbering another pending tabletop action (for example, flurry follow-up).
+  const pendingAfterRoll = await deps.combatRepo.getPendingAction(encounterId);
+  if (pendingAfterRoll) return null;
+
+  const combatants = await deps.combatRepo.listCombatants(encounterId);
+  const targetCombatant = findCombatantByEntityId(combatants, pendingDamage.targetId);
+  if (!targetCombatant || targetCombatant.combatantType !== "Character" || !targetCombatant.characterId) {
+    return null;
+  }
+  if (targetCombatant.hpCurrent <= 0) return null;
+
+  const attackerCombatant = findCombatantByEntityId(combatants, pendingDamage.actorId);
+  if (!attackerCombatant) return null;
+
+  const targetRef = combatantRefFromState(targetCombatant);
+  const attackerRef = combatantRefFromState(attackerCombatant);
+  if (!targetRef || targetRef.type !== "Character" || !attackerRef) return null;
+
+  const targetResources = normalizeResources(targetCombatant.resources);
+  const stillHasReaction = hasReactionAvailable({ reactionUsed: false, ...targetResources } as any)
+    && !readBoolean(targetResources, "reactionUsed");
+  if (!stillHasReaction) return null;
+
+  let targetStats: { className?: string; level?: number; abilityScores?: Record<string, number> };
+  try {
+    targetStats = await deps.combatants.getCombatStats(targetRef);
+  } catch {
+    const targetCharacter = await deps.charactersRepo.getById(targetRef.characterId);
+    if (!targetCharacter) return null;
+
+    const sheet = (targetCharacter.sheet ?? {}) as Record<string, unknown>;
+    const rawAbilityScores = (sheet.abilityScores ?? {}) as Record<string, unknown>;
+    const fallbackAbilityScores: Record<string, number> = {};
+    for (const [ability, value] of Object.entries(rawAbilityScores)) {
+      if (typeof value === "number") {
+        fallbackAbilityScores[ability] = value;
+      }
+    }
+
+    targetStats = {
+      className:
+        targetCharacter.className
+        ?? (typeof sheet.className === "string" ? sheet.className : undefined)
+        ?? "",
+      level:
+        targetCharacter.level
+        ?? (typeof sheet.level === "number" ? sheet.level : undefined)
+        ?? 1,
+      abilityScores: fallbackAbilityScores,
+    };
+  }
+
+  const attackerEntityId = attackerRef.type === "Character"
+    ? attackerRef.characterId
+    : attackerRef.type === "Monster"
+      ? attackerRef.monsterId
+      : attackerRef.npcId;
+
+  const detectedReactions = detectDamageReactions(
+    {
+      className: targetStats.className?.toLowerCase() ?? "",
+      level: targetStats.level ?? 1,
+      abilityScores: (targetStats.abilityScores ?? {}) as Record<string, number>,
+      resources: targetResources,
+      hasReaction: true,
+      isCharacter: true,
+      damageType,
+      damageAmount: totalDamage,
+      attackerId: attackerEntityId,
+    },
+    getAllCombatTextProfiles(),
+  );
+
+  if (detectedReactions.length === 0) return null;
+
+  const detectedReaction = detectedReactions[0]!;
+  const initiateResult = await deps.twoPhaseActions.initiateDamageReaction(sessionId, {
+    encounterId,
+    target: targetRef,
+    attackerId: attackerRef,
+    damageType,
+    damageAmount: totalDamage,
+    detectedReaction,
+    targetCombatantId: targetCombatant.id,
+  });
+
+  if (initiateResult.status !== "awaiting_reactions" || !initiateResult.pendingActionId) {
+    return null;
+  }
+
+  await deps.combatRepo.setPendingAction(encounterId, {
+    id: initiateResult.pendingActionId,
+    type: "reaction_pending",
+    pendingActionId: initiateResult.pendingActionId,
+    reactionType: detectedReaction.reactionType,
+    target: targetRef,
+  });
+
+  return {
+    pendingActionId: initiateResult.pendingActionId,
+    reactionType: detectedReaction.reactionType,
+  };
+}
 
 export function registerSessionTabletopRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
 
@@ -61,8 +213,32 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
         throw new ValidationError("actorId is required");
       }
 
+      const encounters = await deps.combatRepo.listEncountersBySession(sessionId);
+      const encounter = findEncounterForTabletopRoll(encounters);
+      const pendingBeforeRoll = encounter
+        ? await deps.combatRepo.getPendingAction(encounter.id)
+        : null;
+
       console.log(`[CLI → roll] "${text}"`);
-      return deps.tabletopCombat.processRollResult(sessionId, text, actorId);
+      const rollResult = await deps.tabletopCombat.processRollResult(sessionId, text, actorId);
+
+      if (encounter && isDamagePendingAction(pendingBeforeRoll)) {
+        const damageReaction = await tryInitiateDamageReaction(
+          deps,
+          sessionId,
+          encounter.id,
+          pendingBeforeRoll,
+          rollResult,
+        );
+        if (damageReaction) {
+          return {
+            ...(rollResult as unknown as Record<string, unknown>),
+            damageReaction,
+          };
+        }
+      }
+
+      return rollResult;
     } catch (err) {
       console.error("Roll result endpoint error:", err);
       console.error("Stack:", (err as Error).stack);

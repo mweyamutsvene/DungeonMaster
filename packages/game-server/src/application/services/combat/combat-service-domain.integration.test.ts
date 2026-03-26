@@ -585,4 +585,148 @@ describe("CombatService Domain Integration", () => {
     expect(endedEvent).toBeDefined();
     expect(endedEvent?.payload).toMatchObject({ result: "Victory" });
   });
+
+  it("auto-rolls death save for the post-advance active character, not stale combatant index", async () => {
+    const sessionsRepo = new MemorySessionRepository();
+    const combatRepo = new MemoryCombatRepository();
+    const eventsRepo = new MemoryEventRepository();
+    const charactersRepo = new MemoryCharacterRepository();
+    const monstersRepo = new MemoryMonsterRepository();
+    const npcsRepo = new MemoryNPCRepository();
+
+    const session = await sessionsRepo.create({
+      id: "sess-3",
+      storyFramework: { setting: "Test" },
+    });
+
+    const lowInitCharacter = await charactersRepo.createInSession(session.id, {
+      id: "char-low",
+      name: "Low Init",
+      level: 1,
+      className: "Fighter",
+      sheet: {
+        level: 1,
+        className: "Fighter",
+        abilityScores: { str: 16, dex: 10, con: 14, int: 10, wis: 10, cha: 8 },
+        maxHp: 12,
+        armorClass: 16,
+        proficiencyBonus: 2,
+        speed: 30,
+      },
+    });
+
+    const downedCharacter = await charactersRepo.createInSession(session.id, {
+      id: "char-downed",
+      name: "Downed",
+      level: 1,
+      className: "Fighter",
+      sheet: {
+        level: 1,
+        className: "Fighter",
+        abilityScores: { str: 16, dex: 18, con: 14, int: 10, wis: 10, cha: 8 },
+        maxHp: 12,
+        armorClass: 16,
+        proficiencyBonus: 2,
+        speed: 30,
+      },
+    });
+
+    const midInitMonster = await monstersRepo.createInSession(session.id, {
+      id: "mon-mid",
+      name: "Goblin",
+      monsterDefinitionId: null,
+      statBlock: {
+        maxHp: 7,
+        armorClass: 15,
+        speed: 30,
+        abilityScores: { str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8 },
+        proficiencyBonus: 2,
+      },
+    });
+
+    // Initiative order by value should be: char-downed (20), mon-mid (10), char-low (5).
+    // Repository array order is intentionally different to catch stale index lookups.
+    const encounter = await combatRepo.createEncounter(session.id, {
+      id: "enc-3",
+      status: "Active",
+      round: 1,
+      turn: 2,
+    });
+    await combatRepo.createCombatants(encounter.id, [
+      {
+        id: "char-low",
+        combatantType: "Character",
+        characterId: lowInitCharacter.id,
+        monsterId: null,
+        npcId: null,
+        initiative: 5,
+        hpCurrent: 12,
+        hpMax: 12,
+        conditions: [],
+        resources: {},
+      },
+      {
+        id: "char-downed",
+        combatantType: "Character",
+        characterId: downedCharacter.id,
+        monsterId: null,
+        npcId: null,
+        initiative: 20,
+        hpCurrent: 0,
+        hpMax: 12,
+        conditions: [],
+        resources: { deathSaves: { successes: 0, failures: 0 } },
+      },
+      {
+        id: "mon-mid",
+        combatantType: "Monster",
+        characterId: null,
+        monsterId: midInitMonster.id,
+        npcId: null,
+        initiative: 10,
+        hpCurrent: 7,
+        hpMax: 7,
+        conditions: [],
+        resources: {},
+      },
+    ]);
+
+    const factionService = new MockFactionService() as any;
+    const victoryPolicy = new BasicCombatVictoryPolicy(factionService);
+    const diceRoller = new FixedDiceRoller(10);
+
+    const combatService = new CombatService(
+      sessionsRepo,
+      combatRepo,
+      victoryPolicy,
+      eventsRepo,
+      charactersRepo,
+      monstersRepo,
+      npcsRepo,
+      diceRoller,
+    );
+
+    const result = await combatService.nextTurn(session.id);
+    expect(result.round).toBe(2);
+    expect(result.turn).toBe(0);
+
+    const combatants = await combatRepo.listCombatants(encounter.id);
+    const downed = combatants.find((c) => c.id === "char-downed");
+    const lowInit = combatants.find((c) => c.id === "char-low");
+    const downedDeathSaves = (downed?.resources as any)?.deathSaves;
+    const lowInitDeathSaves = (lowInit?.resources as any)?.deathSaves;
+
+    expect(downedDeathSaves).toMatchObject({ successes: 1, failures: 0 });
+    expect(lowInitDeathSaves).toBeUndefined();
+
+    const events = await eventsRepo.listBySession(session.id);
+    const deathSaveEvent = events.find((e) => e.type === "DeathSave");
+    expect(deathSaveEvent?.payload).toMatchObject({
+      encounterId: encounter.id,
+      combatantId: "char-downed",
+      roll: 10,
+      result: "success",
+      deathSaves: { successes: 1, failures: 0 },
+    });
+  });
 });
