@@ -105,6 +105,160 @@ describe('Creature Hydration', () => {
       expect(character.hasCondition('Poisoned')).toBe(true);
       expect(character.hasCondition('Frightened')).toBe(true);
     });
+
+    it('should populate equipment from pre-enriched equippedArmor on sheet', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-armored',
+        sessionId: 'session-1',
+        name: 'Armored Barbarian',
+        level: 5,
+        className: 'Barbarian',
+        sheet: {
+          abilityScores: {
+            strength: 16,
+            dexterity: 14,
+            constitution: 16,
+            intelligence: 8,
+            wisdom: 12,
+            charisma: 10,
+          },
+          maxHP: 55,
+          currentHP: 55,
+          armorClass: 18,
+          speed: 30,
+          classId: 'barbarian',
+          // Pre-enriched by enrichSheetArmor() at creation time
+          equippedArmor: {
+            name: 'Plate',
+            category: 'heavy',
+            acFormula: { base: 18, addDexterityModifier: false },
+          },
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      // With plate armor equipped, should get plate AC (18), NOT Unarmored Defense
+      // Barbarian Unarmored Defense = 10 + DEX(2) + CON(3) = 15
+      expect(character.getAC()).toBe(18);
+    });
+
+    it('should populate equipment from sheet.equipment.armor via catalog lookup', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-chain',
+        sessionId: 'session-1',
+        name: 'Chain Mail Fighter',
+        level: 3,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: {
+            strength: 16,
+            dexterity: 12,
+            constitution: 14,
+            intelligence: 10,
+            wisdom: 10,
+            charisma: 10,
+          },
+          maxHP: 28,
+          currentHP: 28,
+          armorClass: 16,
+          speed: 30,
+          classId: 'fighter',
+          equipment: {
+            armor: { name: 'Chain Mail' },
+            weapon: { name: 'Longsword' },
+          },
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      // Chain Mail = base 16, no DEX modifier
+      expect(character.getAC()).toBe(16);
+    });
+
+    it('should use Unarmored Defense when no armor is equipped for Barbarian', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-unarmored',
+        sessionId: 'session-1',
+        name: 'Unarmored Barbarian',
+        level: 5,
+        className: 'Barbarian',
+        sheet: {
+          abilityScores: {
+            strength: 16,
+            dexterity: 14,
+            constitution: 16,
+            intelligence: 8,
+            wisdom: 12,
+            charisma: 10,
+          },
+          maxHP: 55,
+          currentHP: 55,
+          armorClass: 15,
+          speed: 30,
+          classId: 'barbarian',
+          // No equippedArmor, no equipment.armor — truly unarmored
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      // Barbarian Unarmored Defense = 10 + DEX(2) + CON(3) = 15
+      expect(character.getAC()).toBe(15);
+    });
+
+    it('should populate shield from pre-enriched equippedShield on sheet', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-shield',
+        sessionId: 'session-1',
+        name: 'Shield Fighter',
+        level: 3,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: {
+            strength: 16,
+            dexterity: 12,
+            constitution: 14,
+            intelligence: 10,
+            wisdom: 10,
+            charisma: 10,
+          },
+          maxHP: 28,
+          currentHP: 28,
+          armorClass: 18,
+          speed: 30,
+          classId: 'fighter',
+          equippedArmor: {
+            name: 'Chain Mail',
+            category: 'heavy',
+            acFormula: { base: 16, addDexterityModifier: false },
+          },
+          equippedShield: { name: 'Shield', armorClassBonus: 2 },
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      // Chain Mail 16 + Shield 2 = 18
+      expect(character.getAC()).toBe(18);
+    });
   });
 
   describe('hydrateMonster', () => {

@@ -20,6 +20,8 @@ import type {
 import { readNumber, readString, readArray, readObject } from "./json-helpers.js";
 import type { FightingStyleId } from "../../../../domain/entities/classes/fighting-style.js";
 import { isFightingStyleId } from "../../../../domain/entities/classes/fighting-style.js";
+import type { EquippedItems, EquippedArmorCategory } from "../../../../domain/entities/items/equipped-items.js";
+import { lookupArmor } from "../../../../domain/entities/items/armor-catalog.js";
 
 /**
  * Parse ability scores from JSON sheet.
@@ -79,6 +81,94 @@ function extractConditions(conditions: unknown): string[] {
 }
 
 /**
+ * Extract equipped armor and shield from the character sheet JSON.
+ *
+ * Checks two sources in order:
+ * 1. Pre-enriched `equippedArmor`/`equippedShield` fields (set by `enrichSheetArmor()` at character creation)
+ * 2. Fallback: `sheet.equipment.armor.name` looked up in the armor catalog
+ *
+ * Returns undefined if the character has no armor or shield equipped.
+ */
+function extractEquipment(sheet: Record<string, unknown>): EquippedItems | undefined {
+  let armor: EquippedItems["armor"];
+  let shield: EquippedItems["shield"];
+
+  // 1. Check pre-enriched equippedArmor (from enrichSheetArmor at creation time)
+  const enriched = sheet.equippedArmor;
+  if (enriched && typeof enriched === "object") {
+    const ea = enriched as Record<string, unknown>;
+    const name = ea.name;
+    const category = ea.category;
+    const acFormula = ea.acFormula;
+    if (
+      typeof name === "string" &&
+      typeof category === "string" &&
+      acFormula && typeof acFormula === "object"
+    ) {
+      const formula = acFormula as Record<string, unknown>;
+      armor = {
+        name: name,
+        category: category as EquippedArmorCategory,
+        armorClass: {
+          base: typeof formula.base === "number" ? formula.base : 10,
+          addDexterityModifier: typeof formula.addDexterityModifier === "boolean" ? formula.addDexterityModifier : true,
+          ...(typeof formula.dexterityModifierMax === "number" ? { dexterityModifierMax: formula.dexterityModifierMax } : {}),
+        },
+      };
+    }
+  }
+
+  // 2. Fallback: look up armor from sheet.equipment.armor.name in catalog
+  if (!armor) {
+    const equip = sheet.equipment;
+    if (equip && typeof equip === "object" && !Array.isArray(equip)) {
+      const equipObj = equip as Record<string, unknown>;
+      const armorObj = equipObj.armor;
+      if (armorObj && typeof armorObj === "object") {
+        const armorName = (armorObj as Record<string, unknown>).name;
+        if (typeof armorName === "string") {
+          const catalogEntry = lookupArmor(armorName);
+          if (catalogEntry) {
+            armor = {
+              name: catalogEntry.name,
+              category: catalogEntry.category,
+              armorClass: { ...catalogEntry.acFormula },
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // Check pre-enriched equippedShield
+  const enrichedShield = sheet.equippedShield;
+  if (enrichedShield && typeof enrichedShield === "object") {
+    const es = enrichedShield as Record<string, unknown>;
+    if (typeof es.name === "string" && typeof es.armorClassBonus === "number") {
+      shield = { name: es.name, armorClassBonus: es.armorClassBonus };
+    }
+  }
+
+  // Fallback: look for shield in sheet.equipment.shield
+  if (!shield) {
+    const equip = sheet.equipment;
+    if (equip && typeof equip === "object" && !Array.isArray(equip)) {
+      const equipObj = equip as Record<string, unknown>;
+      const shieldObj = equipObj.shield;
+      if (shieldObj && typeof shieldObj === "object") {
+        const shieldName = (shieldObj as Record<string, unknown>).name;
+        if (typeof shieldName === "string") {
+          shield = { name: shieldName, armorClassBonus: 2 }; // Standard shield +2 AC
+        }
+      }
+    }
+  }
+
+  if (!armor && !shield) return undefined;
+  return { armor, shield };
+}
+
+/**
  * Hydrate a Character domain entity from database record.
  * 
  * @param record - SessionCharacterRecord from database
@@ -124,6 +214,9 @@ export function hydrateCharacter(
   const speciesResistances = speciesTraits?.damageResistances ?? [];
   const mergedResistances = [...new Set([...sheetResistances, ...speciesResistances])];
 
+  // Extract equipped armor/shield so getAC() can detect when armor is worn
+  const equipment = extractEquipment(sheet);
+
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
     name: record.name,
@@ -141,6 +234,7 @@ export function hydrateCharacter(
     fightingStyle,
     darkvisionRange: speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
+    equipment,
   };
 
   const character = new Character(data);
