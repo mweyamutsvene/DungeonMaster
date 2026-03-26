@@ -17,7 +17,7 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [x] **[ENT-C2]** Unarmored Defense fires while wearing armor — `hydrateCharacter()` never sets `equipment` on `CharacterData`. `Character.getAC()` always sees `getEquipment()?.armor === undefined`, so Unarmored Defense AC applies to armored Barbarians/Monks.
   - File: `application/services/combat/helpers/creature-hydration.ts:87`
 
-- [ ] **[ENT-C3]** `subclass`/`subclassLevel` never hydrated from sheet — Open Hand Technique always fails for DB-loaded monks. `getSubclass()` returns `undefined`.
+- [x] **[ENT-C3]** `subclass`/`subclassLevel` never hydrated from sheet — Open Hand Technique always fails for DB-loaded monks. `getSubclass()` returns `undefined`.
   - File: `application/services/combat/helpers/creature-hydration.ts:130`
 
 - [ ] **[AI-C1]** AI spell casting is a no-op — `cast-spell-handler.ts` spends the slot and emits an event but applies zero mechanical effects (no damage, healing, conditions, zones). Affects all AI/monster spellcasters.
@@ -52,7 +52,7 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-H1]** Charmed condition has zero mechanical enforcement — can't attack charmer, charmer social advantage — neither enforced. `ConditionEffects` has no field to express "cannot target creature X."
   - File: `domain/entities/combat/conditions.ts:173-175`
 
-- [ ] **[RULES-H2]** Petrified condition missing resistance to all damage + poison/disease immunity. Interface `ConditionEffects` has no `resistsAllDamage` field.
+- [x] **[RULES-H2]** Petrified condition missing resistance to all damage + poison/disease immunity. Interface `ConditionEffects` has no `resistsAllDamage` field.
   - File: `domain/entities/combat/conditions.ts:188-196`
 
 - [ ] **[RULES-H3]** Unconscious condition does not auto-apply Prone or drop items when applied.

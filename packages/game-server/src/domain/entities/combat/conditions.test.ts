@@ -51,11 +51,56 @@ describe("getConditionEffects", () => {
     });
   });
 
-  describe("Petrified auto-fail Str/Dex saves", () => {
+  describe("Petrified full mechanics (D&D 5e 2024)", () => {
     it("has autoFailStrDexSaves = true", () => {
       const effects = getConditionEffects("Petrified");
       expect(effects.autoFailStrDexSaves).toBe(true);
     });
+
+    it("has resistance to all damage", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.resistsAllDamage).toBe(true);
+    });
+
+    it("is immune to poison damage", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.damageImmunities).toContain("poison");
+    });
+
+    it("is immune to disease and poisoned condition", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.conditionImmunities).toContain("disease");
+      expect(effects.conditionImmunities).toContain("poisoned");
+    });
+
+    it("is incapacitated (cannot take actions, bonus actions, or reactions)", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.cannotTakeActions).toBe(true);
+      expect(effects.cannotTakeBonusActions).toBe(true);
+      expect(effects.cannotTakeReactions).toBe(true);
+    });
+
+    it("attacks against have advantage", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.attackRollsHaveAdvantage).toBe(true);
+    });
+
+    it("cannot move or speak", () => {
+      const effects = getConditionEffects("Petrified");
+      expect(effects.cannotMove).toBe(true);
+      expect(effects.cannotSpeak).toBe(true);
+    });
+  });
+
+  describe("Non-petrified conditions have default damage defense fields", () => {
+    for (const cond of ["Blinded", "Stunned", "Paralyzed", "Unconscious", "Frightened"] as const) {
+      it(`${cond} has resistsAllDamage = false and empty damageImmunities`, () => {
+        const effects = getConditionEffects(cond);
+        expect(effects.resistsAllDamage).toBe(false);
+        expect(effects.damageImmunities).toEqual([]);
+        expect(effects.conditionImmunities).toEqual([]);
+      });
+    }
   });
 
   describe("Unconscious auto-fail Str/Dex saves", () => {

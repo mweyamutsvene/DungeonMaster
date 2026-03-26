@@ -90,6 +90,15 @@ export interface ConditionEffects {
   readonly savingThrowDisadvantage: readonly Ability[]; // Disadvantage on saves for these abilities
   readonly abilityCheckDisadvantage: boolean; // Disadvantage on ability checks (Poisoned)
   
+  // Damage defenses (condition-granted)
+  readonly resistsAllDamage: boolean; // Resistance to all damage types (Petrified)
+  readonly damageImmunities: readonly string[]; // Immune to these damage types (e.g. "poison")
+  readonly conditionImmunities: readonly string[]; // Immune to these conditions/effects (e.g. "disease", "poisoned")
+
+  // Targeting restrictions
+  readonly cannotTargetSource: boolean; // Cannot attack or target the condition source with harmful effects (Charmed)
+  readonly socialAdvantageForSource: boolean; // Source has advantage on social ability checks against this creature (Charmed)
+  
   // Other
   readonly cannotSpeak: boolean; // Cannot speak or cast spells with verbal components
   readonly cannotSee: boolean; // Blinded
@@ -117,6 +126,9 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     autoFailStrDexSaves: false,
     savingThrowDisadvantage: [],
     abilityCheckDisadvantage: false,
+    resistsAllDamage: false,
+    damageImmunities: [],
+    conditionImmunities: [],
     cannotSpeak: false,
     cannotSee: false,
     cannotHear: false,
@@ -134,7 +146,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     case 'Charmed':
       return {
         ...baseEffects,
-        // Charmed: can't attack charmer, charmer has advantage on social checks
+        cannotTargetSource: true, // Can't attack or target charmer with harmful abilities/effects
+        socialAdvantageForSource: true, // Charmer has advantage on Charisma checks to interact socially
       };
 
     case 'Deafened':
@@ -195,7 +208,9 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotSpeak: true,
         attackRollsHaveAdvantage: true, // Attacks against
         autoFailStrDexSaves: true,
-        // Resistance to all damage, immune to poison/disease
+        resistsAllDamage: true,
+        damageImmunities: ['poison'],
+        conditionImmunities: ['disease', 'poisoned'],
       };
 
     case 'Poisoned':
