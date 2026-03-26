@@ -71,7 +71,7 @@ describe("Character with Fighting Style", () => {
         fightingStyle: "defense",
         armorClass: 16,
         equipment: {
-          armor: { name: "Chain Mail", category: "heavy", armorClass: { base: 16 } },
+          armor: { name: "Chain Mail", category: "heavy", armorClass: { base: 16, addDexterityModifier: false } },
         },
       });
       expect(char.getAC()).toBe(17); // 16 base + 1 defense
