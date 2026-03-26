@@ -20,7 +20,7 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [x] **[ENT-C3]** `subclass`/`subclassLevel` never hydrated from sheet — Open Hand Technique always fails for DB-loaded monks. `getSubclass()` returns `undefined`.
   - File: `application/services/combat/helpers/creature-hydration.ts:130`
 
-- [ ] **[AI-C1]** AI spell casting is a no-op — `cast-spell-handler.ts` spends the slot and emits an event but applies zero mechanical effects (no damage, healing, conditions, zones). Affects all AI/monster spellcasters.
+- [x] **[AI-C1]** AI spell casting is a no-op — `cast-spell-handler.ts` spends the slot and emits an event but applies zero mechanical effects (no damage, healing, conditions, zones). Affects all AI/monster spellcasters. **DONE**: Created `AiSpellDelivery` class with save-based, healing, spell attack, and buff/debuff delivery paths. Integrated into `CastSpellHandler`.
   - File: `application/services/combat/ai/handlers/cast-spell-handler.ts:131`
 
 - [x] **[RULES-C1]** Exhaustion d20 penalty is double the correct value — code gives −(level × 2) instead of −level. Level 1 Exhaustion should be −1 to all d20 rolls, not −2.

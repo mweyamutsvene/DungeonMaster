@@ -17,6 +17,8 @@ import type { ActionService as CombatActionService } from "../action-service.js"
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
 import type { ICombatRepository } from "../../../repositories/index.js";
 import type { ICharacterRepository } from "../../../repositories/character-repository.js";
+import type { IMonsterRepository } from "../../../repositories/monster-repository.js";
+import type { INPCRepository } from "../../../repositories/npc-repository.js";
 import type { IEventRepository } from "../../../repositories/event-repository.js";
 import type { PendingActionRepository } from "../../../repositories/pending-action-repository.js";
 import type { AbilityRegistry } from "../abilities/ability-registry.js";
@@ -57,6 +59,8 @@ export class AiActionExecutor {
     private readonly events?: IEventRepository,
     /** Character repository for spell slot + concentration bookkeeping. Optional for backward compat. */
     private readonly characters?: ICharacterRepository,
+    private readonly monsters?: IMonsterRepository,
+    private readonly npcs?: INPCRepository,
   ) {
     this.registry = new AiActionRegistry();
     this.setupRegistry();
@@ -176,6 +180,8 @@ export class AiActionExecutor {
       diceRoller: this.diceRoller,
       events: this.events,
       characters: this.characters,
+      monsters: this.monsters,
+      npcs: this.npcs,
       findCombatantByName: this.findCombatantByName.bind(this),
       toCombatantRef: this.toCombatantRef.bind(this),
       getMovementDeps: this.getMovementDeps.bind(this),

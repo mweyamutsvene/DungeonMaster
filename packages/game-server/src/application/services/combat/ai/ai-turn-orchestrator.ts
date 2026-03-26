@@ -102,6 +102,8 @@ export class AiTurnOrchestrator {
       diceRoller,
       events,
       characters, // for spell slot + concentration bookkeeping
+      monsters,   // for AI spell delivery (damage, saves, etc.)
+      npcs,       // for AI spell delivery (damage, saves, etc.)
     );
   }
 

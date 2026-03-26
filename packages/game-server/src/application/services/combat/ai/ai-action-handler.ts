@@ -15,6 +15,8 @@ import type { ActionService as CombatActionService } from "../action-service.js"
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
 import type { ICombatRepository } from "../../../repositories/index.js";
 import type { ICharacterRepository } from "../../../repositories/character-repository.js";
+import type { IMonsterRepository } from "../../../repositories/monster-repository.js";
+import type { INPCRepository } from "../../../repositories/npc-repository.js";
 import type { IEventRepository } from "../../../repositories/event-repository.js";
 import type { PendingActionRepository } from "../../../repositories/pending-action-repository.js";
 import type { AbilityRegistry } from "../abilities/ability-registry.js";
@@ -68,6 +70,8 @@ export interface AiActionHandlerDeps {
   diceRoller?: DiceRoller;
   events?: IEventRepository;
   characters?: ICharacterRepository;
+  monsters?: IMonsterRepository;
+  npcs?: INPCRepository;
 
   // ── shared helpers (bound methods from AiActionExecutor) ──────────
   /** Find a combatant by name — exact or partial match. */

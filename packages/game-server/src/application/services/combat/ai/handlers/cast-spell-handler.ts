@@ -1,12 +1,14 @@
 /**
  * CastSpellHandler — executes AI castSpell decisions.
- * Handles Counterspell reaction detection and spell slot management.
+ * Handles Counterspell reaction detection, spell slot management,
+ * and mechanical effect delivery (damage, healing, saves, buffs).
  */
 
 import type { AiActionHandler, AiActionHandlerContext, AiActionHandlerDeps, AiHandlerResult } from "../ai-action-handler.js";
 import { spendAction } from "../../helpers/resource-utils.js";
 import { findPreparedSpellInSheet, prepareSpellCast } from "../../helpers/spell-slot-manager.js";
 import type { CombatantRef } from "../../helpers/combatant-ref.js";
+import { AiSpellDelivery, findSpellDefinition } from "./ai-spell-delivery.js";
 
 export class CastSpellHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -14,7 +16,7 @@ export class CastSpellHandler implements AiActionHandler {
   }
 
   async execute(ctx: AiActionHandlerContext, deps: AiActionHandlerDeps): Promise<AiHandlerResult> {
-    const { sessionId, encounterId, aiCombatant, decision, actorRef } = ctx;
+    const { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef } = ctx;
     const { actionService, twoPhaseActions, combat, characters, aiLog: _aiLog, executeBonusAction } = deps;
 
     if (!actorRef) {
@@ -45,19 +47,42 @@ export class CastSpellHandler implements AiActionHandler {
 
     const isCharacterCaster = aiCombatant.combatantType === "Character" && !!aiCombatant.characterId;
 
+    // ── Look up caster entity data + spell definition ──
+    let casterSource: Record<string, unknown> = {};
     let isConcentration = false;
+
     if (isCharacterCaster && characters) {
       try {
         const characterRecord = await characters.getById(aiCombatant.characterId!);
         if (characterRecord) {
+          casterSource = (characterRecord.sheet as Record<string, unknown>) ?? {};
           const spellDef = findPreparedSpellInSheet(characterRecord.sheet, spellName);
           if (spellDef) {
             isConcentration = spellDef.concentration ?? false;
           }
         }
       } catch { /* Non-fatal */ }
+    } else if (aiCombatant.combatantType === "Monster" && aiCombatant.monsterId && deps.monsters) {
+      try {
+        const monsterRecord = await deps.monsters.getById(aiCombatant.monsterId);
+        if (monsterRecord) {
+          casterSource = (monsterRecord.statBlock as Record<string, unknown>) ?? {};
+          const spellDef = findSpellDefinition(casterSource, spellName);
+          if (spellDef) isConcentration = spellDef.concentration ?? false;
+        }
+      } catch { /* Non-fatal */ }
+    } else if (aiCombatant.combatantType === "NPC" && aiCombatant.npcId && deps.npcs) {
+      try {
+        const npcRecord = await deps.npcs.getById(aiCombatant.npcId);
+        if (npcRecord) {
+          casterSource = (npcRecord.statBlock as Record<string, unknown>) ?? {};
+          const spellDef = findSpellDefinition(casterSource, spellName);
+          if (spellDef) isConcentration = spellDef.concentration ?? false;
+        }
+      } catch { /* Non-fatal */ }
     }
 
+    // ── Counterspell reaction detection (two-phase) ──
     const initiateResult = await twoPhaseActions.initiateSpellCast(sessionId, {
       encounterId,
       actor: actorRef as CombatantRef,
@@ -115,6 +140,7 @@ export class CastSpellHandler implements AiActionHandler {
       };
     }
 
+    // ── Spell slot spending + concentration ──
     if (isCharacterCaster) {
       await prepareSpellCast(
         aiCombatant.id,
@@ -128,21 +154,60 @@ export class CastSpellHandler implements AiActionHandler {
       );
     }
 
-    // TODO: [SpellDelivery] AI spell mechanical effects (damage, healing, saving throws,
-    // buffs, zone effects) are NOT applied in the AI path. Full delivery requires the
-    // interactive tabletop dice flow (SpellAttackDeliveryHandler returns requiresPlayerInput=true).
-    // Tracked in plan-spell-path-unification.prompt.md.
+    // ── Spell mechanical effect delivery ──
+    let deliverySummary: string | null = null;
+    const spellDef = findSpellDefinition(casterSource, spellName);
+
+    if (spellDef && deps.diceRoller && deps.monsters && deps.npcs) {
+      try {
+        const delivery = new AiSpellDelivery({
+          combat,
+          characters,
+          monsters: deps.monsters,
+          npcs: deps.npcs,
+          diceRoller: deps.diceRoller,
+        });
+
+        // Resolve target combatant from decision.target
+        const targetName = (decision as Record<string, unknown>).target as string | undefined;
+        let targetCombatant = null;
+        if (targetName) {
+          targetCombatant = await deps.findCombatantByName(targetName, allCombatants);
+        }
+
+        const result = await delivery.deliver(
+          sessionId,
+          encounterId,
+          aiCombatant,
+          spellDef,
+          targetCombatant,
+          targetName,
+          castAtLevel,
+          casterSource,
+        );
+
+        if (result.applied) {
+          deliverySummary = result.summary;
+        }
+      } catch (err) {
+        console.error("[CastSpellHandler] Spell delivery error (non-fatal):", err);
+      }
+    }
+
+    // ── Mark action spent ──
     await actionService.castSpell(sessionId, { encounterId, actor: actorRef, spellName });
 
     const bonusResult = await executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-    const mainSummary = `Cast spell: ${spellName}`;
+    const mainSummary = deliverySummary
+      ? `Cast spell: ${spellName} — ${deliverySummary}`
+      : `Cast spell: ${spellName}`;
     const fullSummary = bonusResult ? `${mainSummary}; then ${bonusResult.summary}` : mainSummary;
 
     return {
       action: decision.action,
       ok: true,
       summary: fullSummary,
-      data: { spellName, spellLevel, ...(bonusResult ? { bonusAction: bonusResult } : {}) },
+      data: { spellName, spellLevel, ...(deliverySummary ? { spellEffects: deliverySummary } : {}), ...(bonusResult ? { bonusAction: bonusResult } : {}) },
     };
   }
 }
