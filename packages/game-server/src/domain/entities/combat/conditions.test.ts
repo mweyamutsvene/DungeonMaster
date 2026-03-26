@@ -300,24 +300,24 @@ describe("getConditionEffects", () => {
         expect(getExhaustionPenalty(0)).toBe(0);
       });
 
-      it("level 1 = -2", () => {
-        expect(getExhaustionPenalty(1)).toBe(-2);
+      it("level 1 = -1", () => {
+        expect(getExhaustionPenalty(1)).toBe(-1);
       });
 
-      it("level 2 = -4", () => {
-        expect(getExhaustionPenalty(2)).toBe(-4);
+      it("level 2 = -2", () => {
+        expect(getExhaustionPenalty(2)).toBe(-2);
       });
 
-      it("level 3 = -6", () => {
-        expect(getExhaustionPenalty(3)).toBe(-6);
+      it("level 3 = -3", () => {
+        expect(getExhaustionPenalty(3)).toBe(-3);
       });
 
-      it("level 6 = -12", () => {
-        expect(getExhaustionPenalty(6)).toBe(-12);
+      it("level 6 = -6", () => {
+        expect(getExhaustionPenalty(6)).toBe(-6);
       });
 
       it("clamps at level 6", () => {
-        expect(getExhaustionPenalty(10)).toBe(-12);
+        expect(getExhaustionPenalty(10)).toBe(-6);
       });
 
       it("negative levels treated as 0", () => {
@@ -417,11 +417,11 @@ describe("getConditionEffects", () => {
         expect(getExhaustionD20Penalty([])).toBe(0);
       });
 
-      it("returns -6 for level 3 exhaustion", () => {
+      it("returns -3 for level 3 exhaustion", () => {
         const conditions: ActiveCondition[] = [
           createCondition("Exhaustion", "until_removed", { source: "exhaustion:3" }),
         ];
-        expect(getExhaustionD20Penalty(conditions)).toBe(-6);
+        expect(getExhaustionD20Penalty(conditions)).toBe(-3);
       });
     });
 

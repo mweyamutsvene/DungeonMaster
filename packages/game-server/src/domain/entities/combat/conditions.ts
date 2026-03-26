@@ -448,14 +448,14 @@ export function getFrightenedSourceId(conditions: readonly ActiveCondition[]): s
 // ----- Exhaustion Level System (D&D 2024) -----
 
 /**
- * D&D 2024 Exhaustion: Each level gives -2 penalty to all d20 tests
+ * D&D 2024 Exhaustion: Each level gives -level penalty to all d20 tests
  * (attack rolls, ability checks, saving throws).
  * @param level - Exhaustion level (1-6)
  * @returns The penalty to apply to d20 rolls (negative number)
  */
 export function getExhaustionPenalty(level: number): number {
   const clamped = Math.max(0, Math.min(6, Math.floor(level)));
-  return clamped === 0 ? 0 : -(clamped * 2);
+  return clamped === 0 ? 0 : -clamped;
 }
 
 /**
