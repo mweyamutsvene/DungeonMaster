@@ -79,6 +79,10 @@ export const Bard: CharacterClassDefinition = {
     "spellcasting": 1,
     "bardic-inspiration": 1,
   },
+  resourcesAtLevel: (level, abilityModifiers) => {
+    const chaMod = abilityModifiers?.charisma ?? 0;
+    return [createBardicInspirationState(level, chaMod).pool];
+  },
   // Requires CHA mod; caller can use createBardicInspirationState instead.
   resourcePoolFactory: (level, abilityModifiers) => {
     const chaMod = abilityModifiers?.["charisma"];

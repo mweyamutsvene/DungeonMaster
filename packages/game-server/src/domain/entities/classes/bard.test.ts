@@ -5,6 +5,7 @@ import {
   createBardicInspirationState,
   resetBardicInspirationOnRest,
   spendBardicInspiration,
+  Bard,
 } from "./bard.js";
 
 describe("Bardic inspiration", () => {
@@ -40,5 +41,22 @@ describe("Bardic inspiration", () => {
     const spent = spendBardicInspiration(at5, 1);
     const shortRestRefresh = resetBardicInspirationOnRest(5, 2, spent, "short");
     expect(shortRestRefresh.pool.current).toBe(2);
+  });
+});
+
+describe("Bard.resourcesAtLevel", () => {
+  it("returns bardicInspiration pool using CHA modifier", () => {
+    const pools = Bard.resourcesAtLevel!(3, { charisma: 3 });
+    expect(pools).toEqual([{ name: "bardicInspiration", current: 3, max: 3 }]);
+  });
+
+  it("returns minimum 1 use when CHA modifier is 0 or negative", () => {
+    const pools = Bard.resourcesAtLevel!(1, { charisma: -1 });
+    expect(pools).toEqual([{ name: "bardicInspiration", current: 1, max: 1 }]);
+  });
+
+  it("defaults CHA modifier to 0 when abilityModifiers omitted", () => {
+    const pools = Bard.resourcesAtLevel!(1);
+    expect(pools).toEqual([{ name: "bardicInspiration", current: 1, max: 1 }]);
   });
 });

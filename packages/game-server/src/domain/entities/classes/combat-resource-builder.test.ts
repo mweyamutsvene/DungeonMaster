@@ -139,4 +139,32 @@ describe("buildCombatResources", () => {
     // Class pools still present
     expect(result.resourcePools.find(p => p.name === "actionSurge")).toBeDefined();
   });
+
+  it("builds Bard resources with bardicInspiration pool using CHA modifier", () => {
+    const result = buildCombatResources({
+      className: "Bard",
+      level: 5,
+      sheet: { abilityScores: { charisma: 16 } } as any, // CHA mod = +3
+    });
+
+    expect(result.resourcePools.find(p => p.name === "bardicInspiration")).toEqual({
+      name: "bardicInspiration",
+      current: 3,
+      max: 3,
+    });
+  });
+
+  it("builds Bard bardicInspiration with minimum 1 use for low CHA", () => {
+    const result = buildCombatResources({
+      className: "Bard",
+      level: 1,
+      sheet: { abilityScores: { charisma: 8 } } as any, // CHA mod = -1
+    });
+
+    expect(result.resourcePools.find(p => p.name === "bardicInspiration")).toEqual({
+      name: "bardicInspiration",
+      current: 1,
+      max: 1,
+    });
+  });
 });
