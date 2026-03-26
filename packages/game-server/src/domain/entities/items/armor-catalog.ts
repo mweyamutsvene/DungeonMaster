@@ -7,6 +7,8 @@
  */
 
 import type { EquippedArmorCategory, EquippedArmorClassFormula } from "./equipped-items.js";
+import type { CharacterItemInstance } from "./magic-item.js";
+import { lookupMagicItem } from "./magic-item-catalog.js";
 
 // ─── Catalog entry ───────────────────────────────────────────────────────
 
@@ -140,4 +142,114 @@ export function enrichSheetArmor(sheet: Record<string, unknown>): Record<string,
     },
     ...(shieldItem ? { equippedShield: { name: "Shield", armorClassBonus: 2 } } : {}),
   };
+}
+
+/**
+ * Recompute armor-related sheet fields from the character's inventory.
+ *
+ * When armor/shield equipment status changes via the inventory endpoints,
+ * this function recalculates `equippedArmor`, `equippedShield`, and
+ * `armorClass` on the sheet so that combat hydration picks up the change.
+ *
+ * Resolves base armor names from magic item definitions (via `baseArmor`)
+ * or by stripping "+N " prefixes from item names.
+ */
+export function recomputeArmorFromInventory(sheet: Record<string, unknown>): Record<string, unknown> {
+  const inventory = Array.isArray(sheet.inventory)
+    ? (sheet.inventory as CharacterItemInstance[])
+    : [];
+
+  const equippedArmorItem = inventory.find((i) => i.equipped && i.slot === "armor");
+  const equippedShieldItem = inventory.find((i) => i.equipped && i.slot === "shield");
+
+  let equippedArmor: Record<string, unknown> | undefined;
+  let equippedShield: Record<string, unknown> | undefined;
+
+  if (equippedArmorItem) {
+    let baseArmorName = equippedArmorItem.name;
+    let acBonus = 0;
+
+    // Try magic item catalog for base armor name + AC bonus
+    const magicDef = lookupMagicItem(equippedArmorItem.name);
+    if (magicDef?.baseArmor) {
+      baseArmorName = magicDef.baseArmor;
+      const acMod = magicDef.modifiers?.find((m) => m.target === "ac");
+      if (acMod?.value) acBonus = acMod.value;
+    } else {
+      // Fallback: strip "+N " prefix (e.g. "+1 Breastplate" → "Breastplate")
+      const prefixMatch = /^\+(\d+)\s+(.+)$/.exec(equippedArmorItem.name);
+      if (prefixMatch) {
+        acBonus = parseInt(prefixMatch[1], 10);
+        baseArmorName = prefixMatch[2];
+      }
+    }
+
+    const catalogEntry = lookupArmor(baseArmorName);
+    if (catalogEntry) {
+      equippedArmor = {
+        name: equippedArmorItem.name,
+        category: catalogEntry.category,
+        acFormula: {
+          base: catalogEntry.acFormula.base + acBonus,
+          addDexterityModifier: catalogEntry.acFormula.addDexterityModifier,
+          ...(catalogEntry.acFormula.dexterityModifierMax !== undefined
+            ? { dexterityModifierMax: catalogEntry.acFormula.dexterityModifierMax }
+            : {}),
+        },
+        stealthDisadvantage: catalogEntry.stealthDisadvantage,
+      };
+    }
+  }
+
+  if (equippedShieldItem) {
+    let shieldBonus = 2; // Standard shield
+    const magicDef = lookupMagicItem(equippedShieldItem.name);
+    if (magicDef) {
+      const acMod = magicDef.modifiers?.find((m) => m.target === "ac");
+      if (acMod?.value) shieldBonus += acMod.value;
+    }
+    equippedShield = { name: equippedShieldItem.name, armorClassBonus: shieldBonus };
+  }
+
+  // Recompute numeric armorClass from equipped armor + DEX
+  const abilityScores = sheet.abilityScores;
+  let dexScore = 10;
+  if (abilityScores && typeof abilityScores === "object") {
+    const scores = abilityScores as Record<string, unknown>;
+    if (typeof scores.dexterity === "number") dexScore = scores.dexterity;
+  }
+  const dexMod = Math.floor((dexScore - 10) / 2);
+
+  let newAC: number;
+  if (equippedArmor) {
+    const formula = equippedArmor.acFormula as EquippedArmorClassFormula;
+    const cappedDex =
+      formula.dexterityModifierMax !== undefined
+        ? Math.min(dexMod, formula.dexterityModifierMax)
+        : dexMod;
+    newAC = formula.base + (formula.addDexterityModifier ? cappedDex : 0);
+  } else {
+    newAC = 10 + dexMod;
+  }
+
+  if (equippedShield) {
+    newAC += (equippedShield as Record<string, unknown>).armorClassBonus as number;
+  }
+
+  // Build updated sheet, removing enriched fields when nothing is equipped
+  const result: Record<string, unknown> = { ...sheet, armorClass: newAC };
+
+  if (equippedArmor) {
+    result.equippedArmor = equippedArmor;
+  } else {
+    delete result.equippedArmor;
+  }
+
+  if (equippedShield) {
+    result.equippedShield = equippedShield;
+  } else {
+    delete result.equippedShield;
+  }
+
+  return result;
 }

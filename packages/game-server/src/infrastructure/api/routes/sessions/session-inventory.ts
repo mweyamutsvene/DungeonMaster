@@ -23,6 +23,7 @@ import {
   getAttunedCount,
   MAX_ATTUNEMENT_SLOTS,
 } from "../../../../domain/entities/items/inventory.js";
+import { recomputeArmorFromInventory } from "../../../../domain/entities/items/armor-catalog.js";
 
 function getInventoryFromSheet(sheet: Record<string, unknown>): CharacterItemInstance[] {
   return Array.isArray(sheet.inventory) ? (sheet.inventory as CharacterItemInstance[]) : [];
@@ -111,6 +112,15 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
     };
 
     const updated = addInventoryItem(inventory, newItem);
+
+    // Recompute sheet AC if equipping armor or shield
+    const isArmorChange = newItem.equipped && (newItem.slot === "armor" || newItem.slot === "shield");
+    if (isArmorChange) {
+      const enrichedSheet = recomputeArmorFromInventory({ ...sheet, inventory: updated });
+      await deps.charactersRepo.updateSheet(char.id, enrichedSheet);
+      return { inventory: updated };
+    }
+
     await saveInventory(deps, char.id, sheet, updated);
 
     return { inventory: updated };
@@ -188,6 +198,16 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
         ...(slot !== undefined && { slot: slot as CharacterItemInstance["slot"] }),
       };
     });
+
+    // Recompute sheet AC if armor or shield equipment state changed
+    const isArmorSlot = item.slot === "armor" || item.slot === "shield"
+      || slot === "armor" || slot === "shield";
+    const equipStateChanged = equipped !== undefined && equipped !== item.equipped;
+    if (isArmorSlot && equipStateChanged) {
+      const enrichedSheet = recomputeArmorFromInventory({ ...sheet, inventory: updated });
+      await deps.charactersRepo.updateSheet(char.id, enrichedSheet);
+      return { inventory: updated };
+    }
 
     await saveInventory(deps, char.id, sheet, updated);
 

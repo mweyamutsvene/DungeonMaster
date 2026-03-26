@@ -64,7 +64,7 @@ export async function applyKoEffectsIfNeeded(
 
   let conditions = normalizeConditions(combatant.conditions);
   conditions = addCondition(conditions, createCondition("Unconscious" as Condition, "until_removed"));
-  conditions = addCondition(conditions, createCondition("Prone" as Condition, "until_removed"));
+  // Prone is auto-applied by addCondition when Unconscious is added (D&D 5e 2024 rule)
 
   await combatRepo.updateCombatantState(combatant.id, {
     resources: updatedResources,

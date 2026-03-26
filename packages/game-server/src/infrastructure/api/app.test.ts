@@ -193,7 +193,7 @@ class MemoryCombatRepository implements ICombatRepository {
 
   async updateCombatantState(
     id: string,
-    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "initiative" | "conditions" | "resources">>,
+    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "hpTemp" | "initiative" | "conditions" | "resources">>,
   ): Promise<CombatantStateRecord> {
     for (const [encounterId, list] of this.combatantsByEncounter.entries()) {
       const idx = list.findIndex((c) => c.id === id);
@@ -223,6 +223,7 @@ class MemoryCombatRepository implements ICombatRepository {
       initiative: number | null;
       hpCurrent: number;
       hpMax: number;
+      hpTemp?: number;
       conditions: JsonValue;
       resources: JsonValue;
     }>,
@@ -240,6 +241,7 @@ class MemoryCombatRepository implements ICombatRepository {
         initiative: c.initiative,
         hpCurrent: c.hpCurrent,
         hpMax: c.hpMax,
+        hpTemp: c.hpTemp ?? 0,
         conditions: c.conditions,
         resources: c.resources,
         createdAt: new Date(baseTime + i),
@@ -2520,6 +2522,77 @@ describe("game-server api", () => {
     expect(res.statusCode).toBe(400);
     const body = res.json() as any;
     expect(body.message).toContain("maximum");
+
+    await app.close();
+  });
+
+  it("PATCH inventory equipping armor recalculates sheet AC", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    // Create character with 14 DEX (modifier +2) and base AC 10
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Knight",
+        level: 5,
+        className: "fighter",
+        sheet: {
+          maxHP: 40,
+          armorClass: 12,
+          abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 10, charisma: 10 },
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    // Add +1 Breastplate to inventory (not equipped yet)
+    await app.inject({
+      method: "POST",
+      url: invUrl,
+      payload: { name: "+1 Breastplate", slot: "armor", equipped: false, quantity: 1 },
+    });
+
+    // Verify current sheet AC is still 12
+    let charData = await app.inject({ method: "GET", url: `/sessions/${sessionId}` });
+    let session = charData.json() as any;
+    let knight = session.characters.find((c: any) => c.name === "Knight");
+    expect(knight.sheet.armorClass).toBe(12);
+
+    // Equip the armor via PATCH
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: `${invUrl}/%2B1%20Breastplate`,
+      payload: { equipped: true },
+    });
+    expect(patchRes.statusCode).toBe(200);
+
+    // Verify sheet AC updated: Breastplate base 14 + 1 magic + 2 DEX (capped at 2) = 17
+    charData = await app.inject({ method: "GET", url: `/sessions/${sessionId}` });
+    session = charData.json() as any;
+    knight = session.characters.find((c: any) => c.name === "Knight");
+    expect(knight.sheet.armorClass).toBe(17);
+    expect(knight.sheet.equippedArmor).toBeDefined();
+    expect(knight.sheet.equippedArmor.name).toBe("+1 Breastplate");
+    expect(knight.sheet.equippedArmor.category).toBe("medium");
+
+    // Unequip the armor
+    await app.inject({
+      method: "PATCH",
+      url: `${invUrl}/%2B1%20Breastplate`,
+      payload: { equipped: false },
+    });
+
+    // Verify AC reverts to unarmored: 10 + 2 DEX = 12
+    charData = await app.inject({ method: "GET", url: `/sessions/${sessionId}` });
+    session = charData.json() as any;
+    knight = session.characters.find((c: any) => c.name === "Knight");
+    expect(knight.sheet.armorClass).toBe(12);
+    expect(knight.sheet.equippedArmor).toBeUndefined();
 
     await app.close();
   });

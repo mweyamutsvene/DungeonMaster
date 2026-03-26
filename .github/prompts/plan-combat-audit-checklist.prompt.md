@@ -35,16 +35,17 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Entity / Hydration
 
-- [ ] **[ENT-H1]** Temp HP not persisted — `CombatantStateRecord` has no `hpTemp` field. Temp HP gained mid-combat is lost on server restart / re-hydration.
+- [x] **[ENT-H1]** Temp HP not persisted — `CombatantStateRecord` has no `hpTemp` field. Temp HP gained mid-combat is lost on server restart / re-hydration.
   - File: `application/types.ts`, `application/services/combat/helpers/creature-hydration.ts:253`
 
 - [ ] **[ENT-H2]** Monster/NPC damage resistances not on domain entity — `Creature` base class has no `getDamageResistances()`/`getDamageImmunities()` methods. All callers must side-channel through `extractDamageDefenses(statBlock)`. Easy to miss in new combat paths.
   - File: `domain/entities/creatures/`, `application/services/combat/helpers/creature-hydration.ts`
 
-- [ ] **[ENT-H3]** Magic armor equip via inventory PATCH doesn't update sheet AC — `enrichSheetArmor()` only runs at character creation. Equipping `+1 Breastplate` post-creation has no effect on numeric AC.
+- [x] **[ENT-H3]** Magic armor equip via inventory PATCH doesn't update sheet AC — `enrichSheetArmor()` only runs at character creation. Equipping `+1 Breastplate` post-creation has no effect on numeric AC.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
+  - Fix: Added `recomputeArmorFromInventory()` to `armor-catalog.ts`; PATCH and POST inventory endpoints call it when armor/shield equipment changes.
 
-- [ ] **[ENT-H4]** Monsters cannot be deleted — `IMonsterRepository` has no `delete()` method (unlike `INPCRepository`). A monster added by mistake cannot be removed.
+- [x] **[ENT-H4]** Monsters cannot be deleted — `IMonsterRepository` has no `delete()` method (unlike `INPCRepository`). A monster added by mistake cannot be removed.
   - File: `application/repositories/monster-repository.ts`, `infrastructure/db/`
 
 ### Combat Conditions
@@ -55,8 +56,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [x] **[RULES-H2]** Petrified condition missing resistance to all damage + poison/disease immunity. Interface `ConditionEffects` has no `resistsAllDamage` field.
   - File: `domain/entities/combat/conditions.ts:188-196`
 
-- [ ] **[RULES-H3]** Unconscious condition does not auto-apply Prone or drop items when applied.
+- [x] **[RULES-H3]** Unconscious condition does not auto-apply Prone or drop items when applied.
   - File: `domain/entities/combat/conditions.ts:233-244`
+  - Fixed: `addCondition()` now auto-cascades Prone when Unconscious is applied. Item dropping noted as TODO (inventory doesn't support forced drops yet).
 
 ### Combat Orchestration
 

@@ -16,6 +16,8 @@ import {
   createExhaustionCondition,
   getExhaustionD20Penalty,
   createCondition,
+  addCondition,
+  hasCondition,
   type ActiveCondition,
 } from "./conditions.js";
 
@@ -568,6 +570,34 @@ describe("getConditionEffects", () => {
         createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
       ];
       expect(getCharmedSourceIds(conditions)).toEqual(["npc-wizard-1"]);
+    });
+  });
+
+  // --- Unconscious auto-applies Prone (D&D 5e 2024) ---
+  describe("addCondition: Unconscious auto-applies Prone", () => {
+    it("adding Unconscious also adds Prone", () => {
+      const result = addCondition([], createCondition("Unconscious", "until_removed"));
+      expect(hasCondition(result, "Unconscious")).toBe(true);
+      expect(hasCondition(result, "Prone")).toBe(true);
+    });
+
+    it("does not duplicate Prone if already present", () => {
+      const initial = [createCondition("Prone" as any, "until_removed")];
+      const result = addCondition(initial, createCondition("Unconscious", "until_removed"));
+      expect(hasCondition(result, "Unconscious")).toBe(true);
+      const proneCount = result.filter((c) => c.condition === "Prone").length;
+      expect(proneCount).toBe(1);
+    });
+
+    it("propagates source from Unconscious to auto-applied Prone", () => {
+      const result = addCondition([], createCondition("Unconscious", "until_removed", { source: "sleep-spell" }));
+      const prone = result.find((c) => c.condition === "Prone");
+      expect(prone?.source).toBe("sleep-spell");
+    });
+
+    it("adding other conditions does not auto-apply Prone", () => {
+      const result = addCondition([], createCondition("Stunned", "until_removed"));
+      expect(hasCondition(result, "Prone")).toBe(false);
     });
   });
 });

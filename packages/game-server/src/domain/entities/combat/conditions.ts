@@ -640,6 +640,8 @@ export function hasCondition(conditions: readonly ActiveCondition[], conditionNa
 
 /**
  * Add a condition to the list (does not duplicate if already present from the same source).
+ * D&D 5e 2024: Unconscious auto-applies Prone (creature falls prone).
+ * TODO: Unconscious should also force dropping held items once inventory supports forced drops.
  * Returns a new array.
  */
 export function addCondition(
@@ -651,7 +653,18 @@ export function addCondition(
     (c) => c.condition === newCondition.condition && c.source === newCondition.source,
   );
   if (exists) return [...conditions];
-  return [...conditions, newCondition];
+
+  let result = [...conditions, newCondition];
+
+  // D&D 5e 2024: Unconscious automatically applies Prone
+  if (newCondition.condition === "Unconscious") {
+    const alreadyProne = result.some((c) => c.condition === "Prone");
+    if (!alreadyProne) {
+      result = [...result, createCondition("Prone" as Condition, "until_removed", { source: newCondition.source })];
+    }
+  }
+
+  return result;
 }
 
 /**
