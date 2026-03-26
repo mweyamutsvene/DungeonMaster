@@ -8,6 +8,14 @@
 
 import { ValidationError } from "../../../errors.js";
 import type { LlmRoster, CombatantRef } from "../../../commands/game-command.js";
+import type { ActiveCondition } from "../../../../domain/entities/combat/conditions.js";
+import {
+  hasSelfAttackAdvantage,
+  hasIncomingAttackDisadvantage,
+  hasAttackAdvantage,
+  hasAttackDisadvantage,
+  getProneAttackModifier,
+} from "../../../../domain/entities/combat/conditions.js";
 
 // ----- Formula helpers -----
 
@@ -24,45 +32,44 @@ export function doubleDiceInFormula(formula: string): string {
 
 /**
  * Derive roll mode (advantage/disadvantage/normal) from combatant conditions.
- * D&D 5e 2024 rules — see inline comments for condition effects.
+ * D&D 5e 2024 rules — delegates to centralized condition helpers in conditions.ts.
  *
  * When both advantage and disadvantage apply, they cancel out → normal.
+ *
+ * @param distanceFt - Optional attacker-to-target distance. When provided, Prone
+ *   advantage/disadvantage uses distance (≤5ft → melee advantage, >5ft → disadvantage)
+ *   instead of weapon attackKind alone. This correctly handles reach weapons.
  */
 export function deriveRollModeFromConditions(
-  attackerConditions: string[],
-  targetConditions: string[],
+  attackerConditions: readonly ActiveCondition[],
+  targetConditions: readonly ActiveCondition[],
   attackKind: "melee" | "ranged",
   extraAdvantageSources = 0,
   extraDisadvantageSources = 0,
+  distanceFt?: number,
 ): "normal" | "advantage" | "disadvantage" {
   let advantageSources = extraAdvantageSources;
   let disadvantageSources = extraDisadvantageSources;
 
-  // Attacker conditions
-  const atkLower = attackerConditions.map(c => c.toLowerCase());
-  if (atkLower.includes("prone")) disadvantageSources++;
-  if (atkLower.includes("blinded")) disadvantageSources++;
-  if (atkLower.includes("poisoned")) disadvantageSources++;
-  if (atkLower.includes("restrained")) disadvantageSources++;
-  // Hidden grants advantage on the first attack
-  if (atkLower.includes("hidden")) advantageSources++;
+  // Attacker conditions — delegate to condition helpers
+  // hasSelfAttackAdvantage: Invisible, Hidden → advantage on own attacks
+  if (hasSelfAttackAdvantage(attackerConditions)) advantageSources++;
+  // hasAttackDisadvantage: Blinded, Frightened, Poisoned, Restrained, Prone, Sapped, Addled → disadvantage
+  if (hasAttackDisadvantage(attackerConditions)) disadvantageSources++;
 
-  // Target conditions
-  const tgtLower = targetConditions.map(c => c.toLowerCase());
+  // Target conditions — delegate to condition helpers
+  // hasAttackAdvantage: Blinded, Paralyzed, Stunned, Unconscious, Petrified, Restrained, StunningStrikePartial → advantage
+  if (hasAttackAdvantage(targetConditions)) advantageSources++;
+  // hasIncomingAttackDisadvantage: Invisible → disadvantage on incoming attacks
+  if (hasIncomingAttackDisadvantage(targetConditions)) disadvantageSources++;
 
-  if (tgtLower.includes("prone")) {
-    if (attackKind === "melee") {
-      advantageSources++; // Melee attacks have advantage vs prone
-    } else {
-      disadvantageSources++; // Ranged attacks have disadvantage vs prone
-    }
-  }
-  if (tgtLower.includes("blinded")) advantageSources++;
-  if (tgtLower.includes("paralyzed")) advantageSources++;
-  if (tgtLower.includes("stunned")) advantageSources++;
-  if (tgtLower.includes("restrained")) advantageSources++;
-  if (tgtLower.includes("stunningstrikepartial")) advantageSources++; // 2024 partial stun: next attack has advantage
-  if (tgtLower.includes("unconscious") && attackKind === "melee") advantageSources++;
+  // Prone target: distance-aware advantage/disadvantage (D&D 5e 2024)
+  // When distance is known, use it for accurate reach-weapon handling.
+  // Fallback to weapon kind defaults when distance is not available.
+  const proneDistance = distanceFt ?? (attackKind === "melee" ? 5 : 30);
+  const proneModifier = getProneAttackModifier(targetConditions, proneDistance, attackKind);
+  if (proneModifier === "advantage") advantageSources++;
+  if (proneModifier === "disadvantage") disadvantageSources++;
 
   // D&D 5e: if any advantage AND any disadvantage → cancel to normal
   if (advantageSources > 0 && disadvantageSources > 0) return "normal";
@@ -410,16 +417,17 @@ export function tryParseEscapeGrappleText(input: string): true | null {
 }
 
 /**
- * Parse "cast <spell> [at <target>]" or "cast <spell> on <target>".
- * Returns { spellName, targetName? } if matched, null otherwise.
+ * Parse "cast <spell> [at level N] [at <target>]" or "cast <spell> [at level N] on <target>".
+ * Returns { spellName, targetName?, castAtLevel? } if matched, null otherwise.
  */
-export function tryParseCastSpellText(input: string): { spellName: string; targetName?: string } | null {
+export function tryParseCastSpellText(input: string): { spellName: string; targetName?: string; castAtLevel?: number } | null {
   const normalized = input.trim().toLowerCase();
-  const match = normalized.match(/\bcast\s+(.+?)(?:\s+(?:at|on)\s+(.+))?\s*$/i);
+  const match = normalized.match(/\bcast\s+(.+?)(?:\s+at\s+level\s+(\d+))?(?:\s+(?:at|on)\s+(.+))?\s*$/i);
   if (!match) return null;
   const spellName = match[1]!.trim();
-  const targetName = match[2]?.trim();
-  return { spellName, targetName };
+  const targetName = match[3]?.trim();
+  const castAtLevel = match[2] ? parseInt(match[2], 10) : undefined;
+  return { spellName, targetName, castAtLevel };
 }
 
 /**

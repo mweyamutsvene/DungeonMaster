@@ -40,6 +40,9 @@ export class CastSpellHandler implements AiActionHandler {
     const spellLevelRaw = (decision as Record<string, unknown>).spellLevel;
     const spellLevel = typeof spellLevelRaw === "number" ? spellLevelRaw : 1;
 
+    const castAtLevelRaw = (decision as Record<string, unknown>).castAtLevel;
+    const castAtLevel = typeof castAtLevelRaw === "number" ? castAtLevelRaw : undefined;
+
     const isCharacterCaster = aiCombatant.combatantType === "Character" && !!aiCombatant.characterId;
 
     let isConcentration = false;
@@ -79,6 +82,8 @@ export class CastSpellHandler implements AiActionHandler {
           spellLevel,
           isConcentration,
           combat,
+          undefined,
+          castAtLevel,
         );
       }
 
@@ -118,6 +123,8 @@ export class CastSpellHandler implements AiActionHandler {
         spellLevel,
         isConcentration,
         combat,
+        undefined,
+        castAtLevel,
       );
     }
 

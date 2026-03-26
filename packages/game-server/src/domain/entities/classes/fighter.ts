@@ -84,6 +84,7 @@ export const Fighter: CharacterClassDefinition = {
     savingThrows: ["strength", "constitution"],
   },
   features: {
+    "fighting-style": 1,
     "weapon-mastery": 1,
     "second-wind": 1,
     "action-surge": 2,

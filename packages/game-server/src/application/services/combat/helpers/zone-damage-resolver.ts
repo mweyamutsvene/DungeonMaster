@@ -22,6 +22,7 @@ import {
 } from "../../../../domain/entities/combat/zones.js";
 import { applyDamageDefenses, type DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
+import { applyEvasion } from "../../../../domain/rules/evasion.js";
 import { applyKoEffectsIfNeeded } from "./ko-handler.js";
 import type { CombatantStateRecord, JsonValue } from "../../../types.js";
 
@@ -67,6 +68,8 @@ export interface ZoneDamageResolverDeps {
   };
   /** Flat bonus added to saving throws (e.g., from passive zone auras like Paladin Aura of Protection) */
   passiveZoneSaveBonus?: number;
+  /** Whether the moving creature has the Evasion feature (Monk 7/Rogue 7) — caller checks class info */
+  hasEvasion?: boolean;
   debugLog?: boolean;
 }
 
@@ -244,8 +247,10 @@ async function applyZoneEffectsForTrigger(
       rawDamage = Math.floor(effect.damage.diceCount * ((effect.damage.diceSides + 1) / 2)) + (effect.damage.modifier ?? 0);
     }
 
-    // Half damage on successful save
-    if (saveSuccess && effect.halfDamageOnSave) {
+    // Apply Evasion for DEX saves, or normal save damage reduction
+    if (effect.saveAbility === "dexterity" && deps.hasEvasion) {
+      rawDamage = applyEvasion(rawDamage, saveSuccess, true, effect.halfDamageOnSave ?? true);
+    } else if (saveSuccess && effect.halfDamageOnSave) {
       rawDamage = Math.floor(rawDamage / 2);
     } else if (saveSuccess && !effect.halfDamageOnSave) {
       rawDamage = 0; // Full save negation

@@ -30,6 +30,7 @@ import { findCombatantStateByRef } from "./helpers/combatant-ref.js";
 import { ValidationError, NotFoundError } from "../../errors.js";
 import { normalizeResources, readBoolean } from "./helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
+import { applyEvasion, creatureHasEvasion } from "../../../domain/rules/evasion.js";
 import type { JsonValue } from "../../types.js";
 import { MoveReactionHandler } from "./two-phase/move-reaction-handler.js";
 import { AttackReactionHandler } from "./two-phase/attack-reaction-handler.js";
@@ -384,18 +385,19 @@ export class TwoPhaseActionService {
         let totalDamage = Math.max(0, dmgRoll.total);
 
         let dexSaveMod = 0;
+        let attackerHasEvasion = false;
         try {
           const attackerStats = await this.combatants.getCombatStats(drData.attackerId);
           const dex = (attackerStats.abilityScores as Record<string, number>).dexterity ?? 10;
           dexSaveMod = Math.floor((dex - 10) / 2);
+          attackerHasEvasion = creatureHasEvasion(attackerStats.className, attackerStats.level);
         } catch { /* default 0 */ }
         const saveRoll = input.diceRoller.rollDie(20);
         const saveTotal = saveRoll.total + dexSaveMod;
         retaliationSaved = saveTotal >= spellSaveDC;
 
-        if (retaliationSaved) {
-          totalDamage = Math.floor(totalDamage / 2);
-        }
+        // Apply Evasion for DEX saves (Hellish Rebuke is always DEX save, half on save)
+        totalDamage = applyEvasion(totalDamage, retaliationSaved, attackerHasEvasion, true);
         retaliationDamage = totalDamage;
 
         if (totalDamage > 0) {

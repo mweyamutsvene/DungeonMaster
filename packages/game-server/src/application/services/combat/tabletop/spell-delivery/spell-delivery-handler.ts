@@ -19,9 +19,11 @@ export interface SpellCastingContext {
   sessionId: string;
   encounterId: string;
   actorId: string;
-  castInfo: { spellName: string; targetName?: string };
+  castInfo: { spellName: string; targetName?: string; castAtLevel?: number };
   spellMatch: PreparedSpellDefinition;
   spellLevel: number;
+  /** The effective slot level consumed (equals castAtLevel if upcasting, else spellLevel). */
+  castAtLevel?: number;
   isConcentration: boolean;
   sheet: any;
   characters: any[];

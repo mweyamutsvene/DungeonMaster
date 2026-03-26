@@ -13,6 +13,7 @@ import {
   addCondition,
   removeCondition,
   createCondition,
+  getExhaustionD20Penalty,
   type ActiveCondition,
   type Condition,
   type ConditionDuration,
@@ -171,6 +172,16 @@ export class SavingThrowResolver {
       }
     }
     totalModifier += effectSaveDiceBonus;
+
+    // ── D&D 2024 Exhaustion: flat penalty to all d20 tests (-2 per level) ──
+    const targetConditionsForExhaustion = normalizeConditions(targetCombatantForEffects?.conditions as unknown[] ?? []);
+    const exhaustionPenalty = getExhaustionD20Penalty(targetConditionsForExhaustion);
+    if (exhaustionPenalty !== 0) {
+      totalModifier += exhaustionPenalty;
+      if (this.debugLogsEnabled) {
+        console.log(`[SavingThrowResolver] Exhaustion penalty ${exhaustionPenalty} on save`);
+      }
+    }
 
     // ── Cover bonus for DEX saves (D&D 5e 2024) ──
     let coverBonusApplied = 0;

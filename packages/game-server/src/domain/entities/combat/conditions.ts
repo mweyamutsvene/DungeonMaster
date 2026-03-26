@@ -275,6 +275,27 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         movementImpaired: true,
       };
 
+    case 'Hidden':
+      // Stealth: advantage on the creature's first attack
+      return {
+        ...baseEffects,
+        selfAttackAdvantage: true,
+      };
+
+    case 'StunningStrikePartial':
+      // 2024 partial stun: advantage on next attack against this target, speed halved
+      return {
+        ...baseEffects,
+        attackRollsHaveAdvantage: true,
+      };
+
+    case 'Addled':
+      // Open Hand Technique: disadvantage on next attack roll
+      return {
+        ...baseEffects,
+        attackRollsHaveDisadvantage: true,
+      };
+
     default:
       return baseEffects;
   }

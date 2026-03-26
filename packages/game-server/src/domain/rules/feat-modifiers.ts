@@ -8,9 +8,11 @@ export const FEAT_ABILITY_SCORE_IMPROVEMENT = "feat_ability-score-improvement";
 export const FEAT_ALERT = "feat_alert";
 export const FEAT_ARCHERY = "feat_archery";
 export const FEAT_DEFENSE = "feat_defense";
+export const FEAT_DUELING = "feat_dueling";
 export const FEAT_GRAPPLER = "feat_grappler";
 export const FEAT_GREAT_WEAPON_FIGHTING = "feat_great-weapon-fighting";
 export const FEAT_MAGIC_INITIATE = "feat_magic-initiate";
+export const FEAT_PROTECTION = "feat_protection";
 export const FEAT_SAVAGE_ATTACKER = "feat_savage-attacker";
 export const FEAT_SKILLED = "feat_skilled";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
@@ -42,10 +44,21 @@ export interface FeatModifiers {
   armorClassBonusWhileArmored: number;
 
   /**
+   * Dueling: +2 bonus to damage rolls when wielding a melee weapon in one hand
+   * and no other weapons (shield is allowed).
+   */
+  duelingDamageBonus: number;
+
+  /**
    * Great Weapon Fighting: treat any 1 or 2 on a damage die as a 3.
    * This is a deterministic transform of already-rolled dice.
    */
   greatWeaponFightingDamageDieMinimum: number;
+
+  /**
+   * Protection: can impose disadvantage on attacks against nearby allies (reaction, requires shield).
+   */
+  protectionEnabled: boolean;
 
   /**
    * Two-Weapon Fighting: add ability modifier to bonus attack damage.
@@ -72,7 +85,9 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     // Fighting style feats
     rangedAttackBonus: set.has(FEAT_ARCHERY) ? 2 : 0,
     armorClassBonusWhileArmored: set.has(FEAT_DEFENSE) ? 1 : 0,
+    duelingDamageBonus: set.has(FEAT_DUELING) ? 2 : 0,
     greatWeaponFightingDamageDieMinimum: set.has(FEAT_GREAT_WEAPON_FIGHTING) ? 3 : 0,
+    protectionEnabled: set.has(FEAT_PROTECTION),
     twoWeaponFightingAddsAbilityModifierToBonusAttackDamage: set.has(FEAT_TWO_WEAPON_FIGHTING),
 
     // Other feats (placeholders)
@@ -108,4 +123,25 @@ export function shouldApplyGreatWeaponFighting(params: {
 
   const twoHandedOrVersatile = props.has("two-handed") || props.has("versatile");
   return hands === 2 && twoHandedOrVersatile;
+}
+
+/**
+ * D&D 5e 2024 Dueling: +2 bonus to damage when wielding a melee weapon in one hand
+ * and no other weapons. A shield is allowed.
+ */
+export function shouldApplyDueling(params: {
+  attackKind?: AttackKind;
+  weapon?: WeaponContext;
+}): boolean {
+  if (params.attackKind !== "melee") return false;
+
+  const hands = params.weapon?.hands;
+  const properties = params.weapon?.properties ?? [];
+  const props = new Set(properties.map((p) => p.trim().toLowerCase()));
+
+  // Dueling requires one-handed wielding. Two-handed weapons are excluded.
+  // Versatile weapons wielded in one hand qualify.
+  if (hands === 2) return false;
+  if (props.has("two-handed")) return false;
+  return true;
 }

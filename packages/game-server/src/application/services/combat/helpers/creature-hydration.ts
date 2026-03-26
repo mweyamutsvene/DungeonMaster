@@ -18,6 +18,8 @@ import type {
   CombatantStateRecord,
 } from "../../../types.js";
 import { readNumber, readString, readArray, readObject } from "./json-helpers.js";
+import type { FightingStyleId } from "../../../../domain/entities/classes/fighting-style.js";
+import { isFightingStyleId } from "../../../../domain/entities/classes/fighting-style.js";
 
 /**
  * Parse ability scores from JSON sheet.
@@ -103,6 +105,10 @@ export function hydrateCharacter(
   const featIds = readArray<string>(sheet, 'featIds') ?? readArray<string>(sheet, 'feats') ?? [];
   const resourcePools = extractResourcePools(readArray(sheet, 'resourcePools'));
   
+  // Parse fighting style
+  const fightingStyleRaw = readString(sheet, 'fightingStyle');
+  const fightingStyle = fightingStyleRaw && isFightingStyleId(fightingStyleRaw) ? fightingStyleRaw : undefined;
+  
   // Parse class ID
   const classId = readString(sheet, 'classId') ?? record.className?.toLowerCase();
   
@@ -132,6 +138,7 @@ export function hydrateCharacter(
     experiencePoints,
     resourcePools,
     featIds,
+    fightingStyle,
     darkvisionRange: speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
   };

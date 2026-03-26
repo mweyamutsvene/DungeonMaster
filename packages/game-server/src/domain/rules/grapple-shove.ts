@@ -18,6 +18,27 @@
 
 import type { DiceRoller } from "./dice-roller.js";
 import { abilityCheck } from "./ability-checks.js";
+import { rollD20, type RollMode } from "./advantage.js";
+
+/** Options to thread condition-based modifiers into grapple/shove rolls. */
+export interface GrappleShoveOptions {
+  /** Roll mode for the attacker's Unarmed Strike (Poisoned → disadvantage). */
+  attackerMode?: RollMode;
+  /** Flat d20 penalty for the attacker (Exhaustion, negative value). */
+  attackerD20Penalty?: number;
+  /** Roll mode for the target's saving throw (Poisoned → disadvantage). */
+  targetSaveMode?: RollMode;
+  /** Flat d20 penalty for the target's save (Exhaustion, negative value). */
+  targetSavePenalty?: number;
+}
+
+/** Options to thread condition-based modifiers into escape-grapple rolls. */
+export interface EscapeGrappleOptions {
+  /** Roll mode for the escapee's ability check (Poisoned → disadvantage). */
+  mode?: RollMode;
+  /** Flat d20 penalty for the escapee (Exhaustion, negative value). */
+  d20Penalty?: number;
+}
 
 export interface GrappleShoveResult {
   success: boolean;
@@ -64,6 +85,7 @@ export function grappleTarget(
   targetTooLarge: boolean,
   hasFreeHand: boolean,
   diceRoller: DiceRoller,
+  options?: GrappleShoveOptions,
 ): GrappleShoveResult {
   const missResult: GrappleShoveResult = {
     success: false, attackRoll: 0, attackTotal: 0, targetAC, hit: false,
@@ -77,7 +99,7 @@ export function grappleTarget(
     return { ...missResult, reason: "You need at least one free hand to grapple" };
   }
 
-  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller);
+  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller, options);
 }
 
 /**
@@ -93,6 +115,7 @@ export function shoveTarget(
   targetDexMod: number,
   targetTooLarge: boolean,
   diceRoller: DiceRoller,
+  options?: GrappleShoveOptions,
 ): GrappleShoveResult {
   if (targetTooLarge) {
     return {
@@ -102,7 +125,7 @@ export function shoveTarget(
     };
   }
 
-  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller);
+  return resolveUnarmedStrike(attackerStrMod, attackerProfBonus, targetAC, targetStrMod, targetDexMod, diceRoller, options);
 }
 
 /**
@@ -123,6 +146,7 @@ export function escapeGrapple(
     athleticsBonus?: number;
     acrobaticsBonus?: number;
   },
+  options?: EscapeGrappleOptions,
 ): EscapeGrappleResult {
   const dc = 8 + grapplerStrMod + grapplerProfBonus;
 
@@ -133,9 +157,11 @@ export function escapeGrapple(
 
   // Escapee picks the skill that gives the higher total modifier
   const useDex = acrobaticsTotal > athleticsTotal;
-  const mod = useDex ? acrobaticsTotal : athleticsTotal;
+  // Apply exhaustion flat penalty to the ability modifier
+  const d20Penalty = options?.d20Penalty ?? 0;
+  const mod = (useDex ? acrobaticsTotal : athleticsTotal) + d20Penalty;
 
-  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: mod, mode: "normal" });
+  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: mod, mode: options?.mode ?? "normal" });
 
   return {
     success: saveCheck.success,
@@ -160,10 +186,14 @@ function resolveUnarmedStrike(
   targetStrMod: number,
   targetDexMod: number,
   diceRoller: DiceRoller,
+  options?: GrappleShoveOptions,
 ): GrappleShoveResult {
-  // Step 1: Unarmed Strike attack roll
-  const attackRoll = diceRoller.rollDie(20).total;
-  const attackTotal = attackRoll + attackerStrMod + attackerProfBonus;
+  // Step 1: Unarmed Strike attack roll (apply mode and flat penalty from conditions)
+  const attackMode = options?.attackerMode ?? "normal";
+  const attackPenalty = options?.attackerD20Penalty ?? 0;
+  const attackOutcome = rollD20(diceRoller, attackMode);
+  const attackRoll = attackOutcome.chosen;
+  const attackTotal = attackRoll + attackerStrMod + attackerProfBonus + attackPenalty;
   const hit = attackTotal >= targetAC;
 
   if (!hit) {
@@ -181,12 +211,13 @@ function resolveUnarmedStrike(
     };
   }
 
-  // Step 2: Target saving throw vs DC
+  // Step 2: Target saving throw vs DC (apply mode and flat penalty from conditions)
   const dc = 8 + attackerStrMod + attackerProfBonus;
   const useDex = targetDexMod > targetStrMod;
-  const targetMod = useDex ? targetDexMod : targetStrMod;
+  const savePenalty = options?.targetSavePenalty ?? 0;
+  const targetMod = (useDex ? targetDexMod : targetStrMod) + savePenalty;
 
-  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: targetMod, mode: "normal" });
+  const saveCheck = abilityCheck(diceRoller, { dc, abilityModifier: targetMod, mode: options?.targetSaveMode ?? "normal" });
 
   return {
     success: !saveCheck.success, // target must BEAT the DC to resist → if target fails, grapple/shove succeeds

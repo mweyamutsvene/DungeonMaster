@@ -1,5 +1,5 @@
 ---
-name: DungeonMaster Developer
+name: DMDeveloper
 description: Full-stack development agent for the DungeonMaster D&D 5e rules engine, Fastify game server, and CLI harness. Use for implementing features, refactoring, debugging, and architecture work.
 argument-hint: A feature to implement, bug to fix, or code question — e.g., "add Grapple action to combat" or "refactor spell slot tracking"
 tools: [vscode, execute, read, agent, edit, search, web, browser, vscode.mermaid-chat-features/renderMermaidDiagram, todo]

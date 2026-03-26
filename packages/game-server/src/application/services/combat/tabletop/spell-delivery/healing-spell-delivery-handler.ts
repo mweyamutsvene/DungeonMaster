@@ -13,6 +13,7 @@ import { ValidationError } from '../../../../errors.js';
 import { findCombatantByName } from '../combat-text-parser.js';
 import { normalizeConditions, removeCondition } from '../../../../../domain/entities/combat/conditions.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 
@@ -30,6 +31,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
       castInfo,
       spellMatch,
       spellLevel,
+      castAtLevel,
       sheet,
       characters,
       actor,
@@ -79,7 +81,15 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
             ((sheet?.abilityScores?.[sheet.spellcastingAbility] ?? 10) - 10) / 2,
           )
         : 0);
-    const healRoll = deps.diceRoller!.rollDie(healing.diceSides, healing.diceCount);
+
+    // Upcast scaling: add bonus dice per slot level above base
+    let healDiceCount = healing.diceCount;
+    const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
+    if (upcastBonus) {
+      healDiceCount += upcastBonus.bonusDiceCount;
+    }
+
+    const healRoll = deps.diceRoller!.rollDie(healing.diceSides, healDiceCount);
     const healTotal = Math.max(0, healRoll.total + spellMod);
 
     // Apply healing (clamp to maxHp)
@@ -144,8 +154,9 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
       }
     }
 
-    const slotNote = spellLevel > 0 ? ` (level ${spellLevel} slot spent)` : "";
-    const healFormula = `${healing.diceCount}d${healing.diceSides}${
+    const effectiveLevel = castAtLevel ?? spellLevel;
+    const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
+    const healFormula = `${healDiceCount}d${healing.diceSides}${
       spellMod > 0 ? `+${spellMod}` : spellMod < 0 ? `${spellMod}` : ""
     }`;
     const reviveNote = revivedFromUnconscious ? ` ${targetName} regains consciousness!` : "";

@@ -9,6 +9,9 @@ import {
   addCondition,
   removeCondition,
   createCondition,
+  hasAbilityCheckDisadvantage,
+  hasAttackDisadvantage,
+  getExhaustionD20Penalty,
   type Condition,
 } from "../../../../domain/entities/combat/conditions.js";
 import {
@@ -163,6 +166,16 @@ export class GrappleActionHandler {
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
 
+    // Conditions-based modifiers
+    const actorShoveConditions = normalizeConditions(actorState.conditions as unknown[]);
+    const targetShoveConditions = normalizeConditions(targetState.conditions as unknown[]);
+    const shoveOptions = {
+      attackerMode: hasAttackDisadvantage(actorShoveConditions) ? "disadvantage" as const : "normal" as const,
+      attackerD20Penalty: getExhaustionD20Penalty(actorShoveConditions),
+      targetSaveMode: hasAbilityCheckDisadvantage(targetShoveConditions) ? "disadvantage" as const : "normal" as const,
+      targetSavePenalty: getExhaustionD20Penalty(targetShoveConditions),
+    };
+
     const dice = new SeededDiceRoller(seed);
 
     const result = shoveTarget(
@@ -173,6 +186,7 @@ export class GrappleActionHandler {
       targetDexMod,
       targetTooLarge,
       dice,
+      shoveOptions,
     );
 
     // Consume one attack from the multi-attack pool (marks action spent when all attacks used).
@@ -338,6 +352,16 @@ export class GrappleActionHandler {
     // Check free hand - character needs at least one free hand to grapple
     const hasFreeHand = !actorStats.hasTwoHandedWeapon;
 
+    // Conditions-based modifiers
+    const actorGrappleConditions = normalizeConditions(actorState.conditions as unknown[]);
+    const targetGrappleConditions = normalizeConditions(targetState.conditions as unknown[]);
+    const grappleOptions = {
+      attackerMode: hasAttackDisadvantage(actorGrappleConditions) ? "disadvantage" as const : "normal" as const,
+      attackerD20Penalty: getExhaustionD20Penalty(actorGrappleConditions),
+      targetSaveMode: hasAbilityCheckDisadvantage(targetGrappleConditions) ? "disadvantage" as const : "normal" as const,
+      targetSavePenalty: getExhaustionD20Penalty(targetGrappleConditions),
+    };
+
     const dice = new SeededDiceRoller(seed);
 
     const result = grappleTarget(
@@ -349,6 +373,7 @@ export class GrappleActionHandler {
       targetTooLarge,
       hasFreeHand,
       dice,
+      grappleOptions,
     );
 
     // Consume one attack from the multi-attack pool (marks action spent when all attacks used).
@@ -484,6 +509,12 @@ export class GrappleActionHandler {
 
     const dice = new SeededDiceRoller(seed);
 
+    // Conditions-based modifiers for the escapee
+    const escapeOptions = {
+      mode: hasAbilityCheckDisadvantage(actorConditions) ? "disadvantage" as const : "normal" as const,
+      d20Penalty: getExhaustionD20Penalty(actorConditions),
+    };
+
     const result = escapeGrapple(
       grapplerStrMod,
       grapplerProfBonus,
@@ -491,6 +522,7 @@ export class GrappleActionHandler {
       escapeeDexMod,
       dice,
       skillProficiency,
+      escapeOptions,
     );
 
     // Spend action

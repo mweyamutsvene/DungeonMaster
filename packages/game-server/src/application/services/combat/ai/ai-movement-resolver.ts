@@ -19,6 +19,7 @@ import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
+import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
 
 type AiLogger = (msg: string) => void;
 
@@ -160,6 +161,14 @@ export async function resolveAiMovement(
         if (combatMap && (combatMap.zones?.length ?? 0) > 0) {
           const isPC = aiCombatant.combatantType === "Character" || aiCombatant.combatantType === "NPC";
           const allCombatantsForZone = await combat.listCombatants(encounterId);
+
+          // Check Evasion for the moving combatant
+          let movingCreatureHasEvasion = false;
+          try {
+            const actorStats = await combatantResolver.getCombatStats(actorRef as CombatantRef);
+            movingCreatureHasEvasion = creatureHasEvasion(actorStats.className, actorStats.level);
+          } catch { /* monsters/NPCs won't have class features */ }
+
           const damagePath = zoneDamagePath ?? pathCells ?? [finalDestination];
           await resolveZoneDamageForPath(
             damagePath,
@@ -176,7 +185,7 @@ export async function resolveAiMovement(
               return isPC === srcIsPC;
             },
             { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-            { combatRepo: combat },
+            { combatRepo: combat, hasEvasion: movingCreatureHasEvasion },
           );
         }
       }

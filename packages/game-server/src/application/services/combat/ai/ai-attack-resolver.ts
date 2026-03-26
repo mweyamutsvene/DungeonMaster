@@ -17,7 +17,7 @@ import type { ActorRef } from "./ai-types.js";
 import type { CombatantRef } from "../helpers/combatant-ref.js";
 import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { nanoid } from "nanoid";
-import { normalizeResources, getActiveEffects, readBoolean, spendAction } from "../helpers/resource-utils.js";
+import { normalizeResources, getActiveEffects, readBoolean, spendAction, getPosition } from "../helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -28,7 +28,8 @@ import {
   calculateFlatBonusFromEffects,
   getDamageDefenseEffects,
 } from "../../../../domain/entities/combat/effects.js";
-import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
+import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
@@ -136,9 +137,15 @@ export class AiAttackResolver {
     }
 
     // Resolve roll mode from conditions + effects
-    const attackerCondNames = normalizeConditions(aiCombatant.conditions as unknown[]).map((c) => c.condition);
-    const targetCondNames = normalizeConditions(targetCombatant.conditions as unknown[]).map((c) => c.condition);
-    const rollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdvantage, effectDisadvantage);
+    const attackerConditions = normalizeConditions(aiCombatant.conditions as unknown[]);
+    const targetConditions = normalizeConditions(targetCombatant.conditions as unknown[]);
+
+    // Compute distance for Prone distance-aware advantage
+    const aiPos = getPosition(normalizeResources(aiCombatant.resources));
+    const tgtPos = getPosition(normalizeResources(targetCombatant.resources));
+    const distanceFt = aiPos && tgtPos ? calculateDistance(aiPos, tgtPos) : undefined;
+
+    const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, attackKind, effectAdvantage, effectDisadvantage, distanceFt);
 
     // Roll d20
     let d20: number;
@@ -165,7 +172,7 @@ export class AiAttackResolver {
         effectAtkBonus += sign * diceRoller.rollDie(dr.sides).total;
       }
     }
-    const attackBonus = attackBonusBase + effectAtkBonus;
+    const attackBonus = attackBonusBase + effectAtkBonus + getExhaustionD20Penalty(attackerConditions);
     const attackTotal = d20 + attackBonus;
 
     console.log(

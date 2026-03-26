@@ -93,7 +93,7 @@ export class SpellActionHandler {
     sessionId: string,
     encounterId: string,
     actorId: string,
-    castInfo: { spellName: string; targetName?: string },
+    castInfo: { spellName: string; targetName?: string; castAtLevel?: number },
     characters: SessionCharacterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
@@ -109,6 +109,23 @@ export class SpellActionHandler {
     const isConcentration = spellMatch?.concentration ?? false;
     const isBonusAction = spellMatch?.isBonusAction ?? false;
     const isCantrip = spellLevel === 0;
+
+    // Determine effective cast level (for upcasting)
+    const castAtLevel = castInfo.castAtLevel;
+    if (castAtLevel != null) {
+      if (isCantrip) {
+        throw new ValidationError("Cantrips cannot be upcast");
+      }
+      if (castAtLevel < spellLevel) {
+        throw new ValidationError(
+          `Cannot cast a level ${spellLevel} spell using a level ${castAtLevel} slot`,
+        );
+      }
+      if (castAtLevel > 9) {
+        throw new ValidationError(`Spell slot level cannot exceed 9 (got ${castAtLevel})`);
+      }
+    }
+    const effectiveCastLevel = castAtLevel ?? spellLevel;
 
     // D&D 5e 2024: Bonus action spell restriction
     // If a bonus action spell (leveled) was cast this turn, only cantrips as action spells.
@@ -143,6 +160,7 @@ export class SpellActionHandler {
           isConcentration,
           this.deps.combatRepo,
           this.debugLogsEnabled ? (msg) => console.log(`[SpellActionHandler] ${msg}`) : undefined,
+          castAtLevel,
         );
 
         // Track bonus action spell restriction (D&D 5e 2024)
@@ -176,6 +194,7 @@ export class SpellActionHandler {
           castInfo,
           spellMatch,
           spellLevel,
+          castAtLevel: effectiveCastLevel,
           isConcentration,
           sheet,
           characters,
@@ -204,7 +223,7 @@ export class SpellActionHandler {
             c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
         );
         if (targetCombatant) {
-          const dartCount = 3 + Math.max(0, spellLevel - 1);
+          const dartCount = 3 + Math.max(0, effectiveCastLevel - 1);
           let totalDamage = 0;
           const dartRolls: number[] = [];
           for (let i = 0; i < dartCount; i++) {
@@ -234,7 +253,7 @@ export class SpellActionHandler {
             }
           }
 
-          const slotNote = spellLevel > 0 ? ` (level ${spellLevel} slot spent)` : "";
+          const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
           return {
             requiresPlayerInput: false,
             actionComplete: true,
@@ -253,7 +272,7 @@ export class SpellActionHandler {
     });
 
     const targetNote = castInfo.targetName ? ` at ${castInfo.targetName}` : "";
-    const slotNote = spellLevel > 0 ? ` (level ${spellLevel} slot spent)` : "";
+    const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
 
     return {
       requiresPlayerInput: false,

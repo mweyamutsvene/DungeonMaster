@@ -255,4 +255,74 @@ describe("prepareSpellCast", () => {
       ).rejects.toThrow(ValidationError);
     });
   });
+
+  describe("upcasting (castAtLevel)", () => {
+    it("spends the higher-level slot when castAtLevel is above spellLevel", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "spellSlot_1", current: 4, max: 4 },
+          { name: "spellSlot_2", current: 3, max: 3 },
+        ],
+      });
+      // Cast Cure Wounds (level 1) at level 2
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Cure Wounds", 1, false, repo, undefined, 2);
+
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const slot1 = update.resources.resourcePools.find((p) => p.name === "spellSlot_1");
+      const slot2 = update.resources.resourcePools.find((p) => p.name === "spellSlot_2");
+      // Level 1 slot untouched; level 2 slot decremented
+      expect(slot1?.current).toBe(4);
+      expect(slot2?.current).toBe(2);
+    });
+
+    it("throws ValidationError when castAtLevel is below spellLevel", async () => {
+      const repo = makeRepo({
+        resourcePools: [{ name: "spellSlot_3", current: 2, max: 2 }],
+      });
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Fireball", 3, false, repo, undefined, 2),
+      ).rejects.toThrow(ValidationError);
+      expect(repo.updateCombatantState).not.toHaveBeenCalled();
+    });
+
+    it("throws ValidationError when castAtLevel exceeds 9", async () => {
+      const repo = makeRepo({
+        resourcePools: [{ name: "spellSlot_1", current: 2, max: 4 }],
+      });
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Magic Missile", 1, false, repo, undefined, 10),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("throws ValidationError when the upcast slot level has no available slots", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "spellSlot_1", current: 4, max: 4 },
+          { name: "spellSlot_3", current: 0, max: 2 },
+        ],
+      });
+      // Trying to upcast to level 3 but slot_3 is empty
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Burning Hands", 1, false, repo, undefined, 3),
+      ).rejects.toThrow(ValidationError);
+      expect(repo.updateCombatantState).not.toHaveBeenCalled();
+    });
+
+    it("castAtLevel equal to spellLevel behaves identically to no upcasting", async () => {
+      const repo = makeRepo({
+        resourcePools: [{ name: "spellSlot_2", current: 2, max: 3 }],
+      });
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hold Person", 2, false, repo, undefined, 2);
+
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const slot2 = update.resources.resourcePools.find((p) => p.name === "spellSlot_2");
+      expect(slot2?.current).toBe(1);
+    });
+  });
 });

@@ -6,6 +6,7 @@ import {
   applyDamageDieMinimum,
   computeFeatModifiers,
   shouldApplyGreatWeaponFighting,
+  shouldApplyDueling,
   type AttackKind,
   type WeaponContext,
 } from "../rules/feat-modifiers.js";
@@ -167,6 +168,17 @@ export function resolveAttack(
     shouldApplyGreatWeaponFighting({ attackKind: spec.kind, weapon: spec.weapon })
   ) {
     damageRoll = applyDamageDieMinimum(damageRoll, featMods.greatWeaponFightingDamageDieMinimum);
+  }
+
+  // Dueling: +2 bonus to damage when wielding a one-handed melee weapon.
+  if (
+    featMods.duelingDamageBonus > 0 &&
+    shouldApplyDueling({ attackKind: spec.kind, weapon: spec.weapon })
+  ) {
+    damageRoll = {
+      ...damageRoll,
+      total: damageRoll.total + featMods.duelingDamageBonus,
+    };
   }
 
   const rawApplied = hit ? Math.max(0, damageRoll.total) : 0;

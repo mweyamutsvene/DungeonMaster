@@ -4,8 +4,8 @@
  */
 
 import { ValidationError } from '../../../../errors.js';
-import { readConditionNames } from '../../../../../domain/entities/combat/conditions.js';
-import { getCantripDamageDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import { normalizeConditions } from '../../../../../domain/entities/combat/conditions.js';
+import { getCantripDamageDice, getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { deriveRollModeFromConditions, findCombatantByName } from '../combat-text-parser.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
@@ -19,7 +19,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
   }
 
   async handle(ctx: SpellCastingContext): Promise<ActionParseResult> {
-    const { actorId, castInfo, spellMatch, spellLevel, sheet, roster, encounter, actorCombatant } = ctx;
+    const { actorId, castInfo, spellMatch, spellLevel, castAtLevel, sheet, roster, encounter, actorCombatant } = ctx;
 
     const targetName = castInfo.targetName;
     if (!targetName) {
@@ -46,6 +46,14 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       diceCount = getCantripDamageDice(spellDamage.diceCount, characterLevel);
     }
 
+    // Upcast scaling: add bonus dice per slot level above base
+    const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
+    if (upcastBonus) {
+      diceCount += upcastBonus.bonusDiceCount;
+    }
+
+    const effectiveLevel = castAtLevel ?? spellLevel;
+
     const damageFormula = `${diceCount}d${spellDamage.diceSides}${
       (spellDamage.modifier ?? 0) > 0
         ? `+${spellDamage.modifier}`
@@ -67,7 +75,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       damageType: spellMatch.damageType,
     };
 
-    const actorConditions: string[] = readConditionNames(actorCombatant?.conditions);
+    const actorConditions = normalizeConditions(actorCombatant?.conditions as unknown[]);
     const inferredKind =
       spellMatch.attackType === "melee_spell" ? ("melee" as const) : ("ranged" as const);
     const rollMode = deriveRollModeFromConditions(actorConditions, [], inferredKind);
@@ -85,7 +93,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
 
     await this.handlerDeps.deps.combatRepo.setPendingAction(encounter.id, pendingAction);
 
-    const slotNote = spellLevel > 0 ? ` (level ${spellLevel} slot spent)` : "";
+    const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
     const rollModeNote = rollMode !== "normal" ? ` (${rollMode})` : "";
 
     return {

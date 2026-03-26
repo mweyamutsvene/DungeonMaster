@@ -7,12 +7,24 @@
 
 import type { EffectType, EffectTarget, EffectDuration } from '../combat/effects.js';
 import type { ZoneType, ZoneShape, ZoneEffectTrigger } from '../combat/zones.js';
+import type { AreaOfEffect } from '../../rules/area-of-effect.js';
 
 /** Dice expression: NdS+M */
 export interface SpellDice {
   readonly diceCount: number;
   readonly diceSides: number;
   readonly modifier?: number;
+}
+
+/**
+ * Upcast scaling declaration for a prepared spell.
+ * Defines the additional dice gained per slot level above the spell's base level.
+ *
+ * Example: Burning Hands (base level 1) gains +1d6 per level above 1st:
+ *   `{ additionalDice: { diceCount: 1, diceSides: 6 } }`
+ */
+export interface UpcastScaling {
+  readonly additionalDice: SpellDice;
 }
 
 /** Effect declaration attached to a buff/debuff spell. */
@@ -78,6 +90,9 @@ export interface PreparedSpellDefinition {
   readonly isBonusAction?: boolean;
   readonly effects?: SpellEffectDeclaration[];
   readonly zone?: SpellZoneDeclaration;
+  readonly upcastScaling?: UpcastScaling;
+  /** Area of effect for multi-target spells (Burning Hands, Fireball, etc.) */
+  readonly area?: AreaOfEffect;
 }
 
 /**
@@ -93,4 +108,24 @@ export function getCantripDamageDice(baseDiceCount: number, characterLevel: numb
   if (characterLevel >= 11) return baseDiceCount * 3;
   if (characterLevel >= 5) return baseDiceCount * 2;
   return baseDiceCount;
+}
+
+/**
+ * Compute bonus dice from upcasting a spell at a higher slot level.
+ * Returns null if the spell has no upcast scaling or castAtLevel is not above base.
+ *
+ * @param spell      The prepared spell definition (with optional upcastScaling)
+ * @param castAtLevel The slot level used to cast (must be > spell.level for bonus)
+ */
+export function getUpcastBonusDice(
+  spell: PreparedSpellDefinition,
+  castAtLevel: number | undefined,
+): { bonusDiceCount: number; diceSides: number } | null {
+  if (!spell.upcastScaling?.additionalDice) return null;
+  if (castAtLevel == null || castAtLevel <= spell.level) return null;
+  const levelsAbove = castAtLevel - spell.level;
+  return {
+    bonusDiceCount: levelsAbove * spell.upcastScaling.additionalDice.diceCount,
+    diceSides: spell.upcastScaling.additionalDice.diceSides,
+  };
 }

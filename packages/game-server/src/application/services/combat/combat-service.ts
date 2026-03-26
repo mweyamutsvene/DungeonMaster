@@ -16,8 +16,9 @@ import type { CombatVictoryPolicy } from "./combat-victory-policy.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantIdByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
-import { clearActionSpent, resetTurnResources, getActiveEffects, setActiveEffects, normalizeResources, getPosition } from "./helpers/resource-utils.js";
+import { clearActionSpent, resetTurnResources, getActiveEffects, setActiveEffects, normalizeResources, getPosition, resetLegendaryActions, isLegendaryCreature } from "./helpers/resource-utils.js";
 import { shouldRageEnd } from "../../../domain/entities/classes/barbarian.js";
+import { parseLegendaryTraits } from "../../../domain/entities/creatures/legendary-actions.js";
 import {
   shouldRemoveAtEndOfTurn,
   shouldRemoveAtStartOfTurn,
@@ -45,6 +46,7 @@ import {
   type ZoneEffect,
 } from "../../../domain/entities/combat/zones.js";
 import { applyDamageDefenses } from "../../../domain/rules/damage-defenses.js";
+import { applyEvasion, creatureHasEvasion } from "../../../domain/rules/evasion.js";
 import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
 
 /**
@@ -145,8 +147,9 @@ export class CombatService {
       mapData,
     });
 
-    // Determine factions for positioning
+    // Determine factions for positioning + collect monster stat blocks for legendary traits
     const factionsMap = new Map<string, string>();
+    const monsterStatBlocks = new Map<string, Record<string, unknown>>();
     if (this.characters && this.monsters && this.npcs) {
       for (const c of input.combatants) {
         const cid = c.characterId;
@@ -158,7 +161,12 @@ export class CombatService {
           if (char) factionsMap.set(cid, char.faction);
         } else if (c.combatantType === "Monster" && mid) {
           const mon = await this.monsters.getById(mid);
-          if (mon) factionsMap.set(mid, mon.faction);
+          if (mon) {
+            factionsMap.set(mid, mon.faction);
+            if (mon.statBlock && typeof mon.statBlock === "object") {
+              monsterStatBlocks.set(mid, mon.statBlock as Record<string, unknown>);
+            }
+          }
         } else if (c.combatantType === "NPC" && nid) {
           const npc = await this.npcs.getById(nid);
           if (npc) factionsMap.set(nid, npc.faction);
@@ -231,6 +239,25 @@ export class CombatService {
         // Set default speed if not provided (30ft for most creatures)
         if (resources.speed === undefined) {
           resources.speed = 30;
+        }
+
+        // Initialize legendary action resources from monster stat block
+        if (c.combatantType === "Monster" && monsterId) {
+          const statBlock = monsterStatBlocks.get(monsterId);
+          if (statBlock) {
+            const legendary = parseLegendaryTraits(statBlock);
+            if (legendary) {
+              resources.legendaryActionCharges = legendary.legendaryActionCharges;
+              resources.legendaryActionsRemaining = legendary.legendaryActionCharges;
+              resources.legendaryActions = legendary.legendaryActions;
+              if (legendary.lairActions) {
+                resources.lairActions = legendary.lairActions;
+              }
+              if (legendary.isInLair) {
+                resources.isInLair = true;
+              }
+            }
+          }
         }
 
         return {
@@ -588,6 +615,20 @@ export class CombatService {
             console.log(`[CombatService] Rage ended for combatant ${incomingRecord.id} (attacked=${attacked}, tookDamage=${tookDamage}, unconscious=${isUnconscious})`);
           }
         }
+      }
+    }
+
+    // ── Legendary Action Charge Reset (incoming combatant — start of their turn) ──
+    // D&D 5e 2024: A legendary creature regains all spent legendary actions at the
+    // start of its own turn.
+    {
+      const incomingCreatureId = combat.getActiveCreature().getId();
+      const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
+      if (incomingRecord && isLegendaryCreature(incomingRecord.resources)) {
+        const updatedRes = resetLegendaryActions(incomingRecord.resources);
+        await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
+        (incomingRecord as any).resources = updatedRes;
+        console.log(`[CombatService] Legendary action charges reset for combatant ${incomingRecord.id}`);
       }
     }
 
@@ -1188,6 +1229,15 @@ export class CombatService {
     };
     const passiveSaveBonus = getPassiveZoneSaveBonus(zones, position, entityId, isSameFactionFn);
 
+    // Check Evasion for the combatant (character class feature only)
+    let hasEvasion = false;
+    if (record.characterId) {
+      const char = await this.characters.getById(record.characterId);
+      if (char) {
+        hasEvasion = creatureHasEvasion(char.className ?? undefined, char.level);
+      }
+    }
+
     let totalDamage = 0;
     for (const { zone, effect } of triggered) {
       if (!effect.damage) continue;
@@ -1217,8 +1267,10 @@ export class CombatService {
           (effect.damage.modifier ?? 0);
       }
 
-      // Half damage on save or zero on save
-      if (saveSuccess) {
+      // Apply Evasion for DEX saves, or normal save damage reduction
+      if (effect.saveAbility === "dexterity" && hasEvasion) {
+        rawDamage = applyEvasion(rawDamage, saveSuccess, true, effect.halfDamageOnSave ?? true);
+      } else if (saveSuccess) {
         rawDamage = effect.halfDamageOnSave ? Math.floor(rawDamage / 2) : 0;
       }
 

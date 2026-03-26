@@ -10,11 +10,13 @@ import {
 } from "../helpers/concentration-helper.js";
 
 import { NotFoundError, ValidationError } from "../../../errors.js";
-import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
 import {
   hasSpentAction,
   spendAction,
   getActiveEffects,
+  normalizeResources,
+  getPosition,
 } from "../helpers/resource-utils.js";
 import {
   hasAdvantageFromEffects,
@@ -33,6 +35,7 @@ import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
 import { isRecord, readNumber } from "../helpers/json-helpers.js";
+import { calculateDistance } from "../../../../domain/rules/movement.js";
 import {
   type AttackActionInput,
   hashStringToInt32,
@@ -178,11 +181,25 @@ export class AttackActionHandler {
     }
 
     // Resolve advantage/disadvantage from conditions + effects
-    const attackerCondNames = normalizeConditions(attackerState.conditions as unknown[]).map(c => c.condition);
-    const targetCondNames = normalizeConditions(targetState.conditions as unknown[]).map(c => c.condition);
-    const effectRollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdvantage, effectDisadvantage);
+    const attackerConditions = normalizeConditions(attackerState.conditions as unknown[]);
+    const targetConditions = normalizeConditions(targetState.conditions as unknown[]);
+
+    // Compute attacker-to-target distance for Prone distance-aware advantage
+    const attackerResources = normalizeResources(attackerState.resources);
+    const targetResources = normalizeResources(targetState.resources);
+    const attackerPos = getPosition(attackerResources);
+    const targetPos = getPosition(targetResources);
+    const distanceFt = attackerPos && targetPos ? calculateDistance(attackerPos, targetPos) : undefined;
+
+    const effectRollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, attackKind, effectAdvantage, effectDisadvantage, distanceFt);
     if (!spec.mode || spec.mode === "normal") {
       spec.mode = effectRollMode;
+    }
+
+    // D&D 5e 2024: Exhaustion penalty on attack rolls (-2 per exhaustion level)
+    const exhaustionPenalty = getExhaustionD20Penalty(attackerConditions);
+    if (exhaustionPenalty !== 0) {
+      spec.attackBonus += exhaustionPenalty;
     }
 
     // Attack bonus from ActiveEffects (Bless, etc.)

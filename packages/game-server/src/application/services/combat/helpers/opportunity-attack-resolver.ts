@@ -21,11 +21,12 @@ import type {
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
-import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
 import { applyKoEffectsIfNeeded } from "./ko-handler.js";
 import {
   normalizeResources,
   getActiveEffects,
+  getPosition,
 } from "./resource-utils.js";
 import {
   calculateFlatBonusFromEffects,
@@ -166,9 +167,24 @@ export async function resolveOpportunityAttacks(
       }
 
       // Derive roll mode from conditions + effects
-      const attackerCondNames = normalizeConditions(attacker.conditions as unknown[]).map((c: any) => c.condition);
+      const attackerActiveConditions = normalizeConditions(attacker.conditions as unknown[]);
+      const attackerCondNames = attackerActiveConditions.map((c: any) => c.condition);
       const targetCondNames = normalizeConditions(actor.conditions as unknown[]).map((c: any) => c.condition);
-      const rollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdv, effectDisadv);
+
+      // OA distance: compute from positions (melee, typically ≤5ft)
+      const oaAttackerPos = getPosition(normalizeResources(attacker.resources));
+      const oaTargetPos = getPosition(normalizeResources(actor.resources));
+      const oaDistanceFt = oaAttackerPos && oaTargetPos
+        ? Math.hypot(oaTargetPos.x - oaAttackerPos.x, oaTargetPos.y - oaAttackerPos.y)
+        : 5; // Default to 5ft for OAs (they're leaving reach)
+
+      const rollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdv, effectDisadv, oaDistanceFt);
+
+      // D&D 5e 2024: Exhaustion penalty on attack rolls
+      const oaExhaustionPenalty = getExhaustionD20Penalty(attackerActiveConditions);
+      if (oaExhaustionPenalty !== 0) {
+        attackMod += oaExhaustionPenalty;
+      }
 
       // Attack bonus from ActiveEffects (Bless, etc.)
       const atkBonusResult = calculateBonusFromEffects(attackerActiveEffects, 'attack_rolls');

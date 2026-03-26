@@ -490,3 +490,75 @@ export function setInventory(resources: JsonValue, inventory: CharacterItemInsta
   const normalized = normalizeResources(resources);
   return { ...normalized, inventory } as JsonValue;
 }
+
+// ── Legendary Action charge tracking ──────────────────────────────────────────
+
+/**
+ * Get the number of legendary action charges remaining this round.
+ * Returns 0 if the combatant has no legendary actions.
+ */
+export function getLegendaryActionsRemaining(resources: JsonValue): number {
+  const normalized = normalizeResources(resources);
+  const val = normalized.legendaryActionsRemaining;
+  return typeof val === "number" && Number.isInteger(val) && val >= 0 ? val : 0;
+}
+
+/**
+ * Get the maximum legendary action charges for this combatant.
+ * Returns 0 if the combatant has no legendary actions.
+ */
+export function getLegendaryActionCharges(resources: JsonValue): number {
+  const normalized = normalizeResources(resources);
+  const val = normalized.legendaryActionCharges;
+  return typeof val === "number" && Number.isInteger(val) && val >= 0 ? val : 0;
+}
+
+/**
+ * Spend legendary action charges. Returns updated resources.
+ * Throws if insufficient charges.
+ */
+export function spendLegendaryAction(resources: JsonValue, cost: number): JsonValue {
+  const remaining = getLegendaryActionsRemaining(resources);
+  if (remaining < cost) {
+    throw new Error(`Insufficient legendary action charges: ${remaining} < ${cost}`);
+  }
+  const normalized = normalizeResources(resources);
+  return { ...normalized, legendaryActionsRemaining: remaining - cost } as JsonValue;
+}
+
+/**
+ * Reset legendary action charges to max at the start of the boss's own turn.
+ */
+export function resetLegendaryActions(resources: JsonValue): JsonValue {
+  const max = getLegendaryActionCharges(resources);
+  if (max === 0) return resources; // Not a legendary creature
+  const normalized = normalizeResources(resources);
+  return { ...normalized, legendaryActionsRemaining: max } as JsonValue;
+}
+
+/**
+ * Check whether a combatant is a legendary creature (has legendary action charges configured).
+ */
+export function isLegendaryCreature(resources: JsonValue): boolean {
+  return getLegendaryActionCharges(resources) > 0;
+}
+
+/**
+ * Get the legendary action definitions stored on a combatant's resources.
+ * These are copied from the monster's statBlock at encounter start.
+ */
+export function getLegendaryActionDefs(resources: JsonValue): Array<{
+  name: string;
+  cost: number;
+  description: string;
+  actionType: "attack" | "move" | "special";
+  attackName?: string;
+}> {
+  const normalized = normalizeResources(resources);
+  const defs = normalized.legendaryActions;
+  if (!Array.isArray(defs)) return [];
+  return defs.filter(
+    (d): d is { name: string; cost: number; description: string; actionType: "attack" | "move" | "special"; attackName?: string } =>
+      typeof d === "object" && d !== null && typeof (d as any).name === "string",
+  );
+}

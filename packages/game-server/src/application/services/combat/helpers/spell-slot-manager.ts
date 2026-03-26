@@ -70,12 +70,14 @@ export function findPreparedSpellInSheet(
  * @param actorCombatantId  DB id of the caster's `CombatantState` row
  * @param encounterId       Encounter the combatant belongs to (for `listCombatants` + `breakConcentration`)
  * @param spellName         Display name of the spell being cast
- * @param spellLevel        Slot level to spend (0 = cantrip, 1-9 = leveled)
+ * @param spellLevel        Base level of the spell (0 = cantrip, 1-9 = leveled)
  * @param isConcentration   Whether the spell requires concentration
  * @param combatRepo        Combat repository for state reads/writes
  * @param log               Optional debug logger
+ * @param castAtLevel       Optional slot level to spend (for upcasting). Must be >= spellLevel and <= 9.
  *
- * @throws {ValidationError} If no slot of the required level is available
+ * @throws {ValidationError} If no slot of the required level is available,
+ *         or if castAtLevel is invalid (below spell level or above 9)
  */
 export async function prepareSpellCast(
   actorCombatantId: string,
@@ -85,15 +87,29 @@ export async function prepareSpellCast(
   isConcentration: boolean,
   combatRepo: ICombatRepository,
   log?: (msg: string) => void,
+  castAtLevel?: number,
 ): Promise<void> {
   if (spellLevel <= 0) return; // Cantrips have no slot cost
+
+  // Determine the effective slot level to spend
+  const effectiveLevel = castAtLevel ?? spellLevel;
+
+  // Validate upcasting constraints
+  if (effectiveLevel < spellLevel) {
+    throw new ValidationError(
+      `Cannot cast a level ${spellLevel} spell using a level ${effectiveLevel} slot`,
+    );
+  }
+  if (effectiveLevel > 9) {
+    throw new ValidationError(`Spell slot level cannot exceed 9 (got ${effectiveLevel})`);
+  }
 
   // Reload from DB for a fresh read (avoids stale in-memory resources)
   const combatants = await combatRepo.listCombatants(encounterId);
   const actorCombatant = combatants.find((c) => c.id === actorCombatantId);
   if (!actorCombatant) return; // Combatant not found — skip silently
 
-  const poolName = `spellSlot_${spellLevel}`;
+  const poolName = `spellSlot_${effectiveLevel}`;
   const resources = actorCombatant.resources;
 
   // Try standard spell slot first, then fall back to Pact Magic
@@ -105,10 +121,10 @@ export async function prepareSpellCast(
     // that the pact slot level can cover (pact slot level determined by warlock level,
     // validated at character creation/import time — here we just check availability)
     if (hasResourceAvailable(resources, "pactMagic", 1)) {
-      log?.(`[SpellSlotManager] No standard level ${spellLevel} slot; using Pact Magic slot`);
+      log?.(`[SpellSlotManager] No standard level ${effectiveLevel} slot; using Pact Magic slot`);
       slotPoolName = "pactMagic";
     } else {
-      throw new ValidationError(`No level ${spellLevel} spell slots remaining`);
+      throw new ValidationError(`No level ${effectiveLevel} spell slots remaining`);
     }
   }
 

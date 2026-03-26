@@ -29,6 +29,9 @@ import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
 import { normalizeResources } from "../helpers/resource-utils.js";
+import { isLegendaryCreature as isLegendaryCreatureCheck } from "../helpers/resource-utils.js";
+import { spendLegendaryAction as spendLegendaryActionCharges } from "../helpers/resource-utils.js";
+import { chooseLegendaryAction, type LegendaryActionDecision } from "./legendary-action-handler.js";
 import type { BattlePlanService } from "./battle-plan-service.js";
 import { DeterministicAiDecisionMaker } from "./deterministic-ai.js";
 
@@ -618,4 +621,175 @@ export class AiTurnOrchestrator {
       processed = await this.processMonsterTurnIfNeeded(sessionId, encounterId);
     }
   }
+
+  /**
+   * Process legendary actions after a creature's turn ends.
+   *
+   * D&D 5e 2024: Immediately after another creature's turn ends, a legendary
+   * creature can spend charges to take a legendary action.
+   *
+   * Called from the combat loop after each turn advancement.
+   *
+   * @param sessionId - Session ID
+   * @param encounterId - Encounter ID
+   * @param justEndedCombatantId - The combatant whose turn just ended
+   */
+  async processLegendaryActionsAfterTurn(
+    sessionId: string,
+    encounterId: string,
+    justEndedCombatantId: string,
+  ): Promise<void> {
+    const encounter = await this.combat.getEncounterById(encounterId);
+    if (!encounter || encounter.status !== "Active") return;
+
+    const combatants = await this.combat.listCombatants(encounterId);
+
+    // Track "turn number" since each boss's last turn for spreading heuristic
+    // We count how many creatures have gone since the boss's last reset
+    const turnsSinceBossReset = new Map<string, number>();
+
+    // Find all legendary creatures (not the one whose turn just ended)
+    const legendaryBosses = combatants.filter(c => {
+      if (c.id === justEndedCombatantId) return false;
+      if (c.hpCurrent <= 0) return false;
+      return isLegendaryCreatureCheck(c.resources);
+    });
+
+    if (legendaryBosses.length === 0) return;
+
+    for (const boss of legendaryBosses) {
+      // Determine turn number for spreading heuristic
+      // Count how many non-boss combatants exist (approximates turns per round)
+      const turnNumber = this.getLegendaryTurnCount(boss, combatants, encounter);
+
+      const decision = chooseLegendaryAction(boss, combatants, turnNumber);
+      if (!decision) continue;
+
+      this.aiLog(`[LegendaryAction] Boss ${boss.id} uses ${decision.actionName} (cost=${decision.cost})`);
+
+      try {
+        // Deduct charges
+        const updatedResources = spendLegendaryActionCharges(boss.resources, decision.cost);
+        await this.combat.updateCombatantState(boss.id, { resources: updatedResources as any });
+
+        // Emit narrative event
+        if (this.events) {
+          // Resolve boss name
+          let bossName = "Boss";
+          if (boss.monsterId) {
+            const m = await this.monsters.getById(boss.monsterId);
+            bossName = m?.name ?? "Boss";
+          } else if (boss.npcId) {
+            const n = await this.npcs.getById(boss.npcId);
+            bossName = n?.name ?? "Boss";
+          }
+
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: "LegendaryAction",
+            payload: {
+              encounterId,
+              combatantId: boss.id,
+              actionName: decision.actionName,
+              actionType: decision.actionType,
+              cost: decision.cost,
+              targetId: decision.targetId,
+            },
+          });
+
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: "NarrativeText",
+            payload: {
+              encounterId,
+              text: `${bossName} uses a legendary action: ${decision.actionName}!`,
+            },
+          });
+        }
+
+        // Execute the legendary action
+        if (decision.actionType === "attack" && decision.targetId) {
+          await this.executeLegendaryAttack(sessionId, encounterId, boss, decision, combatants);
+        }
+        // Move and special actions emit narrative only for v1
+        // (full move resolution can be added later)
+
+      } catch (err) {
+        this.aiLog(`[LegendaryAction] Failed to execute legendary action for ${boss.id}:`, err);
+        // Don't let legendary action failures break the combat loop
+      }
+    }
+  }
+
+  /**
+   * Execute a legendary attack action.
+   * Uses the action service to resolve the attack programmatically.
+   */
+  private async executeLegendaryAttack(
+    sessionId: string,
+    encounterId: string,
+    boss: CombatantStateRecord,
+    decision: LegendaryActionDecision,
+    combatants: CombatantStateRecord[],
+  ): Promise<void> {
+    const target = combatants.find(c => c.id === decision.targetId);
+    if (!target) return;
+
+    // Resolve names for the action service
+    let targetName = "target";
+    if (target.characterId) {
+      const c = await this.characters.getById(target.characterId);
+      targetName = c?.name ?? "target";
+    } else if (target.monsterId) {
+      const m = await this.monsters.getById(target.monsterId);
+      targetName = m?.name ?? "target";
+    } else if (target.npcId) {
+      const n = await this.npcs.getById(target.npcId);
+      targetName = n?.name ?? "target";
+    }
+
+    try {
+      // Use the action service to execute a programmatic attack
+      const actorRef = this.buildActorRef(boss);
+      const targetRef = this.buildActorRef(target);
+      if (!actorRef || !targetRef) return;
+
+      // Pick the attack name from the legendary action or fall back to first available
+      const attackName = decision.attackName;
+      if (attackName) {
+        await this.actionService.attack(sessionId, {
+          encounterId,
+          attacker: actorRef,
+          target: targetRef,
+          monsterAttackName: attackName,
+        });
+      }
+    } catch (err) {
+      this.aiLog(`[LegendaryAction] Attack execution failed:`, err);
+    }
+  }
+
+  /**
+   * Calculate how many turns have passed since this boss's position in init order.
+   * Used for the "spread actions across the round" heuristic.
+   */
+  private getLegendaryTurnCount(
+    boss: CombatantStateRecord,
+    combatants: readonly CombatantStateRecord[],
+    encounter: CombatEncounterRecord,
+  ): number {
+    const bossIndex = combatants.findIndex(c => c.id === boss.id);
+    if (bossIndex < 0) return 1;
+
+    // Current turn index
+    const currentTurn = encounter.turn;
+
+    // How many turns since boss's turn  
+    if (currentTurn > bossIndex) {
+      return currentTurn - bossIndex;
+    }
+    // Boss hasn't gone yet this round: count from start
+    return combatants.length - bossIndex + currentTurn;
+  }
 }
+

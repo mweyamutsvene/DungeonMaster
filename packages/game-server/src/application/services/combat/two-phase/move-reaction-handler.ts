@@ -40,7 +40,7 @@ import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { resolveMovementTriggers } from "../helpers/movement-trigger-resolver.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
-import { normalizeConditions, hasCondition, removeCondition } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
 import { resolveOpportunityAttacks } from "../helpers/opportunity-attack-resolver.js";
 import type { JsonValue } from "../../../types.js";
 import type {
@@ -92,9 +92,33 @@ export class MoveReactionHandler {
       ? Math.min(baseEffectiveSpeed, movementRemainingValue)
       : baseEffectiveSpeed;
 
+    // --- D&D 2024 Exhaustion: speed reduced by 5 × level ft ---
+    const actorConditions = normalizeConditions(actor.conditions as unknown[]);
+    const exhaustionSpeedReduction = getExhaustionSpeedReduction(getExhaustionLevel(actorConditions));
+    if (exhaustionSpeedReduction > 0) {
+      effectiveSpeed = Math.max(0, effectiveSpeed - exhaustionSpeedReduction);
+    }
+
+    // --- Frightened: cannot willingly move closer to fear source ---
+    const fearSourceId = getFrightenedSourceId(actorConditions);
+    if (fearSourceId) {
+      const fearSource = combatants.find(c => c.id === fearSourceId);
+      if (fearSource) {
+        const fearSourcePos = getPosition(normalizeResources(fearSource.resources));
+        if (fearSourcePos) {
+          const currentDistToSource = calculateDistance(currentPos, fearSourcePos);
+          const newDistToSource = calculateDistance(input.destination, fearSourcePos);
+          if (isFrightenedMovementBlocked(actorConditions, currentDistToSource, newDistToSource)) {
+            throw new ValidationError(
+              "Cannot move closer to the source of fear — Frightened condition prevents willingly approaching",
+            );
+          }
+        }
+      }
+    }
+
     // --- Prone stand-up: D&D 5e 2024 ---
     let standUpCost = 0;
-    const actorConditions = normalizeConditions(actor.conditions as unknown[]);
     const isProne = hasCondition(actorConditions, "Prone");
 
     if (isProne) {

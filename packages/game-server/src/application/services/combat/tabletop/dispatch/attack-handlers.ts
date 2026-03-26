@@ -35,7 +35,7 @@ import {
   inferActorRef,
   findAllCombatantsByName,
 } from "../combat-text-parser.js";
-import { readConditionNames } from "../../../../../domain/entities/combat/conditions.js";
+import { readConditionNames, normalizeConditions, getExhaustionD20Penalty } from "../../../../../domain/entities/combat/conditions.js";
 import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery.js";
 import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
@@ -596,6 +596,16 @@ export class AttackHandlers {
       }
     }
 
+    // D&D 5e 2024: Exhaustion penalty applies as flat negative modifier on attack rolls
+    const attackerActiveConditions = normalizeConditions(actorCombatant.conditions as unknown[]);
+    const exhaustionPenalty = getExhaustionD20Penalty(attackerActiveConditions);
+
+    // D&D 5e 2024: Exhaustion penalty on attack rolls (-2 per exhaustion level)
+    if (exhaustionPenalty !== 0) {
+      finalAttackBonus += exhaustionPenalty;
+      if (this.debugLogsEnabled) console.log(`[AttackHandlers] Exhaustion penalty ${exhaustionPenalty} on attack roll`);
+    }
+
     const weaponSpec: WeaponSpec = {
       name: weaponName,
       kind: inferredKind,
@@ -659,8 +669,8 @@ export class AttackHandlers {
       }
     }
 
-    const attackerConditions = readConditionNames(actorCombatant.conditions);
-    const targetConditions = readConditionNames(targetCombatant.conditions);
+    const attackerConditions = normalizeConditions(actorCombatant.conditions as unknown[]);
+    const targetConditions = normalizeConditions(targetCombatant.conditions as unknown[]);
 
     let extraAdvantage = 0;
 
@@ -749,7 +759,7 @@ export class AttackHandlers {
       if (this.debugLogsEnabled) console.log(`[AttackHandlers] Help action advantage consumed on attack against ${targetId}`);
     }
 
-    const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, inferredKind, extraAdvantage, extraDisadvantage);
+    const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, inferredKind, extraAdvantage, extraDisadvantage, dist);
 
     // Parse attack enhancement declarations via class combat text profiles
     // Only match "onDeclare" enhancements — "onHit" enhancements (Stunning Strike, Divine Smite, OHT)

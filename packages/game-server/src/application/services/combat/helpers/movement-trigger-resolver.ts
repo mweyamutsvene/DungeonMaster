@@ -22,6 +22,7 @@ import {
   setActiveEffects,
 } from "./resource-utils.js";
 import { applyDamageDefenses, type DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
+import { applyEvasion } from "../../../../domain/rules/evasion.js";
 import {
   normalizeConditions,
   addCondition,
@@ -72,6 +73,8 @@ export interface MovementTriggerResolverDeps {
   getSaveModifier?: (ability: Ability) => number;
   /** Damage defenses for the moving creature. If undefined, no defenses applied. */
   defenses?: DamageDefenses;
+  /** Whether the moving creature has the Evasion feature (Monk 7/Rogue 7) — caller checks class info */
+  hasEvasion?: boolean;
   /** Combat repository for persisting state changes */
   combatRepo: {
     updateCombatantState(
@@ -144,8 +147,10 @@ export async function resolveMovementTriggers(
       }
     }
 
-    // Apply save result to damage
-    if (saveSuccess) {
+    // Apply save result to damage (with Evasion for DEX saves)
+    if (eff.triggerSave?.ability === "dexterity" && deps.hasEvasion) {
+      rawDamage = applyEvasion(rawDamage, saveSuccess, true, eff.triggerSave.halfDamageOnSave ?? true);
+    } else if (saveSuccess) {
       if (eff.triggerSave?.halfDamageOnSave) {
         rawDamage = Math.floor(rawDamage / 2);
       } else {
