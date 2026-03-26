@@ -1,0 +1,130 @@
+{
+  "name": "Wizard Cantrip Scaling: Fire Bolt at Level 5 (2d10)",
+  "description": "Tests cantrip damage scaling at character level 5. Fire Bolt deals 1d10 at levels 1-4 but scales to 2d10 at level 5. A level 5 wizard casts Fire Bolt, hits, and deals damage. The higher damage (>10) confirms 2d10 scaling is active. Verifies the getCantripDamageDice integration through the spell-attack-delivery-handler.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 32, "currentHp": 32, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          {
+            "name": "Fire Bolt", "level": 0,
+            "attackType": "ranged_spell",
+            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 0 },
+            "damageType": "fire"
+          }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 59, "hp": 59, "armorClass": 11, "speed": 40,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I cast Fire Bolt at the Ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast Fire Bolt at level 5 → 2d10 fire damage (cantrip scaling). Should request attack roll.",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Ogre" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 10 + 7 (spellAttackBonus) = 17 vs AC 11 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 15 fire damage on 2d10 (would be impossible on 1d10, valid on 2d10). Ogre HP 59 → 44.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "max": 44 }
+      }
+    },
+    {
+      "comment": "End turn → passive ogre ends turn → back to player",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+    {
+      "comment": "Second Fire Bolt — cantrips are unlimited",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Ogre" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 12 + 7 = 19 vs AC 11 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 fire damage. Ogre HP 44 → 36.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "max": 36 }
+      }
+    }
+  ]
+}

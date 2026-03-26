@@ -55,6 +55,13 @@ const characters = [
           },
         },
         { name: "Magic Missile", level: 1, damageDice: "3d4+3", damageType: "force", concentration: false },
+        {
+          name: "Healing Word",
+          level: 1,
+          isBonusAction: true,
+          healing: { diceCount: 1, diceSides: 4, modifier: 3 },
+          concentration: false,
+        },
       ],
       spellAttackBonus: 5,
       spellSaveDC: 13,
@@ -784,6 +791,83 @@ describe("SpellActionHandler", () => {
         // At least one goblin name in message
         expect(result.message).toMatch(/goblin/i);
       });
+    });
+  });
+
+  // ─────── bonus action spell restriction (D&D 5e 2024) ───────
+
+  describe("bonus action spell restriction", () => {
+    it("casting a leveled bonus action spell (Healing Word) then a leveled action spell (Burning Hands) throws", async () => {
+      // Healing Word is a leveled bonus action spell → sets bonusActionSpellCastThisTurn
+      await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Healing Word", targetName: "Goblin" },
+        characters,
+        roster,
+      );
+
+      // Now try a leveled action spell → should be blocked
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("casting a leveled action spell (Burning Hands) then a leveled bonus action spell (Healing Word) throws", async () => {
+      // Burning Hands is a leveled action spell → sets actionSpellCastThisTurn
+      await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Burning Hands", targetName: "Goblin" },
+        characters,
+        roster,
+      );
+
+      // Now try a leveled bonus action spell → should be blocked
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Healing Word", targetName: "Goblin" },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("casting a leveled bonus action spell (Healing Word) then a cantrip (Fire Bolt) succeeds", async () => {
+      // Healing Word is a leveled bonus action spell → sets bonusActionSpellCastThisTurn
+      await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Healing Word", targetName: "Goblin" },
+        characters,
+        roster,
+      );
+
+      // Cantrips should still be allowed as actions
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Fire Bolt", targetName: "Goblin" },
+        characters,
+        roster,
+      );
+
+      // Fire Bolt is an attack spell → returns REQUEST_ROLL (not blocked)
+      expect(result.type).toBe("REQUEST_ROLL");
     });
   });
 });
