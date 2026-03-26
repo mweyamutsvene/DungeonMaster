@@ -9,6 +9,7 @@ import type {
   INPCRepository,
   ISpellRepository,
 } from "../../application/repositories/index.js";
+import type { PendingActionRepository } from "../../application/repositories/pending-action-repository.js";
 
 import { PrismaCharacterRepository } from "./character-repository.js";
 import { PrismaCombatRepository } from "./combat-repository.js";
@@ -17,6 +18,7 @@ import { PrismaGameSessionRepository } from "./game-session-repository.js";
 import { PrismaMonsterRepository } from "./monster-repository.js";
 import { PrismaNPCRepository } from "./npc-repository.js";
 import { PrismaSpellRepository } from "./spell-repository.js";
+import { PrismaPendingActionRepository } from "./pending-action-repository.js";
 import {
   DeferredPublishingEventRepository,
   publishDeferredEvents,
@@ -31,6 +33,7 @@ export type RepositoryBundle = {
   combatRepo: ICombatRepository;
   eventsRepo: IEventRepository;
   spellsRepo: ISpellRepository;
+  pendingActionsRepo: PendingActionRepository;
 };
 
 /**
@@ -55,6 +58,7 @@ export class PrismaUnitOfWork {
         combatRepo: new PrismaCombatRepository(tx),
         eventsRepo: events,
         spellsRepo: new PrismaSpellRepository(tx),
+        pendingActionsRepo: new PrismaPendingActionRepository(tx),
       };
 
       return fn(repos);

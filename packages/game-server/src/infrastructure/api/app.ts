@@ -31,6 +31,8 @@ import {
 } from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../testing/memory-repos.js";
+import { PrismaPendingActionRepository } from "../db/pending-action-repository.js";
+import type { PendingActionRepository } from "../../application/repositories/pending-action-repository.js";
 import type {
   ICharacterRepository,
   ICombatRepository,
@@ -196,7 +198,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo);
   
   // Two-phase action service for reactions
-  const pendingActionsRepo = new InMemoryPendingActionRepository();
+  const pendingActionsRepo: PendingActionRepository = deps.prismaClient
+    ? new PrismaPendingActionRepository(deps.prismaClient)
+    : new InMemoryPendingActionRepository();
   const twoPhaseActions = new TwoPhaseActionService(
     deps.sessionsRepo,
     deps.combatRepo,
@@ -379,7 +383,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       abilityRegistryInner.register(new WholenessOfBodyExecutor());
       
       // Two-phase action service
-      const pendingActionsRepoInner = new InMemoryPendingActionRepository();
+      const pendingActionsRepoInner = repos.pendingActionsRepo;
       const twoPhaseService = new TwoPhaseActionService(
         repos.sessionsRepo,
         repos.combatRepo,

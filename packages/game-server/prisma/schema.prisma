@@ -178,8 +178,9 @@ model CombatEncounter {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  session   GameSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  combatants CombatantState[]
+  session        GameSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  combatants     CombatantState[]
+  pendingActions PendingAction[]
 
   @@index([sessionId])
 }
@@ -235,4 +236,33 @@ model GameEvent {
   session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
+}
+
+/// In-flight reaction resolution: opportunity attacks, Shield, Counterspell, etc.
+model PendingAction {
+  id          String @id
+  encounterId String
+
+  /// "move" | "spell_cast" | "attack" | "damage_reaction"
+  type   String
+  /// "awaiting_reactions" | "ready_to_complete" | "completed" | "cancelled" | "expired"
+  status String @default("awaiting_reactions")
+
+  /// CombatantRef JSON
+  actor Json
+  /// Action-specific payload (PendingMoveData | PendingSpellCastData | …)
+  data  Json
+
+  /// ReactionOpportunity[] JSON
+  reactionOpportunities Json
+  /// ReactionResponse[] JSON
+  resolvedReactions     Json
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  encounter CombatEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId])
+  @@index([status])
 }
