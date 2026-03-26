@@ -1,0 +1,212 @@
+{
+  "name": "Prone: Melee Advantage vs Ranged Disadvantage",
+  "description": "D&D 5e 2024: Attacks within 5ft of a Prone target have advantage. Attacks beyond 5ft have disadvantage. A Fighter shoves a goblin prone, attacks in melee (advantage), then moves away and shoots with a longbow (disadvantage).",
+  "setup": {
+    "character": {
+      "name": "Versatile Warrior",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          },
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Club",
+              "kind": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shove Goblin Brute prone" },
+      "comment": "Shove uses unarmed strike: STR 18 (+4) + prof 3 = +7 vs AC 10, hits. Goblin DEX save +2 vs DC 15. Should knock prone. Uses 1 of 2 attacks (Extra Attack).",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "actionComplete": false
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the Goblin is now Prone",
+      "expect": {
+        "monsterConditions": {
+          "name": "Goblin Brute",
+          "hasConditions": ["Prone"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Brute with my longsword" },
+      "comment": "Melee attack at 5ft against Prone target → should have ADVANTAGE",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 7 = 19 vs AC 10 — hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn — AI behavior is endTurn so goblin stays Prone"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin turn (endTurn behavior, should stay Prone)"
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin should still be Prone (AI did endTurn, no stand-up)",
+      "expect": {
+        "monsterConditions": {
+          "name": "Goblin Brute",
+          "hasConditions": ["Prone"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to 40, 10" },
+      "comment": "Move 30ft from (10,10) to (40,10). Leaving goblin's reach triggers OA REACTION_CHECK.",
+      "expect": {
+        "type": "REACTION_CHECK"
+      }
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "decline" },
+      "comment": "Goblin declines opportunity attack — move completes to (40,10), now 25ft from prone goblin"
+    },
+    {
+      "type": "action",
+      "input": { "text": "shoot Goblin Brute with my longbow" },
+      "comment": "Ranged attack at 25ft against Prone target → should have DISADVANTAGE",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "disadvantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 6 = 24 vs AC 10 — hit even with disadvantage",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin took 10 + 8 = 18 damage. HP: 100 - 18 = 82",
+      "expect": {
+        "monsterHp": { "name": "Goblin Brute", "max": 82 }
+      }
+    }
+  ]
+}

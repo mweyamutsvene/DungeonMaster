@@ -1,6 +1,6 @@
 # Plan: Phase 3 — Condition System Overhaul
 ## Round: 1
-## Status: IN PROGRESS
+## Status: COMPLETE
 ## Affected Flows: CombatRules, CombatOrchestration
 
 ## Objective
@@ -17,12 +17,12 @@ Fix 5 condition mechanical effects that are either missing or incorrectly applie
 - [x] **Invisible**: Clarify the effect model — Invisible creature has advantage on attacks, AND attacks against it have disadvantage. Currently uses `attackRollsHaveAdvantage: true` with a confusing comment. Make the dual-direction clear with `selfAttackAdvantage` and `incomingAttackDisadvantage`
 
 #### [File: domain/combat/attack-resolver.ts or condition effect consumers]
-- [ ] Update attack resolution to check attacker distance when applying Prone condition effects — advantage if within 5ft, disadvantage if farther (NOTE: `getProneAttackModifier()` helper created, consumers in CombatOrchestration flow need to call it)
-- [ ] Update attack resolution to correctly handle Invisible — attacker gets advantage on their attacks, targets get disadvantage when attacking the invisible creature (NOTE: `hasSelfAttackAdvantage()` and `hasIncomingAttackDisadvantage()` helpers created, consumers need to call them)
-- [ ] Ensure Poisoned disadvantage is applied to ability checks (grapple, escape, skill checks) in addition to attacks (NOTE: `hasAbilityCheckDisadvantage()` helper created, consumers need to call it)
+- [x] Prone distance-aware consumers: `combat-text-parser.ts` imports and calls `getProneAttackModifier()` for distance-based advantage/disadvantage
+- [x] Invisible bidirectional handling: `combat-text-parser.ts` imports `hasSelfAttackAdvantage`, `hasIncomingAttackDisadvantage` — used for attacker/target roll modes
+- [x] Poisoned ability check disadvantage: `grapple-action-handler.ts` imports `hasAbilityCheckDisadvantage` — applied to shove, grapple, escape
 
 #### [File: application/services/combat/two-phase/move-reaction-handler.ts or movement rules]
-- [ ] **Frightened movement enforcement**: When a Frightened creature attempts to move, validate the destination is NOT closer to the fear source than the current position. Block or warn if moving closer (NOTE: `isFrightenedMovementBlocked()` and `getFrightenedSourceId()` helpers created, consumers in CombatOrchestration flow need to call them)
+- [x] **Frightened movement enforcement**: `move-reaction-handler.ts` imports `isFrightenedMovementBlocked` — checked during movement validation, throws ValidationError if moving closer to fear source
 - [x] Need to track fear source on the Frightened condition (who applied it) — `source` field already exists on `ActiveCondition`, `createCondition` accepts `source` option
 
 #### [File: domain/rules/ — new file or addition to conditions]
@@ -30,14 +30,14 @@ Fix 5 condition mechanical effects that are either missing or incorrectly applie
   - `getExhaustionPenalty(level)` → d20 penalty (−2 per level)
   - `getExhaustionSpeedReduction(level)` → speed reduction (5×level feet)
   - `isExhaustionLethal(level)` → true at level 6
-- [ ] Integrate exhaustion penalty into ability checks, attack rolls, saving throws (NOTE: `getExhaustionD20Penalty()` helper created, consumers in CombatOrchestration flow need to apply it)
-- [ ] Integrate speed reduction into movement calculation (NOTE: `getExhaustionSpeedReduction()` / `getExhaustionLevel()` helpers created, movement consumers need to apply it)
+- [x] Exhaustion penalty integrated into attack rolls (`attack-action-handler.ts`, `attack-handlers.ts`, `ai-attack-resolver.ts`, `opportunity-attack-resolver.ts`), saving throws (`saving-throw-resolver.ts`), and ability checks (`grapple-action-handler.ts` — shove, grapple, escape)
+- [x] Exhaustion speed reduction integrated into movement (`move-reaction-handler.ts` applies `getExhaustionSpeedReduction` to effective speed)
 
 ## Cross-Flow Risk Checklist
-- [ ] Do changes in one flow break assumptions in another? — Prone distance check affects attack-resolver consumers in CombatOrchestration
+- [x] Do changes in one flow break assumptions in another? — No, all consumers wired correctly
 - [x] Does the pending action state machine still have valid transitions? — Not affected
 - [x] Is action economy preserved? — Not affected
-- [ ] Do both player AND AI paths handle the change? — Frightened movement block needs to work for both player movement and AI movement
+- [x] Do both player AND AI paths handle the change? — Frightened movement uses move-reaction-handler (shared), exhaustion penalties in AI attack resolver
 - [x] Are repo interfaces + memory-repos updated if entity shapes change? — Exhaustion level may need to be persisted in combatant state
 - [x] Is `app.ts` registration updated if adding executors? — No new executors
 - [x] Are D&D 5e 2024 rules correct? — Verified all conditions against 2024 PHB
@@ -56,5 +56,5 @@ Fix 5 condition mechanical effects that are either missing or incorrectly applie
 - [x] Unit test: Exhaustion level 6 = death
 - [x] Unit test: Invisible creature has advantage on attacks
 - [x] Unit test: Attack against Invisible creature has disadvantage
-- [ ] E2E scenario: prone-melee-vs-ranged.json
-- [ ] E2E scenario: frightened-movement.json
+- [x] E2E scenario: prone-melee-vs-ranged.json
+- [x] E2E scenario: frightened-movement.json

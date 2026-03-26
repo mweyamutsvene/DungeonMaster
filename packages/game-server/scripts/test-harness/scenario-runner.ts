@@ -87,7 +87,8 @@ export type ScenarioAction =
   | SetSurpriseAction
   | RestAction
   | QueryAction
-  | NpcActionAction;
+  | NpcActionAction
+  | ApplyConditionAction;
 
 interface InitiateAction {
   type: "initiate";
@@ -182,6 +183,28 @@ interface NpcActionAction {
     error?: boolean;
     errorContains?: string;
   };
+}
+
+/**
+ * Directly apply a condition to a combatant via DM override PATCH endpoint.
+ * Useful for testing condition-dependent mechanics (Frightened movement, etc.)
+ * without relying on spell casting or other complex flows.
+ */
+interface ApplyConditionAction {
+  type: "applyCondition";
+  input: {
+    /** Target: "character" (first PC), "character:Name", "monster:Name", or "monster:0" (index) */
+    target: string;
+    /** Condition name, e.g. "Frightened", "Prone", "Stunned" */
+    condition: string;
+    /** Duration type */
+    duration: string;
+    /** Optional source (combatant ID or description) */
+    source?: string;
+    /** If source is "monster:Name", resolve to that monster's combatant ID */
+    sourceMonster?: string;
+  };
+  comment?: string;
 }
 
 interface MoveCompleteAction {
@@ -2167,6 +2190,89 @@ export async function runScenario(
           } else {
             log(`${colors.yellow}⚠${colors.reset} AI configuration not available (no callback provided)`);
           }
+          break;
+        }
+
+        case "applyCondition": {
+          if (!encounterId) throw new Error("Cannot applyCondition: no active encounter");
+          const condAction = action as ApplyConditionAction;
+          const { target, condition, duration, source, sourceMonster } = condAction.input;
+
+          // Resolve target combatant ID
+          let targetCombatantId: string | undefined;
+          if (target === "character" || target.startsWith("character:")) {
+            const charName = target === "character" ? undefined : target.slice("character:".length);
+            const actorId = charName ? resolveActorId(charName) : characterId;
+            // Find the combatant with this characterId
+            const combatantsRes = await httpGet(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants`);
+            const combatantsList = combatantsRes.body as any[];
+            const charCombatant = combatantsList.find((c: any) => c.characterId === actorId);
+            targetCombatantId = charCombatant?.id;
+          } else if (target.startsWith("monster:")) {
+            const monsterRef = target.slice("monster:".length);
+            // Try as index first, then as name
+            const idx = parseInt(monsterRef, 10);
+            if (!isNaN(idx) && idx >= 0 && idx < monsterIds.length) {
+              // Index-based: find combatant by monsterId
+              const combatantsRes = await httpGet(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants`);
+              const combatantsList = combatantsRes.body as any[];
+              const monCombatant = combatantsList.find((c: any) => c.monsterId === monsterIds[idx]);
+              targetCombatantId = monCombatant?.id;
+            } else {
+              // Name-based: find by matching monster name in setup
+              const monIndex = scenario.setup.monsters.findIndex(m => m.name.toLowerCase() === monsterRef.toLowerCase());
+              if (monIndex >= 0) {
+                const combatantsRes = await httpGet(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants`);
+                const combatantsList = combatantsRes.body as any[];
+                const monCombatant = combatantsList.find((c: any) => c.monsterId === monsterIds[monIndex]);
+                targetCombatantId = monCombatant?.id;
+              }
+            }
+          }
+
+          if (!targetCombatantId) {
+            throw new Error(`applyCondition: could not resolve target "${target}"`);
+          }
+
+          // Resolve source combatant ID if sourceMonster is provided
+          let resolvedSource = source;
+          if (sourceMonster) {
+            const monIndex = scenario.setup.monsters.findIndex(m => m.name.toLowerCase() === sourceMonster.toLowerCase());
+            if (monIndex >= 0) {
+              const combatantsRes = await httpGet(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants`);
+              const combatantsList = combatantsRes.body as any[];
+              const srcCombatant = combatantsList.find((c: any) => c.monsterId === monsterIds[monIndex]);
+              resolvedSource = srcCombatant?.id;
+            }
+            if (!resolvedSource) {
+              throw new Error(`applyCondition: could not resolve sourceMonster "${sourceMonster}"`);
+            }
+          }
+
+          // Get current conditions then add the new one
+          const combatantsRes = await httpGet(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants`);
+          const combatantsList = combatantsRes.body as any[];
+          const targetCombatant = combatantsList.find((c: any) => c.id === targetCombatantId);
+          const currentConditions = Array.isArray(targetCombatant?.conditions) ? targetCombatant.conditions : [];
+
+          const newCondition: Record<string, unknown> = {
+            condition,
+            duration,
+          };
+          if (resolvedSource) newCondition.source = resolvedSource;
+
+          const updatedConditions = [...currentConditions, newCondition];
+
+          const patchUrl = `${baseUrl}/sessions/${sessionId}/combat/${encounterId}/combatants/${targetCombatantId}`;
+          logRequest("PATCH", patchUrl);
+          const patchRes = await httpPatch(patchUrl, { conditions: updatedConditions });
+          logResponse(patchRes.status, patchRes.body);
+
+          if (patchRes.status !== 200) {
+            throw new Error(`applyCondition failed: ${JSON.stringify(patchRes.body)}`);
+          }
+
+          log(`${colors.green}✓${colors.reset} Applied "${condition}" condition to ${target}${resolvedSource ? ` (source: ${resolvedSource})` : ""}`);
           break;
         }
 

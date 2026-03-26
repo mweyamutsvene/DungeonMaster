@@ -300,4 +300,39 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
 
     return deps.combat.endCombat(sessionId, { encounterId, reason, result });
   });
+
+  /**
+   * PATCH /sessions/:id/combat/:encounterId/combatants/:combatantId
+   * DM override: patch combatant state (conditions, HP, resources).
+   * Body: { conditions?: unknown; hpCurrent?: number; resources?: unknown }
+   */
+  app.patch<{
+    Params: { id: string; encounterId: string; combatantId: string };
+    Body: {
+      conditions?: unknown;
+      hpCurrent?: number;
+      resources?: unknown;
+    };
+  }>("/sessions/:id/combat/:encounterId/combatants/:combatantId", async (req) => {
+    const { encounterId, combatantId } = req.params;
+
+    // Verify the combatant exists in this encounter
+    const combatants = await deps.combatRepo.listCombatants(encounterId);
+    const target = combatants.find((c) => c.id === combatantId);
+    if (!target) {
+      throw new ValidationError(`Combatant ${combatantId} not found in encounter ${encounterId}`);
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (req.body.conditions !== undefined) patch.conditions = req.body.conditions;
+    if (req.body.hpCurrent !== undefined) patch.hpCurrent = req.body.hpCurrent;
+    if (req.body.resources !== undefined) patch.resources = req.body.resources;
+
+    if (Object.keys(patch).length === 0) {
+      throw new ValidationError("No fields to patch");
+    }
+
+    const updated = await deps.combatRepo.updateCombatantState(combatantId, patch as any);
+    return updated;
+  });
 }
