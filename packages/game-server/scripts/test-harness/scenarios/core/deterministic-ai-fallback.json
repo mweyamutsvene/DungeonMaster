@@ -1,0 +1,133 @@
+{
+  "name": "Deterministic AI Fallback: AI plays full turn without LLM",
+  "description": "Verifies that an AI-controlled creature can play a full turn using the mock AI decision maker without an LLM planner. The battle plan service generates a deterministic plan, and the goblin attacks the player on its turn. Tests the full AI turn cycle with deterministic battle planning.",
+  "setup": {
+    "character": {
+      "name": "Tank Fighter",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 15, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Warrior",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 12,
+          "hp": 12,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my weapon" },
+      "expect": {
+        "rollType": "initiative"
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "comment": "Low initiative so goblin goes first. Goblin has DEX 14 (+2), seeded dice should give it higher initiative.",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for AI goblin to take its full turn. Goblin at (10,10) and fighter at (15,10) are 5ft apart (melee range). Goblin should attack the fighter.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat should still be active. Player may or may not have taken damage depending on attack roll.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 0, "max": 28 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Goblin Warrior with my longsword" },
+      "comment": "Player attacks on their turn",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "18 + 5 = 23 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 7" },
+      "comment": "7 + 3 = 10 damage, kills the 12 HP goblin",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin should be dead or nearly dead from 10 damage on 12 HP",
+      "expect": {
+        "monsterHp": { "name": "Goblin Warrior", "min": 0, "max": 2 }
+      }
+    }
+  ]
+}

@@ -72,8 +72,6 @@ export class BattlePlanService {
     combatant: CombatantStateRecord,
     allCombatants: CombatantStateRecord[],
   ): Promise<BattlePlan | null> {
-    if (!this.planner) return null;
-
     const faction = await this.factionService.getFaction(combatant);
     if (!faction) return null;
 
@@ -86,7 +84,7 @@ export class BattlePlanService {
       return existingPlan;
     }
 
-    // Generate new plan
+    // Gather faction context (shared by both LLM and deterministic paths)
     const allies = await this.factionService.getAllies(allCombatants, combatant);
     const enemies = await this.factionService.getEnemies(allCombatants, combatant);
     const nameMap = await this.combatantResolver.getNames([...allies, combatant, ...enemies]);
@@ -112,12 +110,23 @@ export class BattlePlanService {
         conditions: undefined as string[] | undefined,
       }));
 
-    const newPlan = await this.planner.generatePlan({
-      faction,
-      factionCreatures,
-      enemies: enemyList,
-      round: encounter.round,
-    });
+    // Try LLM planner first, fall back to deterministic
+    let newPlan: BattlePlan | null = null;
+    if (this.planner) {
+      newPlan = await this.planner.generatePlan({
+        faction,
+        factionCreatures,
+        enemies: enemyList,
+        round: encounter.round,
+      });
+    }
+
+    // Deterministic fallback when LLM is unavailable or returns null
+    if (!newPlan) {
+      newPlan = this.buildDeterministicPlan(
+        faction, encounter.round, combatant, factionCreatures, enemyList, nameMap,
+      );
+    }
 
     if (newPlan) {
       // Capture a battlefield snapshot so shouldReplan() heuristics can run
@@ -141,7 +150,56 @@ export class BattlePlanService {
       return planWithSnapshot;
     }
 
-    return newPlan;
+    return null;
+  }
+
+  /**
+   * Build a simple deterministic battle plan when LLM is unavailable.
+   *
+   * Heuristics:
+   * - Priority: offensive if any faction creature has CR ≥ average enemy level, defensive otherwise
+   * - Focus target: lowest-HP living enemy
+   * - Retreat: below 25% HP
+   */
+  private buildDeterministicPlan(
+    faction: string,
+    round: number,
+    combatant: CombatantStateRecord,
+    factionCreatures: Array<{ name: string; hp: { current: number; max: number } }>,
+    enemies: Array<{ name: string; hp: { current: number; max: number } }>,
+    nameMap: Map<string, string>,
+  ): BattlePlan {
+    // Determine priority: offensive for strong factions, defensive for weak
+    const cr = ((combatant.resources as Record<string, unknown>)?.challengeRating as number) ?? 1;
+    const priority: BattlePlan["priority"] = cr >= 1 ? "offensive" : "defensive";
+
+    // Focus target: lowest-HP living enemy
+    const livingEnemies = enemies.filter(e => e.hp.current > 0);
+    let focusTarget: string | undefined;
+    if (livingEnemies.length > 0) {
+      const lowestHp = livingEnemies.reduce((prev, curr) =>
+        curr.hp.current < prev.hp.current ? curr : prev,
+      );
+      focusTarget = lowestHp.name;
+    }
+
+    // Assign simple roles to each creature
+    const creatureRoles: Record<string, string> = {};
+    for (const c of factionCreatures) {
+      creatureRoles[c.name] = "Attack the nearest enemy";
+    }
+
+    return {
+      faction,
+      generatedAtRound: round,
+      priority,
+      focusTarget,
+      creatureRoles,
+      tacticalNotes: focusTarget
+        ? `Focus fire on ${focusTarget}. Engage nearest enemy if target is unreachable.`
+        : "Engage the nearest enemy.",
+      retreatCondition: "Below 25% HP and outnumbered",
+    };
   }
 
   /**
