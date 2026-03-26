@@ -47,6 +47,7 @@ import {
   hashStringToInt32,
   buildCreatureAdapter,
 } from "./helpers/combat-utils.js";
+import { lookupWeapon, hasWeaponProperty } from "../../../domain/entities/items/weapon-catalog.js";
 
 import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
 import { GrappleActionHandler } from "./action-handlers/grapple-action-handler.js";
@@ -553,14 +554,44 @@ export class ActionService {
       const equippedWeapon = attackerStats.equipment?.weapon;
 
       if (equippedWeapon) {
-        // TODO: Parse weapon stats to build proper spec
-        // For now, use basic melee attack
+        // Look up real weapon stats from the catalog
         const strMod = getAbilityModifier(attackerStats.abilityScores.strength);
-        spec = {
-          attackBonus: strMod + 2, // Proficiency bonus estimate
-          damage: { diceCount: 1, diceSides: 6, modifier: strMod },
-          kind: "melee",
-        };
+        const dexMod = getAbilityModifier(attackerStats.abilityScores.dexterity);
+        const profBonus = attackerStats.proficiencyBonus;
+
+        // Try direct lookup, then strip magic prefix (e.g. "+1 Longsword" → "Longsword")
+        let catalogEntry = lookupWeapon(equippedWeapon);
+        if (!catalogEntry) {
+          const stripped = equippedWeapon.replace(/^\+\d+\s+/, "");
+          if (stripped !== equippedWeapon) catalogEntry = lookupWeapon(stripped);
+        }
+
+        if (catalogEntry && catalogEntry.kind === "melee") {
+          // D&D 5e: finesse weapons use max(STR, DEX)
+          const isFinesse = hasWeaponProperty(catalogEntry, "finesse");
+          const abilityMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
+          // Detect magic bonus from weapon name (e.g. "+1 Longsword")
+          const magicMatch = equippedWeapon.match(/^\+(\d+)\s+/);
+          const magicBonus = magicMatch ? parseInt(magicMatch[1], 10) : 0;
+          spec = {
+            name: equippedWeapon,
+            attackBonus: abilityMod + profBonus + magicBonus,
+            damage: {
+              diceCount: catalogEntry.damage.diceCount,
+              diceSides: catalogEntry.damage.diceSides,
+              modifier: abilityMod + magicBonus,
+            },
+            kind: "melee",
+          };
+        } else {
+          // Weapon not in catalog or not melee — fall back to estimate
+          spec = {
+            name: equippedWeapon,
+            attackBonus: strMod + profBonus,
+            damage: { diceCount: 1, diceSides: 6, modifier: strMod },
+            kind: "melee",
+          };
+        }
       } else if (attacker.combatantType === "Monster") {
         // Try to get monster's first melee attack
         const attacks = await this.combatants.getMonsterAttacks(attacker.monsterId!);

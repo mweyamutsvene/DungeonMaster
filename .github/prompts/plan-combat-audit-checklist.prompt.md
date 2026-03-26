@@ -62,8 +62,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Combat Orchestration
 
-- [ ] **[ORCH-H1]** ActionService OA damage uses rough `1d6+strMod` estimate for all weapons — programmatic move path computes OA with wrong weapon stats. Real weapon should be looked up.
+- [x] **[ORCH-H1]** ActionService OA damage uses rough `1d6+strMod` estimate for all weapons — programmatic move path computes OA with wrong weapon stats. Real weapon should be looked up.
   - File: `application/services/combat/action-service.ts:550`
+  - Fix: Now looks up the attacker's equipped weapon in the weapon catalog via `lookupWeapon()`. Uses real damage dice, damage type, correct ability modifier (STR or max(STR,DEX) for finesse), real proficiency bonus, and magic weapon bonus. Falls back to the old estimate only if the weapon isn't in the catalog.
 
 - [ ] **[ORCH-H2]** Ready action trigger never fires — `handleReadyAction()` stores `{ condition, action }` in `resources.readiedAction` but no lifecycle hook in `combat-service.ts`, `nextTurn()`, or `TwoPhaseActionService` ever evaluates the trigger. Ready mechanic is permanently dormant.
   - File: `application/services/combat/tabletop/dispatch/social-handlers.ts`, `combat-service.ts`
