@@ -10,7 +10,7 @@ import {
 } from "../helpers/concentration-helper.js";
 
 import { NotFoundError, ValidationError } from "../../../errors.js";
-import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, getExhaustionD20Penalty, isAttackBlockedByCharm } from "../../../../domain/entities/combat/conditions.js";
 import {
   hasSpentAction,
   spendAction,
@@ -76,6 +76,12 @@ export class AttackActionHandler {
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
     if (targetState.hpCurrent <= 0) throw new ValidationError("Target is already defeated");
+
+    // D&D 2024 Charmed: can't attack the charmer
+    const attackerConditionsForCharm = normalizeConditions(attackerState.conditions as unknown[]);
+    if (isAttackBlockedByCharm(attackerConditionsForCharm, targetState.id)) {
+      throw new ValidationError("Cannot attack this target — Charmed condition prevents targeting the charmer");
+    }
 
     if (input.seed !== undefined && !Number.isInteger(input.seed)) {
       throw new ValidationError("seed must be an integer");

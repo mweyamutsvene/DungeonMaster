@@ -7,6 +7,7 @@ import { attemptMovement, crossesThroughReach, calculateDistance, type Position,
 import { canMakeOpportunityAttack } from "../../../domain/rules/opportunity-attack.js";
 
 import { NotFoundError, ValidationError } from "../../errors.js";
+import { normalizeConditions, isAttackBlockedByCharm } from "../../../domain/entities/combat/conditions.js";
 import {
   normalizeResources,
   readBoolean,
@@ -464,6 +465,10 @@ export class ActionService {
         const observerIncapacitated = otherConditions.some(
           (c) => typeof c === "string" && c.toLowerCase() === "incapacitated",
         );
+
+        // D&D 2024 Charmed: observer can't attack the creature that charmed them
+        const observerActiveConditions = normalizeConditions(other.conditions as unknown[]);
+        const observerCharmedByTarget = isAttackBlockedByCharm(observerActiveConditions, actor.id);
         
         const canAttack = canMakeOpportunityAttack(
           { reactionUsed: !hasReaction },
@@ -474,6 +479,7 @@ export class ActionService {
             canSee: true, // Vision checks would require line-of-sight calculation
             observerIncapacitated,
             leavingReach: true,
+            observerCharmedByTarget,
           },
         );
 

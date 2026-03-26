@@ -35,7 +35,7 @@ import {
   inferActorRef,
   findAllCombatantsByName,
 } from "../combat-text-parser.js";
-import { readConditionNames, normalizeConditions, getExhaustionD20Penalty } from "../../../../../domain/entities/combat/conditions.js";
+import { readConditionNames, normalizeConditions, getExhaustionD20Penalty, isAttackBlockedByCharm } from "../../../../../domain/entities/combat/conditions.js";
 import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery.js";
 import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
@@ -273,6 +273,12 @@ export class AttackHandlers {
 
     const targetCombatant = combatantStates.find((c: any) => c.monsterId === targetId || c.characterId === targetId || c.npcId === targetId);
     if (!targetCombatant) throw new ValidationError("Target not found in encounter");
+
+    // D&D 2024 Charmed: can't attack the charmer
+    const actorConditionsForCharm = normalizeConditions(actorCombatant.conditions as unknown[]);
+    if (isAttackBlockedByCharm(actorConditionsForCharm, targetCombatant.id)) {
+      throw new ValidationError("Cannot attack this target — Charmed condition prevents targeting the charmer");
+    }
 
     const actorPos = getPosition(actorCombatant.resources ?? {});
     const targetPos = getPosition(targetCombatant.resources ?? {});

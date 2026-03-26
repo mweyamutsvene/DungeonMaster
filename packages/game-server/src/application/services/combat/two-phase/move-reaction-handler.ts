@@ -41,7 +41,7 @@ import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { resolveMovementTriggers } from "../helpers/movement-trigger-resolver.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
 import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
-import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, isAttackBlockedByCharm, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
 import { resolveOpportunityAttacks } from "../helpers/opportunity-attack-resolver.js";
 import type { JsonValue } from "../../../types.js";
 import type {
@@ -294,6 +294,11 @@ export class MoveReactionHandler {
       if (crossesReach) {
         const hasReaction = hasReactionAvailable({ reactionUsed: false, ...otherResources } as any);
         const isDisengaged = readBoolean(resources, "disengaged") ?? false;
+
+        // D&D 2024 Charmed: observer can't attack the creature that charmed them
+        const otherConditions = normalizeConditions(other.conditions as unknown[]);
+        const observerCharmedByTarget = isAttackBlockedByCharm(otherConditions, actor.id);
+
         const canAttack = canMakeOpportunityAttack(
           { reactionUsed: !hasReaction },
           {
@@ -303,6 +308,7 @@ export class MoveReactionHandler {
             canSee: true,
             observerIncapacitated: false,
             leavingReach: true,
+            observerCharmedByTarget,
           },
         );
 

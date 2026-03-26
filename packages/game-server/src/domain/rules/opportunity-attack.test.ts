@@ -73,6 +73,23 @@ describe("Opportunity Attacks", () => {
       expect(result.canAttack).toBe(false);
       expect(result.reason).toBe("not-leaving-reach");
     });
+
+    it("should prevent opportunity attack when observer is charmed by the moving creature", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, observerCharmedByTarget: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(false);
+      expect(result.reason).toBe("charmed-by-target");
+    });
+
+    it("should allow opportunity attack when observerCharmedByTarget is false", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, observerCharmedByTarget: false };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+    });
   });
 
   describe("reaction state", () => {

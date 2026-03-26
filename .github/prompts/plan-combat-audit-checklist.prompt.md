@@ -49,7 +49,7 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Combat Conditions
 
-- [ ] **[RULES-H1]** Charmed condition has zero mechanical enforcement — can't attack charmer, charmer social advantage — neither enforced. `ConditionEffects` has no field to express "cannot target creature X."
+- [x] **[RULES-H1]** Charmed condition has zero mechanical enforcement — can't attack charmer, charmer social advantage — neither enforced. `ConditionEffects` has no field to express "cannot target creature X."
   - File: `domain/entities/combat/conditions.ts:173-175`
 
 - [x] **[RULES-H2]** Petrified condition missing resistance to all damage + poison/disease immunity. Interface `ConditionEffects` has no `resistsAllDamage` field.

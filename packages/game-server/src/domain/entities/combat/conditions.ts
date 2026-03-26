@@ -129,6 +129,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     resistsAllDamage: false,
     damageImmunities: [],
     conditionImmunities: [],
+    cannotTargetSource: false,
+    socialAdvantageForSource: false,
     cannotSpeak: false,
     cannotSee: false,
     cannotHear: false,
@@ -458,6 +460,34 @@ export function getFrightenedSourceId(conditions: readonly ActiveCondition[]): s
     c => c.condition === 'Frightened' && c.source,
   );
   return frightenedCondition?.source;
+}
+
+// ----- Charmed Targeting Restriction (D&D 2024) -----
+
+/**
+ * D&D 2024 Charmed: A charmed creature can't attack the charmer or target
+ * the charmer with harmful abilities or magical effects.
+ * Returns true if the attack/targeting should be blocked.
+ * @param attackerConditions - The attacking creature's active conditions
+ * @param targetId - The combatant ID of the intended target
+ */
+export function isAttackBlockedByCharm(
+  attackerConditions: readonly ActiveCondition[],
+  targetId: string,
+): boolean {
+  return attackerConditions.some(
+    c => c.condition === 'Charmed' && c.source === targetId,
+  );
+}
+
+/**
+ * Get all source IDs (charmers) from Charmed conditions on a creature.
+ * A creature can be charmed by multiple sources simultaneously.
+ */
+export function getCharmedSourceIds(conditions: readonly ActiveCondition[]): string[] {
+  return conditions
+    .filter(c => c.condition === 'Charmed' && c.source)
+    .map(c => c.source!);
 }
 
 // ----- Exhaustion Level System (D&D 2024) -----

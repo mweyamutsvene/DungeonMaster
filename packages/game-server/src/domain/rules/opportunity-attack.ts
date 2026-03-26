@@ -28,13 +28,15 @@ export interface OpportunityAttackTrigger {
   observerIncapacitated: boolean;
   /** Whether the moving creature is leaving the observer's reach */
   leavingReach: boolean;
+  /** Whether the observer is charmed by the moving creature (cannot attack charmer) */
+  observerCharmedByTarget?: boolean;
 }
 
 export interface OpportunityAttackResult {
   /** Whether an opportunity attack can be made */
   canAttack: boolean;
   /** Reason if can't attack */
-  reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach';
+  reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach' | 'charmed-by-target';
 }
 
 /**
@@ -67,6 +69,11 @@ export function canMakeOpportunityAttack(
   // Can't use reaction if incapacitated
   if (trigger.observerIncapacitated) {
     return { canAttack: false, reason: 'incapacitated' };
+  }
+
+  // Can't attack the charmer (Charmed condition)
+  if (trigger.observerCharmedByTarget) {
+    return { canAttack: false, reason: 'charmed-by-target' };
   }
 
   return { canAttack: true };

@@ -7,6 +7,8 @@ import {
   hasAbilityCheckDisadvantage,
   isFrightenedMovementBlocked,
   getFrightenedSourceId,
+  isAttackBlockedByCharm,
+  getCharmedSourceIds,
   getExhaustionPenalty,
   getExhaustionSpeedReduction,
   isExhaustionLethal,
@@ -480,6 +482,92 @@ describe("getConditionEffects", () => {
         const effects = getConditionEffects("Exhaustion");
         expect(effects.movementImpaired).toBe(true);
       });
+    });
+  });
+
+  // --- Charmed condition mechanics ---
+  describe("Charmed condition effects", () => {
+    it("has cannotTargetSource = true", () => {
+      const effects = getConditionEffects("Charmed");
+      expect(effects.cannotTargetSource).toBe(true);
+    });
+
+    it("has socialAdvantageForSource = true", () => {
+      const effects = getConditionEffects("Charmed");
+      expect(effects.socialAdvantageForSource).toBe(true);
+    });
+
+    it("does not prevent movement or actions", () => {
+      const effects = getConditionEffects("Charmed");
+      expect(effects.cannotMove).toBe(false);
+      expect(effects.cannotTakeActions).toBe(false);
+      expect(effects.cannotTakeReactions).toBe(false);
+    });
+  });
+
+  describe("isAttackBlockedByCharm", () => {
+    it("blocks attack when attacker is charmed by the target", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
+      ];
+      expect(isAttackBlockedByCharm(conditions, "npc-wizard-1")).toBe(true);
+    });
+
+    it("does not block attack against a different creature", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
+      ];
+      expect(isAttackBlockedByCharm(conditions, "goblin-2")).toBe(false);
+    });
+
+    it("does not block when not charmed", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Frightened", "until_removed", { source: "dragon-1" }),
+      ];
+      expect(isAttackBlockedByCharm(conditions, "dragon-1")).toBe(false);
+    });
+
+    it("does not block when charmed has no source", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed"),
+      ];
+      expect(isAttackBlockedByCharm(conditions, "anyone")).toBe(false);
+    });
+
+    it("does not block when conditions are empty", () => {
+      expect(isAttackBlockedByCharm([], "anyone")).toBe(false);
+    });
+
+    it("blocks correctly when charmed by multiple sources", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
+        createCondition("Charmed", "until_removed", { source: "succubus-3" }),
+      ];
+      expect(isAttackBlockedByCharm(conditions, "npc-wizard-1")).toBe(true);
+      expect(isAttackBlockedByCharm(conditions, "succubus-3")).toBe(true);
+      expect(isAttackBlockedByCharm(conditions, "goblin-2")).toBe(false);
+    });
+  });
+
+  describe("getCharmedSourceIds", () => {
+    it("returns source IDs from Charmed conditions", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
+        createCondition("Charmed", "until_removed", { source: "succubus-3" }),
+      ];
+      expect(getCharmedSourceIds(conditions)).toEqual(["npc-wizard-1", "succubus-3"]);
+    });
+
+    it("returns empty array when not charmed", () => {
+      expect(getCharmedSourceIds([])).toEqual([]);
+    });
+
+    it("skips Charmed conditions without source", () => {
+      const conditions: ActiveCondition[] = [
+        createCondition("Charmed", "until_removed"),
+        createCondition("Charmed", "until_removed", { source: "npc-wizard-1" }),
+      ];
+      expect(getCharmedSourceIds(conditions)).toEqual(["npc-wizard-1"]);
     });
   });
 });
