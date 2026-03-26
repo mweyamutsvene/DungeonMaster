@@ -23,8 +23,10 @@ JSON scenario files in `packages/game-server/scripts/test-harness/scenarios/`. E
 2. Study 2-3 existing scenarios in `scripts/test-harness/scenarios/` to understand the format
 3. For each new behavior, create a scenario that exercises the happy path
 4. For edge cases or regressions, create additional scenarios
-5. Run the scenarios: `pnpm -C packages/game-server test:e2e:combat:mock`
+5. Run the scenarios: `pnpm -C packages/game-server test:e2e:combat:mock -- --all`
 6. Report: list of scenarios created, pass/fail status
+
+> See `.github/instructions/testing.instructions.md` for full test command reference.
 
 ## Conventions
 - Scenario files are JSON with a standard schema (study existing files for the exact shape)

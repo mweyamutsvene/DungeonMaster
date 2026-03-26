@@ -32,6 +32,8 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 4. After all changes, run: `pnpm -C packages/game-server test` to verify
 5. Report: list of files modified, tests run, pass/fail status
 
+> See `.github/instructions/testing.instructions.md` for full test command reference (CRITICAL: E2E needs `-- --all` flag).
+
 ## Conventions
 - Facade stays thin (~370 lines) — delegate to sub-modules
 - CombatTextParser functions are pure — no `this.deps`, no side effects

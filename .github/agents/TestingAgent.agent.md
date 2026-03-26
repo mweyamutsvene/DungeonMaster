@@ -16,22 +16,30 @@ You are a testing specialist for the DungeonMaster D&D 5e game-server. Your role
 
 ## Available Test Commands
 
+> **Full reference**: See `.github/instructions/testing.instructions.md` for all commands, flags, output interpretation, and PowerShell reminders.
+
 ```bash
+# TypeScript compilation check (run FIRST)
+pnpm -C packages/game-server typecheck
+
 # All unit/integration tests (fast, no LLM)
 pnpm -C packages/game-server test
 
-pnpm -C packages/player-cli start -- --scenario solo-fighter
+# Mock LLM Combat E2E tests — CRITICAL: use --all to run ALL scenarios
+pnpm -C packages/game-server test:e2e:combat:mock -- --all
+pnpm -C packages/game-server test:e2e:combat:mock -- --all --verbose    # Step summaries + narration
+pnpm -C packages/game-server test:e2e:combat:mock -- --all --detailed   # Full request/response JSON
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=happy-path  # Single scenario
 
-# TypeScript compilation check
+# Standard verification sequence after any code change:
 pnpm -C packages/game-server typecheck
+pnpm -C packages/game-server test
+pnpm -C packages/game-server test:e2e:combat:mock -- --all
 
-# Mock LLM Combat E2E tests
-pnpm -C packages/game-server test:e2e:combat:mock
-pnpm -C packages/game-server test:e2e:combat:mock -- --verbose    # Step summaries + narration
-pnpm -C packages/game-server test:e2e:combat:mock -- --detailed   # Full request/response JSON
-pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=happy-path
+# To capture E2E summary only:
+pnpm -C packages/game-server test:e2e:combat:mock -- --all 2>&1 | Select-Object -Last 3
 
-# Real LLM integration tests (requires Ollama + DM_RUN_LLM_TESTS=1)
+# Real LLM integration tests (requires Ollama + DM_RUN_LLM_TESTS=1) — only when asked
 pnpm -C packages/game-server test:llm
 pnpm -C packages/game-server test:e2e:combat:llm
 ```

@@ -184,14 +184,18 @@ infrastructure/→ Adapters: Fastify API, Prisma repos, LLM providers
 
 ## Available Commands
 
+> **Full testing reference**: See `.github/instructions/testing.instructions.md` for all test commands, flags, output interpretation, and PowerShell reminders.
+
 ```bash
-pnpm -C packages/game-server typecheck            # TS compilation check
-pnpm -C packages/game-server test                  # All unit/integration tests (fast, no LLM)
-pnpm -C packages/game-server test:e2e:combat:mock  # E2E combat scenarios with mock LLM
-pnpm -C packages/game-server test:watch            # Watch mode
-pnpm -C packages/game-server dev                   # Run server in watch mode
+pnpm -C packages/game-server typecheck                         # TS compilation check
+pnpm -C packages/game-server test                               # All unit/integration tests (fast, no LLM)
+pnpm -C packages/game-server test:e2e:combat:mock -- --all      # E2E combat scenarios (MUST use --all)
+pnpm -C packages/game-server test:watch                         # Watch mode
+pnpm -C packages/game-server dev                                # Run server in watch mode
 pnpm -C packages/player-cli start -- --scenario solo-fighter
 ```
+
+**CRITICAL**: `test:e2e:combat:mock` without `--all` only runs the default `core/happy-path` scenario. Always pass `-- --all` for full verification.
 
 ## Combat System (2-Phase Tabletop Flow)
 

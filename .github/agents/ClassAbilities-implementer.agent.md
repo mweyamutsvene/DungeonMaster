@@ -30,6 +30,8 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 4. After all changes, run: `pnpm -C packages/game-server test` to verify
 5. Report: list of files modified, tests run, pass/fail status
 
+> See `.github/instructions/testing.instructions.md` for full test command reference (CRITICAL: E2E needs `-- --all` flag).
+
 ## Conventions
 - Domain-first principle: all class-specific detection, eligibility, and text matching in domain class files, NOT in application services
 - Explicit `.js` extensions in all TypeScript imports (NodeNext ESM)

@@ -27,6 +27,8 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 6. Run: `pnpm -C packages/game-server test` to verify all tests pass
 7. Report: list of test files created/modified, which Test Plan items were satisfied, pass/fail status
 
+> See `.github/instructions/testing.instructions.md` for full test command reference.
+
 ## Conventions
 - **Test location**: colocated with source (e.g., `movement.ts` → `movement.test.ts`)
 - **Structure**: `describe('moduleName', () => { it('should ...', () => { ... }) })`

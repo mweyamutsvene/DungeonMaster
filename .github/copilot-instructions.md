@@ -312,12 +312,16 @@ Data-driven system for **boolean feature checks** — "does this class have Rage
 - API error mapping depends on `NotFoundError` / `ValidationError` and Fastify’s error handler in `packages/game-server/src/infrastructure/api/app.ts`.
 
 ## Testing patterns
+
+> **Full testing reference**: See `.github/instructions/testing.instructions.md` for comprehensive test commands, E2E flags, output interpretation, and Windows PowerShell reminders.
+
 - Fast/unit tests: in-memory repositories (`infrastructure/testing/memory-repos.ts`) + stubs with Fastify `app.inject()` (see `packages/game-server/src/infrastructure/api/app.test.ts`).
 - Integration tests: `combat-service-domain.integration.test.ts`, `character-generator.integration.test.ts`.
   - Default `pnpm -C packages/game-server test` is deterministic; real-LLM tests are skipped unless `DM_RUN_LLM_TESTS=1|true|yes`.
+  - **CRITICAL: E2E mock combat must use `--all` flag to run all scenarios**: `pnpm -C packages/game-server test:e2e:combat:mock -- --all`
+  - Without `--all`, only the default `core/happy-path` scenario runs.
   - Run LLM combat e2e separately: `pnpm -C packages/game-server test:e2e:combat:llm`.
   - Run all LLM integration tests (combat + character generator): `pnpm -C packages/game-server test:llm`.
-  - Run mock E2E combat scenarios: `pnpm -C packages/game-server test:e2e:combat:mock`.
   - Run LLM accuracy E2E (all categories): `pnpm -C packages/game-server test:llm:e2e` (requires Ollama).
   - Run LLM intent tests only: `pnpm -C packages/game-server test:llm:e2e:intent`.
   - Run LLM narration tests only: `pnpm -C packages/game-server test:llm:e2e:narration`.

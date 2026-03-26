@@ -25,8 +25,10 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 2. Identify all changes assigned to the AIBehavior flow
 3. Implement each change
 4. After all changes, run: `pnpm -C packages/game-server test` (deterministic tests)
-5. If LLM tests were affected: `pnpm -C packages/game-server test:e2e:combat:mock`
+5. If LLM tests were affected: `pnpm -C packages/game-server test:e2e:combat:mock -- --all`
 6. Report: list of files modified, tests run, pass/fail status
+
+> See `.github/instructions/testing.instructions.md` for full test command reference.
 
 ## Conventions
 - LLM is always optional — handle "LLM not configured" gracefully
