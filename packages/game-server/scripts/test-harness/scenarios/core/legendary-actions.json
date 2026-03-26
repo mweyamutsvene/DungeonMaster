@@ -1,0 +1,275 @@
+{
+  "name": "Legendary Actions: Boss uses legendary actions between turns",
+  "description": "A Fighter fights a boss with legendary actions. After each player turn ends, the boss should spend legendary action charges to attack. Tests that processLegendaryActionsAfterTurn is correctly wired into the combat loop.",
+  "setup": {
+    "character": {
+      "name": "Kael Dragonslayer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 15, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greatsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeletal Champion",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 8,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 55,
+          "hp": 55,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Bone Lash",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "legendaryActionCharges": 3,
+          "legendaryActions": [
+            {
+              "name": "Bone Lash",
+              "cost": 1,
+              "description": "The Skeletal Champion makes a Bone Lash attack.",
+              "actionType": "attack",
+              "attackName": "Bone Lash"
+            },
+            {
+              "name": "Advance",
+              "cost": 1,
+              "description": "The Skeletal Champion moves up to half its speed.",
+              "actionType": "move"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the skeleton!" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "High initiative so player goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
+      "comment": "Player at (15,10), boss at (10,10) - 5ft, in melee range",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 7 = 22 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "8 + 4 = 12 damage (greatsword 2d6+4)",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
+      "comment": "Extra Attack at level 5 - second attack",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "comment": "12 + 7 = 19 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "6 + 4 = 10 damage. Total: 22 damage. Boss at 33 HP",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn - boss should use a legendary action (Bone Lash attack) after player's turn, then take its normal AI turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for legendary action + boss's normal AI turn to complete",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Player should have taken damage from legendary action and/or boss normal attack",
+      "expect": {
+        "characterHp": { "max": 43 },
+        "monsterHp": { "name": "Skeletal Champion", "min": 1 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
+      "comment": "Round 2 - continue attacking to eventually defeat the boss",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 16" },
+      "comment": "16 + 7 = 23 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "comment": "10 + 4 = 14 damage. Boss has taken ~36 damage total",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
+      "comment": "Extra Attack - second hit to finish the boss",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "comment": "14 + 7 = 21 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 9" },
+      "comment": "9 + 4 = 13 damage. Total ~49 damage on 55 HP boss - still alive",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn again - boss uses legendary action + normal turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for round 2 AI processing",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
+      "comment": "Round 3 - finish the boss",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "comment": "18 + 7 = 25 vs AC 13 - hit!",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 11" },
+      "comment": "11 + 4 = 15 damage - should kill or nearly kill the boss (total ~64 damage on 55 HP)",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

@@ -247,13 +247,13 @@ export interface LegendaryActionPayload {
   targetId?: string;
 }
 
-export interface LegendaryActionPayload {
+export interface LairActionPayload {
   encounterId: string;
   combatantId: string;
   actionName: string;
-  actionType: "attack" | "move" | "special";
-  cost: number;
-  targetId?: string;
+  description: string;
+  damage?: number;
+  damageType?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +288,8 @@ export type GameEventInput =
   | { type: "AbsorbElements"; payload: AbsorbElementsPayload }
   | { type: "HellishRebuke"; payload: HellishRebukePayload }
   | { type: "AiDecision"; payload: AiDecisionPayload }
-  | { type: "LegendaryAction"; payload: LegendaryActionPayload };
+  | { type: "LegendaryAction"; payload: LegendaryActionPayload }
+  | { type: "LairAction"; payload: LairActionPayload };
 
 /** All valid event type strings — use for exhaustive switch checks or filtering. */
 export type GameEventType = GameEventInput["type"];

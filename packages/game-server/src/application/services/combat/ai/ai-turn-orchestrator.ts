@@ -607,18 +607,46 @@ export class AiTurnOrchestrator {
   }
 
   /**
-   * Process all consecutive AI turns until a player turn is reached
+   * Process all consecutive AI turns until a player turn is reached.
+   * Also processes legendary actions after each turn ends and lair actions at round start.
    */
   async processAllMonsterTurns(sessionId: string, encounterId: string): Promise<void> {
+    // Determine who just ended their turn (the combatant before the current one in initiative order).
+    // Legendary actions fire "immediately after another creature's turn ends".
+    const enc0 = await this.combat.getEncounterById(encounterId);
+    if (!enc0 || enc0.status !== "Active") return;
+
+    const combatants0 = await this.combat.listCombatants(encounterId);
+    if (combatants0.length === 0) return;
+
+    const prevIndex = (enc0.turn - 1 + combatants0.length) % combatants0.length;
+    const justEndedCombatant = combatants0[prevIndex];
+    if (justEndedCombatant) {
+      await this.processLegendaryActionsAfterTurn(sessionId, encounterId, justEndedCombatant.id);
+    }
+
+    // Lair actions trigger at initiative count 20 (start of round).
+    await this.processLairActionsIfNeeded(sessionId, encounterId);
+
     let processed = true;
     // Guard against infinite loops (e.g., all remaining combatants are stabilized/dead)
     // Max iterations = 2x combatant count should be enough for one full round
     let iterations = 0;
-    const combatants = await this.combat.listCombatants(encounterId);
-    const maxIterations = Math.max(combatants.length * 2, 10);
+    const maxIterations = Math.max(combatants0.length * 2, 10);
     while (processed && iterations < maxIterations) {
       iterations++;
+
+      // Snapshot who is about to act (will be used for legendary action after their turn)
+      const encSnap = await this.combat.getEncounterById(encounterId);
+      const snapCombatants = encSnap ? await this.combat.listCombatants(encounterId) : [];
+      const aboutToAct = encSnap ? snapCombatants[encSnap.turn] : undefined;
+
       processed = await this.processMonsterTurnIfNeeded(sessionId, encounterId);
+
+      // After an AI turn completes, fire legendary actions for the combatant that just ended
+      if (processed && aboutToAct) {
+        await this.processLegendaryActionsAfterTurn(sessionId, encounterId, aboutToAct.id);
+      }
     }
   }
 
@@ -723,7 +751,9 @@ export class AiTurnOrchestrator {
 
   /**
    * Execute a legendary attack action.
-   * Uses the action service to resolve the attack programmatically.
+   * Resolves the attack directly (d20 + bonus vs AC, damage on hit)
+   * WITHOUT consuming the boss's action economy, since legendary actions
+   * use their own charge system.
    */
   private async executeLegendaryAttack(
     sessionId: string,
@@ -733,39 +763,106 @@ export class AiTurnOrchestrator {
     combatants: CombatantStateRecord[],
   ): Promise<void> {
     const target = combatants.find(c => c.id === decision.targetId);
-    if (!target) return;
+    if (!target || !this.diceRoller) return;
 
-    // Resolve names for the action service
-    let targetName = "target";
-    if (target.characterId) {
-      const c = await this.characters.getById(target.characterId);
-      targetName = c?.name ?? "target";
-    } else if (target.monsterId) {
-      const m = await this.monsters.getById(target.monsterId);
-      targetName = m?.name ?? "target";
-    } else if (target.npcId) {
-      const n = await this.npcs.getById(target.npcId);
-      targetName = n?.name ?? "target";
+    // Look up the attack from the boss's stat block
+    let attacks: Array<{ name: string; attackBonus: number; damage: { diceCount: number; diceSides: number; modifier: number }; damageType?: string }> = [];
+    if (boss.monsterId) {
+      const mon = await this.monsters.getById(boss.monsterId);
+      if (mon) {
+        const sb = mon.statBlock as Record<string, unknown>;
+        if (Array.isArray(sb?.attacks)) attacks = sb.attacks as typeof attacks;
+      }
+    } else if (boss.npcId) {
+      const npc = await this.npcs.getById(boss.npcId);
+      if (npc) {
+        const sb = npc.statBlock as Record<string, unknown>;
+        if (Array.isArray(sb?.attacks)) attacks = sb.attacks as typeof attacks;
+      }
     }
 
-    try {
-      // Use the action service to execute a programmatic attack
-      const actorRef = this.buildActorRef(boss);
-      const targetRef = this.buildActorRef(target);
-      if (!actorRef || !targetRef) return;
+    const attackDef = attacks.find(a =>
+      typeof a.name === "string" && a.name.toLowerCase() === (decision.attackName ?? "").toLowerCase(),
+    );
+    if (!attackDef) {
+      this.aiLog(`[LegendaryAction] Attack "${decision.attackName}" not found in boss stat block`);
+      return;
+    }
 
-      // Pick the attack name from the legendary action or fall back to first available
-      const attackName = decision.attackName;
-      if (attackName) {
-        await this.actionService.attack(sessionId, {
+    // Get target AC
+    let ac = 10;
+    if (target.characterId) {
+      const ch = await this.characters.getById(target.characterId);
+      if (ch) ac = (ch.sheet as any)?.armorClass ?? 10;
+    } else if (target.monsterId) {
+      const m = await this.monsters.getById(target.monsterId);
+      if (m) ac = (m.statBlock as any)?.armorClass ?? 10;
+    } else if (target.npcId) {
+      const n = await this.npcs.getById(target.npcId);
+      if (n) ac = (n.statBlock as any)?.armorClass ?? 10;
+    }
+
+    // Roll attack
+    const attackRoll = this.diceRoller.d20().total;
+    const attackTotal = attackRoll + (attackDef.attackBonus ?? 0);
+    const isCritical = attackRoll === 20;
+    const hit = isCritical || attackTotal >= ac;
+
+    this.aiLog(`[LegendaryAction] Attack roll: ${attackRoll} + ${attackDef.attackBonus} = ${attackTotal} vs AC ${ac} → ${hit ? "HIT" : "MISS"}`);
+
+    // Emit attack event
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "AttackResolved",
+        payload: {
           encounterId,
-          attacker: actorRef,
-          target: targetRef,
-          monsterAttackName: attackName,
+          attackName: attackDef.name,
+          attackRoll,
+          attackBonus: attackDef.attackBonus,
+          attackTotal,
+          targetAC: ac,
+          hit,
+          critical: isCritical,
+          source: "legendary_action",
+        },
+      });
+    }
+
+    if (!hit) return;
+
+    // Roll damage
+    let totalDamage = 0;
+    const diceCount = isCritical ? (attackDef.damage?.diceCount ?? 1) * 2 : (attackDef.damage?.diceCount ?? 1);
+    const diceSides = attackDef.damage?.diceSides ?? 6;
+    for (let i = 0; i < diceCount; i++) {
+      totalDamage += this.diceRoller.rollDie(diceSides).total;
+    }
+    totalDamage += attackDef.damage?.modifier ?? 0;
+
+    // Apply damage
+    const newHp = Math.max(0, target.hpCurrent - totalDamage);
+    await this.combat.updateCombatantState(target.id, { hpCurrent: newHp });
+
+    this.aiLog(`[LegendaryAction] Damage: ${totalDamage} ${attackDef.damageType ?? ""} → target HP ${target.hpCurrent} → ${newHp}`);
+
+    // Emit damage event
+    if (this.events) {
+      const targetRef = this.buildActorRef(target);
+      if (targetRef) {
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "DamageApplied",
+          payload: {
+            encounterId,
+            target: targetRef,
+            amount: totalDamage,
+            hpCurrent: newHp,
+            source: "legendary_action",
+            damageType: attackDef.damageType ?? "untyped",
+          },
         });
       }
-    } catch (err) {
-      this.aiLog(`[LegendaryAction] Attack execution failed:`, err);
     }
   }
 
@@ -790,6 +887,177 @@ export class AiTurnOrchestrator {
     }
     // Boss hasn't gone yet this round: count from start
     return combatants.length - bossIndex + currentTurn;
+  }
+
+  /**
+   * Process lair actions at initiative count 20 (losing ties).
+   *
+   * D&D 5e 2024: On initiative count 20 (losing ties), the boss can trigger
+   * ONE lair action per round. We check at the start of the AI turn loop
+   * (which runs after a player turn). If this is the first time init-20
+   * triggers this round, we fire one lair action.
+   *
+   * Implementation: Track `lairActionUsedThisRound` on the boss's resources.
+   * Reset it when the round advances (detected by round number change).
+   */
+  private async processLairActionsIfNeeded(
+    sessionId: string,
+    encounterId: string,
+  ): Promise<void> {
+    const encounter = await this.combat.getEncounterById(encounterId);
+    if (!encounter || encounter.status !== "Active") return;
+
+    const combatants = await this.combat.listCombatants(encounterId);
+
+    // Find bosses with lair actions that are in their lair
+    const lairBosses = combatants.filter(c => {
+      if (c.hpCurrent <= 0) return false;
+      const res = normalizeResources(c.resources);
+      return Array.isArray(res.lairActions) && res.lairActions.length > 0 && res.isInLair === true;
+    });
+
+    if (lairBosses.length === 0) return;
+
+    for (const boss of lairBosses) {
+      const res = normalizeResources(boss.resources);
+
+      // Check if lair action already used this round
+      const lastLairRound = typeof res.lairActionLastRound === "number" ? res.lairActionLastRound : 0;
+      if (lastLairRound >= encounter.round) continue; // Already used this round
+
+      // Check incapacitated
+      const conditions = readConditionNames(boss.conditions).map(c => c.toLowerCase());
+      if (conditions.includes("incapacitated") || conditions.includes("stunned") ||
+          conditions.includes("paralyzed") || conditions.includes("unconscious")) {
+        continue;
+      }
+
+      const lairActions = res.lairActions as Array<{
+        name: string;
+        description: string;
+        saveDC?: number;
+        saveAbility?: string;
+        damage?: string;
+        damageType?: string;
+        effect?: string;
+      }>;
+
+      if (lairActions.length === 0) continue;
+
+      // Pick a lair action (simple: cycle through them based on round number)
+      const actionIndex = (encounter.round - 1) % lairActions.length;
+      const chosenAction = lairActions[actionIndex];
+      if (!chosenAction) continue;
+
+      // Mark lair action as used this round
+      const updatedRes = { ...res, lairActionLastRound: encounter.round };
+      await this.combat.updateCombatantState(boss.id, { resources: updatedRes as any });
+
+      // Resolve boss name
+      let bossName = "Boss";
+      if (boss.monsterId) {
+        const m = await this.monsters.getById(boss.monsterId);
+        bossName = m?.name ?? "Boss";
+      }
+
+      this.aiLog(`[LairAction] ${bossName} uses lair action: ${chosenAction.name}`);
+
+      // Emit events
+      if (this.events) {
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "LairAction",
+          payload: {
+            encounterId,
+            combatantId: boss.id,
+            actionName: chosenAction.name,
+            description: chosenAction.description,
+            ...(chosenAction.damageType ? { damageType: chosenAction.damageType } : {}),
+          },
+        });
+
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "NarrativeText",
+          payload: {
+            encounterId,
+            text: `The lair shudders as ${bossName} triggers a lair action: ${chosenAction.name}! ${chosenAction.description}`,
+          },
+        });
+      }
+
+      // If the lair action deals damage with a save, resolve it against all enemies
+      if (chosenAction.saveDC && chosenAction.damage) {
+        await this.resolveLairActionDamage(
+          sessionId, encounterId, boss, chosenAction, combatants,
+        );
+      }
+    }
+  }
+
+  /**
+   * Resolve damage from a lair action with a saving throw against enemy combatants.
+   */
+  private async resolveLairActionDamage(
+    sessionId: string,
+    encounterId: string,
+    boss: CombatantStateRecord,
+    action: { saveDC?: number; saveAbility?: string; damage?: string; damageType?: string },
+    combatants: CombatantStateRecord[],
+  ): Promise<void> {
+    if (!action.saveDC || !action.damage || !this.diceRoller) return;
+
+    const bossFaction = boss.monster?.faction ?? boss.npc?.faction ?? "enemy";
+    const targets = combatants.filter(c => {
+      if (c.id === boss.id) return false;
+      if (c.hpCurrent <= 0) return false;
+      const cf = c.character?.faction ?? c.monster?.faction ?? c.npc?.faction ?? "party";
+      return cf !== bossFaction;
+    });
+
+    // Parse damage dice (e.g., "2d6" or "3d8")
+    const diceMatch = action.damage.match(/^(\d+)d(\d+)$/);
+    if (!diceMatch) return;
+    const diceCount = parseInt(diceMatch[1], 10);
+    const diceSides = parseInt(diceMatch[2], 10);
+
+    for (const target of targets) {
+      // Roll damage
+      let totalDamage = 0;
+      for (let i = 0; i < diceCount; i++) {
+        totalDamage += this.diceRoller.rollDie(diceSides).total;
+      }
+
+      // Roll saving throw
+      const saveRoll = this.diceRoller.rollDie(20).total;
+      const saved = saveRoll >= action.saveDC;
+      const finalDamage = saved ? Math.floor(totalDamage / 2) : totalDamage;
+
+      if (finalDamage > 0) {
+        const newHp = Math.max(0, target.hpCurrent - finalDamage);
+        await this.combat.updateCombatantState(target.id, { hpCurrent: newHp });
+
+        if (this.events) {
+          // Build target ref from combatant
+          const targetRef = this.buildActorRef(target);
+          if (targetRef) {
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "DamageApplied",
+              payload: {
+                encounterId,
+                target: targetRef,
+                amount: finalDamage,
+                hpCurrent: newHp,
+                source: "lair_action",
+                damageType: action.damageType ?? "untyped",
+                saved,
+              },
+            });
+          }
+        }
+      }
+    }
   }
 }
 

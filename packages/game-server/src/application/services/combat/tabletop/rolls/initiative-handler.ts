@@ -24,6 +24,7 @@ import {
 } from "../../helpers/resource-utils.js";
 import { getMartialArtsDieSize } from "../../../../../domain/rules/martial-arts-die.js";
 import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
+import { parseLegendaryTraits } from "../../../../../domain/entities/creatures/legendary-actions.js";
 import { computeInitiativeRollMode } from "../tabletop-utils.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type {
@@ -321,6 +322,20 @@ export class InitiativeHandler {
           monsterResources.inventory = statBlock.inventory;
         }
 
+        // Initialize legendary action resources from monster stat block
+        const legendary = parseLegendaryTraits(statBlock as Record<string, unknown>);
+        if (legendary) {
+          monsterResources.legendaryActionCharges = legendary.legendaryActionCharges;
+          monsterResources.legendaryActionsRemaining = legendary.legendaryActionCharges;
+          monsterResources.legendaryActions = legendary.legendaryActions as unknown[];
+          if (legendary.lairActions) {
+            monsterResources.lairActions = legendary.lairActions as unknown[];
+          }
+          if (legendary.isInLair) {
+            monsterResources.isInLair = true;
+          }
+        }
+
         combatants.push({
           combatantType: "Monster" as const,
           monsterId: targetId,
@@ -385,6 +400,20 @@ export class InitiativeHandler {
       // Initialize inventory from statBlock (potions, consumables, etc.)
       if (Array.isArray(statBlock?.inventory) && statBlock.inventory.length > 0) {
         npcResources.inventory = statBlock.inventory;
+      }
+
+      // Initialize legendary action resources from NPC stat block
+      const npcLegendary = parseLegendaryTraits(statBlock as Record<string, unknown>);
+      if (npcLegendary) {
+        npcResources.legendaryActionCharges = npcLegendary.legendaryActionCharges;
+        npcResources.legendaryActionsRemaining = npcLegendary.legendaryActionCharges;
+        npcResources.legendaryActions = npcLegendary.legendaryActions as unknown[];
+        if (npcLegendary.lairActions) {
+          npcResources.lairActions = npcLegendary.lairActions as unknown[];
+        }
+        if (npcLegendary.isInLair) {
+          npcResources.isInLair = true;
+        }
       }
 
       combatants.push({

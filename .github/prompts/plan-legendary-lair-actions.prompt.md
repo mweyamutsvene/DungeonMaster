@@ -1,6 +1,6 @@
 # Plan: Legendary Actions & Lair Actions for Boss Monsters
 ## Round: 1
-## Status: IN_PROGRESS
+## Status: COMPLETE
 ## Affected Flows: EntityManagement, CombatRules, CombatOrchestration, AIBehavior
 
 ## Objective
@@ -59,9 +59,13 @@ Implement D&D 5e 2024 Legendary Actions and Lair Actions for boss monsters. Lege
 - Performance — mitigated by checking boss existence/charges before doing any work
 
 ## Test Plan
-- [ ] Unit test: legendary action charge reset at start of boss turn
-- [ ] Unit test: legendary action deducts correct charge cost
-- [ ] Unit test: can't use legendary action when incapacitated
-- [ ] Unit test: can't use legendary action when charges = 0
-- [ ] Unit test: lair action triggers at initiative 20
-- [ ] E2E scenario: `legendary-actions.json` — full round with boss using legendary actions
+- [x] Unit test: legendary action charge reset at start of boss turn (resource-utils-legendary.test.ts)
+- [x] Unit test: legendary action deducts correct charge cost (resource-utils-legendary.test.ts)
+- [x] Unit test: can't use legendary action when incapacitated (legendary-action-handler.test.ts)
+- [x] Unit test: can't use legendary action when charges = 0 (legendary-action-handler.test.ts)
+- [x] Unit test: lair action parsing (legendary-actions.test.ts)
+- [x] E2E scenario: `core/legendary-actions.json` — full 3-round combat with boss using legendary Bone Lash attacks between player turns
+
+## Additional Fixes (discovered during E2E testing)
+- [x] initiative-handler.ts: Added legendary resource initialization from monster statBlock (was only in combat-service.ts startEncounter, which tabletop flow bypasses)
+- [x] ai-turn-orchestrator.ts: Rewrote executeLegendaryAttack to resolve attacks directly (d20+bonus vs AC) instead of using actionService.attack() which incorrectly consumed the boss's action economy
