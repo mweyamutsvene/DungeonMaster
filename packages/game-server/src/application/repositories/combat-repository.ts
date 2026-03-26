@@ -24,7 +24,7 @@ export interface ICombatRepository {
 
   updateCombatantState(
     id: string,
-    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "initiative" | "conditions" | "resources">>,
+    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "hpTemp" | "initiative" | "conditions" | "resources">>,
   ): Promise<CombatantStateRecord>;
 
   createCombatants(
@@ -38,6 +38,7 @@ export interface ICombatRepository {
       initiative: number | null;
       hpCurrent: number;
       hpMax: number;
+      hpTemp?: number;
       conditions: JsonValue;
       resources: JsonValue;
     }>,

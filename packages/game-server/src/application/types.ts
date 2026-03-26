@@ -75,6 +75,7 @@ export type CombatantStateRecord = {
   initiative: number | null;
   hpCurrent: number;
   hpMax: number;
+  hpTemp?: number;
   conditions: JsonValue;
   resources: JsonValue;
   createdAt: Date;

@@ -186,6 +186,7 @@ export function hydrateCharacter(
   const level = readNumber(sheet, 'level') ?? record.level;
   const maxHP = readNumber(sheet, 'maxHP') ?? readNumber(sheet, 'hitPoints') ?? 10;
   const currentHP = combatantState?.hpCurrent ?? readNumber(sheet, 'currentHP') ?? maxHP;
+  const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(sheet, 'armorClass') ?? readNumber(sheet, 'ac') ?? 10;
   const speed = readNumber(sheet, 'speed') ?? 30;
   const proficiencyBonus = readNumber(sheet, 'proficiencyBonus') ?? Math.floor((level - 1) / 4) + 2;
@@ -226,6 +227,7 @@ export function hydrateCharacter(
     name: record.name,
     maxHP,
     currentHP,
+    tempHP,
     armorClass,
     speed: speciesTraits?.speed ?? speed,
     abilityScores: new AbilityScores(abilityScores),
@@ -270,6 +272,7 @@ export function hydrateMonster(
   const abilityScores = extractAbilityScores(readObject(statBlock, 'abilityScores'));
   const maxHP = readNumber(statBlock, 'maxHP') ?? readNumber(statBlock, 'hitPoints') ?? 10;
   const currentHP = combatantState?.hpCurrent ?? readNumber(statBlock, 'currentHP') ?? maxHP;
+  const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(statBlock, 'armorClass') ?? readNumber(statBlock, 'ac') ?? 10;
   const speed = readNumber(statBlock, 'speed') ?? 30;
   const challengeRating = readNumber(statBlock, 'challengeRating') ?? readNumber(statBlock, 'cr') ?? 0;
@@ -286,6 +289,7 @@ export function hydrateMonster(
     name: record.name,
     maxHP,
     currentHP,
+    tempHP,
     armorClass,
     speed,
     abilityScores: new AbilityScores(abilityScores),
@@ -320,6 +324,7 @@ export function hydrateNPC(
   const abilityScores = extractAbilityScores(readObject(statBlock, 'abilityScores'));
   const maxHP = readNumber(statBlock, 'maxHP') ?? readNumber(statBlock, 'hitPoints') ?? 10;
   const currentHP = combatantState?.hpCurrent ?? readNumber(statBlock, 'currentHP') ?? maxHP;
+  const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(statBlock, 'armorClass') ?? readNumber(statBlock, 'ac') ?? 10;
   const speed = readNumber(statBlock, 'speed') ?? 30;
   const proficiencyBonus = readNumber(statBlock, 'proficiencyBonus') ?? 2;
@@ -333,6 +338,7 @@ export function hydrateNPC(
     name: record.name,
     maxHP,
     currentHP,
+    tempHP,
     armorClass,
     speed,
     abilityScores: new AbilityScores(abilityScores),
@@ -358,10 +364,12 @@ export function hydrateNPC(
  */
 export function extractCombatantState(creature: Character | Monster | NPC): {
   hpCurrent: number;
+  hpTemp: number;
   conditions: string[];
 } {
   return {
     hpCurrent: creature.getCurrentHP(),
+    hpTemp: creature.getTempHP(),
     conditions: Array.from(creature.getConditions()),
   };
 }

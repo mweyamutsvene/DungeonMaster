@@ -91,6 +91,7 @@ describe('Creature Hydration', () => {
         initiative: 15,
         hpCurrent: 30,  // Damaged in combat
         hpMax: 60,
+        hpTemp: 0,
         conditions: ['Poisoned', 'Frightened'],
         resources: {},
         createdAt: new Date(),
@@ -408,6 +409,7 @@ describe('Creature Hydration', () => {
         initiative: 12,
         hpCurrent: 5,  // Badly wounded
         hpMax: 15,
+        hpTemp: 0,
         conditions: ['Prone'],
         resources: {},
         createdAt: new Date(),
@@ -650,6 +652,7 @@ describe('Creature Hydration', () => {
         initiative: 18,
         hpCurrent: state1.hpCurrent,
         hpMax: 55,
+        hpTemp: state1.hpTemp,
         conditions: state1.conditions,
         resources: {},
         createdAt: new Date(),
@@ -874,6 +877,7 @@ describe('Creature Hydration', () => {
         initiative: 10,
         hpCurrent: 10,
         hpMax: 10,
+        hpTemp: 0,
         conditions: [],
         resources: {
           // Old format (used by clearActionSpent helper)

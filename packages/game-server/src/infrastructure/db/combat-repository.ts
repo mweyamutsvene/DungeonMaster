@@ -83,11 +83,12 @@ export class PrismaCombatRepository implements ICombatRepository {
 
   async updateCombatantState(
     id: string,
-    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "initiative" | "conditions" | "resources">>,
+    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "hpTemp" | "initiative" | "conditions" | "resources">>,
   ): Promise<CombatantStateRecord> {
     const data: Prisma.CombatantStateUpdateInput = {
       ...("hpCurrent" in patch ? { hpCurrent: patch.hpCurrent } : undefined),
       ...("hpMax" in patch ? { hpMax: patch.hpMax } : undefined),
+      ...("hpTemp" in patch ? { hpTemp: patch.hpTemp } : undefined),
       ...("initiative" in patch ? { initiative: patch.initiative } : undefined),
       ...("conditions" in patch ? { conditions: patch.conditions as Prisma.InputJsonValue } : undefined),
       ...("resources" in patch ? { resources: patch.resources as Prisma.InputJsonValue } : undefined),
@@ -107,6 +108,7 @@ export class PrismaCombatRepository implements ICombatRepository {
       initiative: number | null;
       hpCurrent: number;
       hpMax: number;
+      hpTemp?: number;
       conditions: JsonValue;
       resources: JsonValue;
     }>,
@@ -126,6 +128,7 @@ export class PrismaCombatRepository implements ICombatRepository {
           initiative: c.initiative,
           hpCurrent: c.hpCurrent,
           hpMax: c.hpMax,
+          hpTemp: c.hpTemp ?? 0,
           conditions: c.conditions as Prisma.InputJsonValue,
           resources: c.resources as Prisma.InputJsonValue,
           createdAt: new Date(baseTime + i),

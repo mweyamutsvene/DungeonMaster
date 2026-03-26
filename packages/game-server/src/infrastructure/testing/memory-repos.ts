@@ -151,6 +151,10 @@ export class MemoryMonsterRepository implements IMonsterRepository {
     return [...this.monsters.values()].filter((m) => m.sessionId === sessionId);
   }
 
+  async delete(id: string): Promise<void> {
+    this.monsters.delete(id);
+  }
+
   clear(): void {
     this.monsters.clear();
   }
@@ -225,7 +229,7 @@ export class MemoryCombatRepository implements ICombatRepository {
 
   async updateCombatantState(
     id: string,
-    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "initiative" | "conditions" | "resources">>,
+    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "hpTemp" | "initiative" | "conditions" | "resources">>,
   ): Promise<CombatantStateRecord> {
     for (const [encounterId, list] of this.combatantsByEncounter.entries()) {
       const idx = list.findIndex((c) => c.id === id);
@@ -255,6 +259,7 @@ export class MemoryCombatRepository implements ICombatRepository {
       initiative: number | null;
       hpCurrent: number;
       hpMax: number;
+      hpTemp?: number;
       conditions: JsonValue;
       resources: JsonValue;
     }>,
@@ -272,6 +277,7 @@ export class MemoryCombatRepository implements ICombatRepository {
         initiative: c.initiative,
         hpCurrent: c.hpCurrent,
         hpMax: c.hpMax,
+        hpTemp: c.hpTemp ?? 0,
         conditions: c.conditions,
         resources: c.resources,
         createdAt: new Date(baseTime + i),

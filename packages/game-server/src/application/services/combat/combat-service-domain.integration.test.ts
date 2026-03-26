@@ -112,6 +112,7 @@ class MemoryCombatRepository implements ICombatRepository {
       initiative: number | null;
       hpCurrent: number;
       hpMax: number;
+      hpTemp?: number;
       conditions: JsonValue;
       resources: JsonValue;
     }>,
@@ -119,6 +120,7 @@ class MemoryCombatRepository implements ICombatRepository {
     const created = combatants.map((c, i) => {
       const rec: CombatantStateRecord = {
         ...c,
+        hpTemp: c.hpTemp ?? 0,
         encounterId,
         createdAt: new Date(Date.now() + i),
         updatedAt: new Date(Date.now() + i),
@@ -131,7 +133,7 @@ class MemoryCombatRepository implements ICombatRepository {
 
   async updateCombatantState(
     id: string,
-    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "initiative" | "conditions" | "resources">>,
+    patch: Partial<Pick<CombatantStateRecord, "hpCurrent" | "hpMax" | "hpTemp" | "initiative" | "conditions" | "resources">>,
   ): Promise<CombatantStateRecord> {
     for (const combatants of this.combatantsByEncounter.values()) {
       const idx = combatants.findIndex((c) => c.id === id);

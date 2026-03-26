@@ -203,6 +203,7 @@ model CombatantState {
   initiative Int?
   hpCurrent  Int
   hpMax      Int
+  hpTemp     Int @default(0)
 
   conditions Json
   resources  Json
