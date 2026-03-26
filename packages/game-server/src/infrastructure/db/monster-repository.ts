@@ -44,4 +44,10 @@ export class PrismaMonsterRepository implements IMonsterRepository {
   async listBySession(sessionId: string): Promise<SessionMonsterRecord[]> {
     return this.prisma.sessionMonster.findMany({ where: { sessionId } });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.sessionMonster.delete({
+      where: { id },
+    });
+  }
 }

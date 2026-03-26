@@ -14,4 +14,5 @@ export interface IMonsterRepository {
   getById(id: string): Promise<SessionMonsterRecord | null>;
   getManyByIds(ids: string[]): Promise<SessionMonsterRecord[]>;
   listBySession(sessionId: string): Promise<SessionMonsterRecord[]>;
+  delete(id: string): Promise<void>;
 }

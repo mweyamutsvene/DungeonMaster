@@ -5,13 +5,14 @@
  *
  * Endpoints:
  * - POST /sessions/:id/monsters - Add a monster to a session
+ * - DELETE /sessions/:id/monsters/:monsterId - Remove a monster from a session
  * - POST /sessions/:id/npcs - Add an NPC to a session
  */
 
 import type { FastifyInstance } from "fastify";
 import { nanoid } from "nanoid";
 import type { SessionRouteDeps } from "./types.js";
-import { ValidationError } from "../../../../application/errors.js";
+import { NotFoundError, ValidationError } from "../../../../application/errors.js";
 
 export function registerSessionCreatureRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
   /**
@@ -71,6 +72,25 @@ export function registerSessionCreatureRoutes(app: FastifyInstance, deps: Sessio
       monsterDefinitionId,
       statBlock,
     });
+  });
+
+  /**
+   * DELETE /sessions/:id/monsters/:monsterId
+   * Remove a monster from the session.
+   */
+  app.delete<{
+    Params: { id: string; monsterId: string };
+  }>("/sessions/:id/monsters/:monsterId", async (req) => {
+    const sessionId = req.params.id;
+    await deps.sessions.getSessionOrThrow(sessionId);
+
+    const monster = await deps.monsters.getById(req.params.monsterId);
+    if (!monster || monster.sessionId !== sessionId) {
+      throw new NotFoundError(`Monster ${req.params.monsterId} not found in session ${sessionId}`);
+    }
+
+    await deps.monsters.delete(req.params.monsterId);
+    return { deleted: true };
   });
 
   /**
