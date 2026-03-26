@@ -139,4 +139,90 @@ describe("Creature", () => {
       expect(npc.toJSON().tempHP).toBe(7);
     });
   });
+
+  describe("damage defenses", () => {
+    it("defaults to empty arrays when not provided", () => {
+      const npc = new NPC({
+        id: "d1",
+        name: "Plain",
+        maxHP: 10,
+        currentHP: 10,
+        armorClass: 10,
+        speed: 30,
+        abilityScores: new AbilityScores({
+          strength: 10, dexterity: 10, constitution: 10,
+          intelligence: 10, wisdom: 10, charisma: 10,
+        }),
+        proficiencyBonus: 2,
+      });
+      expect(npc.getDamageResistances()).toEqual([]);
+      expect(npc.getDamageImmunities()).toEqual([]);
+      expect(npc.getDamageVulnerabilities()).toEqual([]);
+      expect(npc.getDamageDefenses()).toEqual({});
+    });
+
+    it("stores and returns resistances/immunities/vulnerabilities", () => {
+      const npc = new NPC({
+        id: "d2",
+        name: "Fiend",
+        maxHP: 50,
+        currentHP: 50,
+        armorClass: 14,
+        speed: 30,
+        abilityScores: new AbilityScores({
+          strength: 16, dexterity: 12, constitution: 14,
+          intelligence: 10, wisdom: 10, charisma: 10,
+        }),
+        proficiencyBonus: 3,
+        damageResistances: ["fire", "cold"],
+        damageImmunities: ["poison"],
+        damageVulnerabilities: ["radiant"],
+      });
+      expect(npc.getDamageResistances()).toEqual(["fire", "cold"]);
+      expect(npc.getDamageImmunities()).toEqual(["poison"]);
+      expect(npc.getDamageVulnerabilities()).toEqual(["radiant"]);
+    });
+
+    it("getDamageDefenses returns DamageDefenses-compatible object", () => {
+      const npc = new NPC({
+        id: "d3",
+        name: "Demon",
+        maxHP: 50,
+        currentHP: 50,
+        armorClass: 14,
+        speed: 30,
+        abilityScores: new AbilityScores({
+          strength: 16, dexterity: 12, constitution: 14,
+          intelligence: 10, wisdom: 10, charisma: 10,
+        }),
+        proficiencyBonus: 3,
+        damageResistances: ["fire"],
+        damageImmunities: ["poison"],
+      });
+      const defenses = npc.getDamageDefenses();
+      expect(defenses.damageResistances).toEqual(["fire"]);
+      expect(defenses.damageImmunities).toEqual(["poison"]);
+      expect(defenses.damageVulnerabilities).toBeUndefined();
+    });
+
+    it("damage defenses are included in toJSON when present", () => {
+      const npc = new NPC({
+        id: "d4",
+        name: "Resistant",
+        maxHP: 10,
+        currentHP: 10,
+        armorClass: 10,
+        speed: 30,
+        abilityScores: new AbilityScores({
+          strength: 10, dexterity: 10, constitution: 10,
+          intelligence: 10, wisdom: 10, charisma: 10,
+        }),
+        proficiencyBonus: 2,
+        damageResistances: ["fire"],
+      });
+      const json = npc.toJSON();
+      expect(json.damageResistances).toEqual(["fire"]);
+      expect(json.damageImmunities).toBeUndefined();
+    });
+  });
 });

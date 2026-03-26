@@ -295,6 +295,9 @@ export function hydrateMonster(
     abilityScores: new AbilityScores(abilityScores),
     challengeRating,
     experienceValue,
+    damageResistances: readArray<string>(statBlock, 'damageResistances') ?? undefined,
+    damageImmunities: readArray<string>(statBlock, 'damageImmunities') ?? undefined,
+    damageVulnerabilities: readArray<string>(statBlock, 'damageVulnerabilities') ?? undefined,
   };
 
   const monster = new Monster(data);
@@ -344,6 +347,9 @@ export function hydrateNPC(
     abilityScores: new AbilityScores(abilityScores),
     proficiencyBonus,
     role,
+    damageResistances: readArray<string>(statBlock, 'damageResistances') ?? undefined,
+    damageImmunities: readArray<string>(statBlock, 'damageImmunities') ?? undefined,
+    damageVulnerabilities: readArray<string>(statBlock, 'damageVulnerabilities') ?? undefined,
   };
 
   const npc = new NPC(data);

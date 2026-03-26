@@ -75,7 +75,57 @@ export type QueryCommand = {
   subject: "hp" | "weapons" | "spells" | "features" | "party" | "stats" | "equipment" | "ac" | "actions" | "tactical" | "environment";
 };
 
-export type GameCommand = EndTurnCommand | MoveCommand | MoveTowardCommand | AttackCommand | RollResultCommand | QueryCommand;
+// ─── Extended action commands (LLM fallback support) ─────────────────
+
+export type SimpleActionCommand = {
+  kind: "simpleAction";
+  action: "dash" | "dodge" | "disengage";
+};
+
+export type HideCommand = { kind: "hide" };
+export type SearchCommand = { kind: "search" };
+export type OffhandCommand = { kind: "offhand" };
+export type EscapeGrappleCommand = { kind: "escapeGrapple" };
+
+export type HelpCommand = {
+  kind: "help";
+  target: CombatantRef;
+};
+
+export type GrappleCommand = {
+  kind: "grapple";
+  target: CombatantRef;
+};
+
+export type ShoveCommand = {
+  kind: "shove";
+  target: CombatantRef;
+  shoveType?: "push" | "prone";
+};
+
+export type CastSpellCommand = {
+  kind: "castSpell";
+  spellName: string;
+  target?: CombatantRef;
+  castAtLevel?: number;
+};
+
+export type ClassActionCommand = {
+  kind: "classAction";
+  abilityName: string;
+};
+
+export type PickupCommand = { kind: "pickup"; itemName: string };
+export type DropCommand = { kind: "drop"; itemName: string };
+export type DrawWeaponCommand = { kind: "drawWeapon"; weaponName: string };
+export type SheatheWeaponCommand = { kind: "sheatheWeapon"; weaponName: string };
+export type UseItemCommand = { kind: "useItem"; itemName: string };
+
+export type GameCommand =
+  | EndTurnCommand | MoveCommand | MoveTowardCommand | AttackCommand | RollResultCommand | QueryCommand
+  | SimpleActionCommand | HideCommand | SearchCommand | OffhandCommand | EscapeGrappleCommand
+  | HelpCommand | GrappleCommand | ShoveCommand | CastSpellCommand | ClassActionCommand
+  | PickupCommand | DropCommand | DrawWeaponCommand | SheatheWeaponCommand | UseItemCommand;
 
 export type LlmRoster = {
   characters: Array<{ id: string; name: string }>;
@@ -106,7 +156,22 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "  | { kind: 'moveToward'; encounterId?: string; actor: CombatantRef; target: CombatantRef; desiredRange?: number }",
     "  | { kind: 'attack'; encounterId?: string; attacker: CombatantRef; target: CombatantRef; seed?: number; spec?: AttackSpec; monsterAttackName?: string }",
     "  | { kind: 'rollResult'; rollType: 'initiative'|'attack'|'damage'|'savingThrow'|'abilityCheck'; value?: number; values?: number[]; context?: string }",
-    "  | { kind: 'query'; subject: 'hp'|'weapons'|'spells'|'features'|'party'|'stats'|'equipment'|'ac'|'actions'|'tactical'|'environment' };",
+    "  | { kind: 'query'; subject: 'hp'|'weapons'|'spells'|'features'|'party'|'stats'|'equipment'|'ac'|'actions'|'tactical'|'environment' }",
+    "  | { kind: 'simpleAction'; action: 'dash'|'dodge'|'disengage' }",
+    "  | { kind: 'hide' }",
+    "  | { kind: 'search' }",
+    "  | { kind: 'offhand' }",
+    "  | { kind: 'escapeGrapple' }",
+    "  | { kind: 'help'; target: CombatantRef }",
+    "  | { kind: 'grapple'; target: CombatantRef }",
+    "  | { kind: 'shove'; target: CombatantRef; shoveType?: 'push'|'prone' }",
+    "  | { kind: 'castSpell'; spellName: string; target?: CombatantRef; castAtLevel?: number }",
+    "  | { kind: 'classAction'; abilityName: string }",
+    "  | { kind: 'pickup'; itemName: string }",
+    "  | { kind: 'drop'; itemName: string }",
+    "  | { kind: 'drawWeapon'; weaponName: string }",
+    "  | { kind: 'sheatheWeapon'; weaponName: string }",
+    "  | { kind: 'useItem'; itemName: string };",
     "",
     "QUESTION DETECTION:",
     "If the player is asking a question about their character or the game state, use kind='query' with the appropriate subject:",
@@ -140,6 +205,17 @@ export function buildGameCommandSchemaHint(roster: LlmRoster): string {
     "  - Extract the dice roll value(s) from natural language (e.g., 'I rolled a 15' → value: 15).",
     "  - For advantage/disadvantage rolls, use values array (e.g., 'I rolled 12 and 8' → values: [12, 8]).",
     "  - Infer rollType from context (initiative, attack, damage, saving throw, ability check).",
+    "- For kind='simpleAction': use when player says dash, dodge, or disengage.",
+    "- For kind='hide': use when player says hide, sneak, or stealth.",
+    "- For kind='search': use when player says search, look around, scan for enemies.",
+    "- For kind='offhand': use for off-hand/bonus attack with a second weapon.",
+    "- For kind='escapeGrapple': use when player says escape grapple, break free.",
+    "- For kind='help': use when player says help <target>. target is the creature to give advantage against.",
+    "- For kind='grapple': use when player says grapple <target>.",
+    "- For kind='shove': use when player says shove/push <target>. shoveType defaults to 'push'. Use 'prone' if they say knock prone.",
+    "- For kind='castSpell': use when player says cast <spell>. spellName is required. target is optional (self-targeting spells). castAtLevel for upcasting.",
+    "- For kind='classAction': use for class-specific abilities like 'flurry of blows', 'action surge', 'second wind', 'rage', etc.",
+    "- For kind='pickup'/'drop'/'drawWeapon'/'sheatheWeapon'/'useItem': use for item interactions. Requires the item/weapon name.",
     "- Do not include extra keys.",
     "",
     "Example (character attack):",
@@ -198,11 +274,69 @@ export function parseGameCommand(input: unknown): GameCommand {
   if (!isRecord(input)) throw new ValidationError("command must be an object");
 
   const kind = input.kind;
-  if (kind !== "attack" && kind !== "move" && kind !== "moveToward" && kind !== "endTurn" && kind !== "rollResult" && kind !== "query") {
-    throw new ValidationError("command.kind must be 'attack', 'move', 'moveToward', 'endTurn', 'rollResult', or 'query'");
+  const validKinds = [
+    "attack", "move", "moveToward", "endTurn", "rollResult", "query",
+    "simpleAction", "hide", "search", "offhand", "escapeGrapple",
+    "help", "grapple", "shove", "castSpell", "classAction",
+    "pickup", "drop", "drawWeapon", "sheatheWeapon", "useItem",
+  ];
+  if (typeof kind !== "string" || !validKinds.includes(kind)) {
+    throw new ValidationError(`command.kind must be one of: ${validKinds.join(", ")}`);
   }
 
   const encounterId = readOptionalString(input, "encounterId");
+
+  // ── Parameterless action kinds ──
+  if (kind === "hide") return { kind };
+  if (kind === "search") return { kind };
+  if (kind === "offhand") return { kind };
+  if (kind === "escapeGrapple") return { kind };
+
+  // ── Simple action (dash/dodge/disengage) ──
+  if (kind === "simpleAction") {
+    const action = readRequiredString(input, "action");
+    if (action !== "dash" && action !== "dodge" && action !== "disengage") {
+      throw new ValidationError("simpleAction.action must be 'dash', 'dodge', or 'disengage'");
+    }
+    return { kind, action };
+  }
+
+  // ── Target-only actions ──
+  if (kind === "help") {
+    const target = parseCombatantRef(input.target, "target");
+    return { kind, target };
+  }
+  if (kind === "grapple") {
+    const target = parseCombatantRef(input.target, "target");
+    return { kind, target };
+  }
+  if (kind === "shove") {
+    const target = parseCombatantRef(input.target, "target");
+    const shoveTypeRaw = readOptionalString(input, "shoveType");
+    const shoveType = shoveTypeRaw === "prone" ? "prone" : "push";
+    return { kind, target, shoveType };
+  }
+
+  // ── Spell casting ──
+  if (kind === "castSpell") {
+    const spellName = readRequiredString(input, "spellName");
+    const target = input.target !== undefined ? parseCombatantRef(input.target, "target") : undefined;
+    const castAtLevel = readOptionalInteger(input, "castAtLevel");
+    return { kind, spellName, target, castAtLevel };
+  }
+
+  // ── Class ability ──
+  if (kind === "classAction") {
+    const abilityName = readRequiredString(input, "abilityName");
+    return { kind, abilityName };
+  }
+
+  // ── Item interactions ──
+  if (kind === "pickup") return { kind, itemName: readRequiredString(input, "itemName") };
+  if (kind === "drop") return { kind, itemName: readRequiredString(input, "itemName") };
+  if (kind === "drawWeapon") return { kind, weaponName: readRequiredString(input, "weaponName") };
+  if (kind === "sheatheWeapon") return { kind, weaponName: readRequiredString(input, "weaponName") };
+  if (kind === "useItem") return { kind, itemName: readRequiredString(input, "itemName") };
 
   if (kind === "query") {
     const subject = readRequiredString(input, "subject");
@@ -274,6 +408,7 @@ export function parseGameCommand(input: unknown): GameCommand {
     return { kind, rollType, value, values, context };
   }
 
+  // At this point kind must be "attack" (all other kinds handled above)
   const attacker = parseCombatantRef(input.attacker, "attacker");
   const target = parseCombatantRef(input.target, "target");
   const seed = readOptionalInteger(input, "seed");
@@ -302,5 +437,5 @@ export function parseGameCommand(input: unknown): GameCommand {
     );
   }
 
-  return { kind, encounterId, attacker, target, seed, spec, monsterAttackName };
+  return { kind: "attack" as const, encounterId, attacker, target, seed, spec, monsterAttackName };
 }

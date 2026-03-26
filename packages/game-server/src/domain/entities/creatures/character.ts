@@ -195,6 +195,16 @@ export class Character extends Creature {
     return [...this.speciesDamageResistances];
   }
 
+  /**
+   * Character damage resistances = base (from CreatureData) merged with species resistances.
+   */
+  override getDamageResistances(): readonly string[] {
+    const base = super.getDamageResistances();
+    if (this.speciesDamageResistances.length === 0) return base;
+    if (base.length === 0) return [...this.speciesDamageResistances];
+    return [...new Set([...base, ...this.speciesDamageResistances])];
+  }
+
   canSpendResource(poolName: string, amount: number): boolean {
     if (!Number.isInteger(amount) || amount < 0) {
       return false;

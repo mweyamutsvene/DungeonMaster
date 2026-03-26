@@ -576,4 +576,55 @@ describe("Character species traits", () => {
     expect(c.getDarkvisionRange()).toBe(0);
     expect(c.getSpeciesDamageResistances()).toEqual([]);
   });
+
+  it("getDamageResistances merges base and species resistances", () => {
+    const c = new Character({
+      id: "sp3",
+      name: "Tiefling Barbarian",
+      maxHP: 12,
+      currentHP: 12,
+      armorClass: 13,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Barbarian",
+      classId: "barbarian",
+      experiencePoints: 0,
+      speciesDamageResistances: ["fire"],
+      damageResistances: ["bludgeoning"],
+    });
+
+    const resistances = c.getDamageResistances();
+    expect(resistances).toContain("fire");
+    expect(resistances).toContain("bludgeoning");
+    expect(resistances).toHaveLength(2);
+  });
+
+  it("getDamageResistances deduplicates overlapping sources", () => {
+    const c = new Character({
+      id: "sp4",
+      name: "Dwarf",
+      maxHP: 12,
+      currentHP: 12,
+      armorClass: 14,
+      speed: 25,
+      abilityScores: new AbilityScores({
+        strength: 14, dexterity: 10, constitution: 16,
+        intelligence: 10, wisdom: 12, charisma: 8,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      speciesDamageResistances: ["poison"],
+      damageResistances: ["poison", "cold"],
+    });
+
+    const resistances = c.getDamageResistances();
+    expect(resistances).toEqual(expect.arrayContaining(["poison", "cold"]));
+    expect(resistances).toHaveLength(2); // poison not duplicated
+  });
 });

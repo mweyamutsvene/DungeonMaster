@@ -38,8 +38,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [x] **[ENT-H1]** Temp HP not persisted — `CombatantStateRecord` has no `hpTemp` field. Temp HP gained mid-combat is lost on server restart / re-hydration.
   - File: `application/types.ts`, `application/services/combat/helpers/creature-hydration.ts:253`
 
-- [ ] **[ENT-H2]** Monster/NPC damage resistances not on domain entity — `Creature` base class has no `getDamageResistances()`/`getDamageImmunities()` methods. All callers must side-channel through `extractDamageDefenses(statBlock)`. Easy to miss in new combat paths.
+- [x] **[ENT-H2]** Monster/NPC damage resistances not on domain entity — `Creature` base class has no `getDamageResistances()`/`getDamageImmunities()` methods. All callers must side-channel through `extractDamageDefenses(statBlock)`. Easy to miss in new combat paths.
   - File: `domain/entities/creatures/`, `application/services/combat/helpers/creature-hydration.ts`
+  - Fix: Added domain-level damage defense accessors on `Creature` (`getDamageResistances()`, `getDamageImmunities()`, `getDamageVulnerabilities()`, `getDamageDefenses()`) and hydrated Monster/NPC defense arrays from stat blocks into entity data.
 
 - [x] **[ENT-H3]** Magic armor equip via inventory PATCH doesn't update sheet AC — `enrichSheetArmor()` only runs at character creation. Equipping `+1 Breastplate` post-creation has no effect on numeric AC.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
@@ -66,8 +67,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/action-service.ts:550`
   - Fix: Now looks up the attacker's equipped weapon in the weapon catalog via `lookupWeapon()`. Uses real damage dice, damage type, correct ability modifier (STR or max(STR,DEX) for finesse), real proficiency bonus, and magic weapon bonus. Falls back to the old estimate only if the weapon isn't in the catalog.
 
-- [ ] **[ORCH-H2]** Ready action trigger never fires — `handleReadyAction()` stores `{ condition, action }` in `resources.readiedAction` but no lifecycle hook in `combat-service.ts`, `nextTurn()`, or `TwoPhaseActionService` ever evaluates the trigger. Ready mechanic is permanently dormant.
+- [x] **[ORCH-H2]** Ready action trigger never fires — `handleReadyAction()` stores `{ condition, action }` in `resources.readiedAction` but no lifecycle hook in `combat-service.ts`, `nextTurn()`, or `TwoPhaseActionService` ever evaluates the trigger. Ready mechanic is permanently dormant.
   - File: `application/services/combat/tabletop/dispatch/social-handlers.ts`, `combat-service.ts`
+  - Verified implementation: `MoveReactionHandler` detects `readiedAction` with `triggerType=creature_moves_within_range` and emits `readied_action` reactions; `OpportunityAttackResolver` executes/clears it; turn-reset paths clear expired readied actions at start of next turn.
 
 - [ ] **[ORCH-H3]** Absorb Elements / Hellish Rebuke unreachable from tabletop dice flow — `TwoPhaseActionService.initiateDamageReaction()` exists but no tabletop route (`session-tabletop.ts`) calls it after damage is dealt. Player damage reactions can never fire.
   - File: `application/services/combat/two-phase-action-service.ts`, `infrastructure/api/routes/sessions/session-tabletop.ts`
@@ -75,8 +77,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ORCH-H4]** Uncanny Dodge not implemented anywhere — Rogue 7 reaction (halve damage from one attack) has no presence in `TwoPhaseActionService`, no `ClassCombatTextProfile`, no executor.
   - File: `domain/entities/classes/rogue.ts`, `application/services/combat/two-phase/`
 
-- [ ] **[ORCH-H5]** LLM fallback handles only 3 of 19 action types — when text parser fails and falls back to LLM, only `move`, `moveToward`, and `attack` are handled. All other types (hide, grapple, castSpell, shove, etc.) throw `ValidationError("not yet implemented")`.
+- [x] **[ORCH-H5]** LLM fallback handles only 3 of 19 action types — when text parser fails and falls back to LLM, only `move`, `moveToward`, and `attack` are handled. All other types (hide, grapple, castSpell, shove, etc.) throw `ValidationError("not yet implemented")`.
   - File: `application/services/combat/tabletop/action-dispatcher.ts:131-162`
+  - Fix: Expanded LLM command schema and parser to support the broader action set and routed fallback dispatch for `simpleAction`, `hide`, `search`, `offhand`, `escapeGrapple`, `help`, `grapple`, `shove`, `castSpell`, `classAction`, and item interaction actions.
 
 - [ ] **[ORCH-H6]** Death save auto-roll uses stale combatant index — `nextTurn()` advances `turn` via `endTurn()` then looks up death save target using old index. Could resolve the wrong combatant.
   - File: `application/services/combat/combat-service.ts:727`

@@ -8,6 +8,7 @@
 import { AbilityScores, type Ability } from "../core/ability-scores.js";
 import type { DiceRoller } from "../../rules/dice-roller.js";
 import type { ArmorTraining, EquippedItems } from "../items/equipped-items.js";
+import type { DamageDefenses } from "../../rules/damage-defenses.js";
 
 export interface CreatureData {
   id: string;
@@ -31,6 +32,13 @@ export interface CreatureData {
    * If omitted, defaults to trained for backward compatibility.
    */
   armorTraining?: Partial<ArmorTraining>;
+
+  /** Damage types this creature resists (half damage). */
+  damageResistances?: readonly string[];
+  /** Damage types this creature is immune to (zero damage). */
+  damageImmunities?: readonly string[];
+  /** Damage types this creature is vulnerable to (double damage). */
+  damageVulnerabilities?: readonly string[];
 }
 
 export abstract class Creature {
@@ -46,6 +54,9 @@ export abstract class Creature {
 
   protected equipment?: EquippedItems;
   protected armorTraining: ArmorTraining;
+  protected damageResistances: string[];
+  protected damageImmunities: string[];
+  protected damageVulnerabilities: string[];
 
   constructor(data: CreatureData) {
     this.id = data.id;
@@ -81,6 +92,10 @@ export abstract class Creature {
       heavy: data.armorTraining?.heavy ?? true,
       shield: data.armorTraining?.shield ?? true,
     };
+
+    this.damageResistances = data.damageResistances ? [...data.damageResistances] : [];
+    this.damageImmunities = data.damageImmunities ? [...data.damageImmunities] : [];
+    this.damageVulnerabilities = data.damageVulnerabilities ? [...data.damageVulnerabilities] : [];
   }
 
   // === Getters ===
@@ -182,6 +197,31 @@ export abstract class Creature {
 
   getAbilityModifier(ability: Ability): number {
     return this.abilityScores.getModifier(ability);
+  }
+
+  // === Damage Defenses ===
+
+  getDamageResistances(): readonly string[] {
+    return [...this.damageResistances];
+  }
+
+  getDamageImmunities(): readonly string[] {
+    return [...this.damageImmunities];
+  }
+
+  getDamageVulnerabilities(): readonly string[] {
+    return [...this.damageVulnerabilities];
+  }
+
+  /**
+   * Returns a DamageDefenses object compatible with `applyDamageDefenses()`.
+   */
+  getDamageDefenses(): DamageDefenses {
+    return {
+      damageResistances: this.damageResistances.length > 0 ? [...this.damageResistances] : undefined,
+      damageImmunities: this.damageImmunities.length > 0 ? [...this.damageImmunities] : undefined,
+      damageVulnerabilities: this.damageVulnerabilities.length > 0 ? [...this.damageVulnerabilities] : undefined,
+    };
   }
 
   // === Abstract Methods (must be implemented by subclasses) ===
@@ -323,6 +363,9 @@ export abstract class Creature {
       conditions: this.getConditions(),
       equipment: this.equipment,
       armorTraining: this.armorTraining,
+      damageResistances: this.damageResistances.length > 0 ? this.damageResistances : undefined,
+      damageImmunities: this.damageImmunities.length > 0 ? this.damageImmunities : undefined,
+      damageVulnerabilities: this.damageVulnerabilities.length > 0 ? this.damageVulnerabilities : undefined,
     };
   }
 }

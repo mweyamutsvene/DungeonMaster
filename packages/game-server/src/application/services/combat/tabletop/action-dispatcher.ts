@@ -19,6 +19,21 @@ import {
   type LlmRoster,
   type CombatantRef,
 } from "../../../commands/game-command.js";
+
+/** Resolve a CombatantRef to its display name from the roster. */
+function resolveRefName(ref: CombatantRef, roster: LlmRoster): string {
+  if (ref.type === "Character") {
+    const c = roster.characters.find((r) => r.id === ref.characterId);
+    if (c) return c.name;
+  } else if (ref.type === "Monster") {
+    const m = roster.monsters.find((r) => r.id === ref.monsterId);
+    if (m) return m.name;
+  } else if (ref.type === "NPC") {
+    const n = roster.npcs.find((r) => r.id === ref.npcId);
+    if (n) return n.name;
+  }
+  throw new ValidationError("Could not resolve target name from roster");
+}
 import type {
   SessionCharacterRecord,
   SessionMonsterRecord,
@@ -157,7 +172,88 @@ export class ActionDispatcher {
       );
     }
 
-    throw new ValidationError(`Action type ${command.kind} not yet implemented`);
+    // ── Simple actions (dash/dodge/disengage) ──
+    if (command.kind === "simpleAction") {
+      return this.handleSimpleAction(sessionId, encounterId, actorId, command.action, roster);
+    }
+
+    // ── Hide ──
+    if (command.kind === "hide") {
+      return this.handleHideAction(sessionId, encounterId, actorId, characters, roster);
+    }
+
+    // ── Search ──
+    if (command.kind === "search") {
+      return this.handleSearchAction(sessionId, encounterId, actorId, roster);
+    }
+
+    // ── Offhand attack ──
+    if (command.kind === "offhand") {
+      return this.classAbilityHandlers.handleBonusAbility(sessionId, encounterId, actorId, "base:bonus:offhand-attack", text, characters, monsters, npcs, roster);
+    }
+
+    // ── Escape grapple ──
+    if (command.kind === "escapeGrapple") {
+      return this.handleEscapeGrappleAction(sessionId, encounterId, actorId, roster);
+    }
+
+    // ── Help ──
+    if (command.kind === "help") {
+      const targetName = resolveRefName(command.target, roster);
+      return this.handleHelpAction(sessionId, encounterId, actorId, targetName, roster);
+    }
+
+    // ── Grapple ──
+    if (command.kind === "grapple") {
+      const targetName = resolveRefName(command.target, roster);
+      return this.handleGrappleAction(sessionId, encounterId, actorId, { targetName }, roster);
+    }
+
+    // ── Shove ──
+    if (command.kind === "shove") {
+      const targetName = resolveRefName(command.target, roster);
+      return this.handleShoveAction(sessionId, encounterId, actorId, { targetName, shoveType: command.shoveType ?? "push" }, roster);
+    }
+
+    // ── Cast spell ──
+    if (command.kind === "castSpell") {
+      const targetName = command.target ? resolveRefName(command.target, roster) : undefined;
+      return this.spellHandler.handleCastSpell(sessionId, encounterId, actorId, { spellName: command.spellName, targetName, castAtLevel: command.castAtLevel }, characters, roster);
+    }
+
+    // ── Class ability ──
+    if (command.kind === "classAction") {
+      // Try to match the ability name through the profile system
+      const profiles = getAllCombatTextProfiles();
+      const match = tryMatchClassAction(command.abilityName, profiles);
+      if (match) {
+        if (match.category === "classAction") {
+          return this.classAbilityHandlers.handleClassAbility(sessionId, encounterId, actorId, match.abilityId, characters, roster);
+        }
+        return this.classAbilityHandlers.handleBonusAbility(sessionId, encounterId, actorId, match.abilityId, text, characters, monsters, npcs, roster);
+      }
+      throw new ValidationError(`Unknown class ability: "${command.abilityName}". Try using the exact ability name (e.g., "flurry of blows", "action surge").`);
+    }
+
+    // ── Item interactions ──
+    if (command.kind === "pickup") {
+      return this.handlePickupAction(sessionId, encounterId, actorId, command.itemName, roster);
+    }
+    if (command.kind === "drop") {
+      return this.handleDropAction(sessionId, encounterId, actorId, command.itemName, characters, monsters, npcs, roster);
+    }
+    if (command.kind === "drawWeapon") {
+      return this.handleDrawWeaponAction(sessionId, encounterId, actorId, command.weaponName, characters, monsters, npcs, roster);
+    }
+    if (command.kind === "sheatheWeapon") {
+      return this.handleSheatheWeaponAction(sessionId, encounterId, actorId, command.weaponName, roster);
+    }
+    if (command.kind === "useItem") {
+      return this.handleUseItemAction(sessionId, encounterId, actorId, command.itemName, roster);
+    }
+
+    // endTurn / rollResult should not reach here through the tabletop text flow
+    throw new ValidationError(`Action type "${command.kind}" is not supported in the tabletop text flow`);
   }
 
   // ----------------------------------------------------------------
