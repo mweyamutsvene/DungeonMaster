@@ -40,6 +40,7 @@ import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { resolveMovementTriggers } from "../helpers/movement-trigger-resolver.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
+import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
 import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
 import { resolveOpportunityAttacks } from "../helpers/opportunity-attack-resolver.js";
 import type { JsonValue } from "../../../types.js";
@@ -564,6 +565,12 @@ export class MoveReactionHandler {
       const combatMap = encounter.mapData as unknown as CombatMap | undefined;
       if (combatMap && (combatMap.zones?.length ?? 0) > 0) {
         const actorIsPC = actor.combatantType === "Character" || actor.combatantType === "NPC";
+        // Check Evasion for the moving creature (Monk 7/Rogue 7 — DEX save zone damage)
+        let actorHasEvasion = false;
+        try {
+          const actorStats = await this.combatants.getCombatStats(pendingAction.actor);
+          actorHasEvasion = creatureHasEvasion(actorStats.className, actorStats.level);
+        } catch { /* monsters/NPCs won't have class features */ }
         const zoneDmg = await resolveZoneDamageForPath(
           moveData.path ?? [moveData.to],
           moveData.from,
@@ -575,7 +582,7 @@ export class MoveReactionHandler {
             return actorIsPC === srcIsPC;
           },
           { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-          { combatRepo: this.combat },
+          { combatRepo: this.combat, hasEvasion: actorHasEvasion },
         );
         if (zoneDmg.creatureDied) {
           targetStillAlive = false;
@@ -622,10 +629,22 @@ export class MoveReactionHandler {
     actor: { id: string; hpCurrent: number; hpMax: number; resources?: unknown; characterId?: string | null; monsterId?: string | null; npcId?: string | null; combatantType?: string },
     encounterId: string,
   ): Promise<{ aborted: boolean; totalDamage: number; messages: string[] }> {
+    // Check Evasion for the moving creature (Monk 7/Rogue 7 — DEX save trigger damage)
+    let actorHasEvasion = false;
+    try {
+      const ref: CombatantRef = actor.characterId
+        ? { type: "Character", characterId: actor.characterId }
+        : actor.monsterId
+          ? { type: "Monster", monsterId: actor.monsterId }
+          : { type: "NPC", npcId: actor.npcId! };
+      const actorStats = await this.combatants.getCombatStats(ref);
+      actorHasEvasion = creatureHasEvasion(actorStats.className, actorStats.level);
+    } catch { /* monsters/NPCs won't have class features */ }
     const result = await resolveMovementTriggers(
       actor as any,
       {
         combatRepo: this.combat,
+        hasEvasion: actorHasEvasion,
       },
     );
     return {

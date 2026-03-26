@@ -37,6 +37,7 @@ import { findCombatantStateByRef, getPositionByRef } from "../../helpers/combata
 import { syncEntityPosition } from "../../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../../helpers/zone-damage-resolver.js";
 import { syncAuraZones } from "../../helpers/aura-sync.js";
+import { creatureHasEvasion } from "../../../../../domain/rules/evasion.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import { buildPathNarration } from "../path-narrator.js";
 import type {
@@ -136,6 +137,12 @@ export class MovementHandlers {
         if (combatMap && (combatMap.zones?.length ?? 0) > 0) {
           const actorEntityId = actorState.characterId ?? actorState.monsterId ?? actorState.npcId ?? actorState.id;
           const actorIsPC = actorState.combatantType === "Character" || actorState.combatantType === "NPC";
+          // Check Evasion for the moving creature (Monk 7/Rogue 7 — DEX save zone damage)
+          let actorHasEvasion = false;
+          try {
+            const actorStats = await this.deps.combatants.getCombatStats(actorRef);
+            actorHasEvasion = creatureHasEvasion(actorStats.className, actorStats.level);
+          } catch { /* monsters/NPCs won't have class features */ }
           const zoneDmgResult = await resolveZoneDamageForPath(
             [destination],
             currentPos,
@@ -147,7 +154,7 @@ export class MovementHandlers {
               return actorIsPC === srcIsPC;
             },
             { damageResistances: [], damageImmunities: [], damageVulnerabilities: [] },
-            { combatRepo: this.deps.combatRepo, debugLog: this.debugLogsEnabled },
+            { combatRepo: this.deps.combatRepo, hasEvasion: actorHasEvasion, debugLog: this.debugLogsEnabled },
           );
           if (zoneDmgResult.totalDamage > 0) {
             zoneDamageNote = ` Zone damage: ${zoneDmgResult.totalDamage} HP.`;
