@@ -259,6 +259,76 @@ describe('Creature Hydration', () => {
       // Chain Mail 16 + Shield 2 = 18
       expect(character.getAC()).toBe(18);
     });
+
+    it('should hydrate subclass and subclassLevel from sheet', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-monk',
+        sessionId: 'session-1',
+        name: 'Open Hand Monk',
+        level: 5,
+        className: 'Monk',
+        sheet: {
+          abilityScores: {
+            strength: 10,
+            dexterity: 18,
+            constitution: 14,
+            intelligence: 10,
+            wisdom: 16,
+            charisma: 8,
+          },
+          maxHP: 38,
+          currentHP: 38,
+          armorClass: 17,
+          speed: 40,
+          classId: 'monk',
+          subclass: 'Open Hand',
+          subclassLevel: 3,
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      expect(character.getSubclass()).toBe('Open Hand');
+      expect(character.getSubclassLevel()).toBe(3);
+    });
+
+    it('should leave subclass undefined when not present on sheet', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-fighter',
+        sessionId: 'session-1',
+        name: 'No Subclass Fighter',
+        level: 2,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: {
+            strength: 16,
+            dexterity: 14,
+            constitution: 15,
+            intelligence: 10,
+            wisdom: 12,
+            charisma: 11,
+          },
+          maxHP: 20,
+          currentHP: 20,
+          armorClass: 16,
+          speed: 30,
+          classId: 'fighter',
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+
+      expect(character.getSubclass()).toBeUndefined();
+      expect(character.getSubclassLevel()).toBeUndefined();
+    });
   });
 
   describe('hydrateMonster', () => {

@@ -202,6 +202,10 @@ export function hydrateCharacter(
   // Parse class ID
   const classId = readString(sheet, 'classId') ?? record.className?.toLowerCase();
   
+  // Parse subclass info (e.g., "Open Hand" for Monk, "Champion" for Fighter)
+  const subclass = readString(sheet, 'subclass');
+  const subclassLevel = readNumber(sheet, 'subclassLevel') ?? undefined;
+  
   // Parse species and look up combat-relevant traits
   const speciesName = readString(sheet, 'species') ?? readString(sheet, 'race');
   const speciesTraits = speciesName ? getSpeciesTraits(speciesName) : undefined;
@@ -228,6 +232,8 @@ export function hydrateCharacter(
     level,
     characterClass: record.className ?? 'Fighter',
     classId: classId as CharacterData['classId'],
+    subclass,
+    subclassLevel,
     experiencePoints,
     resourcePools,
     featIds,
