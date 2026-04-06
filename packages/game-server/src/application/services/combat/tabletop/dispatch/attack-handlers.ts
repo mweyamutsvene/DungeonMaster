@@ -776,6 +776,7 @@ export class AttackHandlers {
       text, inferredKind, actorClassName, actorLevel,
       normalizedRes, resourcePools, getAllCombatTextProfiles(),
       "onDeclare",
+      (actorSheet?.subclass as string) ?? "",
     );
 
     const pendingAction: AttackPendingAction = {

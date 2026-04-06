@@ -218,6 +218,7 @@ export const MONK_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       displayName: "Open Hand Technique",
       patterns: [/\b(addle|push|topple)\b/],
       minLevel: 3,
+      requiresSubclass: "open-hand",
       requiresMelee: true,
       trigger: "onHit",
       choiceOptions: ["addle", "push", "topple"],

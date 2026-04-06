@@ -50,6 +50,87 @@ function rollInitiativeD20(
 }
 
 // ---------------------------------------------------------------------------
+// Private helper — build combatant resources from entity sheet/statBlock
+// ---------------------------------------------------------------------------
+
+function buildCombatantResources(
+  className: string,
+  level: number,
+  sheet: any,
+): Record<string, unknown> {
+  const resources: Record<string, unknown> = {};
+
+  // Position
+  if (sheet?.position) {
+    resources.position = sheet.position;
+  }
+
+  // Combat resources (class pools, spell prep flags)
+  const combatRes = buildCombatResources({
+    className,
+    level,
+    sheet: sheet ?? {},
+  });
+  if (combatRes.resourcePools.length > 0) {
+    resources.resourcePools = combatRes.resourcePools;
+  }
+  if (combatRes.hasShieldPrepared) {
+    (resources as any).hasShieldPrepared = true;
+  }
+  if (combatRes.hasCounterspellPrepared) {
+    (resources as any).hasCounterspellPrepared = true;
+  }
+  if (combatRes.hasAbsorbElementsPrepared) {
+    (resources as any).hasAbsorbElementsPrepared = true;
+  }
+  if (combatRes.hasHellishRebukePrepared) {
+    (resources as any).hasHellishRebukePrepared = true;
+  }
+  if (combatRes.pactSlotLevel !== undefined) {
+    (resources as any).pactSlotLevel = combatRes.pactSlotLevel;
+  }
+
+  // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
+  if (className.toLowerCase() === "barbarian" && classHasFeature("barbarian", DANGER_SENSE, level)) {
+    const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
+      ability: "dexterity",
+      source: "Danger Sense",
+      description: "Advantage on DEX saving throws (Danger Sense)",
+    });
+    addActiveEffectsToResources(resources, dangerSenseEffect);
+  }
+
+  // D&D 5e 2024: Drawn weapons — at combat start, all equipped weapons are drawn and ready
+  const attacks = Array.isArray(sheet?.attacks) ? sheet.attacks as Array<{ name?: string }> : [];
+  if (attacks.length > 0) {
+    resources.drawnWeapons = attacks
+      .map((a: { name?: string }) => a.name)
+      .filter((n: string | undefined): n is string => typeof n === "string" && n.length > 0);
+  }
+
+  // Inventory (potions, consumables, etc.)
+  if (Array.isArray(sheet?.inventory) && sheet.inventory.length > 0) {
+    resources.inventory = sheet.inventory;
+  }
+
+  // Legendary action resources
+  const legendary = parseLegendaryTraits(sheet as Record<string, unknown>);
+  if (legendary) {
+    resources.legendaryActionCharges = legendary.legendaryActionCharges;
+    resources.legendaryActionsRemaining = legendary.legendaryActionCharges;
+    resources.legendaryActions = legendary.legendaryActions as unknown[];
+    if (legendary.lairActions) {
+      resources.lairActions = legendary.lairActions as unknown[];
+    }
+    if (legendary.isInLair) {
+      resources.isInLair = true;
+    }
+  }
+
+  return resources;
+}
+
+// ---------------------------------------------------------------------------
 // InitiativeHandler
 // ---------------------------------------------------------------------------
 
@@ -109,63 +190,10 @@ export class InitiativeHandler {
 
     if (character) {
       const sheet = character.sheet as any;
-      const charPosition = sheet?.position;
       const charClassName = character.className ?? sheet?.className ?? "";
       const charLevel = ClassFeatureResolver.getLevel(sheet, character.level);
 
-      // Build resources using centralized domain builder (class-agnostic)
-      const combatRes = buildCombatResources({
-        className: charClassName,
-        level: charLevel,
-        sheet: sheet ?? {},
-      });
-
-      const charResources: Record<string, unknown> = {};
-      if (charPosition) {
-        charResources.position = charPosition;
-      }
-      if (combatRes.resourcePools.length > 0) {
-        charResources.resourcePools = combatRes.resourcePools;
-      }
-      if (combatRes.hasShieldPrepared) {
-        (charResources as any).hasShieldPrepared = true;
-      }
-      if (combatRes.hasCounterspellPrepared) {
-        (charResources as any).hasCounterspellPrepared = true;
-      }
-      if (combatRes.hasAbsorbElementsPrepared) {
-        (charResources as any).hasAbsorbElementsPrepared = true;
-      }
-      if (combatRes.hasHellishRebukePrepared) {
-        (charResources as any).hasHellishRebukePrepared = true;
-      }
-      if (combatRes.pactSlotLevel !== undefined) {
-        (charResources as any).pactSlotLevel = combatRes.pactSlotLevel;
-      }
-
-      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
-      if (charClassName.toLowerCase() === "barbarian" && classHasFeature("barbarian", DANGER_SENSE, charLevel)) {
-        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
-          ability: "dexterity",
-          source: "Danger Sense",
-          description: "Advantage on DEX saving throws (Danger Sense)",
-        });
-        addActiveEffectsToResources(charResources, dangerSenseEffect);
-      }
-
-      // D&D 5e 2024: Track which weapons are currently drawn (in-hand).
-      // At combat start, all character weapons are drawn and ready.
-      const sheetAttacks = Array.isArray(sheet?.attacks) ? sheet.attacks as Array<{ name?: string }> : [];
-      if (sheetAttacks.length > 0) {
-        charResources.drawnWeapons = sheetAttacks
-          .map(a => a.name)
-          .filter((n): n is string => typeof n === "string" && n.length > 0);
-      }
-
-      // Initialize inventory from character sheet (potions, consumables, etc.)
-      if (Array.isArray(sheet?.inventory) && sheet.inventory.length > 0) {
-        charResources.inventory = sheet.inventory;
-      }
+      const charResources = buildCombatantResources(charClassName, charLevel, sheet);
 
       combatants.push({
         combatantType: "Character" as const,
@@ -208,55 +236,7 @@ export class InitiativeHandler {
       }
       const otherInitiative = otherRoll + otherDexMod + otherAlertBonus;
 
-      // Build combat resources for this character
-      const otherCombatRes = buildCombatResources({
-        className: otherClassName,
-        level: otherLevel,
-        sheet: otherSheet ?? {},
-      });
-
-      const otherResources: Record<string, unknown> = {};
-      if (otherSheet?.position) {
-        otherResources.position = otherSheet.position;
-      }
-      if (otherCombatRes.resourcePools.length > 0) {
-        otherResources.resourcePools = otherCombatRes.resourcePools;
-      }
-      if (otherCombatRes.hasShieldPrepared) {
-        (otherResources as any).hasShieldPrepared = true;
-      }
-      if (otherCombatRes.hasCounterspellPrepared) {
-        (otherResources as any).hasCounterspellPrepared = true;
-      }
-      if (otherCombatRes.hasAbsorbElementsPrepared) {
-        (otherResources as any).hasAbsorbElementsPrepared = true;
-      }
-      if (otherCombatRes.hasHellishRebukePrepared) {
-        (otherResources as any).hasHellishRebukePrepared = true;
-      }
-
-      // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
-      if (otherClassName.toLowerCase() === "barbarian" && classHasFeature("barbarian", DANGER_SENSE, otherLevel)) {
-        const dangerSenseEffect = createEffect(nanoid(), "advantage", "saving_throws", "permanent", {
-          ability: "dexterity",
-          source: "Danger Sense",
-          description: "Advantage on DEX saving throws (Danger Sense)",
-        });
-        addActiveEffectsToResources(otherResources, dangerSenseEffect);
-      }
-
-      // D&D 5e 2024: Initialize drawn weapons for multi-PC characters
-      const otherSheetAttacks = Array.isArray(otherSheet?.attacks) ? otherSheet.attacks as Array<{ name?: string }> : [];
-      if (otherSheetAttacks.length > 0) {
-        otherResources.drawnWeapons = otherSheetAttacks
-          .map((a: { name?: string }) => a.name)
-          .filter((n: string | undefined): n is string => typeof n === "string" && n.length > 0);
-      }
-
-      // Initialize inventory from character sheet (potions, consumables, etc.)
-      if (Array.isArray(otherSheet?.inventory) && otherSheet.inventory.length > 0) {
-        otherResources.inventory = otherSheet.inventory;
-      }
+      const otherResources = buildCombatantResources(otherClassName, otherLevel, otherSheet);
 
       combatants.push({
         combatantType: "Character" as const,
@@ -290,56 +270,7 @@ export class InitiativeHandler {
         }
         const monsterInitiative = monsterRoll + monsterDexMod;
 
-        const monsterPosition = statBlock?.position;
-        const monsterResources: Record<string, unknown> = {};
-        if (monsterPosition) {
-          monsterResources.position = monsterPosition;
-        }
-
-        // Initialize resource pools for this monster.
-        // For monsters WITH class levels: also loads class-specific pools (ki, rage, etc.).
-        // For ALL monsters: loads spell slot pools from `statBlock.spellSlots` if present.
-        {
-          const monsterCombatRes = buildCombatResources({
-            className: monsterClassName ?? "",
-            level: monsterLevel ?? 0,
-            sheet: statBlock ?? {},
-          });
-          if (monsterCombatRes.resourcePools.length > 0) {
-            monsterResources.resourcePools = monsterCombatRes.resourcePools;
-          }
-          if (monsterCombatRes.hasShieldPrepared) {
-            (monsterResources as any).hasShieldPrepared = true;
-          }
-          if (monsterCombatRes.hasCounterspellPrepared) {
-            (monsterResources as any).hasCounterspellPrepared = true;
-          }
-          if (monsterCombatRes.hasAbsorbElementsPrepared) {
-            (monsterResources as any).hasAbsorbElementsPrepared = true;
-          }
-          if (monsterCombatRes.hasHellishRebukePrepared) {
-            (monsterResources as any).hasHellishRebukePrepared = true;
-          }
-        }
-
-        // Initialize inventory from statBlock (potions, consumables, etc.)
-        if (Array.isArray(statBlock?.inventory) && statBlock.inventory.length > 0) {
-          monsterResources.inventory = statBlock.inventory;
-        }
-
-        // Initialize legendary action resources from monster stat block
-        const legendary = parseLegendaryTraits(statBlock as Record<string, unknown>);
-        if (legendary) {
-          monsterResources.legendaryActionCharges = legendary.legendaryActionCharges;
-          monsterResources.legendaryActionsRemaining = legendary.legendaryActionCharges;
-          monsterResources.legendaryActions = legendary.legendaryActions as unknown[];
-          if (legendary.lairActions) {
-            monsterResources.lairActions = legendary.lairActions as unknown[];
-          }
-          if (legendary.isInLair) {
-            monsterResources.isInLair = true;
-          }
-        }
+        const monsterResources = buildCombatantResources(monsterClassName, monsterLevel, statBlock);
 
         combatants.push({
           combatantType: "Monster" as const,
@@ -372,56 +303,7 @@ export class InitiativeHandler {
       }
       const npcInitiative = npcRoll + npcDexMod;
 
-      const npcPosition = statBlock?.position;
-      const npcResources: Record<string, unknown> = {};
-      if (npcPosition) {
-        npcResources.position = npcPosition;
-      }
-
-      // Initialize resource pools for this NPC.
-      // For NPCs WITH class levels: also loads class-specific pools (ki, rage, etc.).
-      // For ALL NPCs: loads spell slot pools from `statBlock.spellSlots` if present.
-      {
-        const npcCombatRes = buildCombatResources({
-          className: npcClassName ?? "",
-          level: npcLevel ?? 0,
-          sheet: statBlock ?? {},
-        });
-        if (npcCombatRes.resourcePools.length > 0) {
-          npcResources.resourcePools = npcCombatRes.resourcePools;
-        }
-        if (npcCombatRes.hasShieldPrepared) {
-          (npcResources as any).hasShieldPrepared = true;
-        }
-        if (npcCombatRes.hasCounterspellPrepared) {
-          (npcResources as any).hasCounterspellPrepared = true;
-        }
-        if (npcCombatRes.hasAbsorbElementsPrepared) {
-          (npcResources as any).hasAbsorbElementsPrepared = true;
-        }
-        if (npcCombatRes.hasHellishRebukePrepared) {
-          (npcResources as any).hasHellishRebukePrepared = true;
-        }
-      }
-
-      // Initialize inventory from statBlock (potions, consumables, etc.)
-      if (Array.isArray(statBlock?.inventory) && statBlock.inventory.length > 0) {
-        npcResources.inventory = statBlock.inventory;
-      }
-
-      // Initialize legendary action resources from NPC stat block
-      const npcLegendary = parseLegendaryTraits(statBlock as Record<string, unknown>);
-      if (npcLegendary) {
-        npcResources.legendaryActionCharges = npcLegendary.legendaryActionCharges;
-        npcResources.legendaryActionsRemaining = npcLegendary.legendaryActionCharges;
-        npcResources.legendaryActions = npcLegendary.legendaryActions as unknown[];
-        if (npcLegendary.lairActions) {
-          npcResources.lairActions = npcLegendary.lairActions as unknown[];
-        }
-        if (npcLegendary.isInLair) {
-          npcResources.isInLair = true;
-        }
-      }
+      const npcResources = buildCombatantResources(npcClassName, npcLevel, statBlock);
 
       combatants.push({
         combatantType: "NPC" as const,

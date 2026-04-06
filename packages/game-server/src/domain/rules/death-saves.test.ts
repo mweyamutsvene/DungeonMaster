@@ -5,6 +5,7 @@ import {
   needsDeathSave,
   resetDeathSaves,
   takeDamageWhileUnconscious,
+  attemptStabilize,
   type DeathSaves,
   type DeathSaveResult,
 } from './death-saves.js';
@@ -145,6 +146,35 @@ describe('Death Saves', () => {
       const reset = resetDeathSaves();
       expect(reset.successes).toBe(0);
       expect(reset.failures).toBe(0);
+    });
+  });
+
+  describe('attemptStabilize', () => {
+    it('should succeed on check total of exactly 10 (meets DC)', () => {
+      const result = attemptStabilize(10);
+      expect(result.success).toBe(true);
+      expect(result.checkTotal).toBe(10);
+      expect(result.dc).toBe(10);
+    });
+
+    it('should fail on check total of 9 (below DC)', () => {
+      const result = attemptStabilize(9);
+      expect(result.success).toBe(false);
+      expect(result.checkTotal).toBe(9);
+      expect(result.dc).toBe(10);
+    });
+
+    it('should succeed on high check total', () => {
+      const result = attemptStabilize(20);
+      expect(result.success).toBe(true);
+      expect(result.checkTotal).toBe(20);
+      expect(result.dc).toBe(10);
+    });
+
+    it('should always have DC 10', () => {
+      expect(attemptStabilize(1).dc).toBe(10);
+      expect(attemptStabilize(15).dc).toBe(10);
+      expect(attemptStabilize(25).dc).toBe(10);
     });
   });
 });

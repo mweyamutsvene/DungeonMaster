@@ -291,6 +291,8 @@ export interface AttackEnhancementDef {
   choiceOptions?: readonly string[];
   /** If set, enhancement is only eligible when attack was part of this bonus action (e.g. "flurry-of-blows"). */
   requiresBonusAction?: string;
+  /** If set, enhancement requires the character to have this subclass (e.g. "open-hand"). */
+  requiresSubclass?: string;
 }
 
 /**
@@ -323,6 +325,11 @@ export interface ClassActionMatch {
 }
 
 // ----- Pure matching functions (take profiles as parameter — no implicit state) -----
+
+/** Normalize an ID for case/separator-insensitive comparison. */
+function normalizeId(id: string): string {
+  return id.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 /**
  * Try to match user text against all registered class action patterns.
@@ -370,6 +377,7 @@ export function matchAttackEnhancements(
   resourcePools: ReadonlyArray<{ name: string; current: number }>,
   profiles: readonly ClassCombatTextProfile[],
   triggerFilter: "onDeclare" | "onHit" | "any" = "any",
+  subclass?: string,
 ): string[] {
   const profile = profiles.find((p) => p.classId === classId.toLowerCase());
   if (!profile) return [];
@@ -383,6 +391,8 @@ export function matchAttackEnhancements(
     if (triggerFilter !== "any" && trigger !== triggerFilter) continue;
     // Level gate
     if (level < enhancement.minLevel) continue;
+    // Subclass gate
+    if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
     // Melee requirement
     if (enhancement.requiresMelee && attackKind !== "melee") continue;
     // Text pattern match
@@ -425,6 +435,7 @@ export function getEligibleOnHitEnhancements(
   resourcePools: ReadonlyArray<{ name: string; current: number }>,
   profiles: readonly ClassCombatTextProfile[],
   bonusAction?: string,
+  subclass?: string,
 ): EligibleOnHitEnhancement[] {
   const profile = profiles.find((p) => p.classId === classId.toLowerCase());
   if (!profile) return [];
@@ -436,6 +447,8 @@ export function getEligibleOnHitEnhancements(
     if (trigger !== "onHit") continue;
     // Level gate
     if (level < enhancement.minLevel) continue;
+    // Subclass gate
+    if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
     // Melee requirement
     if (enhancement.requiresMelee && attackKind !== "melee") continue;
     // Bonus action gate (e.g. OHT only on flurry hits)

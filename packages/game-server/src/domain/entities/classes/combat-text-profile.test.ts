@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   tryMatchClassAction,
   matchAttackEnhancements,
+  getEligibleOnHitEnhancements,
   type ClassCombatTextProfile,
 } from "./combat-text-profile.js";
 import { MONK_COMBAT_TEXT_PROFILE } from "./monk.js";
@@ -166,5 +167,41 @@ describe("matchAttackEnhancements", () => {
       "melee", "monk", 5, {}, [kiPool], [],
     );
     expect(result).toEqual([]);
+  });
+});
+
+describe("getEligibleOnHitEnhancements — subclass gating", () => {
+  it("returns OHT for open-hand monk on flurry hit", () => {
+    const result = getEligibleOnHitEnhancements(
+      "melee", "monk", 3, {}, [], ALL_PROFILES, "flurry-of-blows", "open-hand",
+    );
+    const oht = result.find((e) => e.keyword === "open-hand-technique");
+    expect(oht).toBeDefined();
+    expect(oht!.choiceOptions).toEqual(["addle", "push", "topple"]);
+  });
+
+  it("rejects OHT for monk without subclass", () => {
+    const result = getEligibleOnHitEnhancements(
+      "melee", "monk", 3, {}, [], ALL_PROFILES, "flurry-of-blows",
+    );
+    const oht = result.find((e) => e.keyword === "open-hand-technique");
+    expect(oht).toBeUndefined();
+  });
+
+  it("rejects OHT for monk with wrong subclass", () => {
+    const result = getEligibleOnHitEnhancements(
+      "melee", "monk", 3, {}, [], ALL_PROFILES, "flurry-of-blows", "shadow",
+    );
+    const oht = result.find((e) => e.keyword === "open-hand-technique");
+    expect(oht).toBeUndefined();
+  });
+
+  it("still returns stunning strike for any monk (no subclass gate)", () => {
+    const kiPool = { name: "ki", current: 3 };
+    const result = getEligibleOnHitEnhancements(
+      "melee", "monk", 5, {}, [kiPool], ALL_PROFILES, "flurry-of-blows",
+    );
+    const ss = result.find((e) => e.keyword === "stunning-strike");
+    expect(ss).toBeDefined();
   });
 });

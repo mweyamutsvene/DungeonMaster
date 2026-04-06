@@ -590,6 +590,7 @@ export interface InMemoryRepos {
   combatRepo: MemoryCombatRepository;
   eventsRepo: MemoryEventRepository;
   spellsRepo: MemorySpellRepository;
+  pendingActionsRepo: InMemoryPendingActionRepository;
 }
 
 export function createInMemoryRepos(): InMemoryRepos {
@@ -601,6 +602,7 @@ export function createInMemoryRepos(): InMemoryRepos {
     combatRepo: new MemoryCombatRepository(),
     eventsRepo: new MemoryEventRepository(),
     spellsRepo: new MemorySpellRepository(),
+    pendingActionsRepo: new InMemoryPendingActionRepository(),
   };
 }
 
@@ -612,4 +614,5 @@ export function clearAllRepos(repos: InMemoryRepos): void {
   repos.combatRepo.clear();
   repos.eventsRepo.clear();
   repos.spellsRepo.clear();
+  repos.pendingActionsRepo.clear();
 }

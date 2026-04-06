@@ -130,6 +130,13 @@ export async function loadRoster(
   return { characters, monsters, npcs, roster };
 }
 
+// ----- Helpers -----
+
+/** Normalize an ID for case/separator-insensitive comparison. */
+function normalizeId(id: string): string {
+  return id.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 // ----- RollStateMachine -----
 
 export class RollStateMachine {
@@ -775,6 +782,7 @@ export class RollStateMachine {
           actorResourcePools,
           getAllCombatTextProfiles(),
           action.bonusAction,
+          (actorChar?.sheet as any)?.subclass ?? "",
         )
       : [];
 
@@ -888,8 +896,10 @@ export class RollStateMachine {
       const onHitDefs = (classProfile?.attackEnhancements ?? []).filter((e) => (e.trigger ?? "onDeclare") === "onHit");
 
       // Filter to eligible defs
+      const actorSubclass = (actorChar?.sheet as any)?.subclass ?? "";
       const eligibleDefs = onHitDefs.filter((def) => {
         if (actorLevel < def.minLevel) return false;
+        if (def.requiresSubclass && normalizeId(def.requiresSubclass) !== normalizeId(actorSubclass ?? "")) return false;
         if (def.requiresMelee && action.weaponSpec?.kind !== "melee") return false;
         if (def.requiresBonusAction && action.bonusAction !== def.requiresBonusAction) return false;
         if (def.turnTrackingKey && actorResForEnhancements[def.turnTrackingKey] === true) return false;

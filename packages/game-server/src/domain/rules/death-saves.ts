@@ -133,3 +133,22 @@ export function takeDamageWhileUnconscious(
     instantDeath: newFailures >= 3,
   };
 }
+
+export interface StabilizeCheckResult {
+  success: boolean;
+  checkTotal: number;
+  dc: number;
+}
+
+/**
+ * Evaluate a Medicine check to stabilize a dying creature.
+ * DC 10 Wisdom (Medicine) check.
+ */
+export function attemptStabilize(medicineCheckTotal: number): StabilizeCheckResult {
+  const dc = 10;
+  return {
+    success: medicineCheckTotal >= dc,
+    checkTotal: medicineCheckTotal,
+    dc,
+  };
+}

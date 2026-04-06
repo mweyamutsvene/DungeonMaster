@@ -184,7 +184,7 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/feat-modifiers.ts:72`, `domain/combat/attack-resolver.ts`
   - Fix: Added `attackerIsGrapplingTarget` option to `AttackResolveOptions`. When grappler feat + grappling, adjusts attack mode to advantage. Added 4 tests.
 
-- [ ] **[RULES-M7]** Resilient feat entirely missing — no save proficiency modeling (`savingThrowProficiencies` field doesn't exist in `FeatModifiers`). Very common feat that affects concentration and death saves.
+- [x] **[RULES-M7]** Resilient feat entirely missing — no save proficiency modeling (`savingThrowProficiencies` field doesn't exist in `FeatModifiers`). Very common feat that affects concentration and death saves.
   - File: `domain/rules/feat-modifiers.ts`
 
 - [x] **[RULES-M8]** Jump landing skill checks — two explicit TODO comments. DC 10 Acrobatics if landing in Difficult Terrain; DC 10 Athletics for clearing low obstacles.
@@ -201,7 +201,7 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/helpers/spell-slot-manager.ts:115-125`
   - Fix: Added `pactSlotLevel` to `CombatResourcesResult`, stored in combatant resources at init. Pact Magic fallback now validates slot level ≥ effective spell level. Added 3 tests.
 
-- [ ] **[SPELL-M3]** AoE cover bonus not applied per-target — single-target path applies `getCoverSaveBonus(coverLevel)` to DEX saves; AoE `handleAoE()` path skips per-target cover checks entirely.
+- [x] **[SPELL-M3]** AoE cover bonus not applied per-target — single-target path applies `getCoverSaveBonus(coverLevel)` to DEX saves; AoE `handleAoE()` path skips per-target cover checks entirely.
   - File: `application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts`
 
 - [x] **[SPELL-M4]** `spellSaveDC` is a static sheet field with no server-side computation or enforcement — defaults to 13 if missing. No formula enforced across Cleric (WIS), Bard (CHA), Sorcerer (CHA), Druid (WIS), Ranger (WIS), Paladin (CHA).
@@ -212,7 +212,7 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/tabletop/spell-delivery/spell-attack-delivery-handler.ts:59`
   - Fix: Created shared `computeSpellAttackBonus()` in `domain/rules/spell-casting.ts` (proficiency + casting ability mod). Applied in spell-attack handler.
 
-- [ ] **[SPELL-M6]** AoE healing not implemented — `HealingSpellDeliveryHandler` can't handle spells with both `healing` and `area` set (Mass Cure Wounds, Prayer of Healing). Throws `ValidationError` for missing `targetName`.
+- [x] **[SPELL-M6]** AoE healing not implemented — `HealingSpellDeliveryHandler` can't handle spells with both `healing` and `area` set (Mass Cure Wounds, Prayer of Healing). Throws `ValidationError` for missing `targetName`.
   - File: `application/services/combat/tabletop/spell-delivery/healing-spell-delivery-handler.ts`
 
 - [x] **[SPELL-M7]** Monsters excluded as counterspellers — `SpellReactionHandler` checks `other.combatantType !== "Character"` and skips all monsters. Archmage, Lich, etc. cannot counter enemy spells.
@@ -269,7 +269,7 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[AI-M4]** No AI handler for primary-action class features — Turn Undead, Channel Divinity, Lay on Hands have no `"useFeature"` AI action type. AI can't trigger these.
   - File: `application/services/combat/ai/`, `ai-action-registry.ts`
 
-- [ ] **[AI-M5]** Legacy bonus action string matching in `ai-action-executor.ts` — `if/else` chain for `nimble_escape_disengage`, `cunning_action_dash`, etc. bypasses `AbilityRegistry`. New abilities require new `if` branch.
+- [x] **[AI-M5]** Legacy bonus action string matching in `ai-action-executor.ts` — `if/else` chain for `nimble_escape_disengage`, `cunning_action_dash`, etc. bypasses `AbilityRegistry`. New abilities require new `if` branch.
   - File: `application/services/combat/ai/ai-action-executor.ts`
 
 - [x] **[AI-M6]** Unconditional `console.log` calls in production — 13 calls in `attack-handler.ts` and `ai-attack-resolver.ts` bypass the `aiLog` debug gate. Fire on every AI attack in production.
