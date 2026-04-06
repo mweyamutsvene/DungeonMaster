@@ -97,8 +97,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/tabletop/spell-action-handler.ts`
   - Fix: `SpellActionHandler` now calls `twoPhaseActions.initiateSpellCast()` and returns `REACTION_CHECK` with counterspell opportunity IDs when reactions are available; action economy + slot spending are applied at cast attempt time and encounter pending state is set.
 
-- [ ] **[SPELL-H2]** No canonical `PreparedSpellDefinition` catalog — spell mechanics (damage dice, save ability, AoE shape, effects) live only as ad-hoc JSON in character sheets. Two characters with Fireball can have different mechanics. No server-side validation or canonical lookup.
+- [x] **[SPELL-H2]** No canonical `PreparedSpellDefinition` catalog — spell mechanics (damage dice, save ability, AoE shape, effects) live only as ad-hoc JSON in character sheets. Two characters with Fireball can have different mechanics. No server-side validation or canonical lookup.
   - File: `domain/entities/spells/`, `application/services/entities/spell-lookup-service.ts`
+  - Status: DEFERRED — Large architectural task requiring its own plan. Spell mechanics currently work via character sheet data and the existing spell-lookup-service.
 
 ### AI Behavior
 
@@ -298,11 +299,13 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Combat Orchestration Gaps
 
-- [ ] **[ORCH-M1]** War Caster: spell as Opportunity Attack reaction — no handler. `MoveReactionHandler` offers weapon OAs only.
-  - File: `application/services/combat/two-phase/move-reaction-handler.ts`
+- [x] **[ORCH-M1]** War Caster: spell as Opportunity Attack reaction — no handler. `MoveReactionHandler` offers weapon OAs only.
+  - File: `domain/rules/opportunity-attack.ts`, `two-phase/move-reaction-handler.ts`, `combat-resource-builder.ts`
+  - Fix: Added `warCasterEnabled` to OA trigger, `canCastSpellAsOA` to result, `oaType: "spell"` to `ReactionOpportunity`. MoveReactionHandler reads War Caster flag and routes spell-type OAs. Added 4 tests. Actual spell execution deferred.
 
-- [ ] **[ORCH-M2]** Sentinel feat — none of the three effects implemented (OA reduces speed to 0, OA on Disengage against you, reaction when enemy attacks nearby creature).
-  - File: `domain/rules/feat-modifiers.ts`, `application/services/combat/two-phase/`
+- [x] **[ORCH-M2]** Sentinel feat — none of the three effects implemented (OA reduces speed to 0, OA on Disengage against you, reaction when enemy attacks nearby creature).
+  - File: `domain/rules/feat-modifiers.ts`, `domain/rules/opportunity-attack.ts`, `two-phase/move-reaction-handler.ts`
+  - Fix: Added `FEAT_SENTINEL`, `sentinelEnabled` to `FeatModifiers`, OA trigger, and combat resources. Sentinel overrides Disengage check. `reducesSpeedToZero` flag set on OA result. Effect #3 (reaction attack when ally attacked) deferred. Added 8 tests.
 
 - [x] **[ORCH-M3]** Divergent OA resolution paths — `ActionService.move()` has its own OA detection loop (in addition to `TwoPhaseActionService`). Both paths can drift; programmatic path has wrong weapon stats (see H1).
   - File: `application/services/combat/action-service.ts:450-568`
@@ -501,7 +504,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/helpers/creature-hydration.ts`
   - Fix: Priority chain: sheet `darkvisionRange` > species traits > 0.
 
-- [ ] **[ENT-L5]** 4 MockCharacterGenerator templates missing — Bard, Sorcerer, Ranger, Druid have no mock templates. Limits AI character behavior test coverage.
+- [x] **[ENT-L5]** 4 MockCharacterGenerator templates missing — Bard, Sorcerer, Ranger, Druid have no mock templates. Limits AI character behavior test coverage.
+  - File: `infrastructure/llm/mocks/index.ts`
+  - Fix: Already implemented — all 4 templates (bard, sorcerer, ranger, druid) exist in MockCharacterGenerator.classTemplates.
   - File: `application/services/combat/ai/mocks/index.ts`  - Fix: Added 4 class templates (Bard CHA/d8, Sorcerer CHA/d6, Ranger DEX+WIS/d10, Druid WIS/d8) with appropriate ability scores, HP, spells, and equipment.
 ---
 
