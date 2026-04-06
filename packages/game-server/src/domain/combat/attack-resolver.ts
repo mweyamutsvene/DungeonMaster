@@ -15,6 +15,13 @@ import { hasProperty } from "../entities/items/weapon-properties.js";
 import { getAdjustedMode } from "../rules/ability-checks.js";
 import { getCriticalHitThreshold } from "../entities/classes/registry.js";
 
+// TODO: When encounter.flankingEnabled is true, check flanking advantage
+// before resolving the attack. Use checkFlanking() from domain/rules/flanking.ts
+// to determine if the attacker has an ally on the opposite side of the target,
+// and if so, grant advantage on melee attacks. This should be wired in the
+// application layer (combat service) which has access to encounter options and
+// combatant positions, then passed as mode: 'advantage' in the AttackSpec.
+
 export interface DamageSpec {
   diceCount: number;
   diceSides: number;

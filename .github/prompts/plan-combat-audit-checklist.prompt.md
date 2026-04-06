@@ -353,8 +353,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Code Cleanup
 
-- [ ] **[CLEAN-L1]** `ConditionEffects` field naming inconsistency — `attackRollsHaveAdvantage` means "attacks against this creature have advantage" but `attackRollsHaveDisadvantage` means "this creature's attacks have disadvantage." Rename `attackRollsHaveAdvantage` → `incomingAttackAdvantage` to match `incomingAttackDisadvantage`.
+- [x] **[CLEAN-L1]** `ConditionEffects` field naming inconsistency — `attackRollsHaveAdvantage` means "attacks against this creature have advantage" but `attackRollsHaveDisadvantage` means "this creature's attacks have disadvantage." Rename `attackRollsHaveAdvantage` → `incomingAttackAdvantage` to match `incomingAttackDisadvantage`.
   - File: `domain/entities/combat/conditions.ts:63-83`
+  - Fix: Renamed to `incomingAttacksHaveAdvantage` / `outgoingAttacksHaveDisadvantage` + helper functions `hasIncomingAttackAdvantage()` / `hasOutgoingAttackDisadvantage()`. Updated all 4 consumer files.
 
 - [x] **[CLEAN-L2]** `ConditionEffects` missing `resistsAllDamage?: boolean` and `damageImmunities?: DamageType[]` fields — required to properly model Petrified and similar conditions (see H2).
   - File: `domain/entities/combat/conditions.ts`
@@ -368,8 +369,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/handlers/attack-handler.ts`, `application/services/combat/ai/ai-attack-resolver.ts`
   - Fix: Already done in AI-M6 (Batch 10). All 13 instances replaced with `aiLog()`.
 
-- [ ] **[CLEAN-L5]** Damage reactions in `TwoPhaseActionService` not delegated — Absorb Elements / Hellish Rebuke handlers are inline in the facade (~170 lines) instead of using dedicated handler classes like all other reaction types.
+- [x] **[CLEAN-L5]** Damage reactions in `TwoPhaseActionService` not delegated — Absorb Elements / Hellish Rebuke handlers are inline in the facade (~170 lines) instead of using dedicated handler classes like all other reaction types.
   - File: `application/services/combat/two-phase-action-service.ts`
+  - Fix: Created `DamageReactionHandler` in `two-phase/damage-reaction-handler.ts` with `initiate()` and `complete()` methods. ~170 lines extracted from facade.
 
 - [x] **[CLEAN-L6]** 10 trivial one-liner proxy methods in `ActionDispatcher` add no abstraction — `handlePickupAction()` etc. exclusively forward to handler classes. Remove them; call handler methods directly from `buildParserChain()`.
   - File: `application/services/combat/tabletop/action-dispatcher.ts`
@@ -383,8 +385,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/helpers/creature-hydration.ts:96`
   - Fix: Removed dead `proficiencyBonus` variable from character hydration. `Character.getProficiencyBonus()` computes from level.
 
-- [ ] **[CLEAN-L9]** `Turn Undead` AoE post-processing inline in `ClassAbilityHandlers` — after executor runs, the multi-target zone saving throw loop is inline in the handler, not in `SavingThrowResolver` or a dedicated AoE resolver.
+- [x] **[CLEAN-L9]** `Turn Undead` AoE post-processing inline in `ClassAbilityHandlers` — after executor runs, the multi-target zone saving throw loop is inline in the handler, not in `SavingThrowResolver` or a dedicated AoE resolver.
   - File: `application/services/combat/tabletop/dispatch/class-ability-handlers.ts`
+  - Fix: Extracted inline Turn Undead AoE loop into private `processTurnUndeadAoE()` method.
 
 - [x] **[CLEAN-L10]** Dead code `ready` branch in `handleSimpleAction()` — `case "ready": throw ValidationError(...)` can never be reached as  `ready` is intercepted by its own parser entry.
   - File: `application/services/combat/tabletop/dispatch/social-handlers.ts`
@@ -465,8 +468,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Entity / Infrastructure
 
-- [ ] **[ENT-L1]** 3 orphaned Prisma tables with no application code — `ClassFeatureDefinition`, `ItemDefinition`, `ConditionDefinition`. Either implement or drop.
+- [x] **[ENT-L1]** 3 orphaned Prisma tables with no application code — `ClassFeatureDefinition`, `ItemDefinition`, `ConditionDefinition`. Either implement or drop.
   - File: `prisma/schema.prisma`
+  - Fix: Already documented via ENT-M8 with `/// ORPHANED:` comments. All other models verified to have repository implementations.
 
 - [x] **[ENT-L2]** `createInMemoryRepos()` doesn't include `pendingActionsRepo` — tests needing reactions must instantiate it separately, creating boilerplate and risk of missing it.
   - File: `infrastructure/testing/memory-repos.ts`

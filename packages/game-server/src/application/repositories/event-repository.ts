@@ -24,6 +24,23 @@ export interface RestCompletedPayload {
   characters: Array<{ id: string; name: string }>;
 }
 
+export interface MonsterAddedPayload {
+  monsterId: string;
+  name: string;
+}
+
+export interface NPCAddedPayload {
+  npcId: string;
+  name: string;
+}
+
+export interface InventoryChangedPayload {
+  characterId: string;
+  characterName: string;
+  action: "add" | "remove" | "equip" | "use-charge" | "use";
+  itemName: string;
+}
+
 export interface RestStartedPayload {
   restType: string;
   restId: string;
@@ -263,6 +280,9 @@ export interface LairActionPayload {
 export type GameEventInput =
   | { type: "SessionCreated"; payload: SessionCreatedPayload }
   | { type: "CharacterAdded"; payload: CharacterAddedPayload }
+  | { type: "MonsterAdded"; payload: MonsterAddedPayload }
+  | { type: "NPCAdded"; payload: NPCAddedPayload }
+  | { type: "InventoryChanged"; payload: InventoryChangedPayload }
   | { type: "RestStarted"; payload: RestStartedPayload }
   | { type: "RestCompleted"; payload: RestCompletedPayload }
   | { type: "CombatStarted"; payload: CombatStartedPayload }

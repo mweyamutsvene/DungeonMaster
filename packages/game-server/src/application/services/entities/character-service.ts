@@ -153,6 +153,11 @@ export class CharacterService {
     const characters = await this.characters.listBySession(sessionId);
     const results: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> = [];
 
+    // Collect all sheet updates, then flush in parallel for crash safety.
+    // When called inside PrismaUnitOfWork.run(), these all execute within the same
+    // Prisma transaction. Outside UoW, Promise.all() ensures fail-fast behavior.
+    const pendingUpdates: Array<{ charId: string; sheet: JsonValue }> = [];
+
     for (const char of characters) {
       const sheet = (char.sheet as Record<string, unknown>) ?? {};
       const className = char.className ?? (sheet.className as string | undefined) ?? "";
@@ -231,9 +236,14 @@ export class CharacterService {
         updatedSheet.hitDiceRemaining = recoverHitDice(currentHitDiceRemaining, totalHitDice);
       }
 
-      await this.characters.updateSheet(char.id, updatedSheet as JsonValue);
+      pendingUpdates.push({ charId: char.id, sheet: updatedSheet as JsonValue });
       results.push({ id: char.id, name: char.name, poolsRefreshed, hitDiceSpent, hpRecovered });
     }
+
+    // Flush all character sheet updates in parallel (fail-fast on any error)
+    await Promise.all(
+      pendingUpdates.map(u => this.characters.updateSheet(u.charId, u.sheet)),
+    );
 
     if (this.events) {
       await this.events.append(sessionId, {

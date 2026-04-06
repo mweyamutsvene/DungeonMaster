@@ -56,22 +56,35 @@ export function registerSessionCreatureRoutes(app: FastifyInstance, deps: Sessio
     }
 
     if (deps.unitOfWork) {
-      return deps.unitOfWork.run(async (repos) => {
-        return repos.monstersRepo.createInSession(sessionId, {
+      const created = await deps.unitOfWork.run(async (repos) => {
+        const m = await repos.monstersRepo.createInSession(sessionId, {
           id,
           name: name.trim(),
           monsterDefinitionId,
           statBlock,
         });
+        await repos.eventsRepo.append(sessionId, {
+          id: nanoid(),
+          type: "MonsterAdded",
+          payload: { monsterId: m.id, name: m.name },
+        });
+        return m;
       });
+      return created;
     }
 
-    return deps.monsters.createInSession(sessionId, {
+    const created = await deps.monsters.createInSession(sessionId, {
       id,
       name: name.trim(),
       monsterDefinitionId,
       statBlock,
     });
+    await deps.events.append(sessionId, {
+      id: nanoid(),
+      type: "MonsterAdded",
+      payload: { monsterId: created.id, name: created.name },
+    });
+    return created;
   });
 
   /**
@@ -139,23 +152,36 @@ export function registerSessionCreatureRoutes(app: FastifyInstance, deps: Sessio
     }
 
     if (deps.unitOfWork) {
-      return deps.unitOfWork.run(async (repos) => {
-        return repos.npcsRepo.createInSession(sessionId, {
+      const created = await deps.unitOfWork.run(async (repos) => {
+        const n = await repos.npcsRepo.createInSession(sessionId, {
           id,
           name: name.trim(),
           statBlock,
           faction,
           aiControlled,
         });
+        await repos.eventsRepo.append(sessionId, {
+          id: nanoid(),
+          type: "NPCAdded",
+          payload: { npcId: n.id, name: n.name },
+        });
+        return n;
       });
+      return created;
     }
 
-    return deps.npcs.createInSession(sessionId, {
+    const created = await deps.npcs.createInSession(sessionId, {
       id,
       name: name.trim(),
       statBlock,
       faction,
       aiControlled,
     });
+    await deps.events.append(sessionId, {
+      id: nanoid(),
+      type: "NPCAdded",
+      payload: { npcId: created.id, name: created.name },
+    });
+    return created;
   });
 }

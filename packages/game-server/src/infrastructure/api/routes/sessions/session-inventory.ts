@@ -15,6 +15,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
+import { nanoid } from "nanoid";
 import type { SessionRouteDeps } from "./types.js";
 import { NotFoundError, ValidationError } from "../../../../application/errors.js";
 import type { CharacterItemInstance } from "../../../../domain/entities/items/magic-item.js";
@@ -43,6 +44,21 @@ async function saveInventory(
   const updatedSheet = { ...sheet, inventory };
   await deps.charactersRepo.updateSheet(charId, updatedSheet);
   return inventory;
+}
+
+async function emitInventoryChanged(
+  deps: SessionRouteDeps,
+  sessionId: string,
+  characterId: string,
+  characterName: string,
+  action: "add" | "remove" | "equip" | "use-charge" | "use",
+  itemName: string,
+) {
+  await deps.events.append(sessionId, {
+    id: nanoid(),
+    type: "InventoryChanged",
+    payload: { characterId, characterName, action, itemName },
+  });
 }
 
 export function registerSessionInventoryRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
@@ -123,10 +139,12 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
     if (isArmorChange) {
       const enrichedSheet = recomputeArmorFromInventory({ ...sheet, inventory: updated });
       await deps.charactersRepo.updateSheet(char.id, enrichedSheet);
+      await emitInventoryChanged(deps, req.params.id, char.id, char.name, "add", newItem.name);
       return { inventory: updated };
     }
 
     await saveInventory(deps, char.id, sheet, updated);
+    await emitInventoryChanged(deps, req.params.id, char.id, char.name, "add", newItem.name);
 
     return { inventory: updated };
   });
@@ -155,6 +173,7 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
 
     const updated = removeInventoryItem(inventory, itemName, amount);
     await saveInventory(deps, char.id, sheet, updated);
+    await emitInventoryChanged(deps, req.params.id, char.id, char.name, "remove", itemName);
 
     return { inventory: updated };
   });
@@ -211,10 +230,12 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
     if (isArmorSlot && equipStateChanged) {
       const enrichedSheet = recomputeArmorFromInventory({ ...sheet, inventory: updated });
       await deps.charactersRepo.updateSheet(char.id, enrichedSheet);
+      await emitInventoryChanged(deps, req.params.id, char.id, char.name, "equip", itemName);
       return { inventory: updated };
     }
 
     await saveInventory(deps, char.id, sheet, updated);
+    await emitInventoryChanged(deps, req.params.id, char.id, char.name, "equip", itemName);
 
     return { inventory: updated };
   });
@@ -258,6 +279,7 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
 
     const { updatedInventory, item: updatedItem } = useItemCharge(inventory, itemName, amount);
     await saveInventory(deps, char.id, sheet, updatedInventory);
+    await emitInventoryChanged(deps, req.params.id, char.id, char.name, "use-charge", itemName);
 
     return { item: updatedItem, inventory: updatedInventory };
   });
@@ -333,6 +355,7 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
       currentHp: hpCurrent,
     };
     await deps.charactersRepo.updateSheet(char.id, updatedSheet);
+    await emitInventoryChanged(deps, req.params.id, char.id, char.name, "use", itemName);
 
     return {
       used: consumed.name,

@@ -23,10 +23,6 @@ import {
   getPosition,
   normalizeResources,
   getResourcePools,
-  hasResourceAvailable,
-  spendResourceFromPool,
-  hasBonusActionAvailable,
-  useBonusAction,
   getActiveEffects,
   setActiveEffects,
 } from "../helpers/resource-utils.js";
@@ -44,8 +40,7 @@ import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
 import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
 import { SNEAK_ATTACK } from "../../../../domain/entities/classes/feature-keys.js";
-import { divineSmiteDice } from "../../../../domain/entities/classes/paladin.js";
-import { getEligibleOnHitEnhancements, matchOnHitEnhancementsInText } from "../../../../domain/entities/classes/combat-text-profile.js";
+import { getEligibleOnHitEnhancements } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import {
   normalizeConditions,
@@ -128,13 +123,6 @@ export async function loadRoster(
   };
 
   return { characters, monsters, npcs, roster };
-}
-
-// ----- Helpers -----
-
-/** Normalize an ID for case/separator-insensitive comparison. */
-function normalizeId(id: string): string {
-  return id.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // ----- RollStateMachine -----
@@ -877,146 +865,20 @@ export class RollStateMachine {
     }
 
     // --- 2024 On-Hit Enhancement: match player opt-in keywords in damage text ---
-    // Enhancement building moved here from handleAttackRoll (was upfront declaration).
     // Player includes keywords like "with stunning strike" or "with topple" in damage text.
-    const actorChar = characters.find((c) => c.id === actorId);
-    const actorClassName = actorChar?.className ?? (actorChar?.sheet as any)?.className ?? "";
-    const actorLevel = ClassFeatureResolver.getLevel((actorChar?.sheet ?? {}) as any, actorChar?.level);
-
+    // Enhancement assembly is delegated to HitRiderResolver.
     if (rawText && !action.enhancements) {
-      const actorCombatantForEnhancements = (await this.deps.combatRepo.listCombatants(encounter.id)).find(
-        (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-      );
-      const actorResForEnhancements = normalizeResources(actorCombatantForEnhancements?.resources ?? {});
-      const actorResourcePools = getResourcePools(actorResForEnhancements);
-
-      // Get raw on-hit enhancement defs for the actor's class
-      const profiles = getAllCombatTextProfiles();
-      const classProfile = profiles.find((p) => p.classId === actorClassName.toLowerCase());
-      const onHitDefs = (classProfile?.attackEnhancements ?? []).filter((e) => (e.trigger ?? "onDeclare") === "onHit");
-
-      // Filter to eligible defs
-      const actorSubclass = (actorChar?.sheet as any)?.subclass ?? "";
-      const eligibleDefs = onHitDefs.filter((def) => {
-        if (actorLevel < def.minLevel) return false;
-        if (def.requiresSubclass && normalizeId(def.requiresSubclass) !== normalizeId(actorSubclass ?? "")) return false;
-        if (def.requiresMelee && action.weaponSpec?.kind !== "melee") return false;
-        if (def.requiresBonusAction && action.bonusAction !== def.requiresBonusAction) return false;
-        if (def.turnTrackingKey && actorResForEnhancements[def.turnTrackingKey] === true) return false;
-        if (def.resourceCost) {
-          const pool = actorResourcePools.find((p) => p.name === def.resourceCost!.pool);
-          if (!pool || pool.current < def.resourceCost.amount) return false;
-        }
-        return true;
+      const enhancements = await this.hitRiderResolver.assembleOnHitEnhancements({
+        rawText,
+        actorId,
+        encounterId: encounter.id,
+        characters,
+        weaponSpec: action.weaponSpec,
+        bonusAction: action.bonusAction,
       });
-
-      // Match player keywords in damage text
-      const matched = matchOnHitEnhancementsInText(rawText, eligibleDefs);
-
-      if (matched.length > 0) {
-        const enhancements: HitRiderEnhancement[] = [];
-        const actorSheet = (actorChar?.sheet ?? {}) as any;
-        const wisdomScore = actorSheet?.abilityScores?.wisdom ?? 10;
-        const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
-        const wisMod = Math.floor((wisdomScore - 10) / 2);
-        const saveDC = 8 + profBonus + wisMod;
-
-        for (const match of matched) {
-          if (match.keyword === "stunning-strike") {
-            enhancements.push({
-              abilityId: "class:monk:stunning-strike",
-              displayName: "Stunning Strike",
-              postDamageEffect: "saving-throw",
-              context: {
-                saveAbility: "constitution",
-                saveDC,
-                saveReason: "Stunning Strike",
-                sourceId: actorId,
-                onSuccess: {
-                  conditions: { add: ["StunningStrikePartial"] },
-                  speedModifier: 0.5,
-                  summary: "Speed halved, next attack has advantage.",
-                } satisfies SaveOutcome,
-                onFailure: {
-                  conditions: { add: ["Stunned"] },
-                  summary: "Stunned until start of monk's next turn!",
-                } satisfies SaveOutcome,
-                expiresAt: { event: "start_of_turn", combatantId: actorId },
-                resourceCost: { pool: "ki", amount: 1 },
-                turnTrackingKey: "stunningStrikeUsedThisTurn",
-              },
-            });
-          } else if (match.keyword === "divine-smite") {
-            // Find lowest available spell slot (1-5)
-            let slotLevel = 0;
-            for (let sl = 1; sl <= 5; sl++) {
-              if (hasResourceAvailable(actorResForEnhancements, `spellSlot_${sl}`, 1)) {
-                slotLevel = sl;
-                break;
-              }
-            }
-            if (slotLevel > 0 && hasBonusActionAvailable(actorResForEnhancements)) {
-              // Spend the spell slot + bonus action
-              let updatedSmiteRes = spendResourceFromPool(actorResForEnhancements, `spellSlot_${slotLevel}`, 1);
-              updatedSmiteRes = useBonusAction(updatedSmiteRes);
-              if (actorCombatantForEnhancements) {
-                await this.deps.combatRepo.updateCombatantState(actorCombatantForEnhancements.id, {
-                  resources: updatedSmiteRes as any,
-                });
-              }
-              const diceCount = divineSmiteDice(slotLevel);
-              enhancements.push({
-                abilityId: "class:paladin:divine-smite",
-                displayName: "Divine Smite",
-                bonusDice: { diceCount, diceSides: 8 },
-              });
-              if (this.debugLogsEnabled) console.log(`[RollStateMachine] Divine Smite (on-hit): ${diceCount}d8 radiant (level ${slotLevel} slot spent)`);
-            }
-          } else if (match.keyword === "open-hand-technique" && match.choice) {
-            const technique = match.choice;
-            if (technique === "addle") {
-              enhancements.push({
-                abilityId: "class:monk:open-hand-technique",
-                displayName: "Open Hand Technique (Addle)",
-                postDamageEffect: "apply-condition",
-                context: { conditionName: "Addled" },
-              });
-            } else if (technique === "push") {
-              enhancements.push({
-                abilityId: "class:monk:open-hand-technique",
-                displayName: "Open Hand Technique (Push)",
-                postDamageEffect: "saving-throw",
-                context: {
-                  saveAbility: "strength",
-                  saveDC,
-                  saveReason: "Open Hand Technique (Push)",
-                  sourceId: actorId,
-                  onSuccess: { summary: "Resists the push!" } satisfies SaveOutcome,
-                  onFailure: { movement: { push: 15 }, summary: "Pushed 15 feet!" } satisfies SaveOutcome,
-                },
-              });
-            } else if (technique === "topple") {
-              enhancements.push({
-                abilityId: "class:monk:open-hand-technique",
-                displayName: "Open Hand Technique (Topple)",
-                postDamageEffect: "saving-throw",
-                context: {
-                  saveAbility: "dexterity",
-                  saveDC,
-                  saveReason: "Open Hand Technique (Topple)",
-                  sourceId: actorId,
-                  onSuccess: { summary: "Keeps footing!" } satisfies SaveOutcome,
-                  onFailure: { conditions: { add: ["Prone"] }, summary: "Knocked Prone!" } satisfies SaveOutcome,
-                },
-              });
-            }
-          }
-        }
-
-        if (enhancements.length > 0) {
-          action.enhancements = enhancements;
-          if (this.debugLogsEnabled) console.log(`[RollStateMachine] On-hit enhancements from damage text: ${enhancements.map((e) => e.displayName).join(", ")}`);
-        }
+      if (enhancements.length > 0) {
+        action.enhancements = enhancements;
+        if (this.debugLogsEnabled) console.log(`[RollStateMachine] On-hit enhancements from damage text: ${enhancements.map((e) => e.displayName).join(", ")}`);
       }
     }
 
