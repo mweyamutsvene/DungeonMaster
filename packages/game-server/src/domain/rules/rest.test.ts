@@ -189,6 +189,78 @@ describe("rest resource refresh", () => {
     expect(refreshed[0]!.current).toBe(0); // spell slot unchanged
     expect(refreshed[1]!.current).toBe(5); // ki refreshed
   });
+
+  it("refreshes monk uncanny_metabolism on long rest only", () => {
+    const pools = [{ name: "uncanny_metabolism", current: 0, max: 1 }];
+
+    const shortRest = refreshClassResourcePools({
+      classId: "monk",
+      level: 3,
+      rest: "short",
+      pools,
+    });
+    expect(shortRest[0]!.current).toBe(0); // not refreshed on short rest
+
+    const longRest = refreshClassResourcePools({
+      classId: "monk",
+      level: 3,
+      rest: "long",
+      pools,
+    });
+    expect(longRest[0]!.current).toBe(1);
+    expect(longRest[0]!.max).toBe(1);
+  });
+
+  it("refreshes monk wholeness_of_body on long rest only (uses WIS mod)", () => {
+    const pools = [{ name: "wholeness_of_body", current: 0, max: 3 }];
+
+    const shortRest = refreshClassResourcePools({
+      classId: "monk",
+      level: 6,
+      rest: "short",
+      pools,
+      wisdomModifier: 3,
+    });
+    expect(shortRest[0]!.current).toBe(0); // not refreshed on short rest
+
+    const longRest = refreshClassResourcePools({
+      classId: "monk",
+      level: 6,
+      rest: "long",
+      pools,
+      wisdomModifier: 3,
+    });
+    expect(longRest[0]!.current).toBe(3);
+    expect(longRest[0]!.max).toBe(3);
+  });
+
+  it("monk wholeness_of_body computeMax enforces minimum 1 use when WIS mod is 0 or negative", () => {
+    const pools = [{ name: "wholeness_of_body", current: 0, max: 1 }];
+
+    const longRestZeroWis = refreshClassResourcePools({
+      classId: "monk",
+      level: 6,
+      rest: "long",
+      pools,
+      wisdomModifier: 0,
+    });
+    expect(longRestZeroWis[0]!.current).toBe(1);
+    expect(longRestZeroWis[0]!.max).toBe(1);
+  });
+
+  it("monk uncanny_metabolism not present below level 2", () => {
+    const pools = [{ name: "uncanny_metabolism", current: 0, max: 1 }];
+
+    const longRest = refreshClassResourcePools({
+      classId: "monk",
+      level: 1,
+      rest: "long",
+      pools,
+    });
+    // computeMax returns 0 at level 1, so pool refreshes to 0
+    expect(longRest[0]!.current).toBe(0);
+    expect(longRest[0]!.max).toBe(0);
+  });
 });
 
 describe("spendHitDice", () => {

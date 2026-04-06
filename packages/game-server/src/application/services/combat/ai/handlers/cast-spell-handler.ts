@@ -99,18 +99,18 @@ export class CastSpellHandler implements AiActionHandler {
     if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
       console.log("[CastSpellHandler] Spell cast awaiting Counterspell reaction from player");
 
-      if (isCharacterCaster) {
-        await prepareSpellCast(
-          aiCombatant.id,
-          encounterId,
-          spellName,
-          spellLevel,
-          isConcentration,
-          combat,
-          undefined,
-          castAtLevel,
-        );
-      }
+      // Spend slot for ALL caster types (Character, Monster, NPC) — slot is consumed
+      // even when counterspelled (D&D 5e 2024: slot is expended on casting, not on effect).
+      await prepareSpellCast(
+        aiCombatant.id,
+        encounterId,
+        spellName,
+        spellLevel,
+        isConcentration,
+        combat,
+        undefined,
+        castAtLevel,
+      );
 
       await combat.setPendingAction(encounterId, {
         id: initiateResult.pendingActionId,
@@ -140,19 +140,17 @@ export class CastSpellHandler implements AiActionHandler {
       };
     }
 
-    // ── Spell slot spending + concentration ──
-    if (isCharacterCaster) {
-      await prepareSpellCast(
-        aiCombatant.id,
-        encounterId,
-        spellName,
-        spellLevel,
-        isConcentration,
-        combat,
-        undefined,
-        castAtLevel,
-      );
-    }
+    // ── Spell slot spending + concentration — applies to all caster types ──
+    await prepareSpellCast(
+      aiCombatant.id,
+      encounterId,
+      spellName,
+      spellLevel,
+      isConcentration,
+      combat,
+      undefined,
+      castAtLevel,
+    );
 
     // ── Spell mechanical effect delivery ──
     let deliverySummary: string | null = null;

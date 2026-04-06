@@ -193,9 +193,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
           }),
       }
     : undefined;
-  // Note: narrator adapter is prepared for future use but ActionService no longer takes it
-  void narrator; // Suppress unused warning for now
-  const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo);
+  const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo, narrator);
   
   // Two-phase action service for reactions
   const pendingActionsRepo: PendingActionRepository = deps.prismaClient
@@ -358,12 +356,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
               }),
           }
         : undefined;
-      void narratorInner; // Suppress unused warning for now
       const actionsService = new ActionService(
         repos.sessionsRepo,
         repos.combatRepo,
         combatantsInner,
         repos.eventsRepo,
+        narratorInner,
       );
       const aiDecisionMakerInner = deps.llmProvider && deps.llmConfig
         ? new LlmAiDecisionMaker(deps.llmProvider, deps.llmConfig)

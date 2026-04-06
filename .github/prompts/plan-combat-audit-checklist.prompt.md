@@ -87,21 +87,24 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [x] **[ORCH-H7]** Friendly NPC faction "party" not counted in victory check — `CombatVictoryPolicy` only checks `faction === "player"`. An enemy victory fires even when a `faction: "party"` NPC ally survives.
   - File: `application/services/combat/combat-victory-policy.ts`
 
-- [ ] **[ORCH-H8]** ActionService has no `INarrativeGenerator` injection — three related TODOs. All programmatic API actions (`POST /sessions/:id/actions`) produce no narrative text.
+- [x] **[ORCH-H8]** ActionService has no `INarrativeGenerator` injection — three related TODOs. All programmatic API actions (`POST /sessions/:id/actions`) produce no narrative text.
   - File: `application/services/combat/action-service.ts:69,175,550`
+  - Fix: Injected optional `INarrativeGenerator` into `ActionService` and `AttackActionHandler`, wired from `app.ts`, and added narration generation for programmatic action resolution paths with safe error fallback.
 
 ### Spell System
 
-- [ ] **[SPELL-H1]** Player-cast spells cannot be Counterspelled — `SpellActionHandler` resolves spells immediately with no `initiateSpellCast()` call. Only AI-cast spells and explicit `/initiate` endpoint trigger counterspell opportunities.
+- [x] **[SPELL-H1]** Player-cast spells cannot be Counterspelled — `SpellActionHandler` resolves spells immediately with no `initiateSpellCast()` call. Only AI-cast spells and explicit `/initiate` endpoint trigger counterspell opportunities.
   - File: `application/services/combat/tabletop/spell-action-handler.ts`
+  - Fix: `SpellActionHandler` now calls `twoPhaseActions.initiateSpellCast()` and returns `REACTION_CHECK` with counterspell opportunity IDs when reactions are available; action economy + slot spending are applied at cast attempt time and encounter pending state is set.
 
 - [ ] **[SPELL-H2]** No canonical `PreparedSpellDefinition` catalog — spell mechanics (damage dice, save ability, AoE shape, effects) live only as ad-hoc JSON in character sheets. Two characters with Fireball can have different mechanics. No server-side validation or canonical lookup.
   - File: `domain/entities/spells/`, `application/services/entities/spell-lookup-service.ts`
 
 ### AI Behavior
 
-- [ ] **[AI-H1]** Monster/NPC spell slots never deducted — `prepareSpellCast()` is gated behind `isCharacterCaster`. Monsters can cast leveled spells unlimited times per combat.
+- [x] **[AI-H1]** Monster/NPC spell slots never deducted — `prepareSpellCast()` is gated behind `isCharacterCaster`. Monsters can cast leveled spells unlimited times per combat.
   - File: `application/services/combat/helpers/spell-slot-manager.ts`, `application/services/combat/ai/handlers/cast-spell-handler.ts`
+  - Fix: Removed character-only gating in `cast-spell-handler.ts` so `prepareSpellCast()` executes for Character/Monster/NPC casters; initiative resource initialization now loads spell slot pools from monster/NPC stat blocks via `buildCombatResources()`.
 
 - [ ] **[AI-H2]** Deterministic AI never uses Extra Attack — always sets `endTurn: true` after first attack. Fighters/Monks with Extra Attack only attack once.
   - File: `application/services/combat/ai/deterministic-ai.ts`
@@ -123,8 +126,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Class Abilities
 
-- [ ] **[CLASS-H1]** Monk `restRefreshPolicy` missing `uncanny_metabolism` and `wholeness_of_body` — these pools are built at combat start but never refreshed on long rest.
+- [x] **[CLASS-H1]** Monk `restRefreshPolicy` missing `uncanny_metabolism` and `wholeness_of_body` — these pools are built at combat start but never refreshed on long rest.
   - File: `domain/entities/classes/monk.ts:130-134`
+  - Fix: Added `uncanny_metabolism` (long rest) and `wholeness_of_body` (long rest, `computeMax` uses WIS modifier) entries to `restRefreshPolicy`. Extended `RefreshClassResourcePoolsOptions` with `wisdomModifier` field. Updated `character-service.ts` to extract and pass WIS modifier. Added tests in `rest.test.ts` and `monk.test.ts`.
 
 - [ ] **[CLASS-H2]** Rogue Cunning Action: Hide returns `NOT_IMPLEMENTED` error — one of three core Cunning Action uses throws immediately.
   - File: `application/services/combat/abilities/executors/rogue/cunning-action-executor.ts:104`

@@ -1537,6 +1537,138 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("POST /sessions/:id/combat/action cast spell can return REACTION_CHECK for Counterspell", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const casterRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Caster Mage",
+        level: 5,
+        className: "wizard",
+        sheet: {
+          armorClass: 15,
+          abilityScores: {
+            strength: 8,
+            dexterity: 14,
+            constitution: 12,
+            intelligence: 16,
+            wisdom: 12,
+            charisma: 10,
+          },
+          preparedSpells: [{ name: "Hold Person", level: 2 }],
+        },
+      },
+    });
+    const casterId = (casterRes.json() as any).id as string;
+
+    const counterRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Counter Mage",
+        level: 5,
+        className: "wizard",
+        sheet: {
+          armorClass: 15,
+          abilityScores: {
+            strength: 8,
+            dexterity: 14,
+            constitution: 12,
+            intelligence: 16,
+            wisdom: 12,
+            charisma: 10,
+          },
+          preparedSpells: [{ name: "Counterspell", level: 3 }],
+          spellSlots: { 3: 2 },
+        },
+      },
+    });
+    const counterId = (counterRes.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId: casterId,
+            initiative: 20,
+            hpCurrent: 24,
+            hpMax: 24,
+            resources: {
+              position: { x: 0, y: 0 },
+              speed: 30,
+              reactionUsed: false,
+              resourcePools: [{ name: "spellSlot_2", current: 2, max: 2 }],
+            },
+          },
+          {
+            combatantType: "Character",
+            characterId: counterId,
+            initiative: 10,
+            hpCurrent: 24,
+            hpMax: 24,
+            resources: {
+              position: { x: 10, y: 0 },
+              speed: 30,
+              reactionUsed: false,
+              hasCounterspellPrepared: true,
+              resourcePools: [{ name: "spellSlot_3", current: 2, max: 2 }],
+            },
+          },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const castRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: {
+        text: "cast hold person at Counter Mage",
+        actorId: casterId,
+        encounterId,
+      },
+    });
+
+    expect(castRes.statusCode).toBe(200);
+    const castBody = castRes.json() as any;
+    expect(castBody.type).toBe("REACTION_CHECK");
+    expect(typeof castBody.pendingActionId).toBe("string");
+    expect(Array.isArray(castBody.opportunityAttacks)).toBe(true);
+    const counterspellOpp = castBody.opportunityAttacks.find((x: any) => x.canUse === true);
+    expect(counterspellOpp).toBeTruthy();
+    expect(typeof counterspellOpp.opportunityId).toBe("string");
+
+    const respond = await app.inject({
+      method: "POST",
+      url: `/encounters/${encounterId}/reactions/${castBody.pendingActionId}/respond`,
+      payload: {
+        combatantId: counterspellOpp.combatantId,
+        opportunityId: counterspellOpp.opportunityId,
+        choice: "decline",
+      },
+    });
+
+    expect(respond.statusCode).toBe(200);
+    const respondBody = respond.json() as any;
+    expect(respondBody.status).toBe("completed");
+    expect(respondBody.spellCastResult).toBeTruthy();
+    expect(respondBody.spellCastResult.wasCountered).toBe(false);
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/combat/query returns LLM answer with distance context", async () => {
     const intentParser: IIntentParser = {
       async parseIntent() {

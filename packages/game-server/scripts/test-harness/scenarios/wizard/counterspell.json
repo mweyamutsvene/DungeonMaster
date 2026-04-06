@@ -52,6 +52,7 @@
               "damageType": "bludgeoning"
             }
           ],
+          "spellSlots": { "2": 2 },
           "spells": [
             { "name": "Hold Person", "level": 2 }
           ]

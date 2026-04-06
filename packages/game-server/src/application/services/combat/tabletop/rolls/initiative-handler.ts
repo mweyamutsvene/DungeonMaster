@@ -293,11 +293,13 @@ export class InitiativeHandler {
           monsterResources.position = monsterPosition;
         }
 
-        // Auto-initialize class resource pools for monsters with class levels
-        if (monsterClassName && monsterLevel > 0) {
+        // Initialize resource pools for this monster.
+        // For monsters WITH class levels: also loads class-specific pools (ki, rage, etc.).
+        // For ALL monsters: loads spell slot pools from `statBlock.spellSlots` if present.
+        {
           const monsterCombatRes = buildCombatResources({
-            className: monsterClassName,
-            level: monsterLevel,
+            className: monsterClassName ?? "",
+            level: monsterLevel ?? 0,
             sheet: statBlock ?? {},
           });
           if (monsterCombatRes.resourcePools.length > 0) {
@@ -373,11 +375,13 @@ export class InitiativeHandler {
         npcResources.position = npcPosition;
       }
 
-      // Auto-initialize class resource pools for NPCs with class levels
-      if (npcClassName && npcLevel > 0) {
+      // Initialize resource pools for this NPC.
+      // For NPCs WITH class levels: also loads class-specific pools (ki, rage, etc.).
+      // For ALL NPCs: loads spell slot pools from `statBlock.spellSlots` if present.
+      {
         const npcCombatRes = buildCombatResources({
-          className: npcClassName,
-          level: npcLevel,
+          className: npcClassName ?? "",
+          level: npcLevel ?? 0,
           sheet: statBlock ?? {},
         });
         if (npcCombatRes.resourcePools.length > 0) {

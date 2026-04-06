@@ -126,6 +126,7 @@ export class SpellActionHandler {
       }
     }
     const effectiveCastLevel = castAtLevel ?? spellLevel;
+    const targetRef = castInfo.targetName ? findCombatantByName(castInfo.targetName, roster) : undefined;
 
     // D&D 5e 2024: Bonus action spell restriction
     // If a bonus action spell (leveled) was cast this turn, only cantrips as action spells.
@@ -145,6 +146,89 @@ export class SpellActionHandler {
           );
         }
       }
+    }
+
+    // Two-phase spell reactions: allow Counterspell opportunities on player-cast spells.
+    // If reactions are available, we pause the spell resolution and wait for responses.
+    const initiateResult = await this.deps.twoPhaseActions.initiateSpellCast(sessionId, {
+      encounterId,
+      actor,
+      spellName: castInfo.spellName,
+      spellLevel: effectiveCastLevel,
+      target: targetRef ?? undefined,
+    });
+
+    if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
+      const { encounter, actorCombatant } = await this.resolveEncounterContext(sessionId, actorId);
+      const pendingSpellReaction = await this.deps.pendingActions.getById(initiateResult.pendingActionId);
+
+      // Spell slot is consumed on cast attempt (even if counterspelled), same as AI flow.
+      if (spellLevel > 0 && actorCombatant) {
+        await prepareSpellCast(
+          actorCombatant.id,
+          encounter.id,
+          castInfo.spellName,
+          spellLevel,
+          isConcentration,
+          this.deps.combatRepo,
+          this.debugLogsEnabled ? (msg) => console.log(`[SpellActionHandler] ${msg}`) : undefined,
+          castAtLevel,
+        );
+
+        // Track bonus action spell restriction for leveled spells.
+        if (!isCantrip) {
+          const freshCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
+          const fresh = freshCombatants.find((c) => c.id === actorCombatant.id);
+          if (fresh) {
+            const res = normalizeResources(fresh.resources);
+            const flag = isBonusAction ? "bonusActionSpellCastThisTurn" : "actionSpellCastThisTurn";
+            await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+              resources: { ...res, [flag]: true } as any,
+            });
+          }
+        }
+      }
+
+      // Spending your action happens when the spell is attempted, before reaction resolution.
+      await this.deps.actions.castSpell(sessionId, {
+        encounterId,
+        actor,
+        spellName: castInfo.spellName,
+      });
+
+      await this.deps.combatRepo.setPendingAction(encounter.id, {
+        id: initiateResult.pendingActionId,
+        type: "reaction_pending",
+        pendingActionId: initiateResult.pendingActionId,
+        reactionType: "counterspell",
+        spellName: castInfo.spellName,
+        spellLevel: effectiveCastLevel,
+      } as any);
+
+      const byCombatantId = new Map(
+        initiateResult.counterspellOpportunities.map((o) => [o.combatantId, o]),
+      );
+      const reactionChoices =
+        pendingSpellReaction?.reactionOpportunities.map((opp) => {
+          const info = byCombatantId.get(opp.combatantId);
+          return {
+            combatantId: opp.combatantId,
+            combatantName: info?.combatantName ?? opp.combatantId,
+            opportunityId: opp.id,
+            canUse: opp.canUse,
+            hasReaction: info?.hasReaction ?? true,
+            hasSpellSlot: info?.hasSpellSlot ?? true,
+          };
+        }) ?? [];
+
+      return {
+        requiresPlayerInput: false,
+        actionComplete: false,
+        type: "REACTION_CHECK",
+        pendingActionId: initiateResult.pendingActionId,
+        opportunityAttacks: reactionChoices,
+        message: `Counterspell reactions available. Resolve reactions before ${castInfo.spellName} resolves.`,
+      };
     }
 
     // Spend spell slot + manage concentration using shared helper

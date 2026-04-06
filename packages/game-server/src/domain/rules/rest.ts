@@ -16,6 +16,11 @@ export interface RefreshClassResourcePoolsOptions {
    * Required only when refreshing Bardic Inspiration.
    */
   charismaModifier?: number;
+
+  /**
+   * Required only when refreshing Wholeness of Body (Monk).
+   */
+  wisdomModifier?: number;
 }
 
 function shouldRefreshOnRest(poolName: string, rest: RestType, level: number, classId: CharacterClassId): boolean {
@@ -46,8 +51,13 @@ function computeMaxForPool(
   const policy = def.restRefreshPolicy?.find((p) => p.poolKey === poolName);
   if (!policy?.computeMax) return currentMax;
 
-  const abilityModifiers: Record<string, number> | undefined =
-    options.charismaModifier !== undefined ? { charisma: options.charismaModifier } : undefined;
+  const hasAbilityMod = options.charismaModifier !== undefined || options.wisdomModifier !== undefined;
+  const abilityModifiers: Record<string, number> | undefined = hasAbilityMod
+    ? {
+        ...(options.charismaModifier !== undefined ? { charisma: options.charismaModifier } : {}),
+        ...(options.wisdomModifier !== undefined ? { wisdom: options.wisdomModifier } : {}),
+      }
+    : undefined;
 
   return policy.computeMax(level, abilityModifiers);
 }

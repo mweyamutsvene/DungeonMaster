@@ -85,6 +85,12 @@ describe("SpellActionHandler", () => {
       actions: {
         castSpell: vi.fn().mockResolvedValue(undefined),
       },
+      twoPhaseActions: {
+        initiateSpellCast: vi.fn().mockResolvedValue({ status: "no_reactions", counterspellOpportunities: [] }),
+      },
+      pendingActions: {
+        getById: vi.fn().mockResolvedValue(undefined),
+      },
       diceRoller: new FixedDiceRoller(10),
       abilityRegistry: new AbilityRegistry(),
       monsters: {

@@ -52,6 +52,7 @@ import { lookupWeapon, hasWeaponProperty } from "../../../domain/entities/items/
 import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
 import { GrappleActionHandler } from "./action-handlers/grapple-action-handler.js";
 import { SkillActionHandler } from "./action-handlers/skill-action-handler.js";
+import type { INarrativeGenerator } from "../../../infrastructure/llm/narrative-generator.js";
 
 /**
  * Executes concrete in-combat actions (attack, etc.) against the active encounter state.
@@ -68,10 +69,9 @@ export class ActionService {
     private readonly combat: ICombatRepository,
     private readonly combatants: ICombatantResolver,
     private readonly events?: IEventRepository,
-    // TODO: Add narrative generator injection when ActionService narration is implemented
-    // See INarrativeGenerator in infrastructure/llm for the active narration interface
+    private readonly narrativeGenerator?: INarrativeGenerator,
   ) {
-    this.attackHandler = new AttackActionHandler(sessions, combat, combatants, events);
+    this.attackHandler = new AttackActionHandler(sessions, combat, combatants, events, narrativeGenerator);
     this.grappleHandler = new GrappleActionHandler(sessions, combat, combatants, events);
     this.skillHandler = new SkillActionHandler(sessions, combat, combatants, events);
   }
@@ -115,7 +115,7 @@ export class ActionService {
     input: SimpleActionBaseInput,
     action: "Dodge" | "Dash" | "Disengage" | "CastSpell" | "Help",
     extra?: { target?: CombatantRef; spellName?: string },
-  ): Promise<{ actor: CombatantStateRecord }> {
+  ): Promise<{ actor: CombatantStateRecord; narrative?: string }> {
     if (input.seed !== undefined && !Number.isInteger(input.seed)) {
       throw new ValidationError("seed must be an integer");
     }
@@ -161,6 +161,8 @@ export class ActionService {
       resources: updatedResources,
     });
 
+    let narrative: string | undefined;
+
     if (this.events) {
       await this.events.append(sessionId, {
         id: nanoid(),
@@ -174,11 +176,35 @@ export class ActionService {
         },
       });
 
-      // TODO: Re-enable action narration when INarrativeGenerator is wired to ActionService
-      // See infrastructure/llm/narrative-generator.ts for the active implementation
+      if (this.narrativeGenerator) {
+        try {
+          const actorName = await this.combatants.getName(input.actor, actorState);
+          let targetName: string | undefined;
+          if (extra?.target && targetState) {
+            targetName = await this.combatants.getName(extra.target, targetState);
+          }
+
+          const session = await this.sessions.getById(sessionId);
+          narrative = await this.narrativeGenerator.narrate({
+            storyFramework: session?.storyFramework ?? {},
+            events: [
+              {
+                type: "ActionResolved",
+                action,
+                actor: actorName,
+                ...(targetName ? { target: targetName } : {}),
+                ...(extra?.spellName ? { spellName: extra.spellName } : {}),
+              },
+            ],
+            seed,
+          });
+        } catch (err) {
+          console.error("[ActionService] Action narration failed:", err);
+        }
+      }
     }
 
-    return { actor: updatedActor };
+    return { actor: updatedActor, narrative };
   }
 
 

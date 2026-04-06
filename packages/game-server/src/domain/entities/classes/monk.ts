@@ -123,6 +123,8 @@ export const Monk: CharacterClassDefinition = {
   },
   restRefreshPolicy: [
     { poolKey: "ki", refreshOn: "both", computeMax: (level) => kiPointsForLevel(level) },
+    { poolKey: "uncanny_metabolism", refreshOn: "long", computeMax: (level) => uncannyMetabolismUsesForLevel(level) },
+    { poolKey: "wholeness_of_body", refreshOn: "long", computeMax: (level, abilityModifiers) => wholenessOfBodyUsesForLevel(level, abilityModifiers?.wisdom ?? 0) },
   ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     if (level < 2) return [];

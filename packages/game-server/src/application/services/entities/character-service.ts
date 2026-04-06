@@ -156,6 +156,8 @@ export class CharacterService {
       // Refresh class resource pools
       const charismaScore = (sheet.abilityScores as any)?.charisma ?? 10;
       const charismaMod = Math.floor((charismaScore - 10) / 2);
+      const wisdomScore = (sheet.abilityScores as any)?.wisdom ?? 10;
+      const wisdomMod = Math.floor((wisdomScore - 10) / 2);
       const beforePools = pools.map(p => ({ ...p }));
       const refreshedPools = refreshClassResourcePools({
         classId: className.toLowerCase() as CharacterClassId,
@@ -163,6 +165,7 @@ export class CharacterService {
         rest: restType,
         pools,
         charismaModifier: charismaMod,
+        wisdomModifier: wisdomMod,
       });
 
       // Track which pools were refreshed

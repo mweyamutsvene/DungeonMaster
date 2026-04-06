@@ -8,6 +8,7 @@ import {
   breakConcentration,
   computeConSaveModifier,
 } from "../helpers/concentration-helper.js";
+import type { INarrativeGenerator } from "../../../../infrastructure/llm/narrative-generator.js";
 
 import { NotFoundError, ValidationError } from "../../../errors.js";
 import { normalizeConditions, getExhaustionD20Penalty, isAttackBlockedByCharm } from "../../../../domain/entities/combat/conditions.js";
@@ -49,9 +50,10 @@ export class AttackActionHandler {
     private readonly combat: ICombatRepository,
     private readonly combatants: ICombatantResolver,
     private readonly events?: IEventRepository,
+    private readonly narrativeGenerator?: INarrativeGenerator,
   ) {}
 
-  async execute(sessionId: string, input: AttackActionInput): Promise<{ result: unknown; target: CombatantStateRecord }> {
+  async execute(sessionId: string, input: AttackActionInput): Promise<{ result: unknown; target: CombatantStateRecord; narrative?: string }> {
     const encounter = await resolveEncounterOrThrow(this.sessions, this.combat, sessionId, input.encounterId);
     const combatants = await this.combat.listCombatants(encounter.id);
 
@@ -325,6 +327,8 @@ export class AttackActionHandler {
       resources: spendAction(attackerState.resources),
     });
 
+    let narrative: string | undefined;
+
     if (this.events) {
       await this.events.append(sessionId, {
         id: nanoid(),
@@ -402,10 +406,35 @@ export class AttackActionHandler {
         }
       }
 
-      // TODO: Re-enable attack narration when INarrativeGenerator is wired to ActionService
-      // See infrastructure/llm/narrative-generator.ts for the active implementation
+      // Generate narrative text if a narrative generator is configured
+      if (this.narrativeGenerator) {
+        try {
+          const session = await this.sessions.getById(sessionId);
+          const narrativeEvent = {
+            type: "AttackResolved",
+            weaponName: spec.name || attackerEquippedWeapon,
+            attacker: attackerStats.name,
+            target: targetStats.name,
+            attackerAC: attackerAC,
+            targetAC: targetAC,
+            attackerArmor: attackerEquippedArmor,
+            hit: (result as any).hit,
+            critical: (result as any).critical,
+            attackRoll: (result as any).attack?.d20,
+            attackTotal: (result as any).attack?.total,
+            damageApplied: (result as any).damage?.applied,
+          };
+          narrative = await this.narrativeGenerator.narrate({
+            storyFramework: session?.storyFramework ?? {},
+            events: [narrativeEvent],
+            seed,
+          });
+        } catch (err) {
+          console.error("[ActionService] Attack narration failed:", err);
+        }
+      }
     }
 
-    return { result, target: updatedTarget };
+    return { result, target: updatedTarget, narrative };
   }
 }
