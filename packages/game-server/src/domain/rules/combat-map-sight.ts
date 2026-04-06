@@ -66,6 +66,19 @@ function terrainToCoverLevel(terrain: TerrainType): CoverLevel {
   }
 }
 
+/** Numeric rank for cover comparison — higher is stronger. */
+const COVER_RANK: Record<CoverLevel, number> = {
+  none: 0,
+  half: 1,
+  "three-quarters": 2,
+  full: 3,
+};
+
+/** Return the stronger of two cover levels. */
+function maxCover(a: CoverLevel, b: CoverLevel): CoverLevel {
+  return COVER_RANK[a] >= COVER_RANK[b] ? a : b;
+}
+
 /**
  * Calculate cover level for a target from an attacker's position.
  *
@@ -74,17 +87,26 @@ function terrainToCoverLevel(terrain: TerrainType): CoverLevel {
  * terrainToCoverLevel(). The strongest cover found anywhere on the path is
  * returned. Cells at the attacker's and target's own positions are excluded —
  * cover must be an obstacle *between* two combatants.
+ *
+ * When `entities` is provided (typically `map.entities`), any intervening
+ * creature on the ray grants at least **half cover** per D&D 5e 2024 rules.
+ * The attacker and target themselves are excluded by id (`attackerId` /
+ * `targetId`).
  */
 export function getCoverLevel(
   map: CombatMap,
   attackerPos: Position,
   targetPos: Position,
+  entities?: MapEntity[],
+  attackerId?: string,
+  targetId?: string,
 ): CoverLevel {
   const distance = calculateDistance(attackerPos, targetPos);
   const steps = Math.max(Math.ceil(distance / map.gridSize), 1);
 
-  let bestCover: "none" | "half" | "three-quarters" = "none";
+  let bestCover: CoverLevel = "none";
 
+  // --- terrain cover ---
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     const checkPos: Position = {
@@ -97,11 +119,72 @@ export function getCoverLevel(
 
     const cellCover = terrainToCoverLevel(cell.terrain);
     if (cellCover === "full") return "full";
-    if (cellCover === "three-quarters") bestCover = "three-quarters";
-    if (cellCover === "half" && bestCover === "none") bestCover = "half";
+    bestCover = maxCover(bestCover, cellCover);
+  }
+
+  // --- creature-based cover (D&D 5e 2024: intervening creatures grant half cover) ---
+  if (entities && entities.length > 0) {
+    const creatureCover = getCreatureCover(
+      attackerPos,
+      targetPos,
+      map.gridSize,
+      entities,
+      attackerId,
+      targetId,
+    );
+    bestCover = maxCover(bestCover, creatureCover);
   }
 
   return bestCover;
+}
+
+/**
+ * Check whether any creature (other than attacker/target) lies on the ray
+ * between two positions. Any such creature grants **half cover**.
+ *
+ * Uses a point-to-segment distance test: a creature's position is "on the
+ * ray" when its perpendicular distance to the attacker→target segment is less
+ * than half a grid cell and it is strictly between the two endpoints.
+ */
+function getCreatureCover(
+  attackerPos: Position,
+  targetPos: Position,
+  gridSize: number,
+  entities: MapEntity[],
+  attackerId?: string,
+  targetId?: string,
+): CoverLevel {
+  const dx = targetPos.x - attackerPos.x;
+  const dy = targetPos.y - attackerPos.y;
+  const segLenSq = dx * dx + dy * dy;
+  if (segLenSq === 0) return "none";
+
+  // Tolerance: half a grid cell width for the ray corridor.
+  const tolerance = gridSize / 2;
+
+  for (const ent of entities) {
+    if (ent.type !== "creature") continue;
+    if (ent.id === attackerId || ent.id === targetId) continue;
+
+    // Project entity position onto the attacker→target segment.
+    const ex = ent.position.x - attackerPos.x;
+    const ey = ent.position.y - attackerPos.y;
+    const t = (ex * dx + ey * dy) / segLenSq;
+
+    // Must be strictly between the endpoints (exclude attacker/target cells).
+    if (t <= 0 || t >= 1) continue;
+
+    // Perpendicular distance to the segment.
+    const projX = attackerPos.x + t * dx;
+    const projY = attackerPos.y + t * dy;
+    const distSq =
+      (ent.position.x - projX) ** 2 + (ent.position.y - projY) ** 2;
+
+    if (distSq <= tolerance * tolerance) {
+      return "half";
+    }
+  }
+  return "none";
 }
 
 /**

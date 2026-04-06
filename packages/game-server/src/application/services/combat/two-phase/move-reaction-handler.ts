@@ -251,7 +251,22 @@ export class MoveReactionHandler {
     // Calculate path — use pre-computed A* cells or fall back to simple destination
     const path = input.pathCells ?? [input.destination];
 
-    // Detect opportunity attacks using path cells for accurate detection
+    // ── Opportunity Attack Detection (Tabletop/Two-Phase Path) ──
+    // This is the TABLETOP OA path used for player-facing movement via MoveReactionHandler.
+    // It detects OAs and creates a pending action with reaction opportunities, waiting for
+    // player/AI responses before resolving in completeMove().
+    //
+    // The PROGRAMMATIC path (ActionService.move()) handles AI/server-driven movement:
+    // it detects AND resolves OAs immediately in one pass without player interaction.
+    // Both paths delegate eligibility checks to the same domain functions:
+    //   - crossesThroughReach() for geometry
+    //   - canMakeOpportunityAttack() for D&D 5e rules (reaction, disengage, charm, incapacitated)
+    //
+    // Key differences from the programmatic path:
+    //   - Supports path-cell arrays for accurate A* path detection
+    //   - Creates pending action for two-phase reaction resolution
+    //   - Detects readied-action triggers (creature_moves_within_range)
+    //   - OA execution deferred to resolveOpportunityAttacks() in completeMove()
     const opportunityAttacks: Array<{
       combatantId: string;
       combatantName: string;

@@ -18,6 +18,7 @@ export const FEAT_SAVAGE_ATTACKER = "feat_savage-attacker";
 export const FEAT_SKILLED = "feat_skilled";
 export const FEAT_TOUGH = "feat_tough";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
+export const FEAT_LUCKY = "feat_lucky";
 
 export interface WeaponContext {
   /**
@@ -85,6 +86,11 @@ export interface FeatModifiers {
    * Tough: +2 max HP per character level.
    */
   toughEnabled: boolean;
+
+  /**
+   * Lucky: 3 luck points per long rest — reroll any d20 on attack/check/save.
+   */
+  luckyEnabled: boolean;
 }
 
 export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers {
@@ -111,6 +117,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     abilityScoreImprovementEnabled: set.has(FEAT_ABILITY_SCORE_IMPROVEMENT),
     resilientEnabled: set.has(FEAT_RESILIENT),
     toughEnabled: set.has(FEAT_TOUGH),
+    luckyEnabled: set.has(FEAT_LUCKY),
   };
 }
 

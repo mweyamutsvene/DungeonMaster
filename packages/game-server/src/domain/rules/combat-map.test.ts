@@ -387,6 +387,139 @@ describe("Combat Map", () => {
     });
   });
 
+  describe("creature-based cover", () => {
+    it("should grant half cover when a creature is between attacker and target", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      const blocker: MapEntity = {
+        id: "blocker",
+        type: "creature",
+        position: { x: 15, y: 0 },
+        size: "Medium",
+        faction: "enemy",
+      };
+      map = addEntity(map, blocker);
+
+      const cover = getCoverLevel(
+        map, { x: 0, y: 0 }, { x: 30, y: 0 },
+        map.entities, "attacker", "target",
+      );
+
+      expect(cover).toBe("half");
+    });
+
+    it("should still be half cover with multiple intervening creatures (no stacking)", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = addEntity(map, {
+        id: "blocker1",
+        type: "creature",
+        position: { x: 10, y: 0 },
+        size: "Medium",
+        faction: "enemy",
+      });
+      map = addEntity(map, {
+        id: "blocker2",
+        type: "creature",
+        position: { x: 20, y: 0 },
+        size: "Large",
+        faction: "ally",
+      });
+
+      const cover = getCoverLevel(
+        map, { x: 0, y: 0 }, { x: 30, y: 0 },
+        map.entities, "attacker", "target",
+      );
+
+      expect(cover).toBe("half");
+    });
+
+    it("should give no cover when creature is not on the line", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      map = addEntity(map, {
+        id: "bystander",
+        type: "creature",
+        position: { x: 15, y: 20 },
+        size: "Medium",
+        faction: "enemy",
+      });
+
+      const cover = getCoverLevel(
+        map, { x: 0, y: 0 }, { x: 30, y: 0 },
+        map.entities, "attacker", "target",
+      );
+
+      expect(cover).toBe("none");
+    });
+
+    it("should take higher of creature cover and terrain cover", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      // Three-quarters terrain cover is stronger than creature half cover
+      map = setTerrainAt(map, { x: 10, y: 0 }, "cover-three-quarters");
+      map = addEntity(map, {
+        id: "blocker",
+        type: "creature",
+        position: { x: 20, y: 0 },
+        size: "Medium",
+        faction: "enemy",
+      });
+
+      const cover = getCoverLevel(
+        map, { x: 0, y: 0 }, { x: 30, y: 0 },
+        map.entities, "attacker", "target",
+      );
+
+      expect(cover).toBe("three-quarters");
+    });
+
+    it("should exclude attacker and target from creature cover check", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 50,
+        height: 50,
+      });
+
+      // Place the "attacker" entity in between — should be excluded
+      map = addEntity(map, {
+        id: "atk",
+        type: "creature",
+        position: { x: 15, y: 0 },
+        size: "Medium",
+        faction: "ally",
+      });
+
+      const cover = getCoverLevel(
+        map, { x: 0, y: 0 }, { x: 30, y: 0 },
+        map.entities, "atk", "tgt",
+      );
+
+      expect(cover).toBe("none");
+    });
+  });
+
   describe("radius queries", () => {
     it("should get entities within radius", () => {
       let map = createCombatMap({

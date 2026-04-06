@@ -297,8 +297,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ORCH-M3]** Divergent OA resolution paths — `ActionService.move()` has its own OA detection loop (in addition to `TwoPhaseActionService`). Both paths can drift; programmatic path has wrong weapon stats (see H1).
   - File: `application/services/combat/action-service.ts:450-568`
 
-- [ ] **[ORCH-M4]** `handleDamageRoll()` contains ~130 lines of on-hit enhancement assembly inline — class-specific detection (Stunning Strike, Divine Smite, Open Hand Technique) belongs in domain `HitRiderResolver` / `ClassCombatTextProfile.attackEnhancements`, not hard-coded in the state machine.
+- [x] **[ORCH-M4]** `handleDamageRoll()` contains ~130 lines of on-hit enhancement assembly inline — class-specific detection (Stunning Strike, Divine Smite, Open Hand Technique) belongs in domain `HitRiderResolver` / `ClassCombatTextProfile.attackEnhancements`, not hard-coded in the state machine.
   - File: `application/services/combat/tabletop/roll-state-machine.ts:870-1000`
+  - Fix: Extracted to `HitRiderResolver.assembleOnHitEnhancements()`. State machine now delegates with single call.
 
 - [ ] **[ORCH-M5]** `handleAttackAction()` dispatch handler is ~350 lines — too large. Should be decomposed: `detectThrownWeapon()`, `computeCoverBonus()`, `resolveMagicWeaponBonus()`, etc.
   - File: `application/services/combat/tabletop/dispatch/attack-handlers.ts`
@@ -325,11 +326,13 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/entities/character-service.ts:32-74`
   - Fix: Added `isCharacterClassId()` validation after level check. Invalid class names throw `ValidationError`. null/undefined still accepted. Added 3 API-level tests.
 
-- [ ] **[ENT-M4]** Rest operation not transactional — `takeSessionRest()` loops with multiple `characters.updateSheet()` calls. Crash mid-rest leaves some characters restored and others not.
+- [x] **[ENT-M4]** Rest operation not transactional — `takeSessionRest()` loops with multiple `characters.updateSheet()` calls. Crash mid-rest leaves some characters restored and others not.
   - File: `application/services/entities/character-service.ts`
+  - Fix: Refactored to collect all updates, then flush via `Promise.all()`. When run inside `PrismaUnitOfWork.run()` (production path), all writes execute in a single transaction.
 
-- [ ] **[ENT-M5]** Missing SSE events: `MonsterAdded`, `NPCAdded`, `InventoryChanged` — clients can't subscribe to roster/inventory changes in real-time.
+- [x] **[ENT-M5]** Missing SSE events: `MonsterAdded`, `NPCAdded`, `InventoryChanged` — clients can't subscribe to roster/inventory changes in real-time.
   - File: `application/services/entities/`, event type union
+  - Fix: Added 3 event payload types + union members. `session-creatures.ts` emits `MonsterAdded`/`NPCAdded`; `session-inventory.ts` emits `InventoryChanged` via helper on all mutations.
 
 - [x] **[ENT-M6]** Magic item charges not decremented via API — no HTTP endpoint or `CharacterService` method to decrement `currentCharges` after item use (except potions). Staff of Fire casts unlimited times.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
@@ -434,7 +437,8 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/rest.ts:153`
   - Fix: Added `"spell_cast"` to `RestInterruptionReason` union. `detectRestInterruption()` handles `SpellCast` events (long rest only). TODO: wire event emission from spell casting paths. 2 new tests.
 
-- [ ] **[RULES-L8]** Flanking entirely absent — optional rule; worth a design decision: implement as encounter toggle or document as intentionally omitted.
+- [x] **[RULES-L8]** Flanking entirely absent — optional rule; worth a design decision: implement as encounter toggle or document as intentionally omitted.
+  - Fix: Created `flanking.ts` with `isFlanking()` and `checkFlanking()` pure functions + 13 tests. Designed as encounter-level toggle (`flankingEnabled`). TODO in `attack-resolver.ts` for wiring. Application-layer `flankingEnabled` field deferred.
 
 - [x] **[RULES-L9]** Jack of All Trades (Bard) — `AbilityCheckOptions.proficient: boolean` is binary. No half-proficiency (`proficiencyMultiplier: 0.5`) for non-proficient skill checks.
   - File: `domain/rules/ability-checks.ts`

@@ -455,7 +455,20 @@ export class ActionService {
       throw new ValidationError(movementResult.reason || "Movement not allowed");
     }
 
-    // Detect opportunity attacks from leaving reach of enemies
+    // ── Opportunity Attack Detection (Programmatic Path) ──
+    // This is the PROGRAMMATIC OA path used by ActionService.move() for AI/server-driven movement.
+    // It detects AND resolves OAs immediately in a single pass (no player interaction).
+    //
+    // The TABLETOP path (MoveReactionHandler in two-phase/) handles player-facing movement:
+    // it detects OAs, creates a pending action, and waits for player/AI reaction responses
+    // before resolving. Both paths delegate eligibility checks to the same domain functions:
+    //   - crossesThroughReach() for geometry
+    //   - canMakeOpportunityAttack() for D&D 5e rules (reaction, disengage, charm, incapacitated)
+    //
+    // Key differences from the tabletop path:
+    //   - No path-cell support (uses simple from→to line)
+    //   - Resolves attacks immediately via resolveAttack() (no two-phase pending action)
+    //   - No readied-action trigger detection
     const opportunityAttacks: Array<{
       attackerId: string;
       targetId: string;
