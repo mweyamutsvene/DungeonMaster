@@ -17,4 +17,5 @@ export interface ICharacterRepository {
   listBySession(sessionId: string): Promise<SessionCharacterRecord[]>;
 
   updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord>;
+  delete(id: string): Promise<void>;
 }

@@ -253,8 +253,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### AI Behavior Gaps
 
-- [ ] **[AI-M1]** `counterspell` AI decision is always `true` — no context-awareness. Goblin with 1 slot counters cantrips; never saves reaction for high-value spells.
+- [x] **[AI-M1]** `counterspell` AI decision is always `true` — no context-awareness. Goblin with 1 slot counters cantrips; never saves reaction for high-value spells.
   - File: `application/services/combat/ai/ai-turn-orchestrator.ts`
+  - Fix: Added 3-tier heuristic: never counter cantrips (L0), always counter L3+, only counter L1-2 if 2+ spell slots remain. Added 7 tests.
 
 - [x] **[AI-M2]** Deterministic battle plan `priority` always `"offensive"` — reads `combatant.resources.challengeRating` which doesn't exist in resource type, always `undefined`, always defaults to `"offensive"`.
   - File: `application/services/combat/ai/battle-plan-service.ts`
@@ -277,8 +278,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/mocks/index.ts`
   - Fix: Expanded type union with 6 new behavior types and added handling blocks in `decide()`. `shove` finds nearest enemy; `dodge`/`dash`/`disengage`/`help`/`search` are simple no-target actions.
 
-- [ ] **[AI-M8]** AI `castSpell` option shown when creature has no spells — LLM prompt lists `castSpell` unconditionally, not gated on `spells.length > 0`.
+- [x] **[AI-M8]** AI `castSpell` option shown when creature has no spells — LLM prompt lists `castSpell` unconditionally, not gated on `spells.length > 0`.
   - File: (AI context builder / system prompt)
+  - Fix: Added `hasSpells` boolean gate in `ai-decision-maker.ts`, conditionally includes castSpell option and action-economy mention. Follows `useObjectAvailable` pattern.
 
 ### Combat Orchestration Gaps
 
@@ -300,8 +302,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ORCH-M6]** `InitiativeHandler` has 4-way duplicated resource-building block — same ~80-line pattern repeated for PC initiator, other PCs, monsters, and NPCs. Extract `buildCombatantEntry()` helper.
   - File: `application/services/combat/tabletop/rolls/initiative-handler.ts:100-450`
 
-- [ ] **[ORCH-M7]** Evasion resolution — verify `evasionDetected` flag is actually consumed to apply half/no damage. Possible incomplete implementation.
+- [x] **[ORCH-M7]** Evasion resolution — verify `evasionDetected` flag is actually consumed to apply half/no damage. Possible incomplete implementation.
   - File: `application/services/combat/tabletop/rolls/saving-throw-resolver.ts:337`
+  - Fix: Already fully implemented — `hasEvasion` flag consumed via `applyEvasion()` in both single-target (line 199) and AoE (line 487) paths of `save-spell-delivery-handler.ts`, plus `two-phase-action-service.ts` and `move-reaction-handler.ts`.
 
 ### Entity Management Gaps
 
@@ -309,8 +312,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `infrastructure/testing/memory-repos.ts`, application startup
   - Fix: Added fire-and-forget `cleanupExpired()` call at start of `CombatService.nextTurn()`. Wired `pendingActions` repo into CombatService deps from `app.ts`. Errors swallowed with warning log.
 
-- [ ] **[ENT-M2]** `ICharacterRepository` and `IMonsterRepository` missing `delete()` — characters and monsters added to a session cannot be removed. Only NPCs support deletion.
+- [x] **[ENT-M2]** `ICharacterRepository` and `IMonsterRepository` missing `delete()` — characters and monsters added to a session cannot be removed. Only NPCs support deletion.
   - File: `application/repositories/character-repository.ts`, `application/repositories/monster-repository.ts`
+  - Fix: Added `delete()` to `ICharacterRepository` interface, implemented in Prisma and memory repos. `IMonsterRepository` already had it (ENT-H4). Added `DELETE /sessions/:id/characters/:characterId` route + 2 tests.
 
 - [x] **[ENT-M3]** `className` not validated against class registry in `CharacterService.addCharacter()` — any string accepted. Characters with invalid class IDs get no resource pools at combat start.
   - File: `application/services/entities/character-service.ts:32-74`
@@ -331,8 +335,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ENT-M8]** `ItemDefinition` Prisma table orphaned — comment in `magic-item-catalog.ts:7` implies intent to use it for catalog storage, but all items served from static code catalog. No write path.
   - File: `prisma/schema.prisma`, `domain/entities/items/magic-item-catalog.ts`
 
-- [ ] **[SPELL-M9]** `SpellLookupService` TODO is stale/misleading — lists 6 "future" features most of which are already implemented elsewhere. Misleads future developers.
+- [x] **[SPELL-M9]** `SpellLookupService` TODO is stale/misleading — lists 6 "future" features most of which are already implemented elsewhere. Misleads future developers.
   - File: `application/services/entities/spell-lookup-service.ts:10-16`
+  - Fix: Replaced stale TODO with accurate doc comment referencing the actual services implementing each feature.
 
 ---
 

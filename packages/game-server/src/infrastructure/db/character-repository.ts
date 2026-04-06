@@ -53,4 +53,8 @@ export class PrismaCharacterRepository implements ICharacterRepository {
       data: { sheet: sheet as Prisma.InputJsonValue },
     });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.sessionCharacter.delete({ where: { id } });
+  }
 }

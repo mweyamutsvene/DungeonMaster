@@ -93,6 +93,10 @@ class MemoryCharacterRepository implements ICharacterRepository {
     this.characters.set(id, updated);
     return updated;
   }
+
+  async delete(id: string): Promise<void> {
+    this.characters.delete(id);
+  }
 }
 
 class MemoryMonsterRepository implements IMonsterRepository {
@@ -127,6 +131,10 @@ class MemoryMonsterRepository implements IMonsterRepository {
 
   async listBySession(sessionId: string): Promise<SessionMonsterRecord[]> {
     return [...this.monsters.values()].filter((m) => m.sessionId === sessionId);
+  }
+
+  async delete(id: string): Promise<void> {
+    this.monsters.delete(id);
   }
 }
 
@@ -767,6 +775,62 @@ describe("game-server api", () => {
       },
     });
     expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it("DELETE /sessions/:id/characters/:characterId removes character", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: { name: "ToDelete", level: 1, sheet: { hp: 8 } },
+    });
+    expect(charRes.statusCode).toBe(200);
+    const characterId = (charRes.json() as any).id as string;
+
+    const delRes = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${sessionId}/characters/${characterId}`,
+    });
+    expect(delRes.statusCode).toBe(200);
+    expect((delRes.json() as any).deleted).toBe(true);
+
+    // Verify character is gone
+    const getRes = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}`,
+    });
+    const session = getRes.json() as any;
+    const charIds = (session.characters ?? []).map((c: any) => c.id);
+    expect(charIds).not.toContain(characterId);
+
+    await app.close();
+  });
+
+  it("DELETE /sessions/:id/characters/:characterId returns 404 for non-existent character", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const delRes = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${sessionId}/characters/nonexistent`,
+    });
+    expect(delRes.statusCode).toBe(404);
 
     await app.close();
   });

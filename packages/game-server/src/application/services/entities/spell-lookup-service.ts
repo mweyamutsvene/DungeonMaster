@@ -7,13 +7,13 @@ import type { SpellDefinitionRecord } from "../../types.js";
  * Layer: Application.
  * Notes: Wraps `ISpellRepository` and normalizes "not found" into `NotFoundError`.
  *
- * TODO: Future spellcasting mechanics expansion:
- * - Slot consumption via ResourceUtils
- * - Concentration tracking (see domain/rules/concentration.ts)
- * - Save DC calculation based on caster stats
- * - Integration with TwoPhaseActionService for reaction spells (Shield, Counterspell)
- * - Integration with ActionService.attack() pattern for spell attacks
- * - Area-of-effect targeting and damage application
+ * Implemented mechanics (handled by other services):
+ * - Slot consumption: SpellSlotManager
+ * - Concentration tracking: domain/rules/concentration.ts, ConcentrationHelper
+ * - Save DC / spell attack bonus: domain/rules/spell-casting.ts (computeSpellSaveDC, computeSpellAttackBonus)
+ * - Reaction spells (Shield, Counterspell): TwoPhaseActionService + SpellReactionHandler
+ * - Spell attacks: SpellAttackDeliveryHandler
+ * - AoE targeting: SaveSpellDeliveryHandler.handleAoE()
  */
 export class SpellLookupService {
   constructor(private readonly spells: ISpellRepository) {}

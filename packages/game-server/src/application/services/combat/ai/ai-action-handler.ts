@@ -32,7 +32,7 @@ export type AiLogger = (msg: string) => void;
 export type AiReactionDecider = (
   combatant: CombatantStateRecord,
   reactionType: "opportunity_attack" | "shield_spell" | "counterspell" | "other",
-  context: { targetName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number; spellName?: string },
+  context: { targetName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number; spellName?: string; spellLevel?: number },
 ) => Promise<boolean>;
 
 /**

@@ -205,11 +205,62 @@ describe("AI Reaction Decision (aiDecideReaction)", () => {
   // --------------------------------------------------------------------------
 
   describe("counterspell", () => {
-    it("always attempts Counterspell", async () => {
+    it("does not counter cantrips (spellLevel 0)", async () => {
       const decider = getDecider();
       const combatant = makeCombatant({ id: "m-1" });
-      const result = await decider(combatant, "counterspell", { spellName: "Fireball" });
+      const result = await decider(combatant, "counterspell", { spellName: "Fire Bolt", spellLevel: 0 });
+      expect(result).toBe(false);
+    });
+
+    it("does not counter when spellLevel is missing (treated as cantrip)", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({ id: "m-1" });
+      const result = await decider(combatant, "counterspell", { spellName: "Fire Bolt" });
+      expect(result).toBe(false);
+    });
+
+    it("always counters high-level spells (3+)", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({ id: "m-1" });
+      const result = await decider(combatant, "counterspell", { spellName: "Fireball", spellLevel: 3 });
       expect(result).toBe(true);
+    });
+
+    it("counters low-level spells when creature has 2+ spell slots", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({
+        id: "m-1",
+        resources: { spellSlots: { "1": 1, "2": 1 } },
+      });
+      const result = await decider(combatant, "counterspell", { spellName: "Magic Missile", spellLevel: 1 });
+      expect(result).toBe(true);
+    });
+
+    it("conserves last slot against low-level spells", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({
+        id: "m-1",
+        resources: { spellSlots: { "1": 1 } },
+      });
+      const result = await decider(combatant, "counterspell", { spellName: "Magic Missile", spellLevel: 1 });
+      expect(result).toBe(false);
+    });
+
+    it("conserves last slot against level 2 spells", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({
+        id: "m-1",
+        resources: { spellSlots: { "2": 1 } },
+      });
+      const result = await decider(combatant, "counterspell", { spellName: "Hold Person", spellLevel: 2 });
+      expect(result).toBe(false);
+    });
+
+    it("counters low-level spells when no resource info (0 slots treated as < 2)", async () => {
+      const decider = getDecider();
+      const combatant = makeCombatant({ id: "m-1" });
+      const result = await decider(combatant, "counterspell", { spellName: "Shield", spellLevel: 1 });
+      expect(result).toBe(false);
     });
   });
 

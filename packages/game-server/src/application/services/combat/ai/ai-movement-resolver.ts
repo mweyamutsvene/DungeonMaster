@@ -26,7 +26,7 @@ type AiLogger = (msg: string) => void;
 type AiReactionDecider = (
   combatant: CombatantStateRecord,
   reactionType: "opportunity_attack" | "shield_spell" | "counterspell" | "other",
-  context: { targetName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number; spellName?: string },
+  context: { targetName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number; spellName?: string; spellLevel?: number },
 ) => Promise<boolean>;
 
 export interface AiMovementDeps {

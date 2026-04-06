@@ -115,7 +115,7 @@ export class AiTurnOrchestrator {
   private async aiDecideReaction(
     combatantState: CombatantStateRecord,
     reactionType: "opportunity_attack" | "shield_spell" | "counterspell" | "other",
-    context: { targetName?: string; spellName?: string; hpPercent?: number; attackTotal?: number; currentAC?: number },
+    context: { targetName?: string; spellName?: string; spellLevel?: number; hpPercent?: number; attackTotal?: number; currentAC?: number },
   ): Promise<boolean> {
     // Opportunity Attacks: Always use if healthy, skip if below 25% HP
     if (reactionType === "opportunity_attack") {
@@ -162,10 +162,41 @@ export class AiTurnOrchestrator {
       return true;
     }
 
-    // Counterspell: Always attempt to counter (high value)
+    // Counterspell: context-aware decision based on spell level and remaining slots
     if (reactionType === "counterspell") {
-      this.aiLog(`[AI Reaction] ${combatantState.id} counterspelling ${context.spellName}`);
-      return true;
+      const spellLevel = typeof context.spellLevel === "number" ? context.spellLevel : 0;
+
+      // Never counter cantrips — waste of a reaction and spell slot
+      if (spellLevel === 0) {
+        this.aiLog(`[AI Reaction] ${combatantState.id} NOT counterspelling cantrip ${context.spellName}`);
+        return false;
+      }
+
+      // Always counter high-level spells (3+)
+      if (spellLevel >= 3) {
+        this.aiLog(`[AI Reaction] ${combatantState.id} counterspelling L${spellLevel} ${context.spellName}`);
+        return true;
+      }
+
+      // For low-level spells (1-2), counter if creature has 2+ spell slots remaining
+      const resources = combatantState.resources as Record<string, unknown> | undefined;
+      const spellSlots = resources?.spellSlots as Record<string, number> | undefined;
+      const totalSlotsRemaining = spellSlots
+        ? Object.values(spellSlots).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0)
+        : 0;
+
+      if (totalSlotsRemaining >= 2) {
+        this.aiLog(
+          `[AI Reaction] ${combatantState.id} counterspelling L${spellLevel} ${context.spellName} (${totalSlotsRemaining} slots remaining)`,
+        );
+        return true;
+      }
+
+      // Only 1 slot left and low-level spell — save it
+      this.aiLog(
+        `[AI Reaction] ${combatantState.id} NOT counterspelling L${spellLevel} ${context.spellName} (conserving last slot)`,
+      );
+      return false;
     }
 
     // Default: use reaction

@@ -108,6 +108,10 @@ export class MemoryCharacterRepository implements ICharacterRepository {
     return updated;
   }
 
+  async delete(id: string): Promise<void> {
+    this.characters.delete(id);
+  }
+
   clear(): void {
     this.characters.clear();
   }

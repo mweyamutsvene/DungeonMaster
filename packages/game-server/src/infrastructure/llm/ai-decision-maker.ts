@@ -63,10 +63,13 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     // Pre-filter useObject: only available when creature has potions AND HP is low (<50%)
     const useObjectAvailable = input.context.hasPotions && input.context.combatant.hp.percentage < 50;
 
+    // Pre-filter castSpell: only available when creature has spells
+    const hasSpells = (input.context.combatant.spells?.length ?? 0) > 0;
+
     // Strip battlefield from the JSON snapshot — it's already rendered as a formatted top-level section
     const { battlefield: _bf, ...contextWithoutBattlefield } = input.context;
     const prompt = new PromptBuilder('v1')
-      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable))
+      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable, hasSpells))
       .addSectionIf(!!bf, 'battlefield', battlefieldContent)
       .addSectionIf(!!bp, 'battle-plan', battlePlanContent)
       .addSectionIf(hasNarrative, 'narrative', narrativeContent)
@@ -120,7 +123,7 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     }
   }
 
-  private buildSystemPrompt(actorName: string, actorType: string, useObjectAvailable: boolean): string {
+  private buildSystemPrompt(actorName: string, actorType: string, useObjectAvailable: boolean, hasSpells: boolean): string {
     return `You are the tactical brain of a combatant in a D&D combat encounter.
 You control this combatant's actions and must make strategic decisions following D&D-style rules.
 
@@ -258,7 +261,7 @@ CRITICAL - DASH ACTION MECHANICS:
 
 ACTION ECONOMY ENFORCEMENT (read the context):
 - The input context may include context.combatant.economy.actionSpent / bonusActionSpent / reactionSpent / movementSpent.
-- If context.combatant.economy.actionSpent is true, you MUST NOT choose an action-consuming action (attack, shove, grapple, escapeGrapple, dash, dodge, disengage, help, hide, search, useObject, castSpell).
+- If context.combatant.economy.actionSpent is true, you MUST NOT choose an action-consuming action (attack, shove, grapple, escapeGrapple, dash, dodge, disengage, help, hide, search, useObject${hasSpells ? ', castSpell' : ''}).
   - In that case, only choose action: "move" (optionally with a bonusAction if allowed) OR action: "endTurn".
 - If context.combatant.economy.bonusActionSpent is true, do not include a bonusAction. This field now correctly reflects when bonus action has been used.
 - If context.combatant.economy.reactionSpent is true, your reaction is unavailable this round.
@@ -313,7 +316,7 @@ AVAILABLE ACTIONS:
    - "shove" - push enemy back 5ft or knock prone
 
 5. SPECIAL ABILITIES:
-   - "castSpell" - cast a spell (ONLY if context.combatant.spells array has spells)
+   ${hasSpells ? '- "castSpell" - cast a spell from context.combatant.spells array' : ''}
    - Check context.combatant.bonusActions for bonus action abilities
    - Check context.combatant.classAbilities for class-derived abilities (bonus actions, actions, reactions with resource costs)
    - Check context.combatant.reactions for reaction abilities

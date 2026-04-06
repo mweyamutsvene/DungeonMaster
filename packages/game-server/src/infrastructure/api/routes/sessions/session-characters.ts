@@ -5,6 +5,7 @@
  *
  * Endpoints:
  * - POST /sessions/:id/characters - Add a character to a session
+ * - DELETE /sessions/:id/characters/:characterId - Remove a character from a session
  * - POST /sessions/:id/characters/generate - Generate a character via LLM
  * - POST /sessions/:id/rest/begin - Begin a rest (records start time for interruption detection)
  * - POST /sessions/:id/rest - Take a short or long rest (refreshes resources)
@@ -12,7 +13,7 @@
 
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
-import { ValidationError } from "../../../../application/errors.js";
+import { NotFoundError, ValidationError } from "../../../../application/errors.js";
 import { breakConcentration, getConcentrationSpellName } from "../../../../application/services/combat/helpers/concentration-helper.js";
 
 export function registerSessionCharacterRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
@@ -41,6 +42,25 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
     }
 
     return deps.characters.addCharacter(sessionId, input);
+  });
+
+  /**
+   * DELETE /sessions/:id/characters/:characterId
+   * Remove a character from the session.
+   */
+  app.delete<{
+    Params: { id: string; characterId: string };
+  }>("/sessions/:id/characters/:characterId", async (req) => {
+    const sessionId = req.params.id;
+    await deps.sessions.getSessionOrThrow(sessionId);
+
+    const character = await deps.charactersRepo.getById(req.params.characterId);
+    if (!character || character.sessionId !== sessionId) {
+      throw new NotFoundError(`Character ${req.params.characterId} not found in session ${sessionId}`);
+    }
+
+    await deps.charactersRepo.delete(req.params.characterId);
+    return { deleted: true };
   });
 
   /**
