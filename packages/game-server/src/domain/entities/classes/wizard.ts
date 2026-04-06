@@ -8,6 +8,7 @@ import type {
   SpellReactionDef, SpellReactionInput, DetectedSpellReaction,
 } from "./combat-text-profile.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
+import { computeSpellSaveDC } from "../../rules/spell-casting.js";
 
 export interface ArcaneRecoveryState {
   pool: ResourcePool;
@@ -135,11 +136,10 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
     }
     if (bestSlotLevel === 0) return null;
 
-    // Wizard spell save DC = 8 + proficiency + INT modifier
     const intScore = input.abilityScores.intelligence ?? 10;
     const intMod = Math.floor((intScore - 10) / 2);
     const profBonus = proficiencyBonusForLevel(input.level);
-    const spellSaveDC = 8 + profBonus + intMod;
+    const spellSaveDC = computeSpellSaveDC({ spellcastingAbility: 'intelligence', abilityScores: input.abilityScores, level: input.level });
 
     return {
       reactionType: "counterspell",

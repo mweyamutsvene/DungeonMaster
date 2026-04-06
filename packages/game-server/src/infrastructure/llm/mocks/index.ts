@@ -723,7 +723,7 @@ export interface CapturedAiContext {
 
 export class MockAiDecisionMaker implements IAiDecisionMaker {
   private queuedDecisions: AiDecision[] = [];
-  private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" = "attack";
+  private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "shove" | "dodge" | "dash" | "disengage" | "help" | "search" = "attack";
   private defaultBonusAction?: string;
 
   /** Captured contexts from every decide() call, for test assertions. */
@@ -763,7 +763,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
   /**
    * Set the default behavior when queue is empty.
    */
-  setDefaultBehavior(behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"): void {
+  setDefaultBehavior(behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "shove" | "dodge" | "dash" | "disengage" | "help" | "search"): void {
     this.defaultBehavior = behavior;
   }
 
@@ -862,6 +862,68 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
         action: "useObject",
         endTurn: true,
         intentNarration: `${input.combatantName} reaches for a healing potion!`,
+      } satisfies AiDecision;
+    }
+
+    // Shove behavior: shove the nearest enemy
+    if (this.defaultBehavior === "shove") {
+      const shoveEnemies = Array.isArray(ctx.enemies)
+        ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
+        : [];
+      const livingEnemy = shoveEnemies.find(e => !e.hp || e.hp.current > 0);
+      if (livingEnemy) {
+        return {
+          action: "shove",
+          target: livingEnemy.name,
+          seed: 42,
+          endTurn: true,
+          intentNarration: `${input.combatantName} shoves ${livingEnemy.name}!`,
+        } satisfies AiDecision;
+      }
+    }
+
+    // Dodge behavior: take the Dodge action
+    if (this.defaultBehavior === "dodge") {
+      return {
+        action: "dodge",
+        endTurn: true,
+        intentNarration: `${input.combatantName} takes the Dodge action!`,
+      } satisfies AiDecision;
+    }
+
+    // Dash behavior: take the Dash action
+    if (this.defaultBehavior === "dash") {
+      return {
+        action: "dash",
+        endTurn: true,
+        intentNarration: `${input.combatantName} dashes!`,
+      } satisfies AiDecision;
+    }
+
+    // Disengage behavior: take the Disengage action
+    if (this.defaultBehavior === "disengage") {
+      return {
+        action: "disengage",
+        endTurn: true,
+        intentNarration: `${input.combatantName} disengages!`,
+      } satisfies AiDecision;
+    }
+
+    // Help behavior: take the Help action
+    if (this.defaultBehavior === "help") {
+      return {
+        action: "help",
+        endTurn: true,
+        intentNarration: `${input.combatantName} takes the Help action!`,
+      } satisfies AiDecision;
+    }
+
+    // Search behavior: take the Search action
+    if (this.defaultBehavior === "search") {
+      return {
+        action: "search",
+        endTurn: true,
+        intentNarration: `${input.combatantName} searches the area!`,
       } satisfies AiDecision;
     }
     

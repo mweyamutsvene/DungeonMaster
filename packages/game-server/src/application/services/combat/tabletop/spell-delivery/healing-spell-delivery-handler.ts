@@ -16,6 +16,7 @@ import type { PreparedSpellDefinition } from '../../../../../domain/entities/spe
 import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
+import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
 
 export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -74,13 +75,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
 
     // Roll healing dice
     const healing = spellMatch.healing!;
-    const spellMod =
-      healing.modifier ??
-      (sheet?.spellcastingAbility
-        ? Math.floor(
-            ((sheet?.abilityScores?.[sheet.spellcastingAbility] ?? 10) - 10) / 2,
-          )
-        : 0);
+    const spellMod = healing.modifier ?? getSpellcastingModifier(sheet);
 
     // Upcast scaling: add bonus dice per slot level above base
     let healDiceCount = healing.diceCount;

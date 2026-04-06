@@ -171,6 +171,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
   const victoryPolicy = new BasicCombatVictoryPolicy(factionService);
   const diceRoller = deps.diceRoller ?? new RandomDiceRoller();
+
+  // Two-phase action service for reactions (moved up so CombatService can use it for cleanup)
+  const pendingActionsRepo: PendingActionRepository = deps.prismaClient
+    ? new PrismaPendingActionRepository(deps.prismaClient)
+    : new InMemoryPendingActionRepository();
+
   const combat = new CombatService(
     deps.sessionsRepo,
     deps.combatRepo,
@@ -180,6 +186,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     deps.monstersRepo,    // New: for domain hydration
     deps.npcsRepo,        // New: for domain hydration
     diceRoller,           // New: for Combat domain instance
+    pendingActionsRepo,
   );
 
   const combatants = new CombatantResolver(deps.charactersRepo, deps.monstersRepo, deps.npcsRepo);
@@ -194,11 +201,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       }
     : undefined;
   const actions = new ActionService(deps.sessionsRepo, deps.combatRepo, combatants, deps.eventsRepo, narrator);
-  
-  // Two-phase action service for reactions
-  const pendingActionsRepo: PendingActionRepository = deps.prismaClient
-    ? new PrismaPendingActionRepository(deps.prismaClient)
-    : new InMemoryPendingActionRepository();
   const twoPhaseActions = new TwoPhaseActionService(
     deps.sessionsRepo,
     deps.combatRepo,
@@ -330,6 +332,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       });
       const victoryPolicyInner = new BasicCombatVictoryPolicy(factionServiceInner);
       const diceRollerInner = deps.diceRoller ?? new RandomDiceRoller();
+      const pendingActionsRepoInner = repos.pendingActionsRepo;
       const combatService = new CombatService(
         repos.sessionsRepo,
         repos.combatRepo,
@@ -339,6 +342,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         repos.monstersRepo,    // New: for domain hydration
         repos.npcsRepo,        // New: for domain hydration
         diceRollerInner,       // New: for Combat domain instance
+        pendingActionsRepoInner,
       );
 
       const combatantsInner = new CombatantResolver(
@@ -381,7 +385,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       abilityRegistryInner.register(new WholenessOfBodyExecutor());
       
       // Two-phase action service
-      const pendingActionsRepoInner = repos.pendingActionsRepo;
       const twoPhaseService = new TwoPhaseActionService(
         repos.sessionsRepo,
         repos.combatRepo,

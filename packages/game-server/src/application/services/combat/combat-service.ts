@@ -7,6 +7,7 @@ import type { IMonsterRepository } from "../../repositories/monster-repository.j
 import type { INPCRepository } from "../../repositories/npc-repository.js";
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
+import type { PendingActionRepository } from "../../repositories/pending-action-repository.js";
 import type { CombatEncounterRecord, CombatantType, JsonValue } from "../../types.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import { createCombatMap, type CombatMap, getMapZones, setMapZones } from "../../../domain/rules/combat-map.js";
@@ -64,6 +65,7 @@ export class CombatService {
     private readonly monsters: IMonsterRepository,
     private readonly npcs: INPCRepository,
     private readonly diceRoller: DiceRoller,
+    private readonly pendingActions?: PendingActionRepository,
   ) {}
 
   async getEncounterState(
@@ -487,6 +489,13 @@ export class CombatService {
       sessionId,
       input?.encounterId,
     );
+
+    // Fire-and-forget cleanup of expired pending actions
+    if (this.pendingActions) {
+      this.pendingActions.cleanupExpired().catch((err) =>
+        console.warn("[CombatService] cleanupExpired failed (non-critical):", err),
+      );
+    }
 
     const combatantRecords = await this.combat.listCombatants(encounter.id);
     if (combatantRecords.length === 0) {

@@ -27,6 +27,7 @@ import type { PreparedSpellDefinition } from '../../../../../domain/entities/spe
 import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
+import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 
 /** Result of processing a single target in a save spell. */
 interface TargetResult {
@@ -93,7 +94,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
 
     const targetId =
       (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
-    const spellSaveDC = sheet?.spellSaveDC ?? 13;
+    const spellSaveDC = computeSpellSaveDC(sheet);
     const saveAbility = spellMatch.saveAbility!;
 
     // Look up target's stats for damage resistance/immunity/vulnerability
@@ -318,7 +319,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const { deps, eventEmitter, debugLogsEnabled, savingThrowResolver } = this.handlerDeps;
 
     const area = spellMatch.area!;
-    const spellSaveDC = sheet?.spellSaveDC ?? 13;
+    const spellSaveDC = computeSpellSaveDC(sheet);
     const saveAbility = spellMatch.saveAbility!;
 
     const allMonsters = await deps.monsters.listBySession(sessionId);

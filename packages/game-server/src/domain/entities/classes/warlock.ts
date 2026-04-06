@@ -6,6 +6,7 @@ import type {
   DamageReactionDef, DamageReactionInput, DetectedDamageReaction,
 } from "./combat-text-profile.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
+import { computeSpellSaveDC } from "../../rules/spell-casting.js";
 
 export type PactSlotLevel = 1 | 2 | 3 | 4 | 5;
 
@@ -94,11 +95,10 @@ const HELLISH_REBUKE_REACTION: DamageReactionDef = {
     const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
     if (!hasSpellSlot && !hasPactSlot) return null;
 
-    // Spell save DC = 8 + proficiency + CHA modifier
     const chaScore = input.abilityScores.charisma ?? 10;
     const chaMod = Math.floor((chaScore - 10) / 2);
     const profBonus = proficiencyBonusForLevel(input.level);
-    const spellSaveDC = 8 + profBonus + chaMod;
+    const spellSaveDC = computeSpellSaveDC({ spellcastingAbility: 'charisma', abilityScores: input.abilityScores, level: input.level });
 
     return {
       reactionType: "hellish_rebuke",

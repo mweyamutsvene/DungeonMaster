@@ -8,6 +8,7 @@ export * from "./class-resources.js";
 export * from "./rest.js";
 export * from "./spell-slots.js";
 export * from "./concentration.js";
+export * from "./spell-casting.js";
 export * from "./area-of-effect.js";
 export * from "./feat-modifiers.js";
 export * from "./damage-defenses.js";

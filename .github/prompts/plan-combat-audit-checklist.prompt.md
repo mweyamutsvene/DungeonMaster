@@ -203,11 +203,13 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[SPELL-M3]** AoE cover bonus not applied per-target — single-target path applies `getCoverSaveBonus(coverLevel)` to DEX saves; AoE `handleAoE()` path skips per-target cover checks entirely.
   - File: `application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts`
 
-- [ ] **[SPELL-M4]** `spellSaveDC` is a static sheet field with no server-side computation or enforcement — defaults to 13 if missing. No formula enforced across Cleric (WIS), Bard (CHA), Sorcerer (CHA), Druid (WIS), Ranger (WIS), Paladin (CHA).
+- [x] **[SPELL-M4]** `spellSaveDC` is a static sheet field with no server-side computation or enforcement — defaults to 13 if missing. No formula enforced across Cleric (WIS), Bard (CHA), Sorcerer (CHA), Druid (WIS), Ranger (WIS), Paladin (CHA).
   - File: `application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts:96`
+  - Fix: Created shared `computeSpellSaveDC()` in `domain/rules/spell-casting.ts` (8 + proficiency + casting ability mod). Falls back to explicit `sheet.spellSaveDC`, then computes from ability scores. Applied in both save-spell and AoE paths. Added 21 unit tests.
 
-- [ ] **[SPELL-M5]** `spellAttackBonus` is a static sheet field — defaults to +5 if missing. Same enforcement gap as M4.
+- [x] **[SPELL-M5]** `spellAttackBonus` is a static sheet field — defaults to +5 if missing. Same enforcement gap as M4.
   - File: `application/services/combat/tabletop/spell-delivery/spell-attack-delivery-handler.ts:59`
+  - Fix: Created shared `computeSpellAttackBonus()` in `domain/rules/spell-casting.ts` (proficiency + casting ability mod). Applied in spell-attack handler.
 
 - [ ] **[SPELL-M6]** AoE healing not implemented — `HealingSpellDeliveryHandler` can't handle spells with both `healing` and `area` set (Mass Cure Wounds, Prayer of Healing). Throws `ValidationError` for missing `targetName`.
   - File: `application/services/combat/tabletop/spell-delivery/healing-spell-delivery-handler.ts`
@@ -271,8 +273,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/handlers/attack-handler.ts`, `application/services/combat/ai/ai-attack-resolver.ts`
   - Fix: Replaced all 13 `console.log` calls with `aiLog(...)` in both files.
 
-- [ ] **[AI-M7]** Mock LLM `setDefaultBehavior()` union missing action types — `shove`, `dodge`, `dash`, `disengage`, `help`, `search` can't be scripted as defaults in test scenarios.
+- [x] **[AI-M7]** Mock LLM `setDefaultBehavior()` union missing action types — `shove`, `dodge`, `dash`, `disengage`, `help`, `search` can't be scripted as defaults in test scenarios.
   - File: `application/services/combat/ai/mocks/index.ts`
+  - Fix: Expanded type union with 6 new behavior types and added handling blocks in `decide()`. `shove` finds nearest enemy; `dodge`/`dash`/`disengage`/`help`/`search` are simple no-target actions.
 
 - [ ] **[AI-M8]** AI `castSpell` option shown when creature has no spells — LLM prompt lists `castSpell` unconditionally, not gated on `spells.length > 0`.
   - File: (AI context builder / system prompt)
@@ -302,8 +305,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Entity Management Gaps
 
-- [ ] **[ENT-M1]** `PendingActionRepository.cleanupExpired()` defined but never called — expired pending actions accumulate in the in-memory repo. No scheduled cleanup.
+- [x] **[ENT-M1]** `PendingActionRepository.cleanupExpired()` defined but never called — expired pending actions accumulate in the in-memory repo. No scheduled cleanup.
   - File: `infrastructure/testing/memory-repos.ts`, application startup
+  - Fix: Added fire-and-forget `cleanupExpired()` call at start of `CombatService.nextTurn()`. Wired `pendingActions` repo into CombatService deps from `app.ts`. Errors swallowed with warning log.
 
 - [ ] **[ENT-M2]** `ICharacterRepository` and `IMonsterRepository` missing `delete()` — characters and monsters added to a session cannot be removed. Only NPCs support deletion.
   - File: `application/repositories/character-repository.ts`, `application/repositories/monster-repository.ts`
@@ -342,8 +346,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L2]** `ConditionEffects` missing `resistsAllDamage?: boolean` and `damageImmunities?: DamageType[]` fields — required to properly model Petrified and similar conditions (see H2).
   - File: `domain/entities/combat/conditions.ts`
 
-- [ ] **[CLEAN-L3]** `computeSpellSaveDC()` should be a shared domain function — currently duplicated inline in `wizard.ts:142` and `warlock.ts:101`. Extract to `domain/rules/`.
+- [x] **[CLEAN-L3]** `computeSpellSaveDC()` should be a shared domain function — currently duplicated inline in `wizard.ts:142` and `warlock.ts:101`. Extract to `domain/rules/`.
   - File: `domain/entities/classes/wizard.ts:142`, `domain/entities/classes/warlock.ts:101`
+  - Fix: Extracted to shared `computeSpellSaveDC()` in `domain/rules/spell-casting.ts`. Both wizard.ts and warlock.ts now use it.
 
 - [ ] **[CLEAN-L4]** 13 unconditional `console.log` calls in AI production code bypass debug gate — replace with `this.aiLog(...)`.
   - File: `application/services/combat/ai/handlers/attack-handler.ts`, `application/services/combat/ai/ai-attack-resolver.ts`

@@ -10,6 +10,7 @@ import { deriveRollModeFromConditions, findCombatantByName } from '../combat-tex
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
+import { computeSpellAttackBonus } from '../../../../../domain/rules/spell-casting.js';
 
 export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -35,7 +36,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
 
     const targetId =
       (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
-    const spellAttackBonus = sheet?.spellAttackBonus ?? 5;
+    const spellAttackBonus = computeSpellAttackBonus(sheet);
 
     const spellDamage = spellMatch.damage ?? { diceCount: 1, diceSides: 10, modifier: 0 };
 
