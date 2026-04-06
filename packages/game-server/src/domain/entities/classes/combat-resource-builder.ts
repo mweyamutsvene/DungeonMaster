@@ -16,6 +16,7 @@ import { isCharacterClassId } from "./class-definition.js";
 import { getClassDefinition } from "./registry.js";
 import type { CharacterSheetLike } from "./class-feature-resolver.js";
 import { pactMagicSlotsForLevel } from "./warlock.js";
+import { computeFeatModifiers, FEAT_WAR_CASTER } from "../../rules/feat-modifiers.js";
 
 // ----- Types -----
 
@@ -30,6 +31,8 @@ export interface CombatResourcesResult {
   hasAbsorbElementsPrepared: boolean;
   /** Whether the character has Hellish Rebuke prepared. */
   hasHellishRebukePrepared: boolean;
+  /** Whether the character has the War Caster feat. */
+  warCasterEnabled: boolean;
   /** Warlock Pact Magic slot level (undefined for non-warlocks). */
   pactSlotLevel?: number;
 }
@@ -114,11 +117,15 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
     }
   }
 
+  // 5. War Caster feat detection (for OA spell option)
+  const featIds: readonly string[] = (sheet as any)?.featIds ?? (sheet as any)?.feats ?? [];
+  const warCasterEnabled = Array.isArray(featIds) && featIds.includes(FEAT_WAR_CASTER);
+
   // 5. Pact Magic slot level (Warlock only)
   let pactSlotLevel: number | undefined;
   if (classId === "warlock" && level >= 1) {
     pactSlotLevel = pactMagicSlotsForLevel(level).slotLevel;
   }
 
-  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, pactSlotLevel };
+  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, warCasterEnabled, pactSlotLevel };
 }

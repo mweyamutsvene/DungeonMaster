@@ -314,6 +314,9 @@ export class MoveReactionHandler {
         const otherConditions = normalizeConditions(other.conditions as unknown[]);
         const observerCharmedByTarget = isAttackBlockedByCharm(otherConditions, actor.id);
 
+        // War Caster feat: observer can cast a spell instead of weapon OA
+        const observerWarCaster = readBoolean(otherResources, "warCasterEnabled") ?? false;
+
         const canAttack = canMakeOpportunityAttack(
           { reactionUsed: !hasReaction },
           {
@@ -324,6 +327,7 @@ export class MoveReactionHandler {
             observerIncapacitated: false,
             leavingReach: true,
             observerCharmedByTarget,
+            warCasterEnabled: observerWarCaster,
           },
         );
 
@@ -351,6 +355,7 @@ export class MoveReactionHandler {
             combatantId: other.id,
             reactionType: "opportunity_attack",
             canUse: true,
+            ...(canAttack.canCastSpellAsOA ? { oaType: "spell" as const } : {}),
             context: {
               targetId: actor.id,
               reach,

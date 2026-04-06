@@ -120,6 +120,9 @@ export interface ReactionOpportunity {
   /** Reason they can't use it (if canUse is false) */
   reason?: string;
   
+  /** Type of OA reaction: 'weapon' (default) or 'spell' (War Caster) */
+  oaType?: "weapon" | "spell";
+  
   /** Additional context for the reaction */
   context: Record<string, unknown>;
 }

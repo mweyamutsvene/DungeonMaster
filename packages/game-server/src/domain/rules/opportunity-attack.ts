@@ -32,6 +32,8 @@ export interface OpportunityAttackTrigger {
   observerCharmedByTarget?: boolean;
   /** Whether the movement is involuntary (teleportation, push, pull, carried) — does not provoke OAs */
   involuntaryMovement?: boolean;
+  /** Whether the observer has War Caster feat — can cast a spell instead of weapon OA */
+  warCasterEnabled?: boolean;
 }
 
 export interface OpportunityAttackResult {
@@ -39,6 +41,8 @@ export interface OpportunityAttackResult {
   canAttack: boolean;
   /** Reason if can't attack */
   reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach' | 'charmed-by-target' | 'involuntary-movement';
+  /** Whether the observer can use a spell instead of a weapon attack for this OA (War Caster) */
+  canCastSpellAsOA?: boolean;
 }
 
 /**
@@ -83,7 +87,10 @@ export function canMakeOpportunityAttack(
     return { canAttack: false, reason: 'charmed-by-target' };
   }
 
-  return { canAttack: true };
+  return {
+    canAttack: true,
+    canCastSpellAsOA: trigger.warCasterEnabled === true ? true : undefined,
+  };
 }
 
 /**

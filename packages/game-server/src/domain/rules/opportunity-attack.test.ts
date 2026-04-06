@@ -114,6 +114,41 @@ describe("Opportunity Attacks", () => {
 
       expect(result.canAttack).toBe(true);
     });
+
+    it("should set canCastSpellAsOA when warCasterEnabled is true and attack is allowed", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, warCasterEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.canCastSpellAsOA).toBe(true);
+    });
+
+    it("should not set canCastSpellAsOA when warCasterEnabled is false", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, warCasterEnabled: false };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.canCastSpellAsOA).toBeUndefined();
+    });
+
+    it("should not set canCastSpellAsOA when warCasterEnabled is undefined", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const result = canMakeOpportunityAttack(reaction, baseTrigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.canCastSpellAsOA).toBeUndefined();
+    });
+
+    it("should not set canCastSpellAsOA when attack is not allowed even with War Caster", () => {
+      const reaction: ReactionState = { reactionUsed: true };
+      const trigger = { ...baseTrigger, warCasterEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(false);
+      expect(result.canCastSpellAsOA).toBeUndefined();
+    });
   });
 
   describe("reaction state", () => {

@@ -87,6 +87,9 @@ function buildCombatantResources(
   if (combatRes.hasHellishRebukePrepared) {
     (resources as any).hasHellishRebukePrepared = true;
   }
+  if (combatRes.warCasterEnabled) {
+    (resources as any).warCasterEnabled = true;
+  }
   if (combatRes.pactSlotLevel !== undefined) {
     (resources as any).pactSlotLevel = combatRes.pactSlotLevel;
   }
