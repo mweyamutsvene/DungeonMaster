@@ -249,8 +249,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLASS-M8]** Druid has no implementation — no executors, no Wild Shape mechanic, no text profile.
   - File: `domain/entities/classes/`
 
-- [ ] **[CLASS-M9]** Open Hand Technique enhancement offered to all Monks in tactical view — not gated on Open Hand subclass. Any monk gets the option regardless of subclass.
+- [x] **[CLASS-M9]** Open Hand Technique enhancement offered to all Monks in tactical view — not gated on Open Hand subclass. Any monk gets the option regardless of subclass.
   - File: (tactical view assembly)
+  - Fix: Added `requiresSubclass` field to `AttackEnhancementDef`. Open Hand Technique gated on `requiresSubclass: "open-hand"`. Normalized comparison via `normalizeId()` in matching and eligibility functions.
 
 ### AI Behavior Gaps
 
@@ -266,8 +267,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/deterministic-ai.ts`
   - Fix: Added Patient Defense (defensive when low HP/surrounded) and Step of the Wind (tactical retreat) with ki pool checks. Reordered priority. Extracted `findKiPool()` helper.
 
-- [ ] **[AI-M4]** No AI handler for primary-action class features — Turn Undead, Channel Divinity, Lay on Hands have no `"useFeature"` AI action type. AI can't trigger these.
+- [x] **[AI-M4]** No AI handler for primary-action class features — Turn Undead, Channel Divinity, Lay on Hands have no `"useFeature"` AI action type. AI can't trigger these.
   - File: `application/services/combat/ai/`, `ai-action-registry.ts`
+  - Fix: Created `UseFeatureHandler` implementing `AiActionHandler`. Delegates to `AbilityRegistry` for execution. Added `"useFeature"` to `AiDecision.action` union, `featureId` field, LLM prompt/schema, and `isActionConsuming()`.
 
 - [x] **[AI-M5]** Legacy bonus action string matching in `ai-action-executor.ts` — `if/else` chain for `nimble_escape_disengage`, `cunning_action_dash`, etc. bypasses `AbilityRegistry`. New abilities require new `if` branch.
   - File: `application/services/combat/ai/ai-action-executor.ts`
@@ -301,8 +303,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ORCH-M5]** `handleAttackAction()` dispatch handler is ~350 lines — too large. Should be decomposed: `detectThrownWeapon()`, `computeCoverBonus()`, `resolveMagicWeaponBonus()`, etc.
   - File: `application/services/combat/tabletop/dispatch/attack-handlers.ts`
 
-- [ ] **[ORCH-M6]** `InitiativeHandler` has 4-way duplicated resource-building block — same ~80-line pattern repeated for PC initiator, other PCs, monsters, and NPCs. Extract `buildCombatantEntry()` helper.
+- [x] **[ORCH-M6]** `InitiativeHandler` has 4-way duplicated resource-building block — same ~80-line pattern repeated for PC initiator, other PCs, monsters, and NPCs. Extract `buildCombatantEntry()` helper.
   - File: `application/services/combat/tabletop/rolls/initiative-handler.ts:100-450`
+  - Fix: Extracted `buildCombatantResources()` private helper replacing 4-way duplicated ~80-line block. Fixed missing `pactSlotLevel` for "other PCs" block.
 
 - [x] **[ORCH-M7]** Evasion resolution — verify `evasionDetected` flag is actually consumed to apply half/no damage. Possible incomplete implementation.
   - File: `application/services/combat/tabletop/rolls/saving-throw-resolver.ts:337`
@@ -387,8 +390,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L12]** AI LLM retry uses same parameters — retry `options` (model/temp/seed) are identical to initial call. Retry won't produce different results. Consider temperature increase on retry.
   - File: `application/services/combat/ai/llm/ai-decision-maker.ts:77`
 
-- [ ] **[CLEAN-L13]** `INITIATIVE → INITIATIVE_SWAP` transition bypasses `assertValidTransition()` — `InitiativeHandler` calls `combat.setPendingAction(INITIATIVE_SWAP)` directly, skipping the state machine guard.
+- [x] **[CLEAN-L13]** `INITIATIVE → INITIATIVE_SWAP` transition bypasses `assertValidTransition()` — `InitiativeHandler` calls `combat.setPendingAction(INITIATIVE_SWAP)` directly, skipping the state machine guard.
   - File: `application/services/combat/tabletop/rolls/initiative-handler.ts`
+  - Fix: Added `assertValidTransition("INITIATIVE", "INITIATIVE_SWAP")` call before `setPendingAction()`.
 
 ### Missing Rules (Lower Impact)
 
@@ -401,8 +405,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-L3]** `elevated` and `pit` terrain types exist in `TerrainType` but have no mechanical function — no elevation attack bonus, no pit fall effect.
   - File: `domain/rules/combat-map-types.ts:15-16`, `domain/rules/combat-map-core.ts`
 
-- [ ] **[RULES-L4]** Stabilization via Medicine check — no `attemptStabilize()` function. DC 10 WIS (Medicine) check by another creature stabilizes a dying creature without HP.
+- [x] **[RULES-L4]** Stabilization via Medicine check — no `attemptStabilize()` function. DC 10 WIS (Medicine) check by another creature stabilizes a dying creature without HP.
   - File: `domain/rules/death-saves.ts`
+  - Fix: Added `attemptStabilize()` pure function + `StabilizeCheckResult` interface. DC 10 Medicine check. 4 new tests.
 
 - [ ] **[RULES-L5]** Forced movement not grid-aligned, no obstacle collision — `pushAwayFrom()` / `pullToward()` compute continuous vector offset without snapping to 5ft grid or stopping at walls.
   - File: `domain/combat/movement.ts:152-198`
@@ -443,14 +448,17 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ENT-L1]** 3 orphaned Prisma tables with no application code — `ClassFeatureDefinition`, `ItemDefinition`, `ConditionDefinition`. Either implement or drop.
   - File: `prisma/schema.prisma`
 
-- [ ] **[ENT-L2]** `createInMemoryRepos()` doesn't include `pendingActionsRepo` — tests needing reactions must instantiate it separately, creating boilerplate and risk of missing it.
+- [x] **[ENT-L2]** `createInMemoryRepos()` doesn't include `pendingActionsRepo` — tests needing reactions must instantiate it separately, creating boilerplate and risk of missing it.
   - File: `infrastructure/testing/memory-repos.ts`
+  - Fix: Added `pendingActionsRepo: InMemoryPendingActionRepository` to `InMemoryRepos` interface, `createInMemoryRepos()`, and `clearAllRepos()`.
 
-- [ ] **[ENT-L3]** NPC profession bonus scaling — NPCs used as enemies use `data.proficiencyBonus ?? 2` (fixed), not CR-based formula like monsters. High-CR NPCs get wrong proficiency.
+- [x] **[ENT-L3]** NPC profession bonus scaling — NPCs used as enemies use `data.proficiencyBonus ?? 2` (fixed), not CR-based formula like monsters. High-CR NPCs get wrong proficiency.
   - File: `domain/entities/creatures/`
+  - Fix: Extracted shared `proficiencyBonusFromCR()` to creature.ts. NPC now computes from CR when proficiencyBonus not provided. Added `challengeRating` to `NPCData`. Hydration reads CR from statBlock.
 
-- [ ] **[ENT-L4]** `darkvisionRange` set from species only, never from sheet override — manual darkvision overrides on character sheet are ignored.
+- [x] **[ENT-L4]** `darkvisionRange` set from species only, never from sheet override — manual darkvision overrides on character sheet are ignored.
   - File: `application/services/combat/helpers/creature-hydration.ts`
+  - Fix: Priority chain: sheet `darkvisionRange` > species traits > 0.
 
 - [ ] **[ENT-L5]** 4 MockCharacterGenerator templates missing — Bard, Sorcerer, Ranger, Druid have no mock templates. Limits AI character behavior test coverage.
   - File: `application/services/combat/ai/mocks/index.ts`

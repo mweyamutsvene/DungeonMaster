@@ -42,6 +42,7 @@ import {
   HideHandler,
   SearchHandler,
   UseObjectHandler,
+  UseFeatureHandler,
   EndTurnHandler,
 } from "./handlers/index.js";
 
@@ -140,7 +141,7 @@ export class AiActionExecutor {
    * Check if action economy allows this action type.
    */
   private isActionConsuming(action: string): boolean {
-    return ["attack", "disengage", "dash", "dodge", "help", "castSpell", "shove", "grapple", "escapeGrapple", "hide", "search", "useObject"].includes(action);
+    return ["attack", "disengage", "dash", "dodge", "help", "castSpell", "shove", "grapple", "escapeGrapple", "hide", "search", "useObject", "useFeature"].includes(action);
   }
 
   /**
@@ -204,6 +205,7 @@ export class AiActionExecutor {
     this.registry.register(new HideHandler());
     this.registry.register(new SearchHandler());
     this.registry.register(new UseObjectHandler());
+    this.registry.register(new UseFeatureHandler());
     this.registry.register(new EndTurnHandler());
   }
 

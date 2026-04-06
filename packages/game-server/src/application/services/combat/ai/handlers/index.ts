@@ -16,4 +16,5 @@ export { EscapeGrappleHandler } from "./escape-grapple-handler.js";
 export { HideHandler } from "./hide-handler.js";
 export { SearchHandler } from "./search-handler.js";
 export { UseObjectHandler } from "./use-object-handler.js";
+export { UseFeatureHandler } from "./use-feature-handler.js";
 export { EndTurnHandler } from "./end-turn-handler.js";

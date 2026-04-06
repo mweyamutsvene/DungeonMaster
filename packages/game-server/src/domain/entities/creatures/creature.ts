@@ -369,3 +369,18 @@ export abstract class Creature {
     };
   }
 }
+
+/**
+ * D&D 5e proficiency bonus by Challenge Rating.
+ * Shared by Monster and NPC entities.
+ */
+export function proficiencyBonusFromCR(cr: number): number {
+  if (cr <= 4) return 2;
+  if (cr <= 8) return 3;
+  if (cr <= 12) return 4;
+  if (cr <= 16) return 5;
+  if (cr <= 20) return 6;
+  if (cr <= 24) return 7;
+  if (cr <= 28) return 8;
+  return 9;
+}

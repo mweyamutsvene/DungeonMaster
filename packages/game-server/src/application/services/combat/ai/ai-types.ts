@@ -25,6 +25,7 @@ export type AiDecision = {
     | "search"
     | "useObject"
     | "castSpell"
+    | "useFeature"
     | "endTurn";
   target?: string;
   attackName?: string;
@@ -36,6 +37,7 @@ export type AiDecision = {
   reasoning?: string;
   spellName?: string;
   spellLevel?: number;
+  featureId?: string; // For useFeature: ability/feature identifier (e.g., "turnUndead", "layOnHands")
   seed?: number;
 };
 

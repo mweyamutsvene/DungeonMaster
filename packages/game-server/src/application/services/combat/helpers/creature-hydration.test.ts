@@ -923,4 +923,166 @@ describe('Creature Hydration', () => {
       expect(typeof extracted.movementRemaining).toBe('number');
     });
   });
+
+  describe('ENT-L3: NPC proficiency bonus from CR', () => {
+    it('should use explicit proficiencyBonus when provided in statBlock', () => {
+      const record: SessionNPCRecord = {
+        id: 'npc-explicit',
+        sessionId: 'session-1',
+        name: 'Custom NPC',
+        statBlock: {
+          abilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 11, charisma: 12 },
+          maxHP: 40,
+          currentHP: 40,
+          armorClass: 16,
+          speed: 30,
+          proficiencyBonus: 4,
+          challengeRating: 5,
+        },
+        faction: 'enemies',
+        aiControlled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const npc = hydrateNPC(record);
+      // Explicit proficiencyBonus takes priority over CR-derived value
+      expect(npc.getProficiencyBonus()).toBe(4);
+    });
+
+    it('should compute proficiency bonus from CR when proficiencyBonus not provided', () => {
+      const makeNPCWithCR = (cr: number) => hydrateNPC({
+        id: `npc-cr-${cr}`,
+        sessionId: 'session-1',
+        name: `CR ${cr} NPC`,
+        statBlock: {
+          abilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 11, charisma: 12 },
+          maxHP: 40,
+          currentHP: 40,
+          armorClass: 16,
+          speed: 30,
+          challengeRating: cr,
+        },
+        faction: 'enemies',
+        aiControlled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      expect(makeNPCWithCR(0.25).getProficiencyBonus()).toBe(2);
+      expect(makeNPCWithCR(1).getProficiencyBonus()).toBe(2);
+      expect(makeNPCWithCR(4).getProficiencyBonus()).toBe(2);
+      expect(makeNPCWithCR(5).getProficiencyBonus()).toBe(3);
+      expect(makeNPCWithCR(8).getProficiencyBonus()).toBe(3);
+      expect(makeNPCWithCR(9).getProficiencyBonus()).toBe(4);
+      expect(makeNPCWithCR(12).getProficiencyBonus()).toBe(4);
+      expect(makeNPCWithCR(13).getProficiencyBonus()).toBe(5);
+      expect(makeNPCWithCR(17).getProficiencyBonus()).toBe(6);
+      expect(makeNPCWithCR(21).getProficiencyBonus()).toBe(7);
+      expect(makeNPCWithCR(25).getProficiencyBonus()).toBe(8);
+      expect(makeNPCWithCR(30).getProficiencyBonus()).toBe(9);
+    });
+
+    it('should default to +2 when neither proficiencyBonus nor CR are provided', () => {
+      const record: SessionNPCRecord = {
+        id: 'npc-default',
+        sessionId: 'session-1',
+        name: 'Basic NPC',
+        statBlock: {
+          abilityScores: { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 },
+          maxHP: 10,
+          currentHP: 10,
+          armorClass: 10,
+          speed: 30,
+        },
+        faction: 'party',
+        aiControlled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const npc = hydrateNPC(record);
+      expect(npc.getProficiencyBonus()).toBe(2);
+    });
+  });
+
+  describe('ENT-L4: darkvision from sheet override', () => {
+    it('should use sheet darkvisionRange over species default', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-dv-override',
+        sessionId: 'session-1',
+        name: 'Custom Darkvision',
+        level: 5,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: { strength: 16, dexterity: 14, constitution: 15, intelligence: 10, wisdom: 12, charisma: 11 },
+          maxHP: 42,
+          currentHP: 42,
+          armorClass: 18,
+          speed: 30,
+          darkvisionRange: 120,
+          species: 'Elf',
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+      // Sheet override (120) takes priority over species default (60 for Elf)
+      expect(character.getDarkvisionRange()).toBe(120);
+    });
+
+    it('should fall back to species darkvision when sheet has none', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-dv-species',
+        sessionId: 'session-1',
+        name: 'Elf Fighter',
+        level: 5,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: { strength: 16, dexterity: 14, constitution: 15, intelligence: 10, wisdom: 12, charisma: 11 },
+          maxHP: 42,
+          currentHP: 42,
+          armorClass: 18,
+          speed: 30,
+          species: 'Elf',
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+      // Should use Elf darkvision (60)
+      expect(character.getDarkvisionRange()).toBe(60);
+    });
+
+    it('should default to 0 when neither sheet nor species provide darkvision', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-dv-none',
+        sessionId: 'session-1',
+        name: 'Human Fighter',
+        level: 5,
+        className: 'Fighter',
+        sheet: {
+          abilityScores: { strength: 16, dexterity: 14, constitution: 15, intelligence: 10, wisdom: 12, charisma: 11 },
+          maxHP: 42,
+          currentHP: 42,
+          armorClass: 18,
+          speed: 30,
+          species: 'Human',
+        },
+        faction: 'heroes',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record);
+      expect(character.getDarkvisionRange()).toBe(0);
+    });
+  });
 });

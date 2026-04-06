@@ -1,8 +1,9 @@
-import { Creature, type CreatureData } from "./creature.js";
+import { Creature, type CreatureData, proficiencyBonusFromCR } from "./creature.js";
 
 export interface NPCData extends CreatureData {
   role?: string;
   proficiencyBonus?: number;
+  challengeRating?: number;
 }
 
 export class NPC extends Creature {
@@ -12,7 +13,8 @@ export class NPC extends Creature {
   public constructor(data: NPCData) {
     super(data);
     this.role = data.role;
-    this.proficiencyBonus = data.proficiencyBonus ?? 2;
+    this.proficiencyBonus = data.proficiencyBonus
+      ?? (data.challengeRating != null ? proficiencyBonusFromCR(data.challengeRating) : 2);
   }
 
   public getRole(): string | undefined {

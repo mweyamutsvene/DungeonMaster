@@ -27,6 +27,7 @@ import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers
 import { parseLegendaryTraits } from "../../../../../domain/entities/creatures/legendary-actions.js";
 import { computeInitiativeRollMode } from "../tabletop-utils.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
+import { assertValidTransition } from "../pending-action-state-machine.js";
 import type {
   TabletopCombatServiceDeps,
   InitiatePendingAction,
@@ -423,6 +424,7 @@ export class InitiativeHandler {
         sessionId,
         eligibleTargets: swapEligibleTargets,
       };
+      assertValidTransition("INITIATIVE", "INITIATIVE_SWAP");
       await this.deps.combatRepo.setPendingAction(encounter.id, swapAction as any);
 
       const targetList = swapEligibleTargets.map((t) => `${t.actorName} (${t.initiative})`).join(", ");

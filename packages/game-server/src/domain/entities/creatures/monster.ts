@@ -5,7 +5,7 @@
  * Extends Creature with monster-specific features like challenge rating.
  */
 
-import { Creature, type CreatureData } from "./creature.js";
+import { Creature, type CreatureData, proficiencyBonusFromCR } from "./creature.js";
 
 export interface MonsterData extends CreatureData {
   challengeRating: number;
@@ -35,17 +35,7 @@ export class Monster extends Creature {
   // === Proficiency Bonus ===
 
   getProficiencyBonus(): number {
-    // D&D 5e monster proficiency bonus by CR
-    const cr = this.challengeRating;
-    if (cr <= 0.25) return 2;
-    if (cr <= 4) return 2;
-    if (cr <= 8) return 3;
-    if (cr <= 12) return 4;
-    if (cr <= 16) return 5;
-    if (cr <= 20) return 6;
-    if (cr <= 24) return 7;
-    if (cr <= 28) return 8;
-    return 9;
+    return proficiencyBonusFromCR(this.challengeRating);
   }
 
   // === Serialization ===

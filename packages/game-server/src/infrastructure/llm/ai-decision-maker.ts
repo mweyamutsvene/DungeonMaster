@@ -317,6 +317,7 @@ AVAILABLE ACTIONS:
 
 5. SPECIAL ABILITIES:
    ${hasSpells ? '- "castSpell" - cast a spell from context.combatant.spells array' : ''}
+   - "useFeature" - activate a class feature that costs an action (e.g., Turn Undead, Lay on Hands). Set featureId to the ability name from classAbilities.
    - Check context.combatant.bonusActions for bonus action abilities
    - Check context.combatant.classAbilities for class-derived abilities (bonus actions, actions, reactions with resource costs)
    - Check context.combatant.reactions for reaction abilities
@@ -354,12 +355,13 @@ GROUP TACTICS:
 OUTPUT FORMAT:
 Respond with ONLY a single JSON object containing (no other text, no markdown, no code fences):
 {
-  "action": string,           // "attack", "move", "moveToward", "moveAwayFrom", "dodge", "dash", "disengage", "help", "hide", "grapple", "escapeGrapple", "shove", "search", "castSpell", "endTurn"
+  "action": string,           // "attack", "move", "moveToward", "moveAwayFrom", "dodge", "dash", "disengage", "help", "hide", "grapple", "escapeGrapple", "shove", "search", "castSpell", "useFeature", "endTurn"
   "target": string,           // Target name (for attacks, grapple, shove, help)
   "attackName": string,       // Specific attack from "actions" (e.g., "Scimitar", "Shortbow")
   "destination": object,      // For move: {x: number, y: number} coordinates
   "desiredRange": number,     // For moveToward: how close to get to target in feet (default 5 = melee)
   "spellName": string,        // For castSpell: spell name
+  "featureId": string,        // For useFeature: ability ID from classAbilities (e.g., "turnUndead", "layOnHands")
   "bonusAction": string,      // Optional: bonus action ability name from context.combatant.bonusActions or classAbilities (e.g., "Nimble Escape", "Flurry of Blows")
   "seed": number,             // Optional: deterministic seed for contested checks (useful for testing)
   "intentNarration": string,  // Brief intent (1 sentence): what you're about to do
@@ -578,6 +580,18 @@ Second response (after you are asked again):
         action: 'endTurn',
         intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
         reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,
+      };
+    }
+
+    if (action === 'useFeature') {
+      return {
+        action: 'useFeature',
+        featureId: typeof json.featureId === 'string' ? json.featureId : undefined,
+        target: typeof json.target === 'string' ? json.target : undefined,
+        bonusAction: typeof json.bonusAction === 'string' ? json.bonusAction : undefined,
+        intentNarration: typeof json.intentNarration === 'string' ? json.intentNarration : undefined,
+        reasoning: typeof json.reasoning === 'string' ? json.reasoning : undefined,
+        endTurn: typeof json.endTurn === 'boolean' ? json.endTurn : true,
       };
     }
 

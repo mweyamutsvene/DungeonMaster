@@ -239,7 +239,7 @@ export function hydrateCharacter(
     resourcePools,
     featIds,
     fightingStyle,
-    darkvisionRange: speciesTraits?.darkvisionRange ?? 0,
+    darkvisionRange: readNumber(sheet, 'darkvisionRange') ?? speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
     equipment,
   };
@@ -329,7 +329,8 @@ export function hydrateNPC(
   const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(statBlock, 'armorClass') ?? readNumber(statBlock, 'ac') ?? 10;
   const speed = readNumber(statBlock, 'speed') ?? 30;
-  const proficiencyBonus = readNumber(statBlock, 'proficiencyBonus') ?? 2;
+  const proficiencyBonus = readNumber(statBlock, 'proficiencyBonus') ?? undefined;
+  const challengeRating = readNumber(statBlock, 'challengeRating') ?? readNumber(statBlock, 'cr') ?? undefined;
   const role = readString(statBlock, 'role');
   
   // Conditions from combat state
@@ -345,6 +346,7 @@ export function hydrateNPC(
     speed,
     abilityScores: new AbilityScores(abilityScores),
     proficiencyBonus,
+    challengeRating,
     role,
     damageResistances: readArray<string>(statBlock, 'damageResistances') ?? undefined,
     damageImmunities: readArray<string>(statBlock, 'damageImmunities') ?? undefined,
