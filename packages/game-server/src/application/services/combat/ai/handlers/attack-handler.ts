@@ -19,13 +19,10 @@ export class AttackHandler implements AiActionHandler {
     const { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef } = ctx;
     const { actionService, twoPhaseActions, combat, pendingActions, combatantResolver, diceRoller, events, aiLog, executeBonusAction } = deps;
 
-    console.log("[AttackHandler] Executing attack action:", {
-      target: decision.target,
-      attackName: decision.attackName,
-    });
+    aiLog("[AttackHandler] Executing attack action: " + JSON.stringify({ target: decision.target, attackName: decision.attackName }));
 
     if (!decision.target || !decision.attackName) {
-      console.log("[AttackHandler] Attack failed: missing parameters");
+      aiLog("[AttackHandler] Attack failed: missing parameters");
       return {
         action: decision.action,
         ok: false,
@@ -35,7 +32,7 @@ export class AttackHandler implements AiActionHandler {
     }
 
     if (!actorRef) {
-      console.log("[AttackHandler] Attack failed: invalid combatant reference");
+      aiLog("[AttackHandler] Attack failed: invalid combatant reference");
       return {
         action: decision.action,
         ok: false,
@@ -46,7 +43,7 @@ export class AttackHandler implements AiActionHandler {
 
     const targetCombatant = await deps.findCombatantByName(decision.target, allCombatants);
     if (!targetCombatant) {
-      console.log("[AttackHandler] Attack failed: target not found:", decision.target);
+      aiLog("[AttackHandler] Attack failed: target not found: " + decision.target);
       return {
         action: decision.action,
         ok: false,
@@ -57,7 +54,7 @@ export class AttackHandler implements AiActionHandler {
 
     const targetRef = deps.toCombatantRef(targetCombatant);
     if (!targetRef) {
-      console.log("[AttackHandler] Attack failed: invalid target reference");
+      aiLog("[AttackHandler] Attack failed: invalid target reference");
       return {
         action: decision.action,
         ok: false,
@@ -127,7 +124,7 @@ export class AttackHandler implements AiActionHandler {
       && hasReactionAvailable({ reactionUsed: !!targetResources.reactionUsed } as any);
 
     if ((targetHasShield || targetHasDeflectReaction) && diceRoller) {
-      console.log("[AttackHandler] Target may have reactions (Shield/Deflect) - using two-phase attack flow");
+      aiLog("[AttackHandler] Target may have reactions (Shield/Deflect) - using two-phase attack flow");
 
       const monsterAttacks = await combatantResolver.getAttacks(actorRef);
 
@@ -206,7 +203,7 @@ export class AttackHandler implements AiActionHandler {
     }
 
     // ── Normal flow ─────────────────────────────────────────────────
-    console.log("[AttackHandler] Calling actionService.attack...", { attacker: actorRef, target: targetRef });
+    aiLog("[AttackHandler] Calling actionService.attack... " + JSON.stringify({ attacker: actorRef, target: targetRef }));
     const result = await actionService.attack(sessionId, {
       encounterId,
       attacker: actorRef,
@@ -216,7 +213,7 @@ export class AttackHandler implements AiActionHandler {
     const hit = Boolean((result.result as Record<string, unknown>).hit);
     const damage = hit ? ((result.result as Record<string, unknown>).damage as Record<string, unknown>)?.applied ?? 0 : 0;
 
-    console.log("[AttackHandler] Attack completed:", { hit, damage });
+    aiLog("[AttackHandler] Attack completed: " + JSON.stringify({ hit, damage }));
 
     const bonusResult = await executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
     const mainSummary = hit

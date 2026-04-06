@@ -8,7 +8,7 @@ import type { JsonValue, SessionCharacterRecord } from "../../types.js";
 import { refreshClassResourcePools, spendHitDice, recoverHitDice, detectRestInterruption, type RestType, type RestInterruptionReason } from "../../../domain/rules/rest.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import type { ResourcePool } from "../../../domain/entities/combat/resource-pool.js";
-import type { CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
+import { isCharacterClassId, type CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
 import { getClassDefinition } from "../../../domain/entities/classes/registry.js";
 import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalog.js";
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
@@ -42,6 +42,14 @@ export class CharacterService {
     if (!input.name.trim()) throw new ValidationError("Character name is required");
     if (!Number.isInteger(input.level) || input.level < 1 || input.level > 20) {
       throw new ValidationError("Character level must be 1-20");
+    }
+
+    // Validate className against class registry
+    if (input.className) {
+      const classId = input.className.toLowerCase();
+      if (!isCharacterClassId(classId)) {
+        throw new ValidationError(`Unknown character class: "${input.className}". Valid classes can be found in the class registry.`);
+      }
     }
 
     const id = input.id ?? nanoid();

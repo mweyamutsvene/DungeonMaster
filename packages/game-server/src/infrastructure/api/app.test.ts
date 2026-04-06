@@ -696,6 +696,81 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("POST /sessions/:id/characters rejects invalid className", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "BadClass",
+        level: 1,
+        className: "fihgter",
+        sheet: { hp: 10 },
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).message).toContain("Unknown character class");
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/characters accepts valid className (case-insensitive)", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "ValidFighter",
+        level: 1,
+        className: "Fighter",
+        sheet: { hp: 12 },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/characters accepts null className", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "NoClass",
+        level: 1,
+        sheet: { hp: 6 },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/combat/start validates character combatant ids", async () => {
     const { app } = buildTestApp();
 

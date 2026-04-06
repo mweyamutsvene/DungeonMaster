@@ -73,6 +73,8 @@ export interface AttackResolveOptions {
   targetDefenses?: DamageDefenses;
   /** Distance in feet between attacker and target. Used for auto-crit on Paralyzed/Unconscious. */
   attackerDistance?: number;
+  /** Whether the attacker is the source of a Grappled condition on the target (Grappler feat → advantage). */
+  attackerIsGrapplingTarget?: boolean;
 }
 
 /**
@@ -114,7 +116,19 @@ export function resolveAttack(
         ? "dexterity"
         : "strength"
       : inferredDefault);
-  const baseMode = spec.mode ?? "normal";
+
+  // Compute feat modifiers early so they can influence the attack roll mode
+  const maybeFeatIds = (attacker as unknown as { getFeatIds?: () => readonly string[] }).getFeatIds;
+  const featIds = typeof maybeFeatIds === "function" ? maybeFeatIds.call(attacker) : [];
+  const featMods = computeFeatModifiers(featIds);
+
+  let baseMode: RollMode = spec.mode ?? "normal";
+
+  // Grappler feat: advantage on attack rolls against a creature grappled by you
+  if (featMods.grapplerEnabled && options?.attackerIsGrapplingTarget) {
+    baseMode = baseMode === "disadvantage" ? "normal" : "advantage";
+  }
+
   const mode = getAdjustedMode(attacker, attackAbility, baseMode);
 
   const outcome = rollD20(diceRoller, mode);
@@ -138,10 +152,6 @@ export function resolveAttack(
     }
   }
 
-  const maybeFeatIds = (attacker as unknown as { getFeatIds?: () => readonly string[] }).getFeatIds;
-  const featIds = typeof maybeFeatIds === "function" ? maybeFeatIds.call(attacker) : [];
-  const featMods = computeFeatModifiers(featIds);
-
   let attackBonus = spec.attackBonus;
   if (spec.kind === "ranged") {
     attackBonus += featMods.rangedAttackBonus;
@@ -161,6 +171,20 @@ export function resolveAttack(
     damageDiceCount,
     spec.damage.modifier ?? 0,
   );
+
+  // Savage Attacker: roll weapon damage dice twice, use higher (once per turn).
+  // NOTE: The once-per-turn limitation is not enforced at this level; tracking
+  // should happen in the combat service layer. (TODO)
+  if (hit && featMods.savageAttackerEnabled) {
+    const secondRoll = diceRoller.rollDie(
+      spec.damage.diceSides,
+      damageDiceCount,
+      spec.damage.modifier ?? 0,
+    );
+    if (secondRoll.total > damageRoll.total) {
+      damageRoll = secondRoll;
+    }
+  }
 
   // Great Weapon Fighting: treat any 1-2 on weapon damage dice as 3.
   if (

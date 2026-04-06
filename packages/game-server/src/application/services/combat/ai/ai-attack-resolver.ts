@@ -175,9 +175,7 @@ export class AiAttackResolver {
     const attackBonus = attackBonusBase + effectAtkBonus + getExhaustionD20Penalty(attackerConditions);
     const attackTotal = d20 + attackBonus;
 
-    console.log(
-      `[AiAttackResolver] d20=${d20} + ${attackBonusBase} + effect(${effectAtkBonus}) = ${attackTotal}${rollMode !== "normal" ? ` [${rollMode}]` : ""}`,
-    );
+    aiLog(`[AiAttackResolver] d20=${d20} + ${attackBonusBase} + effect(${effectAtkBonus}) = ${attackTotal}${rollMode !== "normal" ? ` [${rollMode}]` : ""}`);
 
     // Get target AC
     const targetResources = normalizeResources(targetCombatant.resources);
@@ -212,7 +210,7 @@ export class AiAttackResolver {
 
     // ── MISS ──
     if (initiateResult.status === "miss") {
-      console.log("[AiAttackResolver] Attack missed, no reaction opportunity");
+      aiLog("[AiAttackResolver] Attack missed, no reaction opportunity");
 
       if (events) {
         await events.append(sessionId, {
@@ -243,7 +241,7 @@ export class AiAttackResolver {
 
     // ── AWAITING REACTIONS (Shield / Deflect Attacks) ──
     if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
-      console.log("[AiAttackResolver] Awaiting player reaction");
+      aiLog("[AiAttackResolver] Awaiting player reaction");
 
       const pendingAction = await pendingActions.getById(initiateResult.pendingActionId);
       if (pendingAction) {
@@ -280,7 +278,7 @@ export class AiAttackResolver {
 
     // ── HIT (no reaction triggered) ──
     if (initiateResult.status === "hit") {
-      console.log("[AiAttackResolver] Hit with no reaction, resolving damage");
+      aiLog("[AiAttackResolver] Hit with no reaction, resolving damage");
 
       const effectiveDiceCount = critical ? diceCount * 2 : diceCount;
       const damageRoll = diceRoller.rollDie(diceSides, effectiveDiceCount, modifier);
@@ -504,7 +502,7 @@ export class AiAttackResolver {
                   target: targetRef,
                 });
 
-                console.log(`[AiAttackResolver] Damage reaction (${dr.reactionType}) pending`);
+                aiLog(`[AiAttackResolver] Damage reaction (${dr.reactionType}) pending`);
                 return {
                   status: "awaiting_damage_reaction",
                   pendingActionId: drResult.pendingActionId,

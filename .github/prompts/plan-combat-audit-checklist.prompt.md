@@ -175,11 +175,13 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-M4]** War Caster feat entirely missing — no `FEAT_WAR_CASTER` constant, no advantage on CON concentration saves pathway, no spell-as-OA reaction handler.
   - File: `domain/rules/feat-modifiers.ts`
 
-- [ ] **[RULES-M5]** Savage Attacker feat tracked but never applied — `savageAttackerEnabled` is in `FeatModifiers` but `attack-resolver.ts` never reads it (reroll damage once per turn, use higher).
+- [x] **[RULES-M5]** Savage Attacker feat tracked but never applied — `savageAttackerEnabled` is in `FeatModifiers` but `attack-resolver.ts` never reads it (reroll damage once per turn, use higher).
   - File: `domain/rules/feat-modifiers.ts:70`, `domain/combat/attack-resolver.ts`
+  - Fix: After initial damage roll, if `savageAttackerEnabled` and hit, rolls damage a second time and keeps the higher total. Added 3 tests.
 
-- [ ] **[RULES-M6]** Grappler feat tracked but never applied — `grapplerEnabled` is in `FeatModifiers` but `grapple-shove.ts` never grants attack advantage vs grappled target.
-  - File: `domain/rules/feat-modifiers.ts:72`, `domain/rules/grapple-shove.ts`
+- [x] **[RULES-M6]** Grappler feat tracked but never applied — `grapplerEnabled` is in `FeatModifiers` but `grapple-shove.ts` never grants attack advantage vs grappled target.
+  - File: `domain/rules/feat-modifiers.ts:72`, `domain/combat/attack-resolver.ts`
+  - Fix: Added `attackerIsGrapplingTarget` option to `AttackResolveOptions`. When grappler feat + grappling, adjusts attack mode to advantage. Added 4 tests.
 
 - [ ] **[RULES-M7]** Resilient feat entirely missing — no save proficiency modeling (`savingThrowProficiencies` field doesn't exist in `FeatModifiers`). Very common feat that affects concentration and death saves.
   - File: `domain/rules/feat-modifiers.ts`
@@ -261,8 +263,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[AI-M5]** Legacy bonus action string matching in `ai-action-executor.ts` — `if/else` chain for `nimble_escape_disengage`, `cunning_action_dash`, etc. bypasses `AbilityRegistry`. New abilities require new `if` branch.
   - File: `application/services/combat/ai/ai-action-executor.ts`
 
-- [ ] **[AI-M6]** Unconditional `console.log` calls in production — 13 calls in `attack-handler.ts` and `ai-attack-resolver.ts` bypass the `aiLog` debug gate. Fire on every AI attack in production.
+- [x] **[AI-M6]** Unconditional `console.log` calls in production — 13 calls in `attack-handler.ts` and `ai-attack-resolver.ts` bypass the `aiLog` debug gate. Fire on every AI attack in production.
   - File: `application/services/combat/ai/handlers/attack-handler.ts`, `application/services/combat/ai/ai-attack-resolver.ts`
+  - Fix: Replaced all 13 `console.log` calls with `aiLog(...)` in both files.
 
 - [ ] **[AI-M7]** Mock LLM `setDefaultBehavior()` union missing action types — `shove`, `dodge`, `dash`, `disengage`, `help`, `search` can't be scripted as defaults in test scenarios.
   - File: `application/services/combat/ai/mocks/index.ts`
@@ -301,8 +304,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ENT-M2]** `ICharacterRepository` and `IMonsterRepository` missing `delete()` — characters and monsters added to a session cannot be removed. Only NPCs support deletion.
   - File: `application/repositories/character-repository.ts`, `application/repositories/monster-repository.ts`
 
-- [ ] **[ENT-M3]** `className` not validated against class registry in `CharacterService.addCharacter()` — any string accepted. Characters with invalid class IDs get no resource pools at combat start.
+- [x] **[ENT-M3]** `className` not validated against class registry in `CharacterService.addCharacter()` — any string accepted. Characters with invalid class IDs get no resource pools at combat start.
   - File: `application/services/entities/character-service.ts:32-74`
+  - Fix: Added `isCharacterClassId()` validation after level check. Invalid class names throw `ValidationError`. null/undefined still accepted. Added 3 API-level tests.
 
 - [ ] **[ENT-M4]** Rest operation not transactional — `takeSessionRest()` loops with multiple `characters.updateSheet()` calls. Crash mid-rest leaves some characters restored and others not.
   - File: `application/services/entities/character-service.ts`

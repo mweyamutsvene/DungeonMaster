@@ -451,6 +451,163 @@ describe("resolveAttack", () => {
     expect(result.hit).toBe(false);
     expect(result.critical).toBe(false);
   });
+
+  it("Savage Attacker uses higher of two damage rolls", () => {
+    // Custom roller: d20 returns 15 (hit), first rollDie returns low (3), second returns high (8).
+    let rollDieCallCount = 0;
+    const dice: DiceRoller = {
+      d20(modifier = 0) {
+        return { total: 15 + modifier, rolls: [15] };
+      },
+      rollDie(_sides: number, count = 1, modifier = 0) {
+        rollDieCallCount++;
+        if (rollDieCallCount === 1) {
+          // First damage roll: low
+          const rolls = Array.from({ length: count }, () => 3);
+          return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+        }
+        // Second damage roll: high
+        const rolls = Array.from({ length: count }, () => 8);
+        return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+      },
+    };
+
+    const attacker = new Character({
+      id: "sa1",
+      name: "Savage",
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_savage-attacker"],
+    });
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 2 },
+    });
+
+    expect(result.hit).toBe(true);
+    // Should use the higher second roll: 8 + 2 = 10 (not first roll: 3 + 2 = 5)
+    expect(result.damage.applied).toBe(10);
+    expect(result.damage.roll.rolls).toEqual([8]);
+    expect(rollDieCallCount).toBe(2);
+  });
+
+  it("Savage Attacker keeps first roll when it is higher", () => {
+    let rollDieCallCount = 0;
+    const dice: DiceRoller = {
+      d20(modifier = 0) {
+        return { total: 15 + modifier, rolls: [15] };
+      },
+      rollDie(_sides: number, count = 1, modifier = 0) {
+        rollDieCallCount++;
+        if (rollDieCallCount === 1) {
+          // First damage roll: high
+          const rolls = Array.from({ length: count }, () => 7);
+          return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+        }
+        // Second damage roll: low
+        const rolls = Array.from({ length: count }, () => 2);
+        return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+      },
+    };
+
+    const attacker = new Character({
+      id: "sa2",
+      name: "Savage2",
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_savage-attacker"],
+    });
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 2 },
+    });
+
+    expect(result.hit).toBe(true);
+    // Should keep the first roll: 7 + 2 = 9 (not second: 2 + 2 = 4)
+    expect(result.damage.applied).toBe(9);
+    expect(result.damage.roll.rolls).toEqual([7]);
+  });
+
+  it("Savage Attacker does not trigger on miss", () => {
+    let rollDieCallCount = 0;
+    const dice: DiceRoller = {
+      d20(modifier = 0) {
+        return { total: 2 + modifier, rolls: [2] };
+      },
+      rollDie(_sides: number, count = 1, modifier = 0) {
+        rollDieCallCount++;
+        const rolls = Array.from({ length: count }, () => 1);
+        return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+      },
+    };
+
+    const attacker = new Character({
+      id: "sa3",
+      name: "Savage3",
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_savage-attacker"],
+    });
+    const target = makeNpc("target", 18);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 0,
+      damage: { diceCount: 1, diceSides: 8, modifier: 0 },
+    });
+
+    expect(result.hit).toBe(false);
+    // Only one rollDie call (the initial damage roll), no second Savage Attacker roll
+    expect(rollDieCallCount).toBe(1);
+  });
 });
 
 describe("isAutoCriticalHit", () => {
@@ -482,5 +639,96 @@ describe("isAutoCriticalHit", () => {
     const target = makeNpc("target", 10);
     target.addCondition("stunned");
     expect(isAutoCriticalHit(target, "melee", 5)).toBe(false);
+  });
+});
+
+describe("Grappler feat advantage", () => {
+  function makeGrappler(id: string): Character {
+    return new Character({
+      id,
+      name: id,
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_grappler"],
+    });
+  }
+
+  it("grants advantage when attacker has Grappler feat and is grappling target", () => {
+    // Advantage picks higher: 15 vs 5 → 15
+    const dice = new SequenceDiceRoller([15, 5]);
+    const attacker = makeGrappler("grappler");
+    const target = makeNpc("target", 14);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 0,
+      damage: { diceCount: 1, diceSides: 6, modifier: 0 },
+    }, { attackerIsGrapplingTarget: true });
+
+    expect(result.hit).toBe(true);
+    expect(result.attack.d20).toBe(15);
+  });
+
+  it("does not grant advantage without Grappler feat even when grappling", () => {
+    const dice = new SequenceDiceRoller([5]);
+    const attacker = makeNpc("attacker", 10);
+    const target = makeNpc("target", 14);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 0,
+      damage: { diceCount: 1, diceSides: 6, modifier: 0 },
+    }, { attackerIsGrapplingTarget: true });
+
+    // No advantage, single roll of 5
+    expect(result.hit).toBe(false);
+    expect(result.attack.d20).toBe(5);
+  });
+
+  it("does not grant advantage with Grappler feat when not grappling target", () => {
+    const dice = new SequenceDiceRoller([5]);
+    const attacker = makeGrappler("grappler");
+    const target = makeNpc("target", 14);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 0,
+      damage: { diceCount: 1, diceSides: 6, modifier: 0 },
+    });
+
+    // No advantage, single roll of 5
+    expect(result.hit).toBe(false);
+    expect(result.attack.d20).toBe(5);
+  });
+
+  it("neutralizes disadvantage to normal when grappler feat + grappling + disadvantage", () => {
+    const dice = new SequenceDiceRoller([15]);
+    const attacker = makeGrappler("grappler");
+    const target = makeNpc("target", 14);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      mode: "disadvantage",
+      attackBonus: 0,
+      damage: { diceCount: 1, diceSides: 6, modifier: 0 },
+    }, { attackerIsGrapplingTarget: true });
+
+    // Disadvantage + advantage cancel to normal → single roll of 15
+    expect(result.hit).toBe(true);
+    expect(result.attack.d20).toBe(15);
   });
 });
