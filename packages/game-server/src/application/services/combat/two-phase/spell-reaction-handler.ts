@@ -85,7 +85,7 @@ export class SpellReactionHandler {
       const otherResources = normalizeResources(other.resources);
       const hasReaction = hasReactionAvailable({ reactionUsed: false, ...otherResources } as any);
 
-      if (!hasReaction || other.combatantType !== "Character") continue;
+      if (!hasReaction) continue;
 
       const otherRef: CombatantRef = other.characterId
         ? { type: "Character", characterId: other.characterId }
@@ -108,7 +108,7 @@ export class SpellReactionHandler {
         abilityScores: (otherStats.abilityScores ?? {}) as Record<string, number>,
         resources: otherResources,
         hasReaction,
-        isCharacter: true,
+        isCharacter: other.combatantType === "Character",
         spellName: input.spellName,
         spellLevel: input.spellLevel,
         casterId: actor.id,

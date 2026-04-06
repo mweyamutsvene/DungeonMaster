@@ -152,8 +152,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/entities/classes/monk.ts`
   - Fix: Replaced raw string check with `classHasFeature(input.className, DEFLECT_ATTACKS, input.level)`. Registry refactored to lazy-init to resolve circular dependency.
 
-- [ ] **[CLASS-H6]** Initiative tie-breaking uses alphabetical ID, not DEX score — D&D 2024 ties should break on DEX score (higher DEX first).
+- [x] **[CLASS-H6]** Initiative tie-breaking uses alphabetical ID, not DEX score — D&D 2024 ties should break on DEX score (higher DEX first).
   - File: `domain/combat/initiative.ts:18`
+  - Fix: Updated sort comparator to break ties by DEX score first (higher first), then alphabetical ID as final fallback. Added 2 tests.
 
 ---
 
@@ -161,8 +162,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Missing Combat Rules
 
-- [ ] **[RULES-M1]** Expert skills (Rogue Expertise / Bard Expertise) not modeled — `AbilityCheckOptions` only has `proficient: boolean`. No `expertise: boolean` that doubles proficiency. All Rogue/Bard skill rolls compute wrong modifier.
+- [x] **[RULES-M1]** Expert skills (Rogue Expertise / Bard Expertise) not modeled — `AbilityCheckOptions` only has `proficient: boolean`. No `expertise: boolean` that doubles proficiency. All Rogue/Bard skill rolls compute wrong modifier.
   - File: `domain/rules/ability-checks.ts:34-37`
+  - Fix: Added `expertise?: boolean` to all 4 check interfaces and updated `abilityCheck()` to double proficiency bonus when both `proficient` and `expertise` are true. Added 2 tests.
 
 - [ ] **[RULES-M2]** Creature-based cover not computed — `getCoverLevel()` only ray-marches terrain cells, never consults the `MapEntity[]` list. Intervening Large creatures should grant half cover (+2 AC).
   - File: `domain/rules/combat-map-sight.ts`
@@ -187,8 +189,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Missing Spell System Features
 
-- [ ] **[SPELL-M1]** Concentration not cleared on long/short rest — `breakConcentration()` is never called during rest processing. Active concentration persists into next session.
+- [x] **[SPELL-M1]** Concentration not cleared on long/short rest — `breakConcentration()` is never called during rest processing. Active concentration persists into next session.
   - File: `application/services/entities/character-service.ts` (rest handling)
+  - Fix: Added concentration clearing in the POST rest route handler after `takeSessionRest()` completes. Finds active encounter, iterates combatants with `concentrationSpellName`, calls `breakConcentration()`.
 
 - [ ] **[SPELL-M2]** Pact Magic slot level validation absent — `prepareSpellCast()` only checks `hasResourceAvailable(resources, "pactMagic", 1)` without verifying slot level ≥ required spell level.
   - File: `application/services/combat/helpers/spell-slot-manager.ts:115-125`
@@ -205,8 +208,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[SPELL-M6]** AoE healing not implemented — `HealingSpellDeliveryHandler` can't handle spells with both `healing` and `area` set (Mass Cure Wounds, Prayer of Healing). Throws `ValidationError` for missing `targetName`.
   - File: `application/services/combat/tabletop/spell-delivery/healing-spell-delivery-handler.ts`
 
-- [ ] **[SPELL-M7]** Monsters excluded as counterspellers — `SpellReactionHandler` checks `other.combatantType !== "Character"` and skips all monsters. Archmage, Lich, etc. cannot counter enemy spells.
+- [x] **[SPELL-M7]** Monsters excluded as counterspellers — `SpellReactionHandler` checks `other.combatantType !== "Character"` and skips all monsters. Archmage, Lich, etc. cannot counter enemy spells.
   - File: `application/services/combat/two-phase/spell-reaction-handler.ts:79`
+  - Fix: Removed combatant type gate. All combatant types (Character/Monster/NPC) can now counterspell if they have reaction, Counterspell prepared, and spell slots.
 
 - [ ] **[SPELL-M8]** Self-buff spells without `effects[]` array are silently no-ops — no guard or warning emitted when a buff/debuff spell is cast with no effects defined.
   - File: `application/services/combat/tabletop/spell-action-handler.ts`, `application/services/combat/tabletop/spell-delivery/buff-debuff-spell-delivery-handler.ts`

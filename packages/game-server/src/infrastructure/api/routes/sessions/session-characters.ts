@@ -13,6 +13,7 @@
 import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { ValidationError } from "../../../../application/errors.js";
+import { breakConcentration, getConcentrationSpellName } from "../../../../application/services/combat/helpers/concentration-helper.js";
 
 export function registerSessionCharacterRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
   /**
@@ -141,13 +142,30 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
 
     const startedAt = restStartedAt ? new Date(restStartedAt) : undefined;
 
+    let result: Awaited<ReturnType<typeof deps.characters.takeSessionRest>>;
+
     if (deps.unitOfWork) {
-      return deps.unitOfWork.run(async (repos) => {
+      result = await deps.unitOfWork.run(async (repos) => {
         const services = deps.createServicesForRepos(repos);
         return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
       });
+    } else {
+      result = await deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
     }
 
-    return deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
+    // Clear concentration on all combatants in any active encounter (D&D 5e: rest ends concentration)
+    if (!result.interrupted) {
+      const activeEncounter = await deps.combatRepo.findActiveEncounter(sessionId);
+      if (activeEncounter) {
+        const combatants = await deps.combatRepo.listCombatants(activeEncounter.id);
+        for (const c of combatants) {
+          if (getConcentrationSpellName(c.resources)) {
+            await breakConcentration(c, activeEncounter.id, deps.combatRepo);
+          }
+        }
+      }
+    }
+
+    return result;
   });
 }

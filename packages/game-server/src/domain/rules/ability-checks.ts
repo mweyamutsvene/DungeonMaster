@@ -28,6 +28,7 @@ export interface AbilityCheckOptions {
   abilityModifier: number;
   proficiencyBonus?: number;
   proficient?: boolean;
+  expertise?: boolean;
   mode?: RollMode;
 }
 
@@ -45,7 +46,10 @@ export function abilityCheck(
     throw new Error("Proficiency bonus must be an integer >= 0");
   }
 
-  const modifier = options.abilityModifier + (proficient ? proficiencyBonus : 0);
+  const effectiveBonus = proficient
+    ? (options.expertise ? proficiencyBonus * 2 : proficiencyBonus)
+    : 0;
+  const modifier = options.abilityModifier + effectiveBonus;
   return d20Test(diceRoller, options.dc, modifier, options.mode ?? "normal");
 }
 
@@ -55,6 +59,7 @@ export interface SkillCheckOptions {
   skill: Skill;
   proficiencyBonus?: number;
   proficient?: boolean;
+  expertise?: boolean;
   mode?: RollMode;
 }
 
@@ -74,6 +79,7 @@ export function skillCheck(
     abilityModifier,
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
+    expertise: options.expertise,
     mode: options.mode,
   });
 }
@@ -103,6 +109,7 @@ export interface CreatureAbilityCheckOptions {
   abilityModifier: number;
   proficiencyBonus?: number;
   proficient?: boolean;
+  expertise?: boolean;
   mode?: RollMode;
 }
 
@@ -117,6 +124,7 @@ export function abilityCheckForCreature(
     abilityModifier: options.abilityModifier,
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
+    expertise: options.expertise,
     mode,
   });
 }
@@ -127,6 +135,7 @@ export interface CreatureSkillCheckOptions {
   skill: Skill;
   proficiencyBonus?: number;
   proficient?: boolean;
+  expertise?: boolean;
   mode?: RollMode;
 }
 
@@ -143,6 +152,7 @@ export function skillCheckForCreature(
     abilityModifiers: options.abilityModifiers,
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
+    expertise: options.expertise,
     mode,
   });
 }

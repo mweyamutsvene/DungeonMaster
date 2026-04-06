@@ -21,6 +21,38 @@ describe("ability-checks", () => {
     expect(r.success).toBe(true);
   });
 
+  it("abilityCheck doubles proficiency bonus with expertise", () => {
+    const dice = new FixedDiceRoller(10);
+
+    const r = abilityCheck(dice, {
+      dc: 18,
+      abilityModifier: 2,
+      proficiencyBonus: 3,
+      proficient: true,
+      expertise: true,
+    });
+
+    // 10 + 2 + (3 * 2) = 18
+    expect(r.total).toBe(18);
+    expect(r.success).toBe(true);
+  });
+
+  it("abilityCheck ignores expertise when not proficient", () => {
+    const dice = new FixedDiceRoller(10);
+
+    const r = abilityCheck(dice, {
+      dc: 13,
+      abilityModifier: 2,
+      proficiencyBonus: 3,
+      proficient: false,
+      expertise: true,
+    });
+
+    // 10 + 2 + 0 (expertise ignored without proficiency)
+    expect(r.total).toBe(12);
+    expect(r.success).toBe(false);
+  });
+
   it("skillCheck resolves governing ability", () => {
     const dice = new FixedDiceRoller(8);
 

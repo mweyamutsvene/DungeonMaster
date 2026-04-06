@@ -115,7 +115,7 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
   reactionType: "counterspell",
   classId: "wizard",
   detect(input: SpellReactionInput): DetectedSpellReaction | null {
-    if (!input.hasReaction || !input.isCharacter) return null;
+    if (!input.hasReaction) return null;
 
     // Check hasCounterspellPrepared flag
     if (input.resources.hasCounterspellPrepared !== true) return null;

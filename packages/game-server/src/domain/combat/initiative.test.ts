@@ -43,3 +43,32 @@ describe("rollInitiative (feats)", () => {
     expect(byId.get("b")).toBe(10);
   });
 });
+
+describe("rollInitiative (tie-breaking)", () => {
+  it("breaks initiative ties by DEX score (higher DEX first)", () => {
+    const dice = new FixedDiceRoller(10);
+    const lowDex = makeCharacter({ id: "a", dex: 10 });
+    const highDex = makeCharacter({ id: "b", dex: 16 });
+
+    // Both roll 10 on d20; lowDex gets 10+0=10, highDex gets 10+3=13 → different initiatives.
+    // To test tie-breaking, we need same initiative. Use dex values that give same modifier.
+    const dex12 = makeCharacter({ id: "x", dex: 12 }); // mod +1 → initiative 11
+    const dex13 = makeCharacter({ id: "y", dex: 13 }); // mod +1 → initiative 11
+
+    const entries = rollInitiative(dice, [dex12, dex13]);
+    // Same initiative (11), tie-break by DEX score: 13 > 12, so "y" goes first.
+    expect(entries[0].creature.getId()).toBe("y");
+    expect(entries[1].creature.getId()).toBe("x");
+  });
+
+  it("falls back to alphabetical ID when initiative and DEX are equal", () => {
+    const dice = new FixedDiceRoller(10);
+    const c1 = makeCharacter({ id: "bravo", dex: 14 });
+    const c2 = makeCharacter({ id: "alpha", dex: 14 });
+
+    const entries = rollInitiative(dice, [c1, c2]);
+    // Same initiative (12), same DEX (14), fall back to alphabetical: "alpha" < "bravo".
+    expect(entries[0].creature.getId()).toBe("alpha");
+    expect(entries[1].creature.getId()).toBe("bravo");
+  });
+});
