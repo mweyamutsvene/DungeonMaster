@@ -11,6 +11,7 @@
  * - DELETE /sessions/:id/characters/:charId/inventory/:itemName — Remove item
  * - PATCH /sessions/:id/characters/:charId/inventory/:itemName  — Equip/attune
  * - POST /sessions/:id/characters/:charId/inventory/:itemName/use-charge — Decrement charges
+ * - POST /sessions/:id/characters/:charId/inventory/:itemName/use       — Use a consumable item (potion, etc.)
  */
 
 import type { FastifyInstance } from "fastify";
@@ -23,9 +24,11 @@ import {
   findInventoryItem,
   getAttunedCount,
   useItemCharge,
+  useConsumableItem,
   MAX_ATTUNEMENT_SLOTS,
 } from "../../../../domain/entities/items/inventory.js";
 import { recomputeArmorFromInventory } from "../../../../domain/entities/items/armor-catalog.js";
+import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
 
 function getInventoryFromSheet(sheet: Record<string, unknown>): CharacterItemInstance[] {
   return Array.isArray(sheet.inventory) ? (sheet.inventory as CharacterItemInstance[]) : [];
@@ -257,5 +260,86 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
     await saveInventory(deps, char.id, sheet, updatedInventory);
 
     return { item: updatedItem, inventory: updatedInventory };
+  });
+
+  /**
+   * POST /sessions/:id/characters/:charId/inventory/:itemName/use
+   * Use a consumable item (e.g., drink a potion). Applies potion effects
+   * (healing, temp HP, etc.) and removes one from inventory.
+   *
+   * Out-of-combat only — in combat, use the tabletop "use item" action.
+   */
+  app.post<{
+    Params: { id: string; charId: string; itemName: string };
+  }>("/sessions/:id/characters/:charId/inventory/:itemName/use", async (req) => {
+    const char = await deps.charactersRepo.getById(req.params.charId);
+    if (!char || char.sessionId !== req.params.id) {
+      throw new NotFoundError(`Character not found: ${req.params.charId}`);
+    }
+
+    const sheet = (char.sheet as Record<string, unknown>) ?? {};
+    const inventory = getInventoryFromSheet(sheet);
+    const itemName = decodeURIComponent(req.params.itemName);
+
+    const item = findInventoryItem(inventory, itemName);
+    if (!item) {
+      throw new NotFoundError(`Item "${itemName}" not found in inventory`);
+    }
+
+    // Look up magic item definition to check if it's consumable
+    const itemDef = item.magicItemId
+      ? lookupMagicItem(item.name) ?? lookupMagicItem(itemName)
+      : lookupMagicItem(itemName);
+
+    if (!itemDef?.potionEffects && itemDef?.category !== "potion") {
+      throw new ValidationError(
+        `Cannot use "${itemName}" — only consumable items (potions) can be used this way`,
+      );
+    }
+
+    // Consume one from inventory
+    const { updatedInventory, consumed } = useConsumableItem(inventory, itemName);
+
+    const effects: string[] = [];
+    let hpCurrent = typeof sheet.currentHp === "number" ? sheet.currentHp : (sheet.maxHp as number);
+    const hpMax = (sheet.maxHp as number) ?? hpCurrent;
+
+    // Apply healing
+    if (itemDef?.potionEffects?.healing) {
+      const formula = itemDef.potionEffects.healing;
+      const diceRoller = deps.diceRoller;
+      if (!diceRoller) {
+        throw new ValidationError("Dice roller not configured");
+      }
+      const roll = diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
+      const hpBefore = hpCurrent;
+      hpCurrent = Math.min(hpMax, hpCurrent + roll.total);
+      const actualHeal = hpCurrent - hpBefore;
+      effects.push(`healed ${actualHeal} HP (rolled ${roll.total})`);
+    }
+
+    // Apply temp HP
+    if (itemDef?.potionEffects?.tempHp && itemDef.potionEffects.tempHp > 0) {
+      const existingTempHp = typeof sheet.tempHp === "number" ? (sheet.tempHp as number) : 0;
+      const newTempHp = Math.max(existingTempHp, itemDef.potionEffects.tempHp);
+      (sheet as Record<string, unknown>).tempHp = newTempHp;
+      effects.push(`gained ${itemDef.potionEffects.tempHp} temporary HP`);
+    }
+
+    // Persist updated sheet
+    const updatedSheet = {
+      ...sheet,
+      inventory: updatedInventory,
+      currentHp: hpCurrent,
+    };
+    await deps.charactersRepo.updateSheet(char.id, updatedSheet);
+
+    return {
+      used: consumed.name,
+      effects,
+      hpCurrent,
+      hpMax,
+      inventory: updatedInventory,
+    };
   });
 }

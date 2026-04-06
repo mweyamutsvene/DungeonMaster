@@ -12,6 +12,10 @@ import type { CharacterItemInstance, MagicItemDefinition } from "./magic-item.js
 /**
  * A tracked item in a combatant's inventory (stored in resources.inventory).
  * Used for consumable/quantity-tracked items like thrown weapons and ammunition.
+ *
+ * @deprecated Use {@link CharacterItemInstance} from `./magic-item.js` instead.
+ * This interface is unused — no files import it. Retained only as documentation
+ * of the old thrown-weapon/ammo shape. Will be removed in a future cleanup.
  */
 export interface InventoryItem {
   /** Item name (matches weapon/attack name) */

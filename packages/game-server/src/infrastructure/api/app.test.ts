@@ -3181,4 +3181,109 @@ describe("game-server api", () => {
 
     await app.close();
   });
+
+  it("POST use consumes a potion and applies healing", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Wounded",
+        level: 3,
+        className: "fighter",
+        sheet: {
+          maxHp: 30,
+          currentHp: 10,
+          inventory: [
+            { name: "Potion of Healing", magicItemId: "potion-of-healing", equipped: false, attuned: false, quantity: 2 },
+          ],
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    // Use the potion — FixedDiceRoller(10) → 2d4+2 = 10+10+2 = 22
+    const res = await app.inject({
+      method: "POST",
+      url: `${invUrl}/Potion%20of%20Healing/use`,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.used).toBe("Potion of Healing");
+    expect(body.hpCurrent).toBe(30); // 10 + 22 capped at 30
+    expect(body.hpMax).toBe(30);
+    expect(body.effects.length).toBeGreaterThan(0);
+    expect(body.effects[0]).toContain("healed");
+    // Quantity decremented from 2 → 1
+    expect(body.inventory).toHaveLength(1);
+    expect(body.inventory[0].quantity).toBe(1);
+
+    await app.close();
+  });
+
+  it("POST use returns 404 for non-existent item", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Empty",
+        level: 1,
+        className: "fighter",
+        sheet: { maxHp: 20, inventory: [] },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters/${charId}/inventory/Ghost%20Potion/use`,
+    });
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as any).message).toContain("not found");
+
+    await app.close();
+  });
+
+  it("POST use returns 400 for non-consumable items", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Warrior",
+        level: 3,
+        className: "fighter",
+        sheet: {
+          maxHp: 30,
+          inventory: [
+            { name: "Longsword", equipped: true, attuned: false, quantity: 1 },
+          ],
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters/${charId}/inventory/Longsword/use`,
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).message).toContain("Cannot use");
+
+    await app.close();
+  });
 });
