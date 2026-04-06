@@ -387,8 +387,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L11]** 4 PromptBuilder migration TODOs — `battle-planner.ts`, `character-generator.ts`, `intent-parser.ts`, `narrative-generator.ts`, `story-generator.ts` all have TODO to migrate to `PromptBuilder`.
   - File: `infrastructure/llm/battle-planner.ts:70`, etc.
 
-- [ ] **[CLEAN-L12]** AI LLM retry uses same parameters — retry `options` (model/temp/seed) are identical to initial call. Retry won't produce different results. Consider temperature increase on retry.
+- [x] **[CLEAN-L12]** AI LLM retry uses same parameters — retry `options` (model/temp/seed) are identical to initial call. Retry won't produce different results. Consider temperature increase on retry.
   - File: `application/services/combat/ai/llm/ai-decision-maker.ts:77`
+  - Fix: On retry, temperature bumped by +0.15 (capped at 1.0) via `retryOptions` object.
 
 - [x] **[CLEAN-L13]** `INITIATIVE → INITIATIVE_SWAP` transition bypasses `assertValidTransition()` — `InitiativeHandler` calls `combat.setPendingAction(INITIATIVE_SWAP)` directly, skipping the state machine guard.
   - File: `application/services/combat/tabletop/rolls/initiative-handler.ts`
@@ -399,8 +400,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-L1]** Lucky feat entirely missing — 3 luck points, reroll d20 on attack/check/save or impose reroll on attacker.
   - File: `domain/rules/feat-modifiers.ts`
 
-- [ ] **[RULES-L2]** Tough feat entirely missing — +2 max HP per level. Very common feat.
+- [x] **[RULES-L2]** Tough feat entirely missing — +2 max HP per level. Very common feat.
   - File: `domain/rules/feat-modifiers.ts`, `domain/rules/hit-points.ts`
+  - Fix: Added `FEAT_TOUGH` constant, `toughEnabled` field, `computeToughBonusHP(level)` function returning `level * 2`. 3 new tests.
 
 - [ ] **[RULES-L3]** `elevated` and `pit` terrain types exist in `TerrainType` but have no mechanical function — no elevation attack bonus, no pit fall effect.
   - File: `domain/rules/combat-map-types.ts:15-16`, `domain/rules/combat-map-core.ts`
@@ -412,8 +414,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-L5]** Forced movement not grid-aligned, no obstacle collision — `pushAwayFrom()` / `pullToward()` compute continuous vector offset without snapping to 5ft grid or stopping at walls.
   - File: `domain/combat/movement.ts:152-198`
 
-- [ ] **[RULES-L6]** Exhaustion level 6 speed reduction incomplete — `getExhaustionSpeedReduction(6) = 30`. Creatures with speed > 30ft (Monk with Unarmored Movement) may not reach 0 speed at level 6 before death fires separately.
+- [x] **[RULES-L6]** Exhaustion level 6 speed reduction incomplete — `getExhaustionSpeedReduction(6) = 30`. Creatures with speed > 30ft (Monk with Unarmored Movement) may not reach 0 speed at level 6 before death fires separately.
   - File: `domain/entities/combat/conditions.ts:487-494`
+  - Fix: Returns `Infinity` at level 6 (death level), zeroing out any creature speed via existing `Math.max(0, speed - reduction)` callsite.
 
 - [ ] **[RULES-L7]** Long rest interrupted by spellcasting not tracked — acknowledged in code comment. `SpellCast` event type doesn't exist; only `DamageApplied` triggers rest interruption.
   - File: `domain/rules/rest.ts:153`
@@ -434,8 +437,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[AI-L2]** Multiple encounter loads per AI turn loop — `getEncounterById()` + `listCombatants()` called 3+ times at outer loop level. Should be batched or cached per turn.
   - File: `application/services/combat/ai/ai-turn-orchestrator.ts`
 
-- [ ] **[AI-L3]** `listCreatureAbilities()` silently swallows all exceptions in AI context build — `catch { // Ignore errors }` hides performance and logic issues.
+- [x] **[AI-L3]** `listCreatureAbilities()` silently swallows all exceptions in AI context build — `catch { // Ignore errors }` hides performance and logic issues.
   - File: `application/services/combat/ai/ai-context-builder.ts`
+  - Fix: Added `aiDebugEnabled` flag; 6 silent catch blocks now emit `console.debug()` when `DM_AI_DEBUG=1`.
 
 - [ ] **[AI-L4]** Counterspell default INT ability for non-Wizard casters — Warlock/Cleric Counterspell uses wrong ability modifier for the optional Arcana check.
   - File: `application/services/combat/two-phase/spell-reaction-handler.ts:295`

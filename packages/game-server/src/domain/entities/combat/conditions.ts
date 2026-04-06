@@ -505,11 +505,13 @@ export function getExhaustionPenalty(level: number): number {
 
 /**
  * D&D 2024 Exhaustion: Speed reduced by 5 × level feet.
+ * At level 6 (lethal), returns Infinity so any creature speed is zeroed out.
  * @param level - Exhaustion level (1-6)
- * @returns The speed reduction in feet (positive number)
+ * @returns The speed reduction in feet (positive number, or Infinity at level 6)
  */
 export function getExhaustionSpeedReduction(level: number): number {
   const clamped = Math.max(0, Math.min(6, Math.floor(level)));
+  if (clamped >= 6) return Infinity;
   return clamped * 5;
 }
 

@@ -14,6 +14,7 @@ import {
   FEAT_GREAT_WEAPON_FIGHTING,
   FEAT_PROTECTION,
   FEAT_RESILIENT,
+  FEAT_TOUGH,
   FEAT_TWO_WEAPON_FIGHTING,
 } from "./feat-modifiers.js";
 
@@ -89,6 +90,18 @@ describe("Fighting Style feat modifiers", () => {
     it("does not enable Resilient without the feat", () => {
       const mods = computeFeatModifiers([]);
       expect(mods.resilientEnabled).toBe(false);
+    });
+  });
+
+  describe("Tough", () => {
+    it("enables Tough when feat is present", () => {
+      const mods = computeFeatModifiers([FEAT_TOUGH]);
+      expect(mods.toughEnabled).toBe(true);
+    });
+
+    it("does not enable Tough without the feat", () => {
+      const mods = computeFeatModifiers([]);
+      expect(mods.toughEnabled).toBe(false);
     });
   });
 });

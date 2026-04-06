@@ -23,6 +23,11 @@ import { getInventory } from "../helpers/resource-utils.js";
 import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
 
 export class AiContextBuilder {
+  private readonly aiDebugEnabled =
+    process.env.DM_AI_DEBUG === "1" ||
+    process.env.DM_AI_DEBUG === "true" ||
+    process.env.DM_AI_DEBUG === "yes";
+
   constructor(
     private readonly characters: ICharacterRepository,
     private readonly monsters: IMonsterRepository,
@@ -171,8 +176,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
                 .map((ab) => ab.name);
-            } catch {
-              // Ignore errors
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for ally character:", err);
             }
           }
         } else if (a.combatantType === "NPC" && a.npcId) {
@@ -191,8 +196,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
                 .map((ab) => ab.name);
-            } catch {
-              // Ignore errors
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for ally NPC:", err);
             }
           }
         } else if (a.combatantType === "Monster" && a.monsterId) {
@@ -209,8 +214,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((ab) => ab.economy === "bonus" || ab.economy === "reaction" || (ab.source !== "base" && ab.economy === "action"))
                 .map((ab) => ab.name);
-            } catch {
-              // Ignore errors
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for ally monster:", err);
             }
           }
         }
@@ -280,8 +285,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((a) => a.economy === "bonus" || a.economy === "reaction" || (a.source !== "base" && a.economy === "action"))
                 .map((a) => a.name);
-            } catch {
-              // Ignore errors in ability listing
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for enemy character:", err);
             }
           }
         } else if (e.combatantType === "NPC" && e.npcId) {
@@ -301,8 +306,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((a) => a.economy === "bonus" || a.economy === "reaction" || (a.source !== "base" && a.economy === "action"))
                 .map((a) => a.name);
-            } catch {
-              // Ignore errors
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for enemy NPC:", err);
             }
           }
         } else if (e.combatantType === "Monster" && e.monsterId) {
@@ -320,8 +325,8 @@ export class AiContextBuilder {
               knownAbilities = abilities
                 .filter((a) => a.economy === "bonus" || a.economy === "reaction" || (a.source !== "base" && a.economy === "action"))
                 .map((a) => a.name);
-            } catch {
-              // Ignore errors
+            } catch (err) {
+              if (this.aiDebugEnabled) console.debug("[AiContextBuilder] listCreatureAbilities failed for enemy monster:", err);
             }
           }
         }

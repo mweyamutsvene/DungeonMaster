@@ -387,12 +387,16 @@ describe("getConditionEffects", () => {
         expect(getExhaustionSpeedReduction(3)).toBe(15);
       });
 
-      it("level 6 = 30ft reduction", () => {
-        expect(getExhaustionSpeedReduction(6)).toBe(30);
+      it("level 6 = Infinity (lethal — zeroes any speed)", () => {
+        expect(getExhaustionSpeedReduction(6)).toBe(Infinity);
       });
 
-      it("clamps at level 6", () => {
-        expect(getExhaustionSpeedReduction(10)).toBe(30);
+      it("clamps at level 6 (Infinity)", () => {
+        expect(getExhaustionSpeedReduction(10)).toBe(Infinity);
+      });
+
+      it("level 5 = 25ft (highest non-lethal reduction)", () => {
+        expect(getExhaustionSpeedReduction(5)).toBe(25);
       });
     });
 

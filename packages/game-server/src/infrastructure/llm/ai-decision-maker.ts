@@ -112,7 +112,11 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
           },
         ];
 
-        const retryRaw = await this.llm.chat({ messages: retryMessages, options });
+        const retryOptions = {
+          ...options,
+          temperature: Math.min((options.temperature ?? 0.7) + 0.15, 1.0),
+        };
+        const retryRaw = await this.llm.chat({ messages: retryMessages, options: retryOptions });
         this.aiLog('[LlmAiDecisionMaker] Got LLM retry response:', retryRaw.substring(0, 200));
         llmDebugLog('monster-ai.retry_response', { raw: retryRaw });
         return tryParse(retryRaw);

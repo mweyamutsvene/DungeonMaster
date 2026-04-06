@@ -56,3 +56,14 @@ export function maxHitPoints(options: HitPointOptions): number {
 
   return total;
 }
+
+/**
+ * Tough feat: +2 max HP per character level.
+ * TODO: Apply this bonus in creature hydration (creature-hydration.ts) or during
+ * character creation/level-up when maxHp is set on the character sheet.
+ * @param level - Character level (1-20)
+ * @returns The bonus HP granted by the Tough feat
+ */
+export function computeToughBonusHP(level: number): number {
+  return level * 2;
+}

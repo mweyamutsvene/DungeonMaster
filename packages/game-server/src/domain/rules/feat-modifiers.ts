@@ -16,6 +16,7 @@ export const FEAT_PROTECTION = "feat_protection";
 export const FEAT_RESILIENT = "feat_resilient";
 export const FEAT_SAVAGE_ATTACKER = "feat_savage-attacker";
 export const FEAT_SKILLED = "feat_skilled";
+export const FEAT_TOUGH = "feat_tough";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
 
 export interface WeaponContext {
@@ -79,6 +80,11 @@ export interface FeatModifiers {
    * The specific ability is stored on the character sheet, not derived from the feat ID.
    */
   resilientEnabled: boolean;
+
+  /**
+   * Tough: +2 max HP per character level.
+   */
+  toughEnabled: boolean;
 }
 
 export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers {
@@ -104,6 +110,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     magicInitiateEnabled: set.has(FEAT_MAGIC_INITIATE),
     abilityScoreImprovementEnabled: set.has(FEAT_ABILITY_SCORE_IMPROVEMENT),
     resilientEnabled: set.has(FEAT_RESILIENT),
+    toughEnabled: set.has(FEAT_TOUGH),
   };
 }
 

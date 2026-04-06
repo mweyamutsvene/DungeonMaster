@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FixedDiceRoller } from "./dice-roller.js";
-import { maxHitPoints } from "./hit-points.js";
+import { maxHitPoints, computeToughBonusHP } from "./hit-points.js";
 
 describe("hit points", () => {
   it("computes max HP using average method", () => {
@@ -22,5 +22,14 @@ describe("hit points", () => {
         diceRoller: dice,
       }),
     ).toBe(11);
+  });
+
+  describe("computeToughBonusHP", () => {
+    it("returns 2 HP per level", () => {
+      expect(computeToughBonusHP(1)).toBe(2);
+      expect(computeToughBonusHP(5)).toBe(10);
+      expect(computeToughBonusHP(10)).toBe(20);
+      expect(computeToughBonusHP(20)).toBe(40);
+    });
   });
 });
