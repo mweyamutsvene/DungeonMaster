@@ -6,6 +6,7 @@ import {
   resetBardicInspirationOnRest,
   spendBardicInspiration,
   Bard,
+  BARD_COMBAT_TEXT_PROFILE,
 } from "./bard.js";
 
 describe("Bardic inspiration", () => {
@@ -58,5 +59,53 @@ describe("Bard.resourcesAtLevel", () => {
   it("defaults CHA modifier to 0 when abilityModifiers omitted", () => {
     const pools = Bard.resourcesAtLevel!(1);
     expect(pools).toEqual([{ name: "bardicInspiration", current: 1, max: 1 }]);
+  });
+});
+
+describe("Bard.capabilitiesForLevel", () => {
+  it("returns base capabilities at level 1", () => {
+    const caps = Bard.capabilitiesForLevel!(1);
+    expect(caps).toHaveLength(2);
+    expect(caps.map(c => c.name)).toEqual(["Spellcasting", "Bardic Inspiration"]);
+    expect(caps[1].resourceCost).toEqual({ pool: "bardicInspiration", amount: 1 });
+    expect(caps[1].effect).toContain("d6");
+  });
+
+  it("includes Jack of All Trades at level 2", () => {
+    const caps = Bard.capabilitiesForLevel!(2);
+    expect(caps).toHaveLength(3);
+    expect(caps.map(c => c.name)).toContain("Jack of All Trades");
+  });
+
+  it("includes Font of Inspiration at level 5 with d8", () => {
+    const caps = Bard.capabilitiesForLevel!(5);
+    expect(caps).toHaveLength(4);
+    expect(caps.map(c => c.name)).toContain("Font of Inspiration");
+    expect(caps.find(c => c.name === "Bardic Inspiration")!.effect).toContain("d8");
+  });
+
+  it("includes Countercharm at level 6", () => {
+    const caps = Bard.capabilitiesForLevel!(6);
+    expect(caps).toHaveLength(5);
+    expect(caps.map(c => c.name)).toContain("Countercharm");
+  });
+});
+
+describe("BARD_COMBAT_TEXT_PROFILE", () => {
+  it("has correct classId", () => {
+    expect(BARD_COMBAT_TEXT_PROFILE.classId).toBe("bard");
+  });
+
+  it("matches bardic inspiration patterns", () => {
+    const mapping = BARD_COMBAT_TEXT_PROFILE.actionMappings[0];
+    expect(mapping.keyword).toBe("bardic-inspiration");
+    expect(mapping.category).toBe("bonusAction");
+    expect(mapping.normalizedPatterns[0].test("bardicinspiration")).toBe(true);
+    expect(mapping.normalizedPatterns[0].test("usebardicinspiration")).toBe(true);
+    expect(mapping.normalizedPatterns[0].test("inspire")).toBe(true);
+  });
+
+  it("has no attack enhancements", () => {
+    expect(BARD_COMBAT_TEXT_PROFILE.attackEnhancements).toEqual([]);
   });
 });

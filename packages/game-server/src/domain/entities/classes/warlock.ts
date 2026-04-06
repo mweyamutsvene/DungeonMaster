@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
 import type {
   ClassCombatTextProfile,
   DamageReactionDef, DamageReactionInput, DetectedDamageReaction,
@@ -63,6 +63,19 @@ export const Warlock: CharacterClassDefinition = {
   },
   features: {
     "pact-magic": 1,
+    "eldritch-invocations": 2,
+    "pact-boon": 3,
+  },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [];
+    caps.push({ name: "Pact Magic", economy: "action", cost: "Pact Magic slots", effect: "Cast warlock spells using Pact Magic slots (recharge on short rest)" });
+    if (level >= 2) {
+      caps.push({ name: "Eldritch Invocations", economy: "free", effect: "Eldritch Invocations grant passive or activated abilities" });
+    }
+    if (level >= 3) {
+      caps.push({ name: "Pact Boon", economy: "free", effect: "Gain Pact of the Blade/Chain/Tome boon" });
+    }
+    return caps;
   },
   resourcesAtLevel: (level) => [createPactMagicState(level).pool],
   resourcePoolFactory: (level) => [createPactMagicState(level).pool],
@@ -118,7 +131,9 @@ const HELLISH_REBUKE_REACTION: DamageReactionDef = {
 /** Combat text profile for Warlock — Hellish Rebuke damage reaction. */
 export const WARLOCK_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "warlock",
-  actionMappings: [],
+  actionMappings: [
+    { keyword: "eldritch-blast", normalizedPatterns: [/eldritchblast|casteldritchblast/], abilityId: "class:warlock:eldritch-blast", category: "classAction" },
+  ],
   attackEnhancements: [],
   damageReactions: [HELLISH_REBUKE_REACTION],
 };

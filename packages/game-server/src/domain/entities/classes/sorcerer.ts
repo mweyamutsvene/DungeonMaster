@@ -1,6 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface SorceryPointsState {
   pool: ResourcePool;
@@ -55,7 +56,26 @@ export const Sorcerer: CharacterClassDefinition = {
     const sp = createSorceryPointsState(level);
     return sp.pool.max > 0 ? [sp.pool] : [];
   },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Spellcasting", economy: "action", effect: "Cast sorcerer spells using CHA" },
+    ];
+    if (level >= 2) {
+      caps.push({ name: "Sorcery Points", economy: "free", cost: `${sorceryPointsForLevel(level)} points/long rest`, effect: "Fuel Metamagic options and convert to/from spell slots" });
+      caps.push({ name: "Metamagic", economy: "free", cost: "Sorcery Points", effect: "Modify spells with Metamagic options (Quickened, Twinned, etc.)" });
+    }
+    return caps;
+  },
   restRefreshPolicy: [
     { poolKey: "sorceryPoints", refreshOn: "long", computeMax: (level) => sorceryPointsForLevel(level) },
   ],
+};
+
+export const SORCERER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "sorcerer",
+  actionMappings: [
+    { keyword: "quickened-spell", normalizedPatterns: [/quickenedspell|quickenspell|quicken/], abilityId: "class:sorcerer:quickened-spell", category: "bonusAction" },
+    { keyword: "twinned-spell", normalizedPatterns: [/twinnedspell|twinspell|twin/], abilityId: "class:sorcerer:twinned-spell", category: "classAction" },
+  ],
+  attackEnhancements: [],
 };

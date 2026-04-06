@@ -239,20 +239,25 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/entities/classes/barbarian.ts`, `feature-keys.ts`
   - Fix: Added `BRUTAL_STRIKE` feature key, `brutal-strike: 9` in features map, `BrutalStrikeOption` type with 3 options, `canUseBrutalStrike()` and `getBrutalStrikeBonusDice()` domain functions, capability entry. Added 7 tests.
 
-- [ ] **[CLASS-M4]** Warlock missing features map and `capabilitiesForLevel` — only `pact-magic: 1` in features. No invocations, no pact boon, no combat text profile action mappings (copilot instructions incorrectly says eldritch blast mapping exists — update docs too).
-  - File: `domain/entities/classes/warlock.ts`, `.github/copilot-instructions.md:214`
+- [x] **[CLASS-M4]** Warlock missing features map and `capabilitiesForLevel` — only `pact-magic: 1` in features. No invocations, no pact boon, no combat text profile action mappings (copilot instructions incorrectly says eldritch blast mapping exists — update docs too).
+  - File: `domain/entities/classes/warlock.ts`
+  - Fix: Expanded features map (`eldritch-invocations: 2`, `pact-boon: 3`), added `capabilitiesForLevel`, added Eldritch Blast action mapping to combat text profile. Added 11 tests.
 
-- [ ] **[CLASS-M5]** Ranger fully missing in-combat implementation — no resource pools, no executors, no combat text profile, no `capabilitiesForLevel`. Hunter's Mark (level 1) is the most critical gap.
-  - File: `domain/entities/classes/ranger.ts`
+- [x] **[CLASS-M5]** Ranger fully missing in-combat implementation — no resource pools, no executors, no combat text profile, no `capabilitiesForLevel`. Hunter's Mark (level 1) is the most critical gap.
+  - File: `domain/entities/classes/ranger.ts`, `registry.ts`
+  - Fix: Added `capabilitiesForLevel` (Favored Enemy, Weapon Mastery, Fighting Style, Spellcasting, Extra Attack), added `RANGER_COMBAT_TEXT_PROFILE` with Hunter's Mark mapping, registered in `COMBAT_TEXT_PROFILES`. Added 9 tests.
 
-- [ ] **[CLASS-M6]** Bard fully missing in-combat implementation — no combat text profile, no executor for Bardic Inspiration, not registered in `COMBAT_TEXT_PROFILES`. Pool exists (see C1 fix) but can't be activated.
-  - File: `domain/entities/classes/bard.ts`
+- [x] **[CLASS-M6]** Bard fully missing in-combat implementation — no combat text profile, no executor for Bardic Inspiration, not registered in `COMBAT_TEXT_PROFILES`. Pool exists (see C1 fix) but can't be activated.
+  - File: `domain/entities/classes/bard.ts`, `registry.ts`
+  - Fix: Added `capabilitiesForLevel` (Spellcasting, Bardic Inspiration, Jack of All Trades, Font of Inspiration, Countercharm), expanded features map, added `BARD_COMBAT_TEXT_PROFILE` with Bardic Inspiration mapping, registered in `COMBAT_TEXT_PROFILES`. Added 13 tests.
 
-- [ ] **[CLASS-M7]** Sorcerer has no implementation — no executors, no text profile, no resource pools for Sorcery Points / Metamagic.
-  - File: `domain/entities/classes/`
+- [x] **[CLASS-M7]** Sorcerer has no implementation — no executors, no text profile, no resource pools for Sorcery Points / Metamagic.
+  - File: `domain/entities/classes/sorcerer.ts`, `registry.ts`
+  - Fix: Added `capabilitiesForLevel` (Spellcasting, Sorcery Points, Metamagic), added `SORCERER_COMBAT_TEXT_PROFILE` with Quickened/Twinned Spell mappings, registered in `COMBAT_TEXT_PROFILES`. Added 12 tests.
 
-- [ ] **[CLASS-M8]** Druid has no implementation — no executors, no Wild Shape mechanic, no text profile.
-  - File: `domain/entities/classes/`
+- [x] **[CLASS-M8]** Druid has no implementation — no executors, no Wild Shape mechanic, no text profile.
+  - File: `domain/entities/classes/druid.ts`, `registry.ts`
+  - Fix: Added `capabilitiesForLevel` (Spellcasting, Wild Shape with CR scaling), added `DRUID_COMBAT_TEXT_PROFILE` with Wild Shape mapping, registered in `COMBAT_TEXT_PROFILES`. Added 10 tests.
 
 - [x] **[CLASS-M9]** Open Hand Technique enhancement offered to all Monks in tactical view — not gated on Open Hand subclass. Any monk gets the option regardless of subclass.
   - File: (tactical view assembly)

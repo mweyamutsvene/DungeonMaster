@@ -1,6 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export type BardicInspirationDie = 6 | 8 | 10 | 12;
 
@@ -78,6 +79,9 @@ export const Bard: CharacterClassDefinition = {
   features: {
     "spellcasting": 1,
     "bardic-inspiration": 1,
+    "jack-of-all-trades": 2,
+    "font-of-inspiration": 5,
+    "countercharm": 6,
   },
   resourcesAtLevel: (level, abilityModifiers) => {
     const chaMod = abilityModifiers?.charisma ?? 0;
@@ -90,6 +94,22 @@ export const Bard: CharacterClassDefinition = {
       throw new Error("charismaModifier is required to initialize bard resource pools");
     }
     return [createBardicInspirationState(level, chaMod).pool];
+  },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Spellcasting", economy: "action", effect: "Cast bard spells using CHA" },
+      { name: "Bardic Inspiration", economy: "bonusAction", cost: "1 use", effect: `Grant ally a d${bardicInspirationDieForLevel(level)} to add to ability check, attack roll, or saving throw`, abilityId: "class:bard:bardic-inspiration", resourceCost: { pool: "bardicInspiration", amount: 1 } },
+    ];
+    if (level >= 2) {
+      caps.push({ name: "Jack of All Trades", economy: "free", effect: "Add half proficiency bonus to ability checks without proficiency" });
+    }
+    if (level >= 5) {
+      caps.push({ name: "Font of Inspiration", economy: "free", effect: "Bardic Inspiration recharges on short rest" });
+    }
+    if (level >= 6) {
+      caps.push({ name: "Countercharm", economy: "action", effect: "Allies within 30ft advantage on saves vs frightened/charmed" });
+    }
+    return caps;
   },
   restRefreshPolicy: [
     {
@@ -104,4 +124,12 @@ export const Bard: CharacterClassDefinition = {
       },
     },
   ],
+};
+
+export const BARD_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "bard",
+  actionMappings: [
+    { keyword: "bardic-inspiration", normalizedPatterns: [/bardicinspiration|usebardicinspiration|inspire/], abilityId: "class:bard:bardic-inspiration", category: "bonusAction" },
+  ],
+  attackEnhancements: [],
 };

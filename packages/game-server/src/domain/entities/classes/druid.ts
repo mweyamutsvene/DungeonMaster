@@ -1,6 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 
 export interface WildShapeState {
   pool: ResourcePool;
@@ -60,7 +61,39 @@ export const Druid: CharacterClassDefinition = {
     const ws = createWildShapeState(level);
     return ws.pool.max > 0 ? [ws.pool] : [];
   },
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Spellcasting", economy: "action", effect: "Cast druid spells using WIS" },
+    ];
+    if (level >= 2) {
+      const maxCR = wildShapeMaxCRForLevel(level);
+      caps.push({
+        name: "Wild Shape",
+        economy: "bonusAction",
+        cost: "1 use (2/short rest)",
+        effect: `Transform into beast of CR ${maxCR} or lower`,
+        abilityId: "class:druid:wild-shape",
+        resourceCost: { pool: "wildShape", amount: 1 },
+      });
+    }
+    return caps;
+  },
   restRefreshPolicy: [
     { poolKey: "wildShape", refreshOn: "both", computeMax: (level) => wildShapeUsesForLevel(level) },
   ],
+};
+
+// ----- Combat Text Profile -----
+
+export const DRUID_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
+  classId: "druid",
+  actionMappings: [
+    {
+      keyword: "wild-shape",
+      normalizedPatterns: [/wildshape|usewildshape/],
+      abilityId: "class:druid:wild-shape",
+      category: "bonusAction",
+    },
+  ],
+  attackEnhancements: [],
 };

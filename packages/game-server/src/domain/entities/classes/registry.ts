@@ -4,15 +4,15 @@ import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 import { IMPROVED_CRITICAL, SUPERIOR_CRITICAL } from "./feature-keys.js";
 
 import { Barbarian, BARBARIAN_COMBAT_TEXT_PROFILE } from "./barbarian.js";
-import { Bard } from "./bard.js";
+import { Bard, BARD_COMBAT_TEXT_PROFILE } from "./bard.js";
 import { Cleric, CLERIC_COMBAT_TEXT_PROFILE } from "./cleric.js";
-import { Druid } from "./druid.js";
+import { Druid, DRUID_COMBAT_TEXT_PROFILE } from "./druid.js";
 import { Fighter, FIGHTER_COMBAT_TEXT_PROFILE } from "./fighter.js";
 import { Monk, MONK_COMBAT_TEXT_PROFILE } from "./monk.js";
 import { Paladin, PALADIN_COMBAT_TEXT_PROFILE } from "./paladin.js";
-import { Ranger } from "./ranger.js";
+import { Ranger, RANGER_COMBAT_TEXT_PROFILE } from "./ranger.js";
 import { Rogue, ROGUE_COMBAT_TEXT_PROFILE } from "./rogue.js";
-import { Sorcerer } from "./sorcerer.js";
+import { Sorcerer, SORCERER_COMBAT_TEXT_PROFILE } from "./sorcerer.js";
 import { Warlock, WARLOCK_COMBAT_TEXT_PROFILE } from "./warlock.js";
 import { Wizard, WIZARD_COMBAT_TEXT_PROFILE } from "./wizard.js";
 
@@ -136,6 +136,10 @@ function combatTextProfiles(): readonly ClassCombatTextProfile[] {
       PALADIN_COMBAT_TEXT_PROFILE,
       CLERIC_COMBAT_TEXT_PROFILE,
       ROGUE_COMBAT_TEXT_PROFILE,
+      RANGER_COMBAT_TEXT_PROFILE,
+      BARD_COMBAT_TEXT_PROFILE,
+      SORCERER_COMBAT_TEXT_PROFILE,
+      DRUID_COMBAT_TEXT_PROFILE,
     ];
   }
   return _textProfiles;
