@@ -411,8 +411,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/death-saves.ts`
   - Fix: Added `attemptStabilize()` pure function + `StabilizeCheckResult` interface. DC 10 Medicine check. 4 new tests.
 
-- [ ] **[RULES-L5]** Forced movement not grid-aligned, no obstacle collision — `pushAwayFrom()` / `pullToward()` compute continuous vector offset without snapping to 5ft grid or stopping at walls.
+- [x] **[RULES-L5]** Forced movement not grid-aligned, no obstacle collision — `pushAwayFrom()` / `pullToward()` compute continuous vector offset without snapping to 5ft grid or stopping at walls.
   - File: `domain/combat/movement.ts:152-198`
+  - Fix: Added `snapToGrid()` utility. `pushAwayFrom()` and `pullToward()` now snap results to nearest 5ft grid point. 9 new tests in `movement.test.ts`.
 
 - [x] **[RULES-L6]** Exhaustion level 6 speed reduction incomplete — `getExhaustionSpeedReduction(6) = 30`. Creatures with speed > 30ft (Monk with Unarmored Movement) may not reach 0 speed at level 6 before death fires separately.
   - File: `domain/entities/combat/conditions.ts:487-494`
@@ -423,8 +424,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 - [ ] **[RULES-L8]** Flanking entirely absent — optional rule; worth a design decision: implement as encounter toggle or document as intentionally omitted.
 
-- [ ] **[RULES-L9]** Jack of All Trades (Bard) — `AbilityCheckOptions.proficient: boolean` is binary. No half-proficiency (`proficiencyMultiplier: 0.5`) for non-proficient skill checks.
+- [x] **[RULES-L9]** Jack of All Trades (Bard) — `AbilityCheckOptions.proficient: boolean` is binary. No half-proficiency (`proficiencyMultiplier: 0.5`) for non-proficient skill checks.
   - File: `domain/rules/ability-checks.ts`
+  - Fix: Added `halfProficiency?: boolean` to all ability check option interfaces. When set and not proficient, adds `Math.floor(proficiencyBonus / 2)`. 3 new tests.
 
 - [ ] **[RULES-L10]** Alert feat `initiativeSwapEnabled` has no domain-level `swapInitiative()` function. Application layer handles it but domain support is incomplete.
   - File: `domain/rules/feat-modifiers.ts`, `domain/combat/initiative.ts`
@@ -441,8 +443,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/ai-context-builder.ts`
   - Fix: Added `aiDebugEnabled` flag; 6 silent catch blocks now emit `console.debug()` when `DM_AI_DEBUG=1`.
 
-- [ ] **[AI-L4]** Counterspell default INT ability for non-Wizard casters — Warlock/Cleric Counterspell uses wrong ability modifier for the optional Arcana check.
+- [x] **[AI-L4]** Counterspell default INT ability for non-Wizard casters — Warlock/Cleric Counterspell uses wrong ability modifier for the optional Arcana check.
   - File: `application/services/combat/two-phase/spell-reaction-handler.ts:295`
+  - Fix: Added `getSpellcastingAbility(classId)` in `spell-casting.ts`. Spell reaction handler now uses class-appropriate ability (CHA for Warlock/Bard/Sorcerer/Paladin, WIS for Cleric/Druid/Ranger). 6 new tests.
 
 - [ ] **[AI-L5]** OpenAI provider is a stub that throws on first call — `DM_LLM_PROVIDER=openai` config silently fails.
   - File: `infrastructure/llm/openai-provider.ts`
@@ -465,8 +468,7 @@ These are active correctness bugs or production data-loss issues that affect rea
   - Fix: Priority chain: sheet `darkvisionRange` > species traits > 0.
 
 - [ ] **[ENT-L5]** 4 MockCharacterGenerator templates missing — Bard, Sorcerer, Ranger, Druid have no mock templates. Limits AI character behavior test coverage.
-  - File: `application/services/combat/ai/mocks/index.ts`
-
+  - File: `application/services/combat/ai/mocks/index.ts`  - Fix: Added 4 class templates (Bard CHA/d8, Sorcerer CHA/d6, Ranger DEX+WIS/d10, Druid WIS/d8) with appropriate ability scores, HP, spells, and equipment.
 ---
 
 ## Summary Statistics

@@ -57,3 +57,24 @@ export function computeSpellAttackBonus(sheet: SpellSheet | null | undefined): n
     (typeof sheet?.level === 'number' ? Math.floor((sheet.level - 1) / 4) + 2 : 2);
   return profBonus + mod;
 }
+
+/** Class → spellcasting ability mapping (D&D 5e 2024). */
+const SPELLCASTING_ABILITY: Record<string, string> = {
+  wizard: "intelligence",
+  warlock: "charisma",
+  sorcerer: "charisma",
+  bard: "charisma",
+  paladin: "charisma",
+  cleric: "wisdom",
+  druid: "wisdom",
+  ranger: "wisdom",
+};
+
+/**
+ * Return the spellcasting ability for a given class.
+ * Falls back to "intelligence" for unknown / non-caster classes.
+ */
+export function getSpellcastingAbility(classId: string | undefined): string {
+  if (!classId) return "intelligence";
+  return SPELLCASTING_ABILITY[classId.toLowerCase()] ?? "intelligence";
+}

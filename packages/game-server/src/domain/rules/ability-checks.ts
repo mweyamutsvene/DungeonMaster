@@ -29,6 +29,7 @@ export interface AbilityCheckOptions {
   proficiencyBonus?: number;
   proficient?: boolean;
   expertise?: boolean;
+  halfProficiency?: boolean;
   mode?: RollMode;
 }
 
@@ -48,7 +49,7 @@ export function abilityCheck(
 
   const effectiveBonus = proficient
     ? (options.expertise ? proficiencyBonus * 2 : proficiencyBonus)
-    : 0;
+    : (options.halfProficiency ? Math.floor(proficiencyBonus / 2) : 0);
   const modifier = options.abilityModifier + effectiveBonus;
   return d20Test(diceRoller, options.dc, modifier, options.mode ?? "normal");
 }
@@ -60,6 +61,7 @@ export interface SkillCheckOptions {
   proficiencyBonus?: number;
   proficient?: boolean;
   expertise?: boolean;
+  halfProficiency?: boolean;
   mode?: RollMode;
 }
 
@@ -80,6 +82,7 @@ export function skillCheck(
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
     expertise: options.expertise,
+    halfProficiency: options.halfProficiency,
     mode: options.mode,
   });
 }
@@ -110,6 +113,7 @@ export interface CreatureAbilityCheckOptions {
   proficiencyBonus?: number;
   proficient?: boolean;
   expertise?: boolean;
+  halfProficiency?: boolean;
   mode?: RollMode;
 }
 
@@ -125,6 +129,7 @@ export function abilityCheckForCreature(
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
     expertise: options.expertise,
+    halfProficiency: options.halfProficiency,
     mode,
   });
 }
@@ -136,6 +141,7 @@ export interface CreatureSkillCheckOptions {
   proficiencyBonus?: number;
   proficient?: boolean;
   expertise?: boolean;
+  halfProficiency?: boolean;
   mode?: RollMode;
 }
 
@@ -153,6 +159,7 @@ export function skillCheckForCreature(
     proficiencyBonus: options.proficiencyBonus,
     proficient: options.proficient,
     expertise: options.expertise,
+    halfProficiency: options.halfProficiency,
     mode,
   });
 }

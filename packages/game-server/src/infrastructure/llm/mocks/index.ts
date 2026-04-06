@@ -628,6 +628,79 @@ export class MockCharacterGenerator implements ICharacterGenerator {
         { name: "Holy Symbol", quantity: 1, type: "gear" },
       ],
     },
+    bard: {
+      abilityScores: { strength: 8, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 12, charisma: 16 },
+      background: "Entertainer",
+      species: "Half-Elf",
+      skills: ["Performance", "Persuasion", "Deception", "Perception"],
+      proficiencies: {
+        armor: ["Light"],
+        weapons: ["Simple", "Hand Crossbows", "Longswords", "Rapiers", "Shortswords"],
+        tools: ["Lute", "Flute", "Drum"],
+        savingThrows: ["Dexterity", "Charisma"],
+      },
+      equipment: [
+        { name: "Rapier", quantity: 1, type: "weapon" },
+        { name: "Leather Armor", quantity: 1, type: "armor" },
+        { name: "Lute", quantity: 1, type: "gear" },
+        { name: "Diplomat's Pack", quantity: 1, type: "gear" },
+      ],
+    },
+    sorcerer: {
+      abilityScores: { strength: 8, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 12, charisma: 16 },
+      background: "Noble",
+      species: "Human",
+      skills: ["Arcana", "Persuasion"],
+      proficiencies: {
+        armor: [],
+        weapons: ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light Crossbows"],
+        tools: [],
+        savingThrows: ["Constitution", "Charisma"],
+      },
+      equipment: [
+        { name: "Quarterstaff", quantity: 1, type: "weapon" },
+        { name: "Component Pouch", quantity: 1, type: "gear" },
+        { name: "Dungeoneer's Pack", quantity: 1, type: "gear" },
+      ],
+    },
+    ranger: {
+      abilityScores: { strength: 12, dexterity: 16, constitution: 14, intelligence: 10, wisdom: 14, charisma: 8 },
+      background: "Outlander",
+      species: "Elf",
+      skills: ["Perception", "Stealth", "Survival", "Nature"],
+      proficiencies: {
+        armor: ["Light", "Medium", "Shields"],
+        weapons: ["Simple", "Martial"],
+        tools: [],
+        savingThrows: ["Strength", "Dexterity"],
+      },
+      equipment: [
+        { name: "Longbow", quantity: 1, type: "weapon" },
+        { name: "Arrows", quantity: 20, type: "gear" },
+        { name: "Shortsword", quantity: 2, type: "weapon" },
+        { name: "Scale Mail", quantity: 1, type: "armor" },
+        { name: "Explorer's Pack", quantity: 1, type: "gear" },
+      ],
+    },
+    druid: {
+      abilityScores: { strength: 10, dexterity: 14, constitution: 14, intelligence: 12, wisdom: 16, charisma: 8 },
+      background: "Hermit",
+      species: "Human",
+      skills: ["Nature", "Perception", "Medicine"],
+      proficiencies: {
+        armor: ["Light", "Medium", "Shields"],
+        weapons: ["Clubs", "Daggers", "Darts", "Javelins", "Maces", "Quarterstaffs", "Scimitars", "Sickles", "Slings", "Spears"],
+        tools: ["Herbalism Kit"],
+        savingThrows: ["Intelligence", "Wisdom"],
+      },
+      equipment: [
+        { name: "Scimitar", quantity: 1, type: "weapon" },
+        { name: "Leather Armor", quantity: 1, type: "armor" },
+        { name: "Shield", quantity: 1, type: "armor" },
+        { name: "Druidic Focus", quantity: 1, type: "gear" },
+        { name: "Explorer's Pack", quantity: 1, type: "gear" },
+      ],
+    },
   };
 
   async generateCharacter(input: { className: string; level?: number; seed?: number }): Promise<GeneratedCharacterSheet> {

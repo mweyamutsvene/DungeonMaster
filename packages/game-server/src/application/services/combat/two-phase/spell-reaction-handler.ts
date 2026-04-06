@@ -20,6 +20,7 @@ import type {
 } from "../../../../domain/entities/combat/pending-action.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
+import { getSpellcastingAbility } from "../../../../domain/rules/spell-casting.js";
 import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
 import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
 import { ValidationError, NotFoundError } from "../../../errors.js";
@@ -292,7 +293,7 @@ export class SpellReactionHandler {
               : { type: "Monster" as const, monsterId: counterspellerState.monsterId ?? "" };
             const csStats = await this.combatants.getCombatStats(csRef);
             // Use the counterspeller's spellcasting ability modifier + proficiency
-            const spellcastingAbility = (csStats as any).spellcastingAbility ?? "intelligence";
+            const spellcastingAbility = getSpellcastingAbility(csStats.className);
             const abilityScore = (csStats.abilityScores as Record<string, number>)?.[spellcastingAbility] ?? 10;
             const abilityMod = Math.floor((abilityScore - 10) / 2);
             const profBonus = csStats.proficiencyBonus ?? 2;

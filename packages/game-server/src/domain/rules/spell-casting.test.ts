@@ -3,6 +3,7 @@ import {
   getSpellcastingModifier,
   computeSpellSaveDC,
   computeSpellAttackBonus,
+  getSpellcastingAbility,
 } from "./spell-casting.js";
 
 describe("getSpellcastingModifier", () => {
@@ -152,5 +153,38 @@ describe("computeSpellAttackBonus", () => {
         proficiencyBonus: 2,
       }),
     ).toBe(10);
+  });
+});
+
+describe("getSpellcastingAbility", () => {
+  it("returns intelligence for wizard", () => {
+    expect(getSpellcastingAbility("wizard")).toBe("intelligence");
+  });
+
+  it("returns charisma for warlock, sorcerer, bard, paladin", () => {
+    expect(getSpellcastingAbility("warlock")).toBe("charisma");
+    expect(getSpellcastingAbility("sorcerer")).toBe("charisma");
+    expect(getSpellcastingAbility("bard")).toBe("charisma");
+    expect(getSpellcastingAbility("paladin")).toBe("charisma");
+  });
+
+  it("returns wisdom for cleric, druid, ranger", () => {
+    expect(getSpellcastingAbility("cleric")).toBe("wisdom");
+    expect(getSpellcastingAbility("druid")).toBe("wisdom");
+    expect(getSpellcastingAbility("ranger")).toBe("wisdom");
+  });
+
+  it("is case-insensitive", () => {
+    expect(getSpellcastingAbility("Wizard")).toBe("intelligence");
+    expect(getSpellcastingAbility("CLERIC")).toBe("wisdom");
+  });
+
+  it("falls back to intelligence for non-caster classes", () => {
+    expect(getSpellcastingAbility("fighter")).toBe("intelligence");
+    expect(getSpellcastingAbility("rogue")).toBe("intelligence");
+  });
+
+  it("falls back to intelligence for undefined", () => {
+    expect(getSpellcastingAbility(undefined)).toBe("intelligence");
   });
 });

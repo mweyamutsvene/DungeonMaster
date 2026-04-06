@@ -147,6 +147,17 @@ export function moveInDirection(
 }
 
 /**
+ * Snap a position to the nearest 5ft grid point.
+ */
+export function snapToGrid(position: Position): Position {
+  return {
+    x: Math.round(position.x / 5) * 5,
+    y: Math.round(position.y / 5) * 5,
+    elevation: position.elevation,
+  };
+}
+
+/**
  * Push a creature away from a source position
  */
 export function pushAwayFrom(
@@ -164,15 +175,15 @@ export function pushAwayFrom(
     // If at same position, push in arbitrary direction
     return {
       ...state,
-      position: { ...state.position, x: state.position.x + distance },
+      position: snapToGrid({ ...state.position, x: state.position.x + distance }),
     };
   }
 
   const normalizedDx = dx / magnitude;
   const normalizedDy = dy / magnitude;
 
-  // Calculate new position
-  const newPosition: Position = {
+  // Calculate new position and snap to 5ft grid
+  const rawPosition: Position = {
     x: state.position.x + normalizedDx * distance,
     y: state.position.y + normalizedDy * distance,
     elevation: state.position.elevation,
@@ -180,7 +191,7 @@ export function pushAwayFrom(
 
   return {
     ...state,
-    position: newPosition,
+    position: snapToGrid(rawPosition),
   };
 }
 
@@ -207,8 +218,8 @@ export function pullToward(
   const normalizedDx = dx / magnitude;
   const normalizedDy = dy / magnitude;
 
-  // Calculate new position
-  const newPosition: Position = {
+  // Calculate new position and snap to 5ft grid
+  const rawPosition: Position = {
     x: state.position.x + normalizedDx * actualDistance,
     y: state.position.y + normalizedDy * actualDistance,
     elevation: state.position.elevation,
@@ -216,7 +227,7 @@ export function pullToward(
 
   return {
     ...state,
-    position: newPosition,
+    position: snapToGrid(rawPosition),
   };
 }
 
