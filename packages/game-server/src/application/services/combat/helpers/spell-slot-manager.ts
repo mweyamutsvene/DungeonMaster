@@ -24,6 +24,7 @@
 import { ValidationError } from "../../../errors.js";
 import { hasResourceAvailable, spendResourceFromPool, normalizeResources, getResourcePools } from "./resource-utils.js";
 import { breakConcentration } from "./concentration-helper.js";
+import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
 import type { PreparedSpellDefinition } from "../../../../domain/entities/spells/prepared-spell-definition.js";
 import type { JsonValue } from "../../../types.js";
@@ -54,6 +55,44 @@ export function findPreparedSpellInSheet(
         ((entry as Record<string, unknown>).name as string).toLowerCase() === lower,
     ) ?? null
   );
+}
+
+// ─────────────────────── Catalog-First Resolution ───────────────────
+
+/**
+ * Resolve a spell definition from the canonical catalog first, then fallback to character sheet.
+ *
+ * Priority chain:
+ * 1. Canonical catalog (single source of truth for mechanics)
+ * 2. Character sheet's preparedSpells (backward compat for custom/homebrew spells)
+ *
+ * When both sources have the spell, catalog is the base and sheet overrides specific fields.
+ * This lets character sheets provide custom tweaks (e.g., modified damage for a magic item)
+ * while the catalog provides canonical mechanics.
+ */
+export function resolveSpell(
+  spellName: string,
+  sheet: unknown,
+): PreparedSpellDefinition | null {
+  const canonical = getCanonicalSpell(spellName);
+  const fromSheet = findPreparedSpellInSheet(sheet, spellName);
+
+  if (canonical && fromSheet) {
+    // Merge: catalog is base, sheet can override specific fields
+    return { ...canonical, ...stripUndefined(fromSheet) };
+  }
+
+  return canonical ?? fromSheet;
+}
+
+function stripUndefined(obj: PreparedSpellDefinition): Partial<PreparedSpellDefinition> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result as Partial<PreparedSpellDefinition>;
 }
 
 // ─────────────────────── Spell Preparation (async) ──────────────────

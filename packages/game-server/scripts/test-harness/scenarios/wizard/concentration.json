@@ -19,7 +19,7 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
         "preparedSpells": [
-          { "name": "Bless", "level": 1, "concentration": true },
+          { "name": "Bless", "level": 1 },
           { "name": "Magic Missile", "level": 1 },
           { "name": "Fire Bolt", "level": 0 }
         ],
@@ -94,10 +94,22 @@
     { "type": "endTurn" },
     { "type": "waitForTurn" },
     {
-      "comment": "Cast Fire Bolt (cantrip) - always works, no slots needed",
+      "comment": "Cast Fire Bolt (cantrip) — now a ranged spell attack (canonical catalog). No slots needed.",
       "type": "action",
       "input": { "text": "cast Fire Bolt at Goblin" },
-      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Fire Bolt attack roll: 15 + 6 (spellAttackBonus) = 21 vs AC 15 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Fire Bolt damage: 8 fire damage",
+      "expect": { "actionComplete": true }
     }
   ]
 }

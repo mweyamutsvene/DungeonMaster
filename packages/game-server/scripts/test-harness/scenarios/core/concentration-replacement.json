@@ -19,8 +19,8 @@
         "spellAttackBonus": 7,
         "spellSlots": { "1": 4, "2": 3 },
         "preparedSpells": [
-          { "name": "Bless", "level": 1, "concentration": true },
-          { "name": "Hold Person", "level": 2, "concentration": true },
+          { "name": "Bless", "level": 1 },
+          { "name": "Hold Person", "level": 2 },
           { "name": "Fire Bolt", "level": 0 }
         ],
         "attacks": [
@@ -96,11 +96,20 @@
     {
       "type": "action",
       "input": { "text": "cast Fire Bolt at Bandit" },
-      "comment": "Cast Fire Bolt cantrip — doesn't affect concentration. Hold Person should still be active.",
-      "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "CastSpell"
-      }
+      "comment": "Cast Fire Bolt cantrip — now a ranged spell attack (canonical catalog). Doesn't affect concentration.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Fire Bolt attack roll: 15 + 7 (spellAttackBonus) = 22 vs AC 12 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Fire Bolt damage: 8 fire damage",
+      "expect": { "actionComplete": true }
     }
   ]
 }

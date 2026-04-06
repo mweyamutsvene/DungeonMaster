@@ -20,12 +20,7 @@
         "spellAttackBonus": 7,
         "spellSlots": { "1": 4, "2": 3, "3": 2 },
         "preparedSpells": [
-          {
-            "name": "Fire Bolt", "level": 0,
-            "attackType": "ranged_spell",
-            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 0 },
-            "damageType": "fire"
-          }
+          { "name": "Fire Bolt", "level": 0 }
         ],
         "attacks": [
           {

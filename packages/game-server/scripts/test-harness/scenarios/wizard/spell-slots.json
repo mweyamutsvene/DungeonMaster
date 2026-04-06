@@ -90,10 +90,22 @@
       "expect": { "error": true, "errorContains": "spell slots remaining" }
     },
     {
-      "comment": "Cast Scorching Ray (level 2) - should consume 2nd-level slot (1→0)",
+      "comment": "Cast Scorching Ray (level 2) - now a ranged spell attack (canonical catalog). Should consume 2nd-level slot (1→0)",
       "type": "action",
       "input": { "text": "cast Scorching Ray at Skeleton Warrior" },
-      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Scorching Ray attack roll: 15 + 6 = 21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Scorching Ray damage",
+      "expect": { "actionComplete": true }
     },
     { "type": "endTurn" },
     { "type": "waitForTurn" },
@@ -104,10 +116,22 @@
       "expect": { "error": true, "errorContains": "spell slots remaining" }
     },
     {
-      "comment": "Cast Fire Bolt (cantrip, level 0) - should always work, no slot needed",
+      "comment": "Cast Fire Bolt (cantrip) - now a ranged spell attack (canonical catalog). No slot needed.",
       "type": "action",
       "input": { "text": "cast Fire Bolt at Skeleton Warrior" },
-      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Fire Bolt attack roll: 15 + 6 = 21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Fire Bolt damage",
+      "expect": { "actionComplete": true }
     }
   ]
 }

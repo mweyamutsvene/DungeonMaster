@@ -19,20 +19,7 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
         "preparedSpells": [
-          {
-            "name": "Longstrider",
-            "level": 1,
-            "effects": [
-              {
-                "type": "speed_modifier",
-                "target": "speed",
-                "value": 10,
-                "duration": "rounds",
-                "roundsRemaining": 100,
-                "appliesTo": "self"
-              }
-            ]
-          }
+          { "name": "Longstrider", "level": 1 }
         ],
         "attacks": [
           {

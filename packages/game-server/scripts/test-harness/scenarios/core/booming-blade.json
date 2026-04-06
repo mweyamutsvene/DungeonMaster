@@ -19,29 +19,10 @@
         "spellAttackBonus": 7,
         "spellSlots": { "1": 4, "2": 3, "3": 2 },
         "preparedSpells": [
+          { "name": "Thunderous Ward", "level": 1 },
           {
-            "name": "Thunderous Ward",
-            "level": 1,
-            "effects": [
-              {
-                "type": "ongoing_damage",
-                "target": "hit_points",
-                "diceValue": { "count": 2, "sides": 8 },
-                "damageType": "thunder",
-                "duration": "until_end_of_next_turn",
-                "triggerAt": "on_voluntary_move",
-                "appliesTo": "target"
-              }
-            ]
-          },
-          {
-            "name": "Fire Bolt",
-            "level": 0,
-            "attackType": "ranged_spell",
-            "damageType": "fire",
-            "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 },
-            "isRanged": true,
-            "range": 120
+            "name": "Fire Bolt", "level": 0,
+            "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 }
           }
         ],
         "attacks": [

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { findPreparedSpellInSheet, prepareSpellCast } from "./spell-slot-manager.js";
+import { findPreparedSpellInSheet, prepareSpellCast, resolveSpell } from "./spell-slot-manager.js";
 import { ValidationError } from "../../../errors.js";
 import { breakConcentration } from "./concentration-helper.js";
 
@@ -381,5 +381,98 @@ describe("prepareSpellCast", () => {
       const pactPool = update.resources.resourcePools.find((p) => p.name === "pactMagic");
       expect(pactPool?.current).toBe(1);
     });
+  });
+});
+
+// ─────────────────────── resolveSpell ───────────────────────────────
+
+describe("resolveSpell", () => {
+  it("returns catalog definition when spell exists in catalog and no sheet provided", () => {
+    const result = resolveSpell("Fire Bolt", null);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe("Fire Bolt");
+    expect(result!.level).toBe(0);
+    expect(result!.attackType).toBe("ranged_spell");
+    expect(result!.damageType).toBe("fire");
+  });
+
+  it("returns sheet definition when spell is not in catalog (homebrew)", () => {
+    const homebrewSpell = {
+      name: "Custom Homebrew Spell",
+      level: 2,
+      damage: { diceCount: 4, diceSides: 8, modifier: 0 },
+      damageType: "psychic",
+    };
+    const sheet = { preparedSpells: [homebrewSpell] };
+    const result = resolveSpell("Custom Homebrew Spell", sheet);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe("Custom Homebrew Spell");
+    expect(result!.level).toBe(2);
+    expect(result!.damageType).toBe("psychic");
+  });
+
+  it("merges catalog + sheet: sheet overrides damage, catalog provides attackType", () => {
+    const sheetSpell = {
+      name: "Fire Bolt",
+      level: 0,
+      damage: { diceCount: 3, diceSides: 10, modifier: 0 },
+    };
+    const sheet = { preparedSpells: [sheetSpell] };
+    const result = resolveSpell("Fire Bolt", sheet);
+    expect(result).not.toBeNull();
+    // Sheet override: damage diceCount = 3 (e.g., higher-level cantrip scaling baked into sheet)
+    expect(result!.damage!.diceCount).toBe(3);
+    // Catalog provides: attackType
+    expect(result!.attackType).toBe("ranged_spell");
+    expect(result!.damageType).toBe("fire");
+  });
+
+  it("returns null when spell exists in neither catalog nor sheet", () => {
+    const sheet = { preparedSpells: [{ name: "Something Else", level: 1 }] };
+    const result = resolveSpell("Nonexistent Spell", sheet);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when spell not in catalog and sheet is empty object", () => {
+    expect(resolveSpell("Nonexistent Spell", {})).toBeNull();
+  });
+
+  it("returns null when spell not in catalog and sheet is null", () => {
+    expect(resolveSpell("Nonexistent Spell", null)).toBeNull();
+  });
+
+  it("catalog fills missing fields when sheet has minimal data", () => {
+    // Sheet has only name and level — catalog provides full mechanics
+    const sheetSpell = { name: "Burning Hands", level: 1 };
+    const sheet = { preparedSpells: [sheetSpell] };
+    const result = resolveSpell("Burning Hands", sheet);
+    expect(result).not.toBeNull();
+    // Catalog fields present
+    expect(result!.saveAbility).toBe("dexterity");
+    expect(result!.damage).toBeDefined();
+    expect(result!.damage!.diceCount).toBe(3);
+    expect(result!.damage!.diceSides).toBe(6);
+    expect(result!.damageType).toBe("fire");
+    expect(result!.halfDamageOnSave).toBe(true);
+    expect(result!.area).toEqual({ type: "cone", size: 15 });
+  });
+
+  it("case-insensitive catalog lookup via resolveSpell", () => {
+    const result = resolveSpell("fire bolt", null);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe("Fire Bolt");
+  });
+
+  it("sheet-only spell with no catalog match is returned as-is", () => {
+    const sheetSpell = {
+      name: "Arcane Barrage",
+      level: 3,
+      damage: { diceCount: 5, diceSides: 6, modifier: 2 },
+      damageType: "force",
+      concentration: true,
+    };
+    const sheet = { preparedSpells: [sheetSpell] };
+    const result = resolveSpell("Arcane Barrage", sheet);
+    expect(result).toEqual(sheetSpell);
   });
 });

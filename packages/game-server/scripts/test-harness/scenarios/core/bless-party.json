@@ -23,7 +23,6 @@
             {
               "name": "Bless",
               "level": 1,
-              "concentration": true,
               "effects": [
                 {
                   "type": "bonus",

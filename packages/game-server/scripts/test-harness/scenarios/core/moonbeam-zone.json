@@ -19,37 +19,8 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4, "2": 2 },
         "preparedSpells": [
-          {
-            "name": "Moonbeam",
-            "level": 2,
-            "concentration": true,
-            "zone": {
-              "type": "placed",
-              "radiusFeet": 5,
-              "shape": "circle",
-              "effects": [
-                {
-                  "trigger": "on_start_turn",
-                  "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 },
-                  "damageType": "radiant",
-                  "saveAbility": "constitution",
-                  "saveDC": 14,
-                  "halfDamageOnSave": true,
-                  "affectsEnemies": true,
-                  "affectsAllies": true,
-                  "affectsSelf": true
-                }
-              ]
-            }
-          },
-          {
-            "name": "Produce Flame",
-            "level": 0,
-            "damageType": "fire",
-            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
-            "isRanged": true,
-            "range": 30
-          }
+          { "name": "Moonbeam", "level": 2 },
+          { "name": "Produce Flame", "level": 0 }
         ],
         "attacks": [
           {

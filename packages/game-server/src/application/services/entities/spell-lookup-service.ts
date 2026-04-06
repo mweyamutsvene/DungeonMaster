@@ -1,11 +1,13 @@
 import { NotFoundError } from "../../errors.js";
 import type { ISpellRepository } from "../../repositories/spell-repository.js";
 import type { SpellDefinitionRecord } from "../../types.js";
+import { getCanonicalSpell } from "../../../domain/entities/spells/catalog/index.js";
 
 /**
  * Read-only lookup for static spell definitions.
  * Layer: Application.
- * Notes: Wraps `ISpellRepository` and normalizes "not found" into `NotFoundError`.
+ * Notes: Uses canonical spell catalog as primary source, falls back to
+ * `ISpellRepository` (Prisma) for spells not in the catalog.
  *
  * Implemented mechanics (handled by other services):
  * - Slot consumption: SpellSlotManager
@@ -25,6 +27,22 @@ export class SpellLookupService {
   }
 
   async getSpellByNameOrThrow(name: string): Promise<SpellDefinitionRecord> {
+    // Try canonical catalog first (synchronous, no DB round-trip)
+    const canonical = getCanonicalSpell(name);
+    if (canonical) {
+      return {
+        id: `catalog:${canonical.name.toLowerCase().replace(/\s+/g, "-")}`,
+        name: canonical.name,
+        level: canonical.level,
+        school: canonical.school,
+        ritual: canonical.ritual ?? false,
+        data: canonical as unknown as SpellDefinitionRecord["data"],
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      };
+    }
+
+    // Fall back to DB repository
     const spell = await this.spells.getByName(name);
     if (!spell) throw new NotFoundError(`Spell not found: ${name}`);
     return spell;

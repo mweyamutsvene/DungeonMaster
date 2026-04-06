@@ -22,7 +22,6 @@
           {
             "name": "Heroism",
             "level": 1,
-            "concentration": true,
             "effects": [
               {
                 "type": "recurring_temp_hp",
@@ -41,15 +40,7 @@
               }
             ]
           },
-          {
-            "name": "Cause Fear",
-            "level": 1,
-            "saveAbility": "wisdom",
-            "damage": { "diceCount": 0, "diceSides": 0, "modifier": 0 },
-            "damageType": "psychic",
-            "halfDamageOnSave": false,
-            "conditions": { "onFailure": ["Frightened"] }
-          }
+          { "name": "Cause Fear", "level": 1 }
         ],
         "attacks": [
           {
@@ -81,15 +72,7 @@
             }
           ],
           "preparedSpells": [
-            {
-              "name": "Cause Fear",
-              "level": 1,
-              "saveAbility": "wisdom",
-              "damage": { "diceCount": 0, "diceSides": 0, "modifier": 0 },
-              "damageType": "psychic",
-              "halfDamageOnSave": false,
-              "conditions": { "onFailure": ["Frightened"] }
-            }
+            { "name": "Cause Fear", "level": 1 }
           ]
         }
       }

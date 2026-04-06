@@ -19,15 +19,8 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4, "2": 2 },
         "preparedSpells": [
-          {
-            "name": "Cure Wounds", "level": 1,
-            "healing": { "diceCount": 2, "diceSides": 8 }
-          },
-          {
-            "name": "Healing Word", "level": 1,
-            "healing": { "diceCount": 2, "diceSides": 4 },
-            "isBonusAction": true
-          },
+          { "name": "Cure Wounds", "level": 1 },
+          { "name": "Healing Word", "level": 1 },
           { "name": "Sacred Flame", "level": 0 }
         ],
         "attacks": [

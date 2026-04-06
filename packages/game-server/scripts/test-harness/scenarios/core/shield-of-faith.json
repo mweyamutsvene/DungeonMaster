@@ -19,28 +19,8 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4, "2": 2 },
         "preparedSpells": [
-          {
-            "name": "Shield of Faith",
-            "level": 1,
-            "concentration": true,
-            "effects": [
-              {
-                "type": "bonus",
-                "target": "armor_class",
-                "value": 2,
-                "duration": "concentration",
-                "appliesTo": "self"
-              }
-            ]
-          },
-          {
-            "name": "Sacred Flame",
-            "level": 0,
-            "saveAbility": "dexterity",
-            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
-            "damageType": "radiant",
-            "halfDamageOnSave": false
-          }
+          { "name": "Shield of Faith", "level": 1 },
+          { "name": "Sacred Flame", "level": 0 }
         ],
         "attacks": [
           {

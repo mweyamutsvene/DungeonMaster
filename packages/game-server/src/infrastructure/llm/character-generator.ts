@@ -35,6 +35,11 @@ export interface GeneratedCharacterSheet {
     bonds: string[];
     flaws: string[];
   };
+  preparedSpells?: Array<{
+    name: string;
+    level: number;
+    [key: string]: unknown;
+  }>;
 }
 
 export interface ICharacterGenerator {

@@ -20,7 +20,7 @@
  */
 
 import { ValidationError } from "../../../errors.js";
-import { findPreparedSpellInSheet, prepareSpellCast } from "../helpers/spell-slot-manager.js";
+import { resolveSpell, prepareSpellCast } from "../helpers/spell-slot-manager.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { normalizeResources } from "../helpers/resource-utils.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
@@ -104,7 +104,7 @@ export class SpellActionHandler {
     const sheet = character && typeof character.sheet === "object" ? character.sheet : null;
 
     // Find the spell by name (case-insensitive) using shared lookup helper
-    const spellMatch = findPreparedSpellInSheet(sheet, castInfo.spellName);
+    const spellMatch = resolveSpell(castInfo.spellName, sheet);
     const spellLevel = spellMatch?.level ?? 0;
     const isConcentration = spellMatch?.concentration ?? false;
     const isBonusAction = spellMatch?.isBonusAction ?? false;

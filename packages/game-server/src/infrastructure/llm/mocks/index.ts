@@ -24,6 +24,8 @@ import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "../../../app
 import type { JsonValue } from "../../../application/types.js";
 import { getClassDefinition, isCharacterClassId } from "../../../domain/entities/classes/index.js";
 import { barbarianUnarmoredDefenseAC } from "../../../domain/entities/classes/barbarian.js";
+import { listSpellsByClass, type CanonicalSpell } from "../../../domain/entities/spells/catalog/index.js";
+import type { PreparedSpellDefinition } from "../../../domain/entities/spells/prepared-spell-definition.js";
 
 // ============================================================================
 // MockIntentParser
@@ -511,6 +513,26 @@ export class MockStoryGenerator implements IStoryGenerator {
 }
 
 // ============================================================================
+// Spell Helpers for MockCharacterGenerator
+// ============================================================================
+
+/**
+ * Pick appropriate spells from the canonical catalog for a caster class.
+ * Returns up to 3 cantrips and up to 3 spells per level (capped at level 3).
+ */
+function pickSpellsForClass(classId: string, level: number): PreparedSpellDefinition[] {
+  const classSpells = listSpellsByClass(classId);
+  const cantrips: CanonicalSpell[] = classSpells.filter(s => s.level === 0).slice(0, 3);
+  const maxSpellLevel = Math.min(Math.ceil(level / 2), 3);
+  const leveled: CanonicalSpell[] = [];
+  for (let l = 1; l <= maxSpellLevel; l++) {
+    const atLevel = classSpells.filter(s => s.level === l);
+    leveled.push(...atLevel.slice(0, 3));
+  }
+  return [...cantrips, ...leveled];
+}
+
+// ============================================================================
 // MockCharacterGenerator
 // ============================================================================
 
@@ -744,7 +766,7 @@ export class MockCharacterGenerator implements ICharacterGenerator {
 
     if (hasShield) armorClass += 2;
 
-    return {
+    const sheet: GeneratedCharacterSheet = {
       hp,
       maxHp: hp,
       armorClass,
@@ -773,6 +795,14 @@ export class MockCharacterGenerator implements ICharacterGenerator {
         flaws: ["Too proud to back down"],
       },
     };
+
+    // Add prepared spells for caster classes from the canonical catalog
+    const catalogSpells = pickSpellsForClass(className, level);
+    if (catalogSpells.length > 0) {
+      sheet.preparedSpells = catalogSpells.map(s => ({ ...s }));
+    }
+
+    return sheet;
   }
 }
 

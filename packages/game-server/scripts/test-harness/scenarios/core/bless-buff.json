@@ -19,27 +19,7 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
         "preparedSpells": [
-          {
-            "name": "Bless",
-            "level": 1,
-            "concentration": true,
-            "effects": [
-              {
-                "type": "bonus",
-                "target": "attack_rolls",
-                "diceValue": { "count": 1, "sides": 4 },
-                "duration": "concentration",
-                "appliesTo": "self"
-              },
-              {
-                "type": "bonus",
-                "target": "saving_throws",
-                "diceValue": { "count": 1, "sides": 4 },
-                "duration": "concentration",
-                "appliesTo": "self"
-              }
-            ]
-          }
+          { "name": "Bless", "level": 1 }
         ],
         "attacks": [
           {

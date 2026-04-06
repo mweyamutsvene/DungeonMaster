@@ -6,9 +6,9 @@
 
 import type { AiActionHandler, AiActionHandlerContext, AiActionHandlerDeps, AiHandlerResult } from "../ai-action-handler.js";
 import { spendAction } from "../../helpers/resource-utils.js";
-import { findPreparedSpellInSheet, prepareSpellCast } from "../../helpers/spell-slot-manager.js";
+import { resolveSpell, prepareSpellCast } from "../../helpers/spell-slot-manager.js";
 import type { CombatantRef } from "../../helpers/combatant-ref.js";
-import { AiSpellDelivery, findSpellDefinition } from "./ai-spell-delivery.js";
+import { AiSpellDelivery } from "./ai-spell-delivery.js";
 
 export class CastSpellHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -56,7 +56,7 @@ export class CastSpellHandler implements AiActionHandler {
         const characterRecord = await characters.getById(aiCombatant.characterId!);
         if (characterRecord) {
           casterSource = (characterRecord.sheet as Record<string, unknown>) ?? {};
-          const spellDef = findPreparedSpellInSheet(characterRecord.sheet, spellName);
+          const spellDef = resolveSpell(spellName, characterRecord.sheet);
           if (spellDef) {
             isConcentration = spellDef.concentration ?? false;
           }
@@ -67,7 +67,7 @@ export class CastSpellHandler implements AiActionHandler {
         const monsterRecord = await deps.monsters.getById(aiCombatant.monsterId);
         if (monsterRecord) {
           casterSource = (monsterRecord.statBlock as Record<string, unknown>) ?? {};
-          const spellDef = findSpellDefinition(casterSource, spellName);
+          const spellDef = resolveSpell(spellName, casterSource);
           if (spellDef) isConcentration = spellDef.concentration ?? false;
         }
       } catch { /* Non-fatal */ }
@@ -76,7 +76,7 @@ export class CastSpellHandler implements AiActionHandler {
         const npcRecord = await deps.npcs.getById(aiCombatant.npcId);
         if (npcRecord) {
           casterSource = (npcRecord.statBlock as Record<string, unknown>) ?? {};
-          const spellDef = findSpellDefinition(casterSource, spellName);
+          const spellDef = resolveSpell(spellName, casterSource);
           if (spellDef) isConcentration = spellDef.concentration ?? false;
         }
       } catch { /* Non-fatal */ }
@@ -154,7 +154,7 @@ export class CastSpellHandler implements AiActionHandler {
 
     // ── Spell mechanical effect delivery ──
     let deliverySummary: string | null = null;
-    const spellDef = findSpellDefinition(casterSource, spellName);
+    const spellDef = resolveSpell(spellName, casterSource);
 
     if (spellDef && deps.diceRoller && deps.monsters && deps.npcs) {
       try {

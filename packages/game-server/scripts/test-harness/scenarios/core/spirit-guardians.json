@@ -19,37 +19,10 @@
         "spellAttackBonus": 7,
         "spellSlots": { "1": 4, "2": 3, "3": 2 },
         "preparedSpells": [
+          { "name": "Spirit Guardians", "level": 3 },
           {
-            "name": "Spirit Guardians",
-            "level": 3,
-            "concentration": true,
-            "zone": {
-              "type": "aura",
-              "radiusFeet": 15,
-              "shape": "circle",
-              "attachToSelf": true,
-              "effects": [
-                {
-                  "trigger": "on_start_turn",
-                  "damage": { "diceCount": 3, "diceSides": 8, "modifier": 0 },
-                  "damageType": "radiant",
-                  "saveAbility": "wisdom",
-                  "saveDC": 15,
-                  "halfDamageOnSave": true,
-                  "affectsEnemies": true,
-                  "affectsAllies": false,
-                  "affectsSelf": false
-                }
-              ]
-            }
-          },
-          {
-            "name": "Sacred Flame",
-            "level": 0,
-            "saveAbility": "dexterity",
-            "damage": { "diceCount": 2, "diceSides": 8, "modifier": 0 },
-            "damageType": "radiant",
-            "halfDamageOnSave": false
+            "name": "Sacred Flame", "level": 0,
+            "damage": { "diceCount": 2, "diceSides": 8, "modifier": 0 }
           }
         ],
         "attacks": [

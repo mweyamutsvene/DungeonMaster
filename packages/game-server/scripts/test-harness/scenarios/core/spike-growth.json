@@ -19,34 +19,8 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4, "2": 2 },
         "preparedSpells": [
-          {
-            "name": "Spike Growth",
-            "level": 2,
-            "concentration": true,
-            "zone": {
-              "type": "placed",
-              "radiusFeet": 10,
-              "shape": "circle",
-              "effects": [
-                {
-                  "trigger": "per_5ft_moved",
-                  "damage": { "diceCount": 2, "diceSides": 4, "modifier": 0 },
-                  "damageType": "piercing",
-                  "affectsEnemies": true,
-                  "affectsAllies": true,
-                  "affectsSelf": true
-                }
-              ]
-            }
-          },
-          {
-            "name": "Produce Flame",
-            "level": 0,
-            "damageType": "fire",
-            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 0 },
-            "isRanged": true,
-            "range": 30
-          }
+          { "name": "Spike Growth", "level": 2 },
+          { "name": "Produce Flame", "level": 0 }
         ],
         "attacks": [
           {

@@ -22,7 +22,6 @@
           {
             "name": "Heroism",
             "level": 1,
-            "concentration": true,
             "effects": [
               {
                 "type": "recurring_temp_hp",

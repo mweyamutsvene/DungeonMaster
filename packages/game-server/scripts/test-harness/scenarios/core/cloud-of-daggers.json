@@ -22,7 +22,6 @@
           {
             "name": "Cloud of Daggers",
             "level": 2,
-            "concentration": true,
             "zone": {
               "type": "placed",
               "radiusFeet": 5,
@@ -39,14 +38,7 @@
               ]
             }
           },
-          {
-            "name": "Fire Bolt",
-            "level": 0,
-            "damageType": "fire",
-            "damage": { "diceCount": 1, "diceSides": 10, "modifier": 0 },
-            "isRanged": true,
-            "range": 120
-          }
+          { "name": "Fire Bolt", "level": 0 }
         ],
         "attacks": [
           {

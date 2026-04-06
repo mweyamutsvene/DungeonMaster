@@ -24,6 +24,11 @@
         "spellcastingAbility": "intelligence",
         "spellSaveDC": 15,
         "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
         "attacks": [
           {
             "name": "Quarterstaff",
@@ -99,12 +104,22 @@
       "type": "waitForTurn"
     },
     {
+      "comment": "Cast Fire Bolt cantrip — now a ranged spell attack (canonical catalog)",
       "type": "action",
-      "input": { "text": "cast Fire Bolt" },
-      "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "CastSpell"
-      }
+      "input": { "text": "cast Fire Bolt at Skeleton Warrior" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Fire Bolt attack roll: 15 + 7 (spellAttackBonus) = 22 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Fire Bolt damage: 8 fire damage",
+      "expect": { "actionComplete": true }
     }
   ]
 }

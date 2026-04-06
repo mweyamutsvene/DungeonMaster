@@ -142,6 +142,15 @@ export interface AiCombatContext {
     }>;
     /** Number of attacks per Attack action (Extra Attack, Multiattack). Defaults to 1. */
     attacksPerAction?: number;
+    /** Prepared spells available to this caster, enriched from canonical catalog. */
+    preparedSpells?: Array<{
+      name: string;
+      level: number;
+      school?: string;
+      concentration?: boolean;
+      castingTime?: string;
+      range?: number | string;
+    }>;
   };
   combat: {
     round: number;

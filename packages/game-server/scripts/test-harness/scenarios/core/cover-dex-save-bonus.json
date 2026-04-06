@@ -19,13 +19,7 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
         "preparedSpells": [
-          {
-            "name": "Burning Hands", "level": 1,
-            "saveAbility": "dexterity",
-            "damage": { "diceCount": 3, "diceSides": 6, "modifier": 0 },
-            "damageType": "fire",
-            "halfDamageOnSave": true
-          }
+          { "name": "Burning Hands", "level": 1, "area": null }
         ],
         "attacks": [
           {

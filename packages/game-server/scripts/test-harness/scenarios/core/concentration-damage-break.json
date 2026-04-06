@@ -20,7 +20,7 @@
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
         "preparedSpells": [
-          { "name": "Bless", "level": 1, "concentration": true },
+          { "name": "Bless", "level": 1 },
           { "name": "Fire Bolt", "level": 0 }
         ],
         "attacks": [
@@ -87,10 +87,22 @@
       "type": "waitForTurn"
     },
     {
-      "comment": "After taking Ogre damage, cast Fire Bolt (cantrip) to continue the turn",
+      "comment": "After taking Ogre damage, cast Fire Bolt (cantrip) — now a ranged spell attack (canonical catalog)",
       "type": "action",
       "input": { "text": "cast Fire Bolt at Ogre" },
-      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Fire Bolt attack roll: 15 + 6 (spellAttackBonus) = 21 vs AC 11 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Fire Bolt damage: 8 fire damage",
+      "expect": { "actionComplete": true }
     }
   ]
 }
