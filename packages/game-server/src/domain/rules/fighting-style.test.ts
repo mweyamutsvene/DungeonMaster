@@ -13,6 +13,7 @@ import {
   FEAT_DUELING,
   FEAT_GREAT_WEAPON_FIGHTING,
   FEAT_PROTECTION,
+  FEAT_RESILIENT,
   FEAT_TWO_WEAPON_FIGHTING,
 } from "./feat-modifiers.js";
 
@@ -76,6 +77,18 @@ describe("Fighting Style feat modifiers", () => {
     it("enables adding ability modifier to bonus attack damage", () => {
       const mods = computeFeatModifiers([FEAT_TWO_WEAPON_FIGHTING]);
       expect(mods.twoWeaponFightingAddsAbilityModifierToBonusAttackDamage).toBe(true);
+    });
+  });
+
+  describe("Resilient", () => {
+    it("enables Resilient when feat is present", () => {
+      const mods = computeFeatModifiers([FEAT_RESILIENT]);
+      expect(mods.resilientEnabled).toBe(true);
+    });
+
+    it("does not enable Resilient without the feat", () => {
+      const mods = computeFeatModifiers([]);
+      expect(mods.resilientEnabled).toBe(false);
     });
   });
 });

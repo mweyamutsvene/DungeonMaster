@@ -42,6 +42,11 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     } = ctx;
     const { deps, eventEmitter, debugLogsEnabled } = this.handlerDeps;
 
+    // AoE healing (Mass Cure Wounds, Prayer of Healing, etc.)
+    if (spellMatch.area && !castInfo.targetName) {
+      return this.handleAoE(ctx);
+    }
+
     const targetName = castInfo.targetName;
     if (!targetName) {
       throw new ValidationError(
@@ -168,6 +173,170 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
       type: "SIMPLE_ACTION_COMPLETE",
       action: "CastSpell",
       message: `Cast ${castInfo.spellName} on ${targetName}.${slotNote}${bonusNote} Healed ${actualHealing} HP (${healFormula} rolled ${healRoll.total}+${spellMod}=${healTotal}). HP: ${hpBefore} → ${hpAfter}.${reviveNote}`,
+    };
+  }
+
+  /**
+   * AoE healing path — Mass Cure Wounds, Prayer of Healing, Mass Healing Word, etc.
+   * Rolls healing once and applies to all friendly combatants (D&D 5e 2024).
+   * Caps at 6 targets (standard for mass healing spells).
+   */
+  private async handleAoE(ctx: SpellCastingContext): Promise<ActionParseResult> {
+    const {
+      sessionId,
+      actorId,
+      castInfo,
+      spellMatch,
+      spellLevel,
+      castAtLevel,
+      sheet,
+      characters,
+      actor,
+      roster,
+      encounter,
+      combatants,
+    } = ctx;
+    const { deps, eventEmitter, debugLogsEnabled } = this.handlerDeps;
+
+    const healing = spellMatch.healing!;
+    const spellMod = healing.modifier ?? getSpellcastingModifier(sheet);
+
+    // Upcast scaling
+    let healDiceCount = healing.diceCount;
+    const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
+    if (upcastBonus) {
+      healDiceCount += upcastBonus.bonusDiceCount;
+    }
+
+    // Roll once — all targets receive the same healing (D&D 5e mass healing spells)
+    const healRoll = deps.diceRoller!.rollDie(healing.diceSides, healDiceCount);
+    const healTotal = Math.max(0, healRoll.total + spellMod);
+
+    // Determine caster faction to find friendly combatants
+    const actorCombatant = combatants.find(
+      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+    );
+    const actorIsPC =
+      actorCombatant?.combatantType === "Character" || actorCombatant?.combatantType === "NPC";
+
+    // Collect eligible friendly targets: same faction, alive (not 3 death save failures), not at max HP
+    const MAX_TARGETS = 6;
+    const eligibleTargets = combatants
+      .filter((c: any) => {
+        const isPC = c.combatantType === "Character" || c.combatantType === "NPC";
+        if (isPC !== actorIsPC) return false;
+        // Skip dead combatants (3 death save failures)
+        const deathSaves = (c.resources as any)?.deathSaves;
+        if (deathSaves && deathSaves.failures >= 3) return false;
+        // Skip combatants already at full HP (no benefit)
+        if (c.hpCurrent >= c.hpMax) return false;
+        return true;
+      })
+      .slice(0, MAX_TARGETS);
+
+    if (eligibleTargets.length === 0) {
+      // Still spend the action/slot even if no one benefits
+      const isBonusAction = spellMatch.isBonusAction ?? false;
+      await deps.actions.castSpell(sessionId, {
+        encounterId: encounter.id,
+        actor,
+        spellName: castInfo.spellName,
+        skipActionCheck: isBonusAction,
+      });
+
+      return {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE",
+        action: "CastSpell",
+        message: `Cast ${castInfo.spellName}. No allies needed healing.`,
+      };
+    }
+
+    // Apply healing to each eligible target
+    const allMonsters = await deps.monsters.listBySession(sessionId);
+    const healingSummaries: string[] = [];
+
+    for (const target of eligibleTargets) {
+      const targetId = target.characterId ?? target.monsterId ?? target.npcId;
+      const hpBefore = target.hpCurrent;
+      const hpAfter = Math.min(target.hpMax, hpBefore + healTotal);
+      const actualHealing = hpAfter - hpBefore;
+
+      const updatePatch: Record<string, any> = { hpCurrent: hpAfter };
+
+      // Revive from 0 HP
+      let revived = false;
+      if (hpBefore === 0 && hpAfter > 0) {
+        revived = true;
+        let conditions = normalizeConditions(target.conditions);
+        conditions = removeCondition(conditions, "Unconscious");
+        updatePatch.conditions = conditions as any;
+        updatePatch.resources = {
+          ...(target.resources as any),
+          deathSaves: { successes: 0, failures: 0 },
+        };
+      }
+
+      await deps.combatRepo.updateCombatantState(target.id, updatePatch);
+
+      // Emit healing event for this target
+      await eventEmitter.emitHealingEvents(
+        sessionId,
+        encounter.id,
+        actorId,
+        targetId,
+        characters,
+        allMonsters as any,
+        actualHealing,
+        hpAfter,
+      );
+
+      // Build summary entry — resolve name from roster
+      const targetName =
+        roster.characters.find((c) => c.id === targetId)?.name ??
+        roster.monsters.find((m) => m.id === targetId)?.name ??
+        roster.npcs.find((n) => n.id === targetId)?.name ??
+        "Unknown";
+
+      const reviveNote = revived ? " (revived!)" : "";
+      healingSummaries.push(`${targetName} ${actualHealing} HP${reviveNote}`);
+    }
+
+    // Mark action spent
+    const isBonusAction = spellMatch.isBonusAction ?? false;
+    await deps.actions.castSpell(sessionId, {
+      encounterId: encounter.id,
+      actor,
+      spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
+    });
+
+    if (isBonusAction && actorCombatant) {
+      const actorResources = actorCombatant.resources ?? {};
+      await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: { ...(actorResources as any), bonusActionUsed: true } as any,
+      });
+    }
+
+    const effectiveLevel = castAtLevel ?? spellLevel;
+    const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
+    const healFormula = `${healDiceCount}d${healing.diceSides}${
+      spellMod > 0 ? `+${spellMod}` : spellMod < 0 ? `${spellMod}` : ""
+    }`;
+    const bonusNote = isBonusAction ? " [bonus action]" : "";
+
+    if (debugLogsEnabled)
+      console.log(
+        `[HealingSpellDeliveryHandler] AoE Healing: ${castInfo.spellName}: ${healFormula} = ${healTotal} to ${eligibleTargets.length} targets`,
+      );
+
+    return {
+      requiresPlayerInput: false,
+      actionComplete: true,
+      type: "SIMPLE_ACTION_COMPLETE",
+      action: "CastSpell",
+      message: `Cast ${castInfo.spellName}.${slotNote}${bonusNote} Healed ${eligibleTargets.length} target(s) for ${healTotal} HP each (${healFormula} rolled ${healRoll.total}+${spellMod}=${healTotal}): ${healingSummaries.join(", ")}.`,
     };
   }
 }

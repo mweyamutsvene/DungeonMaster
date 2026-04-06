@@ -13,6 +13,7 @@ export const FEAT_GRAPPLER = "feat_grappler";
 export const FEAT_GREAT_WEAPON_FIGHTING = "feat_great-weapon-fighting";
 export const FEAT_MAGIC_INITIATE = "feat_magic-initiate";
 export const FEAT_PROTECTION = "feat_protection";
+export const FEAT_RESILIENT = "feat_resilient";
 export const FEAT_SAVAGE_ATTACKER = "feat_savage-attacker";
 export const FEAT_SKILLED = "feat_skilled";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
@@ -72,6 +73,12 @@ export interface FeatModifiers {
   grapplerEnabled: boolean;
   magicInitiateEnabled: boolean;
   abilityScoreImprovementEnabled: boolean;
+
+  /**
+   * Resilient: grants proficiency in saving throws for one chosen ability.
+   * The specific ability is stored on the character sheet, not derived from the feat ID.
+   */
+  resilientEnabled: boolean;
 }
 
 export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers {
@@ -96,6 +103,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     grapplerEnabled: set.has(FEAT_GRAPPLER),
     magicInitiateEnabled: set.has(FEAT_MAGIC_INITIATE),
     abilityScoreImprovementEnabled: set.has(FEAT_ABILITY_SCORE_IMPROVEMENT),
+    resilientEnabled: set.has(FEAT_RESILIENT),
   };
 }
 

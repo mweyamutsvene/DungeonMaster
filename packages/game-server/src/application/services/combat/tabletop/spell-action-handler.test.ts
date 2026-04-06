@@ -876,4 +876,262 @@ describe("SpellActionHandler", () => {
       expect(result.type).toBe("REQUEST_ROLL");
     });
   });
+
+  describe("AoE healing (Mass Cure Wounds)", () => {
+    const ALLY_ID = "fighter-1";
+
+    const massCureCharacters = [
+      {
+        id: ACTOR_ID,
+        sheet: {
+          preparedSpells: [
+            {
+              name: "Mass Cure Wounds",
+              level: 5,
+              healing: { diceCount: 3, diceSides: 8 },
+              area: { type: "sphere", size: 60 },
+              upcastScaling: { additionalDice: { diceCount: 1, diceSides: 8 } },
+            },
+            {
+              name: "Cure Wounds",
+              level: 1,
+              healing: { diceCount: 1, diceSides: 8, modifier: 3 },
+            },
+          ],
+          spellAttackBonus: 5,
+          spellSaveDC: 13,
+          spellcastingAbility: "wisdom",
+          abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 10, wisdom: 16, charisma: 10 },
+        },
+      },
+    ];
+
+    const massCureRoster: LlmRoster = {
+      characters: [
+        { id: ACTOR_ID, name: "Cleric" },
+        { id: ALLY_ID, name: "Fighter" },
+      ],
+      monsters: [{ id: TARGET_ID, name: "Goblin" }],
+      npcs: [],
+    };
+
+    beforeEach(async () => {
+      // Re-create combatants with 3 entries (createCombatants replaces the full list)
+      await combatRepo.createCombatants(ENCOUNTER_ID, [
+        {
+          id: "comb-wizard",
+          combatantType: "Character",
+          characterId: ACTOR_ID,
+          monsterId: null,
+          npcId: null,
+          initiative: 15,
+          hpCurrent: 30,
+          hpMax: 30,
+          conditions: [],
+          resources: {
+            resourcePools: [
+              { name: "spellSlot_1", current: 4, max: 4 },
+              { name: "spellSlot_2", current: 3, max: 3 },
+              { name: "spellSlot_3", current: 2, max: 2 },
+            ],
+          },
+        },
+        {
+          id: "comb-goblin",
+          combatantType: "Monster",
+          characterId: null,
+          monsterId: TARGET_ID,
+          npcId: null,
+          initiative: 10,
+          hpCurrent: 12,
+          hpMax: 12,
+          conditions: [],
+          resources: { resourcePools: [] },
+        },
+        {
+          id: "comb-fighter",
+          combatantType: "Character",
+          characterId: ALLY_ID,
+          monsterId: null,
+          npcId: null,
+          initiative: 12,
+          hpCurrent: 20,
+          hpMax: 40,
+          conditions: [],
+          resources: { resourcePools: [] },
+        },
+      ]);
+    });
+
+    it("heals all friendly combatants when no target specified", async () => {
+      // Damage both friendly characters
+      await combatRepo.updateCombatantState("comb-wizard", { hpCurrent: 15 });
+      await combatRepo.updateCombatantState("comb-fighter", { hpCurrent: 20 });
+
+      // Add level 5 spell slot
+      await combatRepo.updateCombatantState("comb-wizard", {
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_1", current: 4, max: 4 },
+            { name: "spellSlot_2", current: 3, max: 3 },
+            { name: "spellSlot_3", current: 2, max: 2 },
+            { name: "spellSlot_5", current: 1, max: 1 },
+          ],
+        },
+      });
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Mass Cure Wounds" },
+        massCureCharacters,
+        massCureRoster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+      expect(result.actionComplete).toBe(true);
+      expect(result.message).toContain("Mass Cure Wounds");
+      expect(result.message).toContain("target(s)");
+
+      // Both friendly characters should be healed
+      const combatantsAfter = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const wizard = combatantsAfter.find((c) => c.characterId === ACTOR_ID)!;
+      const fighter = combatantsAfter.find((c) => c.characterId === ALLY_ID)!;
+
+      // FixedDiceRoller(10) → 3d8 = 30, +3 wisdom mod = 33
+      expect(wizard.hpCurrent).toBeGreaterThan(15);
+      expect(fighter.hpCurrent).toBeGreaterThan(20);
+
+      // Healing events emitted for each target
+      expect(eventEmitter.emitHealingEvents).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not heal enemies", async () => {
+      await combatRepo.updateCombatantState("comb-wizard", { hpCurrent: 15 });
+      await combatRepo.updateCombatantState("comb-goblin", { hpCurrent: 5 });
+
+      await combatRepo.updateCombatantState("comb-wizard", {
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_5", current: 1, max: 1 },
+          ],
+        },
+      });
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Mass Cure Wounds" },
+        massCureCharacters,
+        massCureRoster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+
+      // Goblin should NOT be healed
+      const combatantsAfter = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const goblin = combatantsAfter.find((c) => c.monsterId === TARGET_ID)!;
+      expect(goblin.hpCurrent).toBe(5);
+    });
+
+    it("revives unconscious allies at 0 HP", async () => {
+      await combatRepo.updateCombatantState("comb-fighter", {
+        hpCurrent: 0,
+        conditions: ["Unconscious"],
+        resources: { resourcePools: [], deathSaves: { successes: 1, failures: 2 } },
+      });
+
+      await combatRepo.updateCombatantState("comb-wizard", {
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_5", current: 1, max: 1 },
+          ],
+        },
+      });
+
+      // Wizard is at full HP (30/30), so only fighter gets healed
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Mass Cure Wounds" },
+        massCureCharacters,
+        massCureRoster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+      expect(result.message).toContain("revived!");
+
+      const combatantsAfter = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const fighter = combatantsAfter.find((c) => c.characterId === ALLY_ID)!;
+      expect(fighter.hpCurrent).toBeGreaterThan(0);
+      expect(fighter.conditions).not.toContain("Unconscious");
+
+      const res = fighter.resources as any;
+      expect(res.deathSaves).toEqual({ successes: 0, failures: 0 });
+    });
+
+    it("skips dead combatants (3 death save failures)", async () => {
+      await combatRepo.updateCombatantState("comb-fighter", {
+        hpCurrent: 0,
+        conditions: ["Unconscious"],
+        resources: { resourcePools: [], deathSaves: { successes: 0, failures: 3 } },
+      });
+
+      await combatRepo.updateCombatantState("comb-wizard", {
+        hpCurrent: 15,
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_5", current: 1, max: 1 },
+          ],
+        },
+      });
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Mass Cure Wounds" },
+        massCureCharacters,
+        massCureRoster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+
+      // Dead fighter should NOT be healed
+      const combatantsAfter = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const fighter = combatantsAfter.find((c) => c.characterId === ALLY_ID)!;
+      expect(fighter.hpCurrent).toBe(0);
+
+      // Only wizard healed (1 target)
+      expect(result.message).toContain("1 target(s)");
+    });
+
+    it("falls through to single-target path when targetName is provided on AoE spell", async () => {
+      await combatRepo.updateCombatantState("comb-fighter", { hpCurrent: 20 });
+
+      await combatRepo.updateCombatantState("comb-wizard", {
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_5", current: 1, max: 1 },
+          ],
+        },
+      });
+
+      // Even though Mass Cure Wounds has area, providing a target uses single-target path
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Mass Cure Wounds", targetName: "Fighter" },
+        massCureCharacters,
+        massCureRoster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+      expect(result.message).toContain("on Fighter");
+    });
+  });
 });

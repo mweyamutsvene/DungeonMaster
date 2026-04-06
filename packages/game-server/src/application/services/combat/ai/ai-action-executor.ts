@@ -348,49 +348,43 @@ export class AiActionExecutor {
       }
     }
 
-    // Legacy string matching for backward compatibility
+    // Map-based fallback for known bonus actions that resolve to disengage/hide/dash
     const bonus = bonusActionId.toLowerCase();
+    const BONUS_ACTION_MAP: Record<string, "disengage" | "hide" | "dash"> = {
+      "nimble_escape_disengage": "disengage",
+      "disengage": "disengage",
+      "nimble_escape_hide": "hide",
+      "hide": "hide",
+      "cunning_action_dash": "dash",
+      "cunning_action_disengage": "disengage",
+      "cunning_action_hide": "hide",
+    };
 
-    try {
-      // Nimble Escape: Disengage as bonus action
-      if (bonus === "nimble_escape_disengage" || bonus === "disengage") {
-        await this.actionService.disengage(sessionId, { encounterId, actor: actorRef });
-        return { action: "disengage", summary: "Disengaged (bonus action)" };
+    const mappedAction = BONUS_ACTION_MAP[bonus];
+    if (mappedAction) {
+      try {
+        switch (mappedAction) {
+          case "disengage":
+            await this.actionService.disengage(sessionId, { encounterId, actor: actorRef });
+            return { action: "disengage", summary: `Disengaged (${bonusActionId})` };
+          case "dash":
+            await this.actionService.dash(sessionId, { encounterId, actor: actorRef });
+            return { action: "dash", summary: `Dashed (${bonusActionId})` };
+          case "hide": {
+            const hideResult = await this.actionService.hide(sessionId, { encounterId, actor: actorRef, isBonusAction: true });
+            const outcome = hideResult.result.success ? `Hidden (Stealth: ${hideResult.result.stealthRoll})` : `failed to hide`;
+            return { action: "hide", summary: `${outcome} (${bonusActionId})` };
+          }
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.aiLog(`[AiActionExecutor] Bonus action failed: ${message}`);
+        return { action: bonus, summary: `Bonus action failed: ${message}` };
       }
-
-      // Nimble Escape: Hide as bonus action
-      if (bonus === "nimble_escape_hide" || bonus === "hide") {
-        const hideResult = await this.actionService.hide(sessionId, { encounterId, actor: actorRef, isBonusAction: true });
-        const outcome = hideResult.result.success ? `Hidden (Stealth: ${hideResult.result.stealthRoll})` : `failed to hide`;
-        return { action: "hide", summary: `${outcome} (bonus action)` };
-      }
-
-      // Cunning Action (Rogue): Dash as bonus action
-      if (bonus === "cunning_action_dash") {
-        await this.actionService.dash(sessionId, { encounterId, actor: actorRef });
-        return { action: "dash", summary: "Dashed (bonus action)" };
-      }
-
-      // Cunning Action (Rogue): Disengage as bonus action
-      if (bonus === "cunning_action_disengage") {
-        await this.actionService.disengage(sessionId, { encounterId, actor: actorRef });
-        return { action: "disengage", summary: "Disengaged (bonus action)" };
-      }
-
-      // Cunning Action (Rogue): Hide as bonus action
-      if (bonus === "cunning_action_hide") {
-        const hideResult = await this.actionService.hide(sessionId, { encounterId, actor: actorRef, isBonusAction: true });
-        const outcome = hideResult.result.success ? `Hidden (Stealth: ${hideResult.result.stealthRoll})` : `failed to hide`;
-        return { action: "hide", summary: `${outcome} (bonus action via Cunning Action)` };
-      }
-
-      // Unknown bonus action
-      this.aiLog(`[AiActionExecutor] Unknown bonus action: ${decision.bonusAction}`);
-      return { action: bonus, summary: `Bonus action ${decision.bonusAction} not implemented` };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.aiLog(`[AiActionExecutor] Bonus action failed: ${message}`);
-      return { action: bonus, summary: `Bonus action failed: ${message}` };
     }
+
+    // Unknown bonus action
+    this.aiLog(`[AiActionExecutor] Unknown bonus action: ${decision.bonusAction}`);
+    return { action: bonus, summary: `Bonus action ${decision.bonusAction} not implemented` };
   }
 }

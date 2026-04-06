@@ -366,6 +366,14 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       }
     }
 
+    // --- Cover computation setup (D&D 5e 2024: AoE DEX saves get cover bonus) ---
+    const map = encounter?.mapData as unknown as CombatMap | undefined;
+    const hasMap = !!(map?.cells?.length);
+    // Origin must come from a real combatant position (not the {0,0} fallback)
+    const originIsReal = (area.type === 'sphere' || area.type === 'cylinder')
+      ? !!(targetPos || casterPos)
+      : !!casterPos;
+
     // --- Build potential target list (combatants with grid positions) ---
     const areaTargets: AreaTarget[] = [];
     for (const c of combatants) {
@@ -437,6 +445,32 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
         (roster.npcs ?? []).find((n: any) => n.id === entityId);
       const displayName: string = rosterEntry?.name ?? entityId;
 
+      // --- Per-target cover check for DEX saves (D&D 5e 2024) ---
+      let coverBonus = 0;
+      if (saveAbility === 'dexterity' && hasMap && originIsReal) {
+        const tPos = getPosition(normalizeResources((targetComb as any).resources ?? {}));
+        if (tPos) {
+          const coverLevel = getCoverLevel(map!, origin, tPos);
+          if (coverLevel === 'full') {
+            // Full cover: target is completely unaffected by the AoE
+            targetResults.push({
+              targetName: displayName,
+              saveSuccess: false,
+              rawRoll: 0,
+              modifier: 0,
+              total: 0,
+              damage: 0,
+              hpBefore: targetComb.hpCurrent,
+              hpAfter: targetComb.hpCurrent,
+              conditionsApplied: [],
+              fullCover: true,
+            });
+            continue;
+          }
+          coverBonus = getCoverSaveBonus(coverLevel);
+        }
+      }
+
       // Look up stats for damage defenses
       const tMonster = allMonsters.find((m: any) => m.id === entityId);
       const tChar = characters.find((c: any) => c.id === entityId);
@@ -461,6 +495,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
             ? { add: spellMatch.conditions.onFailure }
             : undefined,
         },
+        context: coverBonus > 0 ? { coverBonus } : undefined,
       });
       const resolution = await savingThrowResolver!.resolve(
         saveAction,
@@ -538,6 +573,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     // --- Build result message ---
     const targetSummaries = targetResults
       .map((r) => {
+        if (r.fullCover) return `${r.targetName} [full cover: unaffected]`;
         const savedStr = r.saveSuccess ? 'saved' : 'failed';
         const dmgStr = r.damage > 0 ? `${r.damage} dmg (${r.hpBefore}→${r.hpAfter} HP)` : 'no dmg';
         const condStr = r.conditionsApplied.length > 0 ? `, ${r.conditionsApplied.join(', ')}` : '';
@@ -547,12 +583,13 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
 
     const areaDesc = `${area.size}ft ${area.type}`;
     const abilityName = saveAbility.charAt(0).toUpperCase() + saveAbility.slice(1);
+    const affectedCount = targetResults.filter(r => !r.fullCover).length;
     return {
       requiresPlayerInput: false,
       actionComplete: true,
       type: 'SIMPLE_ACTION_COMPLETE' as const,
       action: 'CastSpell',
-      message: `Cast ${castInfo.spellName} (${areaDesc}).${slotNote} ${abilityName} save DC ${spellSaveDC}. Affected ${creaturesInArea.length} creature${creaturesInArea.length > 1 ? 's' : ''}: ${targetSummaries}`,
+      message: `Cast ${castInfo.spellName} (${areaDesc}).${slotNote} ${abilityName} save DC ${spellSaveDC}. Affected ${affectedCount} creature${affectedCount !== 1 ? 's' : ''}: ${targetSummaries}`,
     };
   }
 }
