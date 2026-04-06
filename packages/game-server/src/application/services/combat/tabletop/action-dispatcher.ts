@@ -1,5 +1,5 @@
-﻿/**
- * ActionDispatcher â€“ routes parsed combat actions to the correct handler.
+/**
+ * ActionDispatcher – routes parsed combat actions to the correct handler.
  *
  * Extracted from TabletopCombatService to keep action routing and execution
  * logic separate from the public API facade.
@@ -104,7 +104,7 @@ export class ActionDispatcher {
   }
 
   // ----------------------------------------------------------------
-  // Public entry point â€“ replaces TabletopCombatService.parseCombatAction body
+  // Public entry point – replaces TabletopCombatService.parseCombatAction body
   // ----------------------------------------------------------------
 
   async dispatch(
@@ -133,7 +133,7 @@ export class ActionDispatcher {
     // Enrich roster with distance data so LLM can disambiguate same-named targets
     const enrichedRoster = await this.attackHandlers.enrichRosterWithDistances(encounterId, actorId, roster);
 
-    console.log(`[ActionDispatcher] No direct parse match â†’ LLM intent for: "${text}"`);
+    console.log(`[ActionDispatcher] No direct parse match → LLM intent for: "${text}"`);
     const intent = await this.deps.intentParser.parseIntent({
       text,
       schemaHint: buildGameCommandSchemaHint(enrichedRoster),
@@ -146,7 +146,7 @@ export class ActionDispatcher {
       throw new ValidationError(`Could not parse combat action: ${(err as Error).message}`);
     }
 
-    console.log(`[ActionDispatcher] LLM intent â†’ ${command.kind}`, command.kind === "attack"
+    console.log(`[ActionDispatcher] LLM intent → ${command.kind}`, command.kind === "attack"
       ? { target: command.target?.type, spec: (command.spec as Record<string, unknown>)?.name ?? "(none)" }
       : command.kind === "move"
         ? { destination: command.destination }
@@ -172,56 +172,56 @@ export class ActionDispatcher {
       );
     }
 
-    // ── Simple actions (dash/dodge/disengage) ──
+    // -- Simple actions (dash/dodge/disengage) --
     if (command.kind === "simpleAction") {
-      return this.handleSimpleAction(sessionId, encounterId, actorId, command.action, roster);
+      return this.socialHandlers.handleSimpleAction(sessionId, encounterId, actorId, command.action, roster);
     }
 
-    // ── Hide ──
+    // -- Hide --
     if (command.kind === "hide") {
-      return this.handleHideAction(sessionId, encounterId, actorId, characters, roster);
+      return this.socialHandlers.handleHideAction(sessionId, encounterId, actorId, characters, roster);
     }
 
-    // ── Search ──
+    // -- Search --
     if (command.kind === "search") {
-      return this.handleSearchAction(sessionId, encounterId, actorId, roster);
+      return this.socialHandlers.handleSearchAction(sessionId, encounterId, actorId, roster);
     }
 
-    // ── Offhand attack ──
+    // -- Offhand attack --
     if (command.kind === "offhand") {
       return this.classAbilityHandlers.handleBonusAbility(sessionId, encounterId, actorId, "base:bonus:offhand-attack", text, characters, monsters, npcs, roster);
     }
 
-    // ── Escape grapple ──
+    // -- Escape grapple --
     if (command.kind === "escapeGrapple") {
-      return this.handleEscapeGrappleAction(sessionId, encounterId, actorId, roster);
+      return this.grappleHandlers.handleEscapeGrappleAction(sessionId, encounterId, actorId, roster);
     }
 
-    // ── Help ──
+    // -- Help --
     if (command.kind === "help") {
       const targetName = resolveRefName(command.target, roster);
-      return this.handleHelpAction(sessionId, encounterId, actorId, targetName, roster);
+      return this.socialHandlers.handleHelpAction(sessionId, encounterId, actorId, targetName, roster);
     }
 
-    // ── Grapple ──
+    // -- Grapple --
     if (command.kind === "grapple") {
       const targetName = resolveRefName(command.target, roster);
-      return this.handleGrappleAction(sessionId, encounterId, actorId, { targetName }, roster);
+      return this.grappleHandlers.handleGrappleAction(sessionId, encounterId, actorId, { targetName }, roster);
     }
 
-    // ── Shove ──
+    // -- Shove --
     if (command.kind === "shove") {
       const targetName = resolveRefName(command.target, roster);
-      return this.handleShoveAction(sessionId, encounterId, actorId, { targetName, shoveType: command.shoveType ?? "push" }, roster);
+      return this.grappleHandlers.handleShoveAction(sessionId, encounterId, actorId, { targetName, shoveType: command.shoveType ?? "push" }, roster);
     }
 
-    // ── Cast spell ──
+    // -- Cast spell --
     if (command.kind === "castSpell") {
       const targetName = command.target ? resolveRefName(command.target, roster) : undefined;
       return this.spellHandler.handleCastSpell(sessionId, encounterId, actorId, { spellName: command.spellName, targetName, castAtLevel: command.castAtLevel }, characters, roster);
     }
 
-    // ── Class ability ──
+    // -- Class ability --
     if (command.kind === "classAction") {
       // Try to match the ability name through the profile system
       const profiles = getAllCombatTextProfiles();
@@ -235,21 +235,21 @@ export class ActionDispatcher {
       throw new ValidationError(`Unknown class ability: "${command.abilityName}". Try using the exact ability name (e.g., "flurry of blows", "action surge").`);
     }
 
-    // ── Item interactions ──
+    // -- Item interactions --
     if (command.kind === "pickup") {
-      return this.handlePickupAction(sessionId, encounterId, actorId, command.itemName, roster);
+      return this.interactionHandlers.handlePickupAction(sessionId, encounterId, actorId, command.itemName, roster);
     }
     if (command.kind === "drop") {
-      return this.handleDropAction(sessionId, encounterId, actorId, command.itemName, characters, monsters, npcs, roster);
+      return this.interactionHandlers.handleDropAction(sessionId, encounterId, actorId, command.itemName, characters, monsters, npcs, roster);
     }
     if (command.kind === "drawWeapon") {
-      return this.handleDrawWeaponAction(sessionId, encounterId, actorId, command.weaponName, characters, monsters, npcs, roster);
+      return this.interactionHandlers.handleDrawWeaponAction(sessionId, encounterId, actorId, command.weaponName, characters, monsters, npcs, roster);
     }
     if (command.kind === "sheatheWeapon") {
-      return this.handleSheatheWeaponAction(sessionId, encounterId, actorId, command.weaponName, roster);
+      return this.interactionHandlers.handleSheatheWeaponAction(sessionId, encounterId, actorId, command.weaponName, roster);
     }
     if (command.kind === "useItem") {
-      return this.handleUseItemAction(sessionId, encounterId, actorId, command.itemName, roster);
+      return this.interactionHandlers.handleUseItemAction(sessionId, encounterId, actorId, command.itemName, roster);
     }
 
     // endTurn / rollResult should not reach here through the tabletop text flow
@@ -257,7 +257,7 @@ export class ActionDispatcher {
   }
 
   // ----------------------------------------------------------------
-  // Parser chain â€“ ordered list of text parsers tried by dispatch()
+  // Parser chain – ordered list of text parsers tried by dispatch()
   // ----------------------------------------------------------------
 
   private buildParserChain(): ActionParserEntry<any>[] {
@@ -294,9 +294,9 @@ export class ActionDispatcher {
         tryParse: (text) => tryParseSimpleActionText(text),
         handle: (parsed, ctx) => {
           if (parsed === "ready") {
-            return this.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
+            return this.socialHandlers.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
           }
-          return this.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
+          return this.socialHandlers.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
         },
       },
 
@@ -317,7 +317,7 @@ export class ActionDispatcher {
         id: "hide",
         tryParse: (text) => tryParseHideText(text) ? true : null,
         handle: (_parsed, ctx) =>
-          this.handleHideAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.characters, ctx.roster),
+          this.socialHandlers.handleHideAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.characters, ctx.roster),
       },
 
       // 7. Search
@@ -325,7 +325,7 @@ export class ActionDispatcher {
         id: "search",
         tryParse: (text) => tryParseSearchText(text) ? true : null,
         handle: (_parsed, ctx) =>
-          this.handleSearchAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
+          this.socialHandlers.handleSearchAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
       },
 
       // 8. Off-hand attack (with TWF validation + Nick mastery)
@@ -374,7 +374,7 @@ export class ActionDispatcher {
         id: "help",
         tryParse: (text) => tryParseHelpText(text),
         handle: (parsed, ctx) =>
-          this.handleHelpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+          this.socialHandlers.handleHelpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
       },
 
       // 10. Shove
@@ -382,7 +382,7 @@ export class ActionDispatcher {
         id: "shove",
         tryParse: (text) => tryParseShoveText(text),
         handle: (parsed, ctx) =>
-          this.handleShoveAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+          this.grappleHandlers.handleShoveAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
       },
 
       // 11. Escape Grapple
@@ -390,7 +390,7 @@ export class ActionDispatcher {
         id: "escapeGrapple",
         tryParse: (text) => tryParseEscapeGrappleText(text),
         handle: (_parsed, ctx) =>
-          this.handleEscapeGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
+          this.grappleHandlers.handleEscapeGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
       },
 
       // 12. Grapple
@@ -398,7 +398,7 @@ export class ActionDispatcher {
         id: "grapple",
         tryParse: (text) => tryParseGrappleText(text),
         handle: (parsed, ctx) =>
-          this.handleGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
+          this.grappleHandlers.handleGrappleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
       },
 
       // 13. Cast Spell
@@ -414,7 +414,7 @@ export class ActionDispatcher {
         id: "pickup",
         tryParse: (text) => tryParsePickupText(text),
         handle: (parsed, ctx) =>
-          this.handlePickupAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
+          this.interactionHandlers.handlePickupAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
       },
 
       // 15. Drop item
@@ -422,7 +422,7 @@ export class ActionDispatcher {
         id: "drop",
         tryParse: (text) => tryParseDropText(text),
         handle: (parsed, ctx) =>
-          this.handleDropAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
+          this.interactionHandlers.handleDropAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
       },
 
       // 16. Draw weapon
@@ -430,7 +430,7 @@ export class ActionDispatcher {
         id: "drawWeapon",
         tryParse: (text) => tryParseDrawWeaponText(text),
         handle: (parsed, ctx) =>
-          this.handleDrawWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
+          this.interactionHandlers.handleDrawWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster),
       },
 
       // 17. Sheathe weapon
@@ -438,7 +438,7 @@ export class ActionDispatcher {
         id: "sheatheWeapon",
         tryParse: (text) => tryParseSheatheWeaponText(text),
         handle: (parsed, ctx) =>
-          this.handleSheatheWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.roster),
+          this.interactionHandlers.handleSheatheWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.roster),
       },
 
       // 18. Use item
@@ -452,7 +452,7 @@ export class ActionDispatcher {
           return tryParseUseItemText(text);
         },
         handle: (parsed, ctx) =>
-          this.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
+          this.interactionHandlers.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
       },
 
       // 19. Attack (last because it's the broadest text match)
@@ -472,194 +472,5 @@ export class ActionDispatcher {
         },
       },
     ];
-  }
-
-  private async handleSimpleAction(
-    _sessionId: string,
-    encounterId: string,
-    actorId: string,
-    action: "dash" | "dodge" | "disengage",
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.socialHandlers.handleSimpleAction(_sessionId, encounterId, actorId, action, roster);
-  }
-
-  /**
-   * Handle the Ready action.
-   *
-   * D&D 5e 2024: Ready uses your Action. You specify a trigger and a response.
-   * When the trigger occurs (before your next turn), you use your Reaction to
-   * take the readied response. The readied action expires at the start of your
-   * next turn if not triggered.
-   *
-   * Currently supports readying attacks with "creature enters range" trigger.
-   * Spell readying (Phase 6.1b) is not yet implemented.
-   */
-  private async handleReadyAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    text: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.socialHandlers.handleReadyAction(sessionId, encounterId, actorId, text, roster);
-  }
-
-  /**
-   * Handle Help action â€“ give ally advantage on next attack against target.
-   */
-  private async handleHelpAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    targetName: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.socialHandlers.handleHelpAction(sessionId, encounterId, actorId, targetName, roster);
-  }
-
-  /**
-   * Handle Shove action â€“ contested athletics check to push or knock prone.
-   */
-  private async handleShoveAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    shoveInfo: { targetName: string; shoveType: "push" | "prone" },
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.grappleHandlers.handleShoveAction(sessionId, encounterId, actorId, shoveInfo, roster);
-  }
-
-  /**
-   * Handle Grapple action â€“ contested athletics check to apply Grappled condition.
-   */
-  private async handleGrappleAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    grappleInfo: { targetName: string },
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.grappleHandlers.handleGrappleAction(sessionId, encounterId, actorId, grappleInfo, roster);
-  }
-
-  private async handleEscapeGrappleAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.grappleHandlers.handleEscapeGrappleAction(sessionId, encounterId, actorId, roster);
-  }
-
-  /**
-   * Handle Hide action â€“ make stealth check to gain Hidden condition.
-   * Rogues with Cunning Action can use this as a bonus action.
-   */
-  private async handleHideAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    characters: SessionCharacterRecord[],
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.socialHandlers.handleHideAction(sessionId, encounterId, actorId, characters, roster);
-  }
-
-  /**
-   * Handle the Search action â€” Perception check to reveal Hidden creatures.
-   */
-  private async handleSearchAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.socialHandlers.handleSearchAction(sessionId, encounterId, actorId, roster);
-  }
-
-  /**
-   * Handle "pick up <item>" from the ground.
-   * D&D 5e 2024: Equipping a weapon (including picking it up) is part of the Attack action.
-   * Alternatively, picking up an item uses the Free Object Interaction (one per turn).
-   */
-  private async handlePickupAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    itemName: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.interactionHandlers.handlePickupAction(sessionId, encounterId, actorId, itemName, roster);
-  }
-
-  /**
-   * Handle "drop <item>" â€” remove a weapon from the actor's equipment/pickedUpWeapons
-   * and place it on the ground at the actor's position.
-   * D&D 5e 2024: Dropping an item costs no action at all (not even a free interaction).
-   */
-  private async handleDropAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    itemName: string,
-    characters: SessionCharacterRecord[],
-    monsters: SessionMonsterRecord[],
-    npcs: SessionNPCRecord[],
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.interactionHandlers.handleDropAction(sessionId, encounterId, actorId, itemName, characters, monsters, npcs, roster);
-  }
-
-  /**
-   * Handle "draw <weapon>" â€” pull a stowed weapon into hand.
-   * D&D 5e 2024: Costs the free Object Interaction (one per turn).
-   * If the free interaction is already used, costs the Utilize action (standard action).
-   */
-  private async handleDrawWeaponAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    weaponName: string,
-    characters: SessionCharacterRecord[],
-    monsters: SessionMonsterRecord[],
-    npcs: SessionNPCRecord[],
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.interactionHandlers.handleDrawWeaponAction(sessionId, encounterId, actorId, weaponName, characters, monsters, npcs, roster);
-  }
-
-  /**
-   * Handle "sheathe <weapon>" â€” stow a drawn weapon.
-   * D&D 5e 2024: Costs the free Object Interaction (one per turn).
-   * If the free interaction is already used, costs the Utilize action (standard action).
-   */
-  private async handleSheatheWeaponAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    weaponName: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.interactionHandlers.handleSheatheWeaponAction(sessionId, encounterId, actorId, weaponName, roster);
-  }
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Use Item (potions, consumables)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  /**
-   * Handle "use/drink <item>" action.
-   * D&D 5e 2024: Drinking a potion costs an Action.
-   * The item is consumed from the combatant's inventory.
-   */
-  private async handleUseItemAction(
-    sessionId: string,
-    encounterId: string,
-    actorId: string,
-    itemName: string,
-    roster: LlmRoster,
-  ): Promise<ActionParseResult> {
-    return this.interactionHandlers.handleUseItemAction(sessionId, encounterId, actorId, itemName, roster);
   }
 }

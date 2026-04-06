@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 
 import { assertArray, assertString, extractFirstJsonObject, isRecord } from "./json.js";
 import { llmDebugLog } from "./debug.js";
+import { PromptBuilder } from "./prompt-builder.js";
 import type { LlmProvider } from "./types.js";
 
 export type StoryCheckpoint = {
@@ -57,33 +58,26 @@ export class StoryGenerator implements IStoryGenerator {
     },
   ) {}
 
-  // TODO: Migrate inline messages construction to PromptBuilder (see prompt-builder.ts)
   async generateStoryFramework(input?: { seed?: number }): Promise<StoryFramework> {
-    const messages = [
-        {
-          role: "system",
-          content:
-            "You are a D&D 5e story generator. Output ONLY a single JSON object. No markdown. No code fences.",
-        },
-        {
-          role: "user",
-          content: [
-            "Create a short adventure framework with:",
-            "- opening: concrete starting scenario (1-2 paragraphs)",
-            "- arc: loose middle arc toward the ending (3-6 bullet points in a single string)",
-            "- ending: concrete ending scenario (1 paragraph)",
-            "- checkpoints: 3-5 checkpoints, each with description + trigger",
-            "",
-            "Return JSON of shape:",
-            "{",
-            '  "opening": string,',
-            '  "arc": string,',
-            '  "ending": string,',
-            '  "checkpoints": [{"id": string, "description": string, "trigger": string}]',
-            "}",
-          ].join("\n"),
-        },
-      ] as const;
+    const prompt = new PromptBuilder('v1')
+      .addSection('system', 'You are a D&D 5e story generator. Output ONLY a single JSON object. No markdown. No code fences.')
+      .addSection('instructions', [
+        "Create a short adventure framework with:",
+        "- opening: concrete starting scenario (1-2 paragraphs)",
+        "- arc: loose middle arc toward the ending (3-6 bullet points in a single string)",
+        "- ending: concrete ending scenario (1 paragraph)",
+        "- checkpoints: 3-5 checkpoints, each with description + trigger",
+        "",
+        "Return JSON of shape:",
+        "{",
+        '  "opening": string,',
+        '  "arc": string,',
+        '  "ending": string,',
+        '  "checkpoints": [{"id": string, "description": string, "trigger": string}]',
+        "}",
+      ].join("\n"));
+
+    const messages = prompt.buildAsMessages();
 
     const options = {
       model: this.config.model,
@@ -93,7 +87,7 @@ export class StoryGenerator implements IStoryGenerator {
     };
 
     llmDebugLog("story.request", { input, messages, options });
-    const raw = await this.llm.chat({ messages: [...messages], options });
+    const raw = await this.llm.chat({ messages, options });
     llmDebugLog("story.response", { raw });
 
     const json = extractFirstJsonObject(raw);

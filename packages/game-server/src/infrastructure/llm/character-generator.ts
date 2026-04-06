@@ -1,5 +1,6 @@
 import { extractFirstJsonObject } from "./json.js";
 import { llmDebugLog } from "./debug.js";
+import { PromptBuilder } from "./prompt-builder.js";
 import type { LlmProvider } from "./types.js";
 
 export interface GeneratedCharacterSheet {
@@ -51,7 +52,6 @@ export class CharacterGenerator implements ICharacterGenerator {
     private readonly config: { model: string; temperature?: number; timeoutMs?: number },
   ) {}
 
-  // TODO: Migrate inline systemPrompt + userContent to PromptBuilder (see prompt-builder.ts)
   async generateCharacter(input: { className: string; level?: number; seed?: number }): Promise<GeneratedCharacterSheet> {
     const level = input.level ?? 1;
     const className = input.className.toLowerCase();
@@ -107,10 +107,11 @@ Output ONLY valid JSON matching this schema:
 
     const userPrompt = `Create a level ${level} ${className} character. Optimize ability scores for this class, choose the best background, select appropriate species, and provide standard starting equipment from the PHB.`;
 
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ] as const;
+    const prompt = new PromptBuilder('v1')
+      .addSection('system', systemPrompt)
+      .addSection('request', userPrompt);
+
+    const messages = prompt.buildAsMessages();
 
     const options = {
       model: this.config.model,
@@ -121,7 +122,7 @@ Output ONLY valid JSON matching this schema:
 
     llmDebugLog("character-gen.request", { input, messages, options });
 
-    const raw = await this.llm.chat({ messages: [...messages], options });
+    const raw = await this.llm.chat({ messages, options });
     llmDebugLog("character-gen.response", { raw });
 
     const json = extractFirstJsonObject(raw);

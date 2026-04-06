@@ -29,6 +29,12 @@ export function createLlmProviderFromEnv(): LlmProvider | undefined {
     });
   }
 
+  if (provider === "openai") {
+    throw new Error(
+      "OpenAI provider is not yet implemented. Set DM_LLM_PROVIDER=ollama (with DM_OLLAMA_MODEL) or DM_LLM_PROVIDER=github-models (with DM_GITHUB_MODELS_MODEL + GITHUB_TOKEN) instead.",
+    );
+  }
+
   return undefined;
 }
 

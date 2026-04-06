@@ -9,6 +9,7 @@ import type { LlmProvider } from "./types.js";
 import type { IAiBattlePlanner } from "../../application/services/combat/ai/battle-plan-service.js";
 import type { BattlePlan } from "../../application/services/combat/ai/battle-plan-types.js";
 import { extractFirstJsonObject } from "./json.js";
+import { PromptBuilder } from "./prompt-builder.js";
 
 export class LlmBattlePlanner implements IAiBattlePlanner {
   constructor(
@@ -43,15 +44,13 @@ export class LlmBattlePlanner implements IAiBattlePlanner {
     }>;
     round: number;
   }): Promise<BattlePlan | null> {
-    const systemPrompt = this.buildSystemPrompt(input.faction);
-    const userMessage = this.buildUserMessage(input);
+    const prompt = new PromptBuilder('v1')
+      .addSection('system', this.buildSystemPrompt(input.faction))
+      .addSection('battle-state', this.buildUserMessage(input));
 
     try {
       const raw = await this.llm.chat({
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
+        messages: prompt.buildAsMessages(),
         options: {
           model: this.config.model,
           temperature: this.config.temperature ?? 0.5,
@@ -67,7 +66,6 @@ export class LlmBattlePlanner implements IAiBattlePlanner {
     }
   }
 
-  // TODO: Migrate buildSystemPrompt + buildUserMessage to PromptBuilder (see prompt-builder.ts)
   private buildSystemPrompt(faction: string): string {
     return `You are a tactical commander for the "${faction}" faction in a D&D combat encounter.
 Analyze the battlefield and create a concise battle plan for your forces.

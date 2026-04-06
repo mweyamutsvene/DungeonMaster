@@ -21,6 +21,9 @@ model SpellDefinition {
   updatedAt DateTime @updatedAt
 }
 
+/// ORPHANED: No application code reads or writes this table. All class feature
+/// checks use the in-code features map on CharacterClassDefinition + feature-keys.ts.
+/// Kept as schema placeholder for potential future catalog persistence.
 model ClassFeatureDefinition {
   id        String @id
   className String
@@ -34,6 +37,9 @@ model ClassFeatureDefinition {
   @@index([className, level])
 }
 
+/// ORPHANED: No application code reads or writes this table. All items are
+/// served from the static in-memory catalog in magic-item-catalog.ts.
+/// Kept as schema placeholder for future custom-item persistence.
 model ItemDefinition {
   id       String @id
   name     String @unique
@@ -44,6 +50,9 @@ model ItemDefinition {
   updatedAt DateTime @updatedAt
 }
 
+/// ORPHANED: No application code reads or writes this table. All condition
+/// logic lives in domain/entities/combat/conditions.ts as pure functions.
+/// Kept as schema placeholder for future rules-reference persistence.
 model ConditionDefinition {
   id   String @id
   name String @unique

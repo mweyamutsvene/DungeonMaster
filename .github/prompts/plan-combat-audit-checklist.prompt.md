@@ -335,8 +335,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
   - Fix: Added `POST .../inventory/:itemName/use-charge` endpoint + `useItemCharge()` domain function. Validates charges exist and are available. 3 new tests.
 
-- [ ] **[ENT-M7]** No out-of-combat "use item" HTTP endpoint — `useConsumableItem()` exists as domain function but no `POST /sessions/:id/characters/:charId/inventory/:itemName/use` route.
+- [x] **[ENT-M7]** No out-of-combat "use item" HTTP endpoint — `useConsumableItem()` exists as domain function but no `POST /sessions/:id/characters/:charId/inventory/:itemName/use` route.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
+  - Fix: Added `POST .../inventory/:itemName/use` endpoint. Looks up `MagicItemDefinition`, validates consumable (potion), applies healing/tempHP, decrements quantity. 3 new tests.
 
 - [ ] **[ENT-M8]** `ItemDefinition` Prisma table orphaned — comment in `magic-item-catalog.ts:7` implies intent to use it for catalog storage, but all items served from static code catalog. No write path.
   - File: `prisma/schema.prisma`, `domain/entities/items/magic-item-catalog.ts`
@@ -372,8 +373,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L6]** 10 trivial one-liner proxy methods in `ActionDispatcher` add no abstraction — `handlePickupAction()` etc. exclusively forward to handler classes. Remove them; call handler methods directly from `buildParserChain()`.
   - File: `application/services/combat/tabletop/action-dispatcher.ts`
 
-- [ ] **[CLEAN-L7]** `InventoryItem` legacy type in `inventory.ts` — comment says "legacy for backward compat." Investigate if it can be unified with `CharacterItemInstance`.
+- [x] **[CLEAN-L7]** `InventoryItem` legacy type in `inventory.ts` — comment says "legacy for backward compat." Investigate if it can be unified with `CharacterItemInstance`.
   - File: `domain/entities/items/inventory.ts:18-40`
+  - Fix: Added `@deprecated` annotation pointing to `CharacterItemInstance`. Type never imported anywhere — safe to remove in future cleanup.
 
 - [x] **[CLEAN-L8]** `proficiencyBonus` computed but not used in `hydrateCharacter()` — `const proficiencyBonus = readNumber(...)` is set but never passed into `CharacterData`. Dead code.
   - File: `application/services/combat/helpers/creature-hydration.ts:96`
@@ -422,8 +424,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/entities/combat/conditions.ts:487-494`
   - Fix: Returns `Infinity` at level 6 (death level), zeroing out any creature speed via existing `Math.max(0, speed - reduction)` callsite.
 
-- [ ] **[RULES-L7]** Long rest interrupted by spellcasting not tracked — acknowledged in code comment. `SpellCast` event type doesn't exist; only `DamageApplied` triggers rest interruption.
+- [x] **[RULES-L7]** Long rest interrupted by spellcasting not tracked — acknowledged in code comment. `SpellCast` event type doesn't exist; only `DamageApplied` triggers rest interruption.
   - File: `domain/rules/rest.ts:153`
+  - Fix: Added `"spell_cast"` to `RestInterruptionReason` union. `detectRestInterruption()` handles `SpellCast` events (long rest only). TODO: wire event emission from spell casting paths. 2 new tests.
 
 - [ ] **[RULES-L8]** Flanking entirely absent — optional rule; worth a design decision: implement as encounter toggle or document as intentionally omitted.
 
@@ -437,11 +440,13 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### AI / Performance
 
-- [ ] **[AI-L1]** N+M DB queries per AI context build — one repo call per ally + one per enemy in `buildAllyDetails()`/`buildEnemyDetails()`. 10-combatant encounter × 5 iterations = 50+ DB queries per AI turn.
+- [x] **[AI-L1]** N+M DB queries per AI context build — one repo call per ally + one per enemy in `buildAllyDetails()`/`buildEnemyDetails()`. 10-combatant encounter × 5 iterations = 50+ DB queries per AI turn.
   - File: `application/services/combat/ai/ai-context-builder.ts`
+  - Fix: Added `EntityCache` type + `prefetchEntities()` for batch lookup. `build()` pre-fetches all entities; ally/enemy detail methods use `resolveEntity()` with cache-first fallback.
 
-- [ ] **[AI-L2]** Multiple encounter loads per AI turn loop — `getEncounterById()` + `listCombatants()` called 3+ times at outer loop level. Should be batched or cached per turn.
+- [x] **[AI-L2]** Multiple encounter loads per AI turn loop — `getEncounterById()` + `listCombatants()` called 3+ times at outer loop level. Should be batched or cached per turn.
   - File: `application/services/combat/ai/ai-turn-orchestrator.ts`
+  - Fix: `processAllMonsterTurns()` loads encounter+combatants once per iteration, passes cached data. `executeAiTurn()` prefetches `EntityCache` before while loop.
 
 - [x] **[AI-L3]** `listCreatureAbilities()` silently swallows all exceptions in AI context build — `catch { // Ignore errors }` hides performance and logic issues.
   - File: `application/services/combat/ai/ai-context-builder.ts`

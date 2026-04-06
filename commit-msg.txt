@@ -1,0 +1,10 @@
+Batch 21: ENT-M7, CLEAN-L7, AI-L1, AI-L2, RULES-L7
+
+ENT-M7: POST .../inventory/:itemName/use endpoint for out-of-combat
+  consumable usage (potions with healing/tempHP). 3 tests.
+CLEAN-L7: @deprecated annotation on InventoryItem legacy type.
+AI-L1: EntityCache + prefetchEntities() batching in AI context builder -
+  eliminates N+M per-creature DB queries.
+AI-L2: Cached encounter/combatants in AI turn orchestrator - loads once
+  per turn instead of 3+ times.
+RULES-L7: spell_cast interruption reason for long rest tracking. 2 tests.

@@ -1,5 +1,6 @@
 import { extractFirstJsonObject } from "./json.js";
 import { llmDebugLog } from "./debug.js";
+import { PromptBuilder } from "./prompt-builder.js";
 import type { LlmProvider } from "./types.js";
 
 export interface IIntentParser {
@@ -21,27 +22,13 @@ export class IntentParser implements IIntentParser {
     private readonly config: { model: string; temperature?: number; timeoutMs?: number },
   ) {}
 
-  // TODO: Migrate inline messages construction to PromptBuilder (see prompt-builder.ts)
   async parseIntent(input: { text: string; seed?: number; schemaHint?: string }): Promise<unknown> {
-    const messages = [
-        {
-          role: "system",
-          content:
-            "You convert natural language into a single JSON object that matches the requested schema hint. Output ONLY JSON.",
-        },
-        {
-          role: "user",
-          content: [
-            input.schemaHint ? `Schema hint:\n${input.schemaHint}` : "",
-            "Player text:",
-            input.text,
-            "",
-            "Return ONLY a single JSON object.",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        },
-      ] as const;
+    const prompt = new PromptBuilder('v1')
+      .addSection('system', 'You convert natural language into a single JSON object that matches the requested schema hint. Output ONLY JSON.')
+      .addSectionIf(!!input.schemaHint, 'schema', `Schema hint:\n${input.schemaHint ?? ''}`)
+      .addSection('player-text', `Player text:\n${input.text}\n\nReturn ONLY a single JSON object.`);
+
+    const messages = prompt.buildAsMessages();
 
     const options = {
       model: this.config.model,
@@ -52,7 +39,7 @@ export class IntentParser implements IIntentParser {
 
     llmDebugLog("intent.request", { input, messages, options });
 
-    const raw = await this.llm.chat({ messages: [...messages], options });
+    const raw = await this.llm.chat({ messages, options });
     llmDebugLog("intent.response", { raw });
 
     const json = extractFirstJsonObject(raw);
