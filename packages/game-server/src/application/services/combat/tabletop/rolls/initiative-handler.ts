@@ -90,6 +90,9 @@ function buildCombatantResources(
   if (combatRes.warCasterEnabled) {
     (resources as any).warCasterEnabled = true;
   }
+  if (combatRes.sentinelEnabled) {
+    (resources as any).sentinelEnabled = true;
+  }
   if (combatRes.pactSlotLevel !== undefined) {
     (resources as any).pactSlotLevel = combatRes.pactSlotLevel;
   }

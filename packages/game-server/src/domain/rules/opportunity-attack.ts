@@ -34,6 +34,8 @@ export interface OpportunityAttackTrigger {
   involuntaryMovement?: boolean;
   /** Whether the observer has War Caster feat — can cast a spell instead of weapon OA */
   warCasterEnabled?: boolean;
+  /** Whether the observer has Sentinel feat — OA even against Disengage, hit reduces speed to 0 */
+  sentinelEnabled?: boolean;
 }
 
 export interface OpportunityAttackResult {
@@ -43,6 +45,8 @@ export interface OpportunityAttackResult {
   reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach' | 'charmed-by-target' | 'involuntary-movement';
   /** Whether the observer can use a spell instead of a weapon attack for this OA (War Caster) */
   canCastSpellAsOA?: boolean;
+  /** Whether the OA hit should reduce target speed to 0 (Sentinel) */
+  reducesSpeedToZero?: boolean;
 }
 
 /**
@@ -67,8 +71,8 @@ export function canMakeOpportunityAttack(
     return { canAttack: false, reason: 'involuntary-movement' };
   }
 
-  // Can't attack if moving creature disengaged
-  if (trigger.disengaged) {
+  // Can't attack if moving creature disengaged (unless observer has Sentinel)
+  if (trigger.disengaged && !trigger.sentinelEnabled) {
     return { canAttack: false, reason: 'disengaged' };
   }
 
@@ -90,6 +94,7 @@ export function canMakeOpportunityAttack(
   return {
     canAttack: true,
     canCastSpellAsOA: trigger.warCasterEnabled === true ? true : undefined,
+    reducesSpeedToZero: trigger.sentinelEnabled === true ? true : undefined,
   };
 }
 

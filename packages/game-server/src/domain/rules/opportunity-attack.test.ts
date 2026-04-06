@@ -149,6 +149,60 @@ describe("Opportunity Attacks", () => {
       expect(result.canAttack).toBe(false);
       expect(result.canCastSpellAsOA).toBeUndefined();
     });
+
+    // --- Sentinel feat ---
+    it("should allow OA when target disengaged but observer has Sentinel", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, disengaged: true, sentinelEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.reason).toBeUndefined();
+    });
+
+    it("should still block OA when disengaged and no Sentinel", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, disengaged: true, sentinelEnabled: false };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(false);
+      expect(result.reason).toBe("disengaged");
+    });
+
+    it("should set reducesSpeedToZero when Sentinel enabled and attack allowed", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, sentinelEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.reducesSpeedToZero).toBe(true);
+    });
+
+    it("should set reducesSpeedToZero on Sentinel OA that overrides disengage", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, disengaged: true, sentinelEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.reducesSpeedToZero).toBe(true);
+    });
+
+    it("should not set reducesSpeedToZero without Sentinel", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const result = canMakeOpportunityAttack(reaction, baseTrigger);
+
+      expect(result.canAttack).toBe(true);
+      expect(result.reducesSpeedToZero).toBeUndefined();
+    });
+
+    it("should not set reducesSpeedToZero when attack not allowed even with Sentinel", () => {
+      const reaction: ReactionState = { reactionUsed: true };
+      const trigger = { ...baseTrigger, sentinelEnabled: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(false);
+      expect(result.reducesSpeedToZero).toBeUndefined();
+    });
   });
 
   describe("reaction state", () => {

@@ -19,6 +19,7 @@ export const FEAT_SKILLED = "feat_skilled";
 export const FEAT_TOUGH = "feat_tough";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
 export const FEAT_LUCKY = "feat_lucky";
+export const FEAT_SENTINEL = "feat_sentinel";
 export const FEAT_WAR_CASTER = "feat_war-caster";
 
 export interface WeaponContext {
@@ -95,10 +96,15 @@ export interface FeatModifiers {
 
   /**
    * War Caster: advantage on CON saves to maintain concentration.
-   * TODO: spell-as-opportunity-attack reaction (ORCH-M1)
    * TODO: somatic components with hands full (not currently modeled)
    */
   warCasterEnabled: boolean;
+
+  /**
+   * Sentinel: OA hits reduce target speed to 0; OA still triggers even if target Disengaged.
+   * TODO: reaction attack when enemy within 5ft attacks a target other than you (effect #3)
+   */
+  sentinelEnabled: boolean;
 }
 
 export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers {
@@ -127,6 +133,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     toughEnabled: set.has(FEAT_TOUGH),
     luckyEnabled: set.has(FEAT_LUCKY),
     warCasterEnabled: set.has(FEAT_WAR_CASTER),
+    sentinelEnabled: set.has(FEAT_SENTINEL),
   };
 }
 

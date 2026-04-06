@@ -317,6 +317,9 @@ export class MoveReactionHandler {
         // War Caster feat: observer can cast a spell instead of weapon OA
         const observerWarCaster = readBoolean(otherResources, "warCasterEnabled") ?? false;
 
+        // Sentinel feat: OA even against Disengage, hit reduces speed to 0
+        const observerSentinel = readBoolean(otherResources, "sentinelEnabled") ?? false;
+
         const canAttack = canMakeOpportunityAttack(
           { reactionUsed: !hasReaction },
           {
@@ -328,6 +331,7 @@ export class MoveReactionHandler {
             leavingReach: true,
             observerCharmedByTarget,
             warCasterEnabled: observerWarCaster,
+            sentinelEnabled: observerSentinel,
           },
         );
 

@@ -14,6 +14,7 @@ import {
   FEAT_GREAT_WEAPON_FIGHTING,
   FEAT_PROTECTION,
   FEAT_RESILIENT,
+  FEAT_SENTINEL,
   FEAT_TOUGH,
   FEAT_TWO_WEAPON_FIGHTING,
   FEAT_WAR_CASTER,
@@ -115,6 +116,18 @@ describe("Fighting Style feat modifiers", () => {
     it("does not enable War Caster without the feat", () => {
       const mods = computeFeatModifiers([]);
       expect(mods.warCasterEnabled).toBe(false);
+    });
+  });
+
+  describe("Sentinel", () => {
+    it("enables Sentinel when feat is present", () => {
+      const mods = computeFeatModifiers([FEAT_SENTINEL]);
+      expect(mods.sentinelEnabled).toBe(true);
+    });
+
+    it("does not enable Sentinel without the feat", () => {
+      const mods = computeFeatModifiers([]);
+      expect(mods.sentinelEnabled).toBe(false);
     });
   });
 });
