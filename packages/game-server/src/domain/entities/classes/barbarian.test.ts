@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   Barbarian,
   barbarianUnarmoredDefenseAC,
+  canUseBrutalStrike,
   createRageState,
   endRage,
+  getBrutalStrikeBonusDice,
   isDangerSenseNegated,
   rageDamageBonusForLevel,
   rageUsesForLevel,
@@ -12,7 +14,7 @@ import {
   startRage,
 } from "./barbarian.js";
 import { classHasFeature } from "./registry.js";
-import { RAGE, RECKLESS_ATTACK, DANGER_SENSE, FERAL_INSTINCT, EXTRA_ATTACK, WEAPON_MASTERY } from "./feature-keys.js";
+import { RAGE, RECKLESS_ATTACK, DANGER_SENSE, FERAL_INSTINCT, EXTRA_ATTACK, WEAPON_MASTERY, BRUTAL_STRIKE } from "./feature-keys.js";
 
 describe("Barbarian rage", () => {
   it("computes rage uses by level", () => {
@@ -211,6 +213,13 @@ describe("Barbarian ClassDefinition", () => {
       const caps = Barbarian.capabilitiesForLevel!(7);
       const names = caps.map(c => c.name);
       expect(names).toContain("Feral Instinct");
+      expect(names).not.toContain("Brutal Strike");
+    });
+
+    it("adds Brutal Strike at level 9", () => {
+      const caps = Barbarian.capabilitiesForLevel!(9);
+      const names = caps.map(c => c.name);
+      expect(names).toContain("Brutal Strike");
     });
 
     it("includes all capabilities at level 20", () => {
@@ -222,6 +231,7 @@ describe("Barbarian ClassDefinition", () => {
       expect(names).toContain("Reckless Attack");
       expect(names).toContain("Extra Attack");
       expect(names).toContain("Feral Instinct");
+      expect(names).toContain("Brutal Strike");
     });
 
     it("Rage capability has correct abilityId and resourceCost", () => {
@@ -312,6 +322,58 @@ describe("classHasFeature — Barbarian features", () => {
 
     it("returns false for Barbarian below level 5", () => {
       expect(classHasFeature("barbarian", EXTRA_ATTACK, 4)).toBe(false);
+
+  describe("brutal-strike", () => {
+    it("returns true for Barbarian level 9+", () => {
+      expect(classHasFeature("barbarian", BRUTAL_STRIKE, 9)).toBe(true);
+      expect(classHasFeature("barbarian", BRUTAL_STRIKE, 15)).toBe(true);
+    });
+
+    it("returns false for Barbarian below level 9", () => {
+      expect(classHasFeature("barbarian", BRUTAL_STRIKE, 8)).toBe(false);
+      expect(classHasFeature("barbarian", BRUTAL_STRIKE, 1)).toBe(false);
+    });
+
+    it("returns false for non-Barbarian", () => {
+      expect(classHasFeature("fighter", BRUTAL_STRIKE, 10)).toBe(false);
+    });
+  });
+});
+
+describe("canUseBrutalStrike", () => {
+  it("returns true when raging and used reckless attack", () => {
+    expect(canUseBrutalStrike(true, true)).toBe(true);
+  });
+
+  it("returns false when not raging", () => {
+    expect(canUseBrutalStrike(false, true)).toBe(false);
+  });
+
+  it("returns false when raging but did not use reckless attack", () => {
+    expect(canUseBrutalStrike(true, false)).toBe(false);
+  });
+
+  it("returns false when neither raging nor reckless", () => {
+    expect(canUseBrutalStrike(false, false)).toBe(false);
+  });
+});
+
+describe("getBrutalStrikeBonusDice", () => {
+  it("returns 1d12 for a greataxe (1d12)", () => {
+    expect(getBrutalStrikeBonusDice("1d12")).toBe("1d12");
+  });
+
+  it("returns 1d6 for a greatsword (2d6)", () => {
+    expect(getBrutalStrikeBonusDice("2d6")).toBe("1d6");
+  });
+
+  it("returns 1d8 for a longsword (1d8)", () => {
+    expect(getBrutalStrikeBonusDice("1d8")).toBe("1d8");
+  });
+
+  it("returns 1d6 fallback for unrecognized dice notation", () => {
+    expect(getBrutalStrikeBonusDice("flat5")).toBe("1d6");
+  });
     });
   });
 

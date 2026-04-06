@@ -15,6 +15,7 @@ import { BasicCombatVictoryPolicy } from "../../application/services/combat/comb
 import { AbilityRegistry } from "../../application/services/combat/abilities/ability-registry.js";
 import { 
   ActionSurgeExecutor,
+  IndomitableExecutor,
   SecondWindExecutor,
   NimbleEscapeExecutor, 
   CunningActionExecutor, 
@@ -228,6 +229,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   // Configure ability registry with executors
   const abilityRegistry = new AbilityRegistry();
   abilityRegistry.register(new ActionSurgeExecutor());
+  abilityRegistry.register(new IndomitableExecutor());
   abilityRegistry.register(new SecondWindExecutor());
   abilityRegistry.register(new NimbleEscapeExecutor());
   abilityRegistry.register(new CunningActionExecutor());

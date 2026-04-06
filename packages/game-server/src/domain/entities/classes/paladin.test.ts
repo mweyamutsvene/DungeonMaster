@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeAuraSaveBonus,
+  getAuraOfProtectionRange,
   paladinChannelDivinityUsesForLevel,
   createChannelDivinityState,
   createLayOnHandsState,
@@ -10,7 +12,7 @@ import {
   spendLayOnHands,
 } from "./paladin.js";
 import { classHasFeature } from "./registry.js";
-import { WEAPON_MASTERY, SPELLCASTING } from "./feature-keys.js";
+import { WEAPON_MASTERY, SPELLCASTING, AURA_OF_PROTECTION } from "./feature-keys.js";
 
 describe("Paladin channel divinity", () => {
   it("computes uses by level", () => {
@@ -59,5 +61,47 @@ describe("Paladin feature keys", () => {
 
   it("has weapon-mastery at level 1", () => {
     expect(classHasFeature("paladin", WEAPON_MASTERY, 1)).toBe(true);
+  });
+
+  it("has aura-of-protection at level 6+", () => {
+    expect(classHasFeature("paladin", AURA_OF_PROTECTION, 5)).toBe(false);
+    expect(classHasFeature("paladin", AURA_OF_PROTECTION, 6)).toBe(true);
+    expect(classHasFeature("paladin", AURA_OF_PROTECTION, 18)).toBe(true);
+  });
+});
+
+describe("Aura of Protection", () => {
+  describe("getAuraOfProtectionRange", () => {
+    it("returns 0 below level 6", () => {
+      expect(getAuraOfProtectionRange(1)).toBe(0);
+      expect(getAuraOfProtectionRange(5)).toBe(0);
+    });
+
+    it("returns 10 at levels 6-17", () => {
+      expect(getAuraOfProtectionRange(6)).toBe(10);
+      expect(getAuraOfProtectionRange(17)).toBe(10);
+    });
+
+    it("returns 30 at level 18+", () => {
+      expect(getAuraOfProtectionRange(18)).toBe(30);
+      expect(getAuraOfProtectionRange(20)).toBe(30);
+    });
+  });
+
+  describe("computeAuraSaveBonus", () => {
+    it("returns CHA modifier when positive", () => {
+      expect(computeAuraSaveBonus(3)).toBe(3);
+      expect(computeAuraSaveBonus(5)).toBe(5);
+    });
+
+    it("returns minimum 1 for zero/negative CHA modifier", () => {
+      expect(computeAuraSaveBonus(0)).toBe(1);
+      expect(computeAuraSaveBonus(-1)).toBe(1);
+      expect(computeAuraSaveBonus(-3)).toBe(1);
+    });
+
+    it("returns 1 for CHA modifier of 1", () => {
+      expect(computeAuraSaveBonus(1)).toBe(1);
+    });
   });
 });

@@ -23,6 +23,14 @@ export function endConcentration(_state: ConcentrationState): ConcentrationState
   return { activeSpellId: null };
 }
 
+/**
+ * Determines the roll mode for a concentration saving throw.
+ * War Caster grants advantage on Constitution saves to maintain concentration.
+ */
+export function concentrationSaveRollMode(warCasterEnabled: boolean): RollMode {
+  return warCasterEnabled ? "advantage" : "normal";
+}
+
 export interface ConcentrationCheckResult {
   dc: number;
   check: D20TestResult;

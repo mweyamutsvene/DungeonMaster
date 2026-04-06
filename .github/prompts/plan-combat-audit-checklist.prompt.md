@@ -166,15 +166,17 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/ability-checks.ts:34-37`
   - Fix: Added `expertise?: boolean` to all 4 check interfaces and updated `abilityCheck()` to double proficiency bonus when both `proficient` and `expertise` are true. Added 2 tests.
 
-- [ ] **[RULES-M2]** Creature-based cover not computed — `getCoverLevel()` only ray-marches terrain cells, never consults the `MapEntity[]` list. Intervening Large creatures should grant half cover (+2 AC).
+- [x] **[RULES-M2]** Creature-based cover not computed — `getCoverLevel()` only ray-marches terrain cells, never consults the `MapEntity[]` list. Intervening Large creatures should grant half cover (+2 AC).
   - File: `domain/rules/combat-map-sight.ts`
+  - Fix: Extended `getCoverLevel()` with optional `entities/attackerId/targetId` params. Added `getCreatureCover()` helper using point-to-segment distance. 5 new tests.
 
 - [x] **[RULES-M3]** Teleportation/involuntary movement has no OA exception flag — `OpportunityAttackTrigger` has no `isTeleporting` or `isCarried` field. These movement types should not provoke OAs.
   - File: `domain/rules/opportunity-attack.ts:17-30`
   - Fix: Added `involuntaryMovement?: boolean` field to `OpportunityAttackTrigger` and `'involuntary-movement'` to reason union. Guard check blocks OA when flag is set. Added 3 tests.
 
-- [ ] **[RULES-M4]** War Caster feat entirely missing — no `FEAT_WAR_CASTER` constant, no advantage on CON concentration saves pathway, no spell-as-OA reaction handler.
-  - File: `domain/rules/feat-modifiers.ts`
+- [x] **[RULES-M4]** War Caster feat entirely missing — no `FEAT_WAR_CASTER` constant, no advantage on CON concentration saves pathway, no spell-as-OA reaction handler.
+  - File: `domain/rules/feat-modifiers.ts`, `domain/rules/concentration.ts`
+  - Fix: Added `FEAT_WAR_CASTER` constant, `warCasterEnabled` to `FeatModifiers`, `concentrationSaveRollMode()` function returning advantage when War Caster enabled. Spell-as-OA deferred to ORCH-M1. Added 4 tests.
 
 - [x] **[RULES-M5]** Savage Attacker feat tracked but never applied — `savageAttackerEnabled` is in `FeatModifiers` but `attack-resolver.ts` never reads it (reroll damage once per turn, use higher).
   - File: `domain/rules/feat-modifiers.ts:70`, `domain/combat/attack-resolver.ts`
@@ -225,14 +227,17 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Missing Class Features
 
-- [ ] **[CLASS-M1]** Paladin Aura of Protection entirely absent (level 6) — add CHA modifier to all saving throws for self + allies in 10 ft. No feature key, no executor, not in `capabilitiesForLevel`.
-  - File: `domain/entities/classes/paladin.ts`
+- [x] **[CLASS-M1]** Paladin Aura of Protection entirely absent (level 6) — add CHA modifier to all saving throws for self + allies in 10 ft. No feature key, no executor, not in `capabilitiesForLevel`.
+  - File: `domain/entities/classes/paladin.ts`, `feature-keys.ts`
+  - Fix: Added `AURA_OF_PROTECTION` feature key, `aura-of-protection: 6` in features map, `getAuraOfProtectionRange()` (10ft at 6, 30ft at 18), `computeAuraSaveBonus()` (CHA mod, min 1), capability entry. Added 4 tests.
 
-- [ ] **[CLASS-M2]** Fighter Indomitable in `capabilitiesForLevel` but no implementation — shows in tactical view but cannot be activated (no ability ID, no resource pool, no executor).
-  - File: `domain/entities/classes/fighter.ts:162`
+- [x] **[CLASS-M2]** Fighter Indomitable in `capabilitiesForLevel` but no implementation — shows in tactical view but cannot be activated (no ability ID, no resource pool, no executor).
+  - File: `domain/entities/classes/fighter.ts`, `fighter/indomitable-executor.ts`, `feature-keys.ts`, `app.ts`
+  - Fix: Added `INDOMITABLE` feature key, `indomitableUsesForLevel()` (1/2/3 at 9/13/17), `IndomitableState` + create/spend/reset helpers, resource pool in `resourcesAtLevel`, rest refresh policy (long rest), executor with resource validation, registered in `app.ts`, combat text profile mapping. Added 7 tests.
 
-- [ ] **[CLASS-M3]** Barbarian Brutal Strike entirely absent (level 9, replaces Brutal Critical in 2024) — no feature key, no executor, no text profile entry.
+- [x] **[CLASS-M3]** Barbarian Brutal Strike entirely absent (level 9, replaces Brutal Critical in 2024) — no feature key, no executor, no text profile entry.
   - File: `domain/entities/classes/barbarian.ts`, `feature-keys.ts`
+  - Fix: Added `BRUTAL_STRIKE` feature key, `brutal-strike: 9` in features map, `BrutalStrikeOption` type with 3 options, `canUseBrutalStrike()` and `getBrutalStrikeBonusDice()` domain functions, capability entry. Added 7 tests.
 
 - [ ] **[CLASS-M4]** Warlock missing features map and `capabilitiesForLevel` — only `pact-magic: 1` in features. No invocations, no pact boon, no combat text profile action mappings (copilot instructions incorrectly says eldritch blast mapping exists — update docs too).
   - File: `domain/entities/classes/warlock.ts`, `.github/copilot-instructions.md:214`
@@ -294,15 +299,17 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ORCH-M2]** Sentinel feat — none of the three effects implemented (OA reduces speed to 0, OA on Disengage against you, reaction when enemy attacks nearby creature).
   - File: `domain/rules/feat-modifiers.ts`, `application/services/combat/two-phase/`
 
-- [ ] **[ORCH-M3]** Divergent OA resolution paths — `ActionService.move()` has its own OA detection loop (in addition to `TwoPhaseActionService`). Both paths can drift; programmatic path has wrong weapon stats (see H1).
+- [x] **[ORCH-M3]** Divergent OA resolution paths — `ActionService.move()` has its own OA detection loop (in addition to `TwoPhaseActionService`). Both paths can drift; programmatic path has wrong weapon stats (see H1).
   - File: `application/services/combat/action-service.ts:450-568`
+  - Fix: Both paths already use same domain functions (`crossesThroughReach`, `canMakeOpportunityAttack`). Added documentation comments explaining why two paths exist (programmatic vs tabletop) and their key differences.
 
 - [x] **[ORCH-M4]** `handleDamageRoll()` contains ~130 lines of on-hit enhancement assembly inline — class-specific detection (Stunning Strike, Divine Smite, Open Hand Technique) belongs in domain `HitRiderResolver` / `ClassCombatTextProfile.attackEnhancements`, not hard-coded in the state machine.
   - File: `application/services/combat/tabletop/roll-state-machine.ts:870-1000`
   - Fix: Extracted to `HitRiderResolver.assembleOnHitEnhancements()`. State machine now delegates with single call.
 
-- [ ] **[ORCH-M5]** `handleAttackAction()` dispatch handler is ~350 lines — too large. Should be decomposed: `detectThrownWeapon()`, `computeCoverBonus()`, `resolveMagicWeaponBonus()`, etc.
+- [x] **[ORCH-M5]** `handleAttackAction()` dispatch handler is ~350 lines — too large. Should be decomposed: `detectThrownWeapon()`, `computeCoverBonus()`, `resolveMagicWeaponBonus()`, etc.
   - File: `application/services/combat/tabletop/dispatch/attack-handlers.ts`
+  - Fix: Extracted 8 private helper methods: `parseThrownRange`, `findThrownWeapon`, `resolveThrownRange`, `computeCoverACBonus`, `resolveMagicWeaponBonuses`, `resolveVersatileGrip`, `ensureWeaponDrawn`, `computeAttackRollModifiers`.
 
 - [x] **[ORCH-M6]** `InitiativeHandler` has 4-way duplicated resource-building block — same ~80-line pattern repeated for PC initiator, other PCs, monsters, and NPCs. Extract `buildCombatantEntry()` helper.
   - File: `application/services/combat/tabletop/rolls/initiative-handler.ts:100-450`
@@ -410,8 +417,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 
 ### Missing Rules (Lower Impact)
 
-- [ ] **[RULES-L1]** Lucky feat entirely missing — 3 luck points, reroll d20 on attack/check/save or impose reroll on attacker.
+- [x] **[RULES-L1]** Lucky feat entirely missing — 3 luck points, reroll d20 on attack/check/save or impose reroll on attacker.
   - File: `domain/rules/feat-modifiers.ts`
+  - Fix: Added `FEAT_LUCKY` constant + `luckyEnabled` field. Created `lucky.ts` with `canUseLucky()`, `useLuckyPoint()`, `resetLuckyPoints()`. 5 tests. TODO: wire into roll machinery.
 
 - [x] **[RULES-L2]** Tough feat entirely missing — +2 max HP per level. Very common feat.
   - File: `domain/rules/feat-modifiers.ts`, `domain/rules/hit-points.ts`

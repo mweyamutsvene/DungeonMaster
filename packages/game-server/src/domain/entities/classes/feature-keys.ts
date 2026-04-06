@@ -13,12 +13,14 @@ export const RAGE = "rage";
 export const RECKLESS_ATTACK = "reckless-attack";
 export const DANGER_SENSE = "danger-sense";
 export const FERAL_INSTINCT = "feral-instinct";
+export const BRUTAL_STRIKE = "brutal-strike";
 // Path of the Berserker subclass
 export const FRENZY = "frenzy";
 
 // ── Fighter ─────────────────────────────────────────────────
 export const ACTION_SURGE = "action-surge";
 export const SECOND_WIND = "second-wind";
+export const INDOMITABLE = "indomitable";
 export const TWO_EXTRA_ATTACKS = "two-extra-attacks";
 export const THREE_EXTRA_ATTACKS = "three-extra-attacks";
 // Champion subclass
@@ -47,6 +49,7 @@ export const FAST_HANDS = "fast-hands";
 // ── Paladin ─────────────────────────────────────────────────
 export const DIVINE_SMITE = "divine-smite";
 export const LAY_ON_HANDS = "lay-on-hands";
+export const AURA_OF_PROTECTION = "aura-of-protection";
 
 // ── Cleric / Paladin (shared) ───────────────────────────────
 export const CHANNEL_DIVINITY = "channel-divinity";

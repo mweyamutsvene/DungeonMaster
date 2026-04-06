@@ -16,6 +16,7 @@ import {
   FEAT_RESILIENT,
   FEAT_TOUGH,
   FEAT_TWO_WEAPON_FIGHTING,
+  FEAT_WAR_CASTER,
 } from "./feat-modifiers.js";
 
 describe("Fighting Style feat modifiers", () => {
@@ -102,6 +103,18 @@ describe("Fighting Style feat modifiers", () => {
     it("does not enable Tough without the feat", () => {
       const mods = computeFeatModifiers([]);
       expect(mods.toughEnabled).toBe(false);
+    });
+  });
+
+  describe("War Caster", () => {
+    it("enables War Caster when feat is present", () => {
+      const mods = computeFeatModifiers([FEAT_WAR_CASTER]);
+      expect(mods.warCasterEnabled).toBe(true);
+    });
+
+    it("does not enable War Caster without the feat", () => {
+      const mods = computeFeatModifiers([]);
+      expect(mods.warCasterEnabled).toBe(false);
     });
   });
 });

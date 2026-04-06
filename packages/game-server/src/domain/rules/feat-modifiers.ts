@@ -19,6 +19,7 @@ export const FEAT_SKILLED = "feat_skilled";
 export const FEAT_TOUGH = "feat_tough";
 export const FEAT_TWO_WEAPON_FIGHTING = "feat_two-weapon-fighting";
 export const FEAT_LUCKY = "feat_lucky";
+export const FEAT_WAR_CASTER = "feat_war-caster";
 
 export interface WeaponContext {
   /**
@@ -91,6 +92,13 @@ export interface FeatModifiers {
    * Lucky: 3 luck points per long rest — reroll any d20 on attack/check/save.
    */
   luckyEnabled: boolean;
+
+  /**
+   * War Caster: advantage on CON saves to maintain concentration.
+   * TODO: spell-as-opportunity-attack reaction (ORCH-M1)
+   * TODO: somatic components with hands full (not currently modeled)
+   */
+  warCasterEnabled: boolean;
 }
 
 export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers {
@@ -118,6 +126,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     resilientEnabled: set.has(FEAT_RESILIENT),
     toughEnabled: set.has(FEAT_TOUGH),
     luckyEnabled: set.has(FEAT_LUCKY),
+    warCasterEnabled: set.has(FEAT_WAR_CASTER),
   };
 }
 

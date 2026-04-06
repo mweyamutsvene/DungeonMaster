@@ -79,6 +79,30 @@ export function rageDamageBonusForLevel(level: number): number {
   return 2;
 }
 
+// ----- Brutal Strike (D&D 5e 2024, Level 9) -----
+
+/** The three Brutal Strike options the attacker may choose from. */
+export type BrutalStrikeOption = "forceful-blow" | "hamstring-blow" | "staggering-blow";
+
+/**
+ * Whether the barbarian can use Brutal Strike on this attack.
+ * Requires: currently Raging AND used Reckless Attack this turn.
+ */
+export function canUseBrutalStrike(isRaging: boolean, usedRecklessAttack: boolean): boolean {
+  return isRaging && usedRecklessAttack;
+}
+
+/**
+ * Returns the bonus damage dice notation for Brutal Strike.
+ * Adds one extra die of the weapon's damage type.
+ * e.g. weapon "1d12" → bonus "1d12", weapon "2d6" → bonus "1d6".
+ */
+export function getBrutalStrikeBonusDice(weaponDamageDice: string): string {
+  const match = weaponDamageDice.match(/(\d+)d(\d+)/);
+  if (!match) return "1d6"; // safe fallback
+  return `1d${match[2]}`;
+}
+
 /**
  * Barbarian Combat Text Profile — profile-driven text parsing.
  *
@@ -134,6 +158,7 @@ export const Barbarian: CharacterClassDefinition = {
     "danger-sense": 2,
     "extra-attack": 5,
     "feral-instinct": 7,
+    "brutal-strike": 9,
   },
   resourcesAtLevel: (level) => [createRageState(level).pool],
   resourcePoolFactory: (level) => [createRageState(level).pool],
@@ -154,6 +179,9 @@ export const Barbarian: CharacterClassDefinition = {
     }
     if (level >= 7) {
       caps.push({ name: "Feral Instinct", economy: "free", effect: "Advantage on initiative; can't be surprised unless incapacitated" });
+    }
+    if (level >= 9) {
+      caps.push({ name: "Brutal Strike", economy: "free", requires: "Raging + Reckless Attack hit", effect: "Extra weapon die + choose: Forceful Blow (push 15ft/prone), Hamstring Blow (-15ft speed), or Staggering Blow (disadvantage on next attack)" });
     }
     return caps;
   },

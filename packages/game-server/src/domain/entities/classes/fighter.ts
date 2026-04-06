@@ -61,6 +61,36 @@ export function resetSecondWindOnShortRest(level: number, state: SecondWindState
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+// ----- Indomitable -----
+
+export interface IndomitableState {
+  pool: ResourcePool;
+}
+
+export function indomitableUsesForLevel(level: number): number {
+  if (!Number.isInteger(level) || level < 1 || level > 20) {
+    throw new Error(`Invalid level: ${level}`);
+  }
+  if (level < 9) return 0;
+  if (level < 13) return 1;
+  if (level < 17) return 2;
+  return 3;
+}
+
+export function createIndomitableState(level: number): IndomitableState {
+  const max = indomitableUsesForLevel(level);
+  return { pool: { name: "indomitable", current: max, max } };
+}
+
+export function spendIndomitable(state: IndomitableState, amount: number): IndomitableState {
+  return { pool: spendResource(state.pool, amount) };
+}
+
+export function resetIndomitableOnLongRest(level: number, state: IndomitableState): IndomitableState {
+  const max = indomitableUsesForLevel(level);
+  return { pool: { name: state.pool.name, current: max, max } };
+}
+
 // ----- Subclasses -----
 
 /** Champion Fighter subclass (D&D 5e 2024). */
@@ -89,6 +119,7 @@ export const Fighter: CharacterClassDefinition = {
     "second-wind": 1,
     "action-surge": 2,
     "extra-attack": 5,
+    "indomitable": 9,
     "two-extra-attacks": 11,
     "three-extra-attacks": 20,
   },
@@ -99,6 +130,8 @@ export const Fighter: CharacterClassDefinition = {
 
     const secondWind = createSecondWindState(level);
     if (secondWind.pool.max > 0) pools.push(secondWind.pool);
+const indomitable = createIndomitableState(level);
+    if (indomitable.pool.max > 0) pools.push(indomitable.pool);
 
     return pools;
   },
@@ -110,11 +143,15 @@ export const Fighter: CharacterClassDefinition = {
     const secondWind = createSecondWindState(level);
     if (secondWind.pool.max > 0) pools.push(secondWind.pool);
 
+    const indomitable = createIndomitableState(level);
+    if (indomitable.pool.max > 0) pools.push(indomitable.pool);
+
     return pools;
   },
   restRefreshPolicy: [
     { poolKey: "actionSurge", refreshOn: "both", computeMax: (level) => actionSurgeUsesForLevel(level) },
     { poolKey: "secondWind", refreshOn: "both", computeMax: (level) => secondWindUsesForLevel(level) },
+    { poolKey: "indomitable", refreshOn: "long", computeMax: (level) => indomitableUsesForLevel(level) },
   ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
@@ -127,7 +164,7 @@ export const Fighter: CharacterClassDefinition = {
       caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
     }
     if (level >= 9) {
-      caps.push({ name: "Indomitable", economy: "free", cost: "1 use/long rest", effect: "Reroll a failed saving throw" });
+      caps.push({ name: "Indomitable", economy: "free", cost: `${indomitableUsesForLevel(level)} use${indomitableUsesForLevel(level) > 1 ? "s" : ""}/long rest`, effect: "Reroll a failed saving throw", abilityId: "class:fighter:indomitable", resourceCost: { pool: "indomitable", amount: 1 } });
     }
     return caps;
   },
@@ -140,6 +177,7 @@ export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   actionMappings: [
     { keyword: "action-surge", normalizedPatterns: [/actionsurge|useactionsurge/], abilityId: "class:fighter:action-surge", category: "classAction" },
     { keyword: "second-wind", normalizedPatterns: [/secondwind|usesecondwind/], abilityId: "class:fighter:second-wind", category: "bonusAction" },
+    { keyword: "indomitable", normalizedPatterns: [/indomitable|useindomitable/], abilityId: "class:fighter:indomitable", category: "classAction" },
   ],
   attackEnhancements: [],
 };

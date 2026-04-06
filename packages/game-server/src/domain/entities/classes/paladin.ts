@@ -74,6 +74,25 @@ export function divineSmiteDice(slotLevel: number): number {
 }
 
 /**
+ * Aura of Protection range by Paladin level (D&D 5e 2024).
+ * 10 feet at level 6, extends to 30 feet at level 18.
+ * Returns 0 if below level 6 (feature not yet available).
+ */
+export function getAuraOfProtectionRange(level: number): number {
+  if (level < 6) return 0;
+  if (level < 18) return 10;
+  return 30;
+}
+
+/**
+ * Compute the Aura of Protection saving throw bonus from Charisma modifier.
+ * D&D 5e 2024: the bonus equals the Paladin's CHA modifier (minimum +1).
+ */
+export function computeAuraSaveBonus(charismaModifier: number): number {
+  return Math.max(1, charismaModifier);
+}
+
+/**
  * Paladin combat text profile.
  * - Divine Smite: hit-rider enhancement that adds radiant bonus dice on melee hit (costs spell slot + bonus action)
  * - Lay on Hands: bonus action healing from HP pool
@@ -117,6 +136,7 @@ export const Paladin: CharacterClassDefinition = {
     "divine-smite": 2,
     "channel-divinity": 3,
     "extra-attack": 5,
+    "aura-of-protection": 6,
   },
   resourcesAtLevel: (level) => {
     const pools: ResourcePool[] = [];
@@ -155,6 +175,10 @@ export const Paladin: CharacterClassDefinition = {
     }
     if (level >= 5) {
       caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
+    }
+    if (level >= 6) {
+      const range = getAuraOfProtectionRange(level);
+      caps.push({ name: "Aura of Protection", economy: "free", effect: `+CHA mod (min 1) to saving throws for you and allies within ${range} ft` });
     }
     return caps;
   },

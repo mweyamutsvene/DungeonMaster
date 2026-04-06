@@ -11,7 +11,7 @@ export { RageExecutor, RecklessAttackExecutor } from "./barbarian/index.js";
 export { TurnUndeadExecutor } from "./cleric/index.js";
 
 // Fighter abilities
-export { ActionSurgeExecutor, SecondWindExecutor } from "./fighter/index.js";
+export { ActionSurgeExecutor, IndomitableExecutor, SecondWindExecutor } from "./fighter/index.js";
 
 // Monk abilities
 export {
