@@ -3065,4 +3065,120 @@ describe("game-server api", () => {
 
     await app.close();
   });
+
+  it("POST use-charge decrements charges on a charged item", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    // Create character with an item that has currentCharges in the sheet
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Mage",
+        level: 5,
+        className: "wizard",
+        sheet: {
+          maxHp: 30,
+          inventory: [
+            { name: "Staff of Fire", magicItemId: "staff-of-fire", equipped: true, attuned: true, quantity: 1, currentCharges: 10 },
+          ],
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+    const invUrl = `/sessions/${sessionId}/characters/${charId}/inventory`;
+
+    // Use 3 charges
+    const res = await app.inject({
+      method: "POST",
+      url: `${invUrl}/Staff%20of%20Fire/use-charge`,
+      payload: { amount: 3 },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.item.currentCharges).toBe(7);
+    expect(body.item.name).toBe("Staff of Fire");
+
+    // Use 1 more (default amount)
+    const res2 = await app.inject({
+      method: "POST",
+      url: `${invUrl}/Staff%20of%20Fire/use-charge`,
+      payload: {},
+    });
+    expect(res2.statusCode).toBe(200);
+    expect((res2.json() as any).item.currentCharges).toBe(6);
+
+    await app.close();
+  });
+
+  it("POST use-charge returns 400 if item has no charges", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Fighter",
+        level: 3,
+        className: "fighter",
+        sheet: {
+          maxHp: 30,
+          inventory: [
+            { name: "Longsword", equipped: true, attuned: false, quantity: 1 },
+          ],
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters/${charId}/inventory/Longsword/use-charge`,
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).message).toContain("does not use charges");
+
+    await app.close();
+  });
+
+  it("POST use-charge returns 400 if not enough charges remaining", async () => {
+    const { app } = buildTestApp();
+
+    const sessionRes = await app.inject({ method: "POST", url: "/sessions", payload: { storyFramework: {} } });
+    const sessionId = (sessionRes.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Mage",
+        level: 5,
+        className: "wizard",
+        sheet: {
+          maxHp: 30,
+          inventory: [
+            { name: "Staff of Fire", magicItemId: "staff-of-fire", equipped: true, attuned: true, quantity: 1, currentCharges: 2 },
+          ],
+        },
+      },
+    });
+    const charId = (charRes.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters/${charId}/inventory/Staff%20of%20Fire/use-charge`,
+      payload: { amount: 5 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).message).toContain("Not enough charges");
+
+    await app.close();
+  });
 });

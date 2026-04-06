@@ -6,14 +6,18 @@ import {
   getCoverLevel,
   getCoverSaveBonus,
   getCreatures,
+  getElevationAttackModifier,
   getEntitiesAt,
   getEntitiesInRadius,
   getEntity,
   getFactionsInRange,
   getItems,
+  getPitFallDamage,
   getTerrainSpeedModifier,
   hasLineOfSight,
+  isElevatedTerrain,
   isOnMap,
+  isPitTerrain,
   isPositionPassable,
   moveEntity,
   removeEntity,
@@ -508,6 +512,41 @@ describe("Combat Map", () => {
 
       map = setTerrainAt(map, { x: 15, y: 15 }, "wall");
       expect(getTerrainSpeedModifier(map, { x: 15, y: 15 })).toBe(0);
+    });
+  });
+
+  describe("elevation / pit terrain utilities", () => {
+    it("isElevatedTerrain returns true only for elevated", () => {
+      expect(isElevatedTerrain("elevated")).toBe(true);
+      expect(isElevatedTerrain("normal")).toBe(false);
+      expect(isElevatedTerrain("pit")).toBe(false);
+    });
+
+    it("isPitTerrain returns true only for pit", () => {
+      expect(isPitTerrain("pit")).toBe(true);
+      expect(isPitTerrain("normal")).toBe(false);
+      expect(isPitTerrain("elevated")).toBe(false);
+    });
+
+    it("attacker on elevated + defender in pit → advantage", () => {
+      expect(getElevationAttackModifier("elevated", "pit")).toBe("advantage");
+    });
+
+    it("attacker in pit → disadvantage regardless of defender terrain", () => {
+      expect(getElevationAttackModifier("pit", "normal")).toBe("disadvantage");
+      expect(getElevationAttackModifier("pit", "elevated")).toBe("disadvantage");
+    });
+
+    it("normal vs normal → none", () => {
+      expect(getElevationAttackModifier("normal", "normal")).toBe("none");
+    });
+
+    it("elevated vs normal → none (advantage only when defender in pit)", () => {
+      expect(getElevationAttackModifier("elevated", "normal")).toBe("none");
+    });
+
+    it("getPitFallDamage returns 1d6", () => {
+      expect(getPitFallDamage()).toBe("1d6");
     });
   });
 });

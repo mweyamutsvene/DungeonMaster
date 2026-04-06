@@ -25,3 +25,35 @@ export function rollInitiative(
     return a.creature.getId().localeCompare(b.creature.getId());
   });
 }
+
+/**
+ * Swap initiative values between two actors in the turn order.
+ * Used by the Alert feat (D&D 5e 2024) to let a creature trade initiative
+ * with a willing ally immediately after initiative is rolled.
+ *
+ * Returns a new sorted array with the two actors' initiative values exchanged.
+ * If either actor is not found, returns a copy of the original array unchanged.
+ */
+export function swapInitiative(
+  turnOrder: ReadonlyArray<{ actorId: string; initiative: number }>,
+  actorId: string,
+  targetId: string,
+): Array<{ actorId: string; initiative: number }> {
+  const actorEntry = turnOrder.find(e => e.actorId === actorId);
+  const targetEntry = turnOrder.find(e => e.actorId === targetId);
+
+  if (!actorEntry || !targetEntry) {
+    return turnOrder.map(e => ({ ...e }));
+  }
+
+  const actorInit = actorEntry.initiative;
+  const targetInit = targetEntry.initiative;
+
+  return turnOrder
+    .map(e => {
+      if (e.actorId === actorId) return { actorId: e.actorId, initiative: targetInit };
+      if (e.actorId === targetId) return { actorId: e.actorId, initiative: actorInit };
+      return { ...e };
+    })
+    .sort((a, b) => b.initiative - a.initiative);
+}

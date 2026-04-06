@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AbilityScores } from "../entities/core/ability-scores.js";
 import { Character } from "../entities/creatures/character.js";
 import { FixedDiceRoller } from "../rules/dice-roller.js";
-import { rollInitiative } from "./initiative.js";
+import { rollInitiative, swapInitiative } from "./initiative.js";
 
 function makeCharacter(params: { id: string; dex: number; featIds?: readonly string[] }): Character {
   return new Character({
@@ -70,5 +70,65 @@ describe("rollInitiative (tie-breaking)", () => {
     // Same initiative (12), same DEX (14), fall back to alphabetical: "alpha" < "bravo".
     expect(entries[0].creature.getId()).toBe("alpha");
     expect(entries[1].creature.getId()).toBe("bravo");
+  });
+});
+
+describe("swapInitiative", () => {
+  it("swaps initiative values between two actors", () => {
+    const order = [
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 15 },
+      { actorId: "c", initiative: 10 },
+    ];
+
+    const result = swapInitiative(order, "a", "c");
+
+    const byId = new Map(result.map(e => [e.actorId, e.initiative] as const));
+    expect(byId.get("a")).toBe(10); // was 20
+    expect(byId.get("c")).toBe(20); // was 10
+    expect(byId.get("b")).toBe(15); // unchanged
+  });
+
+  it("returns result sorted by initiative (highest first)", () => {
+    const order = [
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 15 },
+      { actorId: "c", initiative: 10 },
+    ];
+
+    const result = swapInitiative(order, "a", "c");
+
+    // After swap: c=20, b=15, a=10
+    expect(result[0].actorId).toBe("c");
+    expect(result[1].actorId).toBe("b");
+    expect(result[2].actorId).toBe("a");
+  });
+
+  it("returns unchanged copy if actor not found", () => {
+    const order = [
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 10 },
+    ];
+
+    const result = swapInitiative(order, "missing", "b");
+
+    expect(result).toEqual([
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 10 },
+    ]);
+  });
+
+  it("returns unchanged copy if target not found", () => {
+    const order = [
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 10 },
+    ];
+
+    const result = swapInitiative(order, "a", "missing");
+
+    expect(result).toEqual([
+      { actorId: "a", initiative: 20 },
+      { actorId: "b", initiative: 10 },
+    ]);
   });
 });

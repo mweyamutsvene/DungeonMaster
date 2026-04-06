@@ -147,6 +147,38 @@ export function getAttunedItems(inventory: CharacterItemInstance[]): CharacterIt
   return inventory.filter(i => i.attuned);
 }
 
+// ─── Charge management ───────────────────────────────────────────────────
+
+/**
+ * Decrement charges on a charged item in the inventory.
+ * Returns the updated inventory and the item after decrement.
+ * Throws if the item is not found, has no charge system, or has 0 charges.
+ */
+export function useItemCharge(
+  inventory: CharacterItemInstance[],
+  itemName: string,
+  amount = 1,
+): { updatedInventory: CharacterItemInstance[]; item: CharacterItemInstance } {
+  const item = findInventoryItem(inventory, itemName);
+  if (!item) {
+    throw new Error(`Item "${itemName}" not found in inventory`);
+  }
+  if (item.currentCharges === undefined) {
+    throw new Error(`Item "${itemName}" does not use charges`);
+  }
+  if (item.currentCharges < amount) {
+    throw new Error(
+      `Not enough charges on "${itemName}" (have ${item.currentCharges}, need ${amount})`,
+    );
+  }
+  const lower = itemName.toLowerCase();
+  const updatedItem = { ...item, currentCharges: item.currentCharges - amount };
+  const updatedInventory = inventory.map((i) =>
+    i.name.toLowerCase() === lower ? updatedItem : i,
+  );
+  return { updatedInventory, item: updatedItem };
+}
+
 // ─── Magic item weapon/armor bonus helpers ───────────────────────────────
 
 export interface WeaponMagicBonuses {

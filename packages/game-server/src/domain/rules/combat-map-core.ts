@@ -181,3 +181,49 @@ export function getTerrainSpeedModifier(map: CombatMap, position: Position): num
       return 1.0;
   }
 }
+
+// ── Elevation / pit terrain utilities ──────────────────────────────────
+
+/**
+ * Whether the terrain type is elevated ground.
+ */
+export function isElevatedTerrain(terrain: TerrainType): boolean {
+  return terrain === "elevated";
+}
+
+/**
+ * Whether the terrain type is a pit (lower ground / hole).
+ */
+export function isPitTerrain(terrain: TerrainType): boolean {
+  return terrain === "pit";
+}
+
+/**
+ * Elevation-based attack modifier.
+ *
+ * Design hook — these exist for future terrain-aware attack resolution:
+ *  - Attacker on elevated + defender in pit → "advantage"
+ *  - Attacker in pit → "disadvantage"
+ *  - Otherwise → "none"
+ *
+ * Returns a string indicator (not a numeric bonus) so the caller
+ * can fold it into the standard advantage / disadvantage system.
+ */
+export function getElevationAttackModifier(
+  attackerTerrain: TerrainType,
+  defenderTerrain: TerrainType,
+): "advantage" | "disadvantage" | "none" {
+  if (isPitTerrain(attackerTerrain)) return "disadvantage";
+  if (isElevatedTerrain(attackerTerrain) && isPitTerrain(defenderTerrain)) return "advantage";
+  return "none";
+}
+
+/**
+ * Suggested fall damage for a creature falling into a pit (10 ft fall).
+ * Returns a dice expression string per D&D 5e rules (1d6 per 10 ft).
+ *
+ * Design hook — not yet integrated into damage resolution.
+ */
+export function getPitFallDamage(): string {
+  return "1d6";
+}

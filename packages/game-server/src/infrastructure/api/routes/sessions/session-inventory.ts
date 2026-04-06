@@ -10,6 +10,7 @@
  * - POST /sessions/:id/characters/:charId/inventory        — Add item
  * - DELETE /sessions/:id/characters/:charId/inventory/:itemName — Remove item
  * - PATCH /sessions/:id/characters/:charId/inventory/:itemName  — Equip/attune
+ * - POST /sessions/:id/characters/:charId/inventory/:itemName/use-charge — Decrement charges
  */
 
 import type { FastifyInstance } from "fastify";
@@ -21,6 +22,7 @@ import {
   removeInventoryItem,
   findInventoryItem,
   getAttunedCount,
+  useItemCharge,
   MAX_ATTUNEMENT_SLOTS,
 } from "../../../../domain/entities/items/inventory.js";
 import { recomputeArmorFromInventory } from "../../../../domain/entities/items/armor-catalog.js";
@@ -212,5 +214,48 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
     await saveInventory(deps, char.id, sheet, updated);
 
     return { inventory: updated };
+  });
+
+  /**
+   * POST /sessions/:id/characters/:charId/inventory/:itemName/use-charge
+   * Decrement charges on a charged item (e.g., Staff of Fire).
+   *
+   * Body: { amount? } — defaults to 1
+   */
+  app.post<{
+    Params: { id: string; charId: string; itemName: string };
+    Body: { amount?: number };
+  }>("/sessions/:id/characters/:charId/inventory/:itemName/use-charge", async (req) => {
+    const char = await deps.charactersRepo.getById(req.params.charId);
+    if (!char || char.sessionId !== req.params.id) {
+      throw new NotFoundError(`Character not found: ${req.params.charId}`);
+    }
+
+    const sheet = (char.sheet as Record<string, unknown>) ?? {};
+    const inventory = getInventoryFromSheet(sheet);
+    const itemName = decodeURIComponent(req.params.itemName);
+    const amount = req.body?.amount ?? 1;
+
+    if (!Number.isInteger(amount) || amount < 1) {
+      throw new ValidationError("Amount must be a positive integer");
+    }
+
+    const item = findInventoryItem(inventory, itemName);
+    if (!item) {
+      throw new NotFoundError(`Item "${itemName}" not found in inventory`);
+    }
+    if (item.currentCharges === undefined) {
+      throw new ValidationError(`Item "${itemName}" does not use charges`);
+    }
+    if (item.currentCharges < amount) {
+      throw new ValidationError(
+        `Not enough charges on "${itemName}" (have ${item.currentCharges}, need ${amount})`,
+      );
+    }
+
+    const { updatedInventory, item: updatedItem } = useItemCharge(inventory, itemName, amount);
+    await saveInventory(deps, char.id, sheet, updatedInventory);
+
+    return { item: updatedItem, inventory: updatedInventory };
   });
 }

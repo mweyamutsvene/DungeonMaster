@@ -331,8 +331,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[ENT-M5]** Missing SSE events: `MonsterAdded`, `NPCAdded`, `InventoryChanged` — clients can't subscribe to roster/inventory changes in real-time.
   - File: `application/services/entities/`, event type union
 
-- [ ] **[ENT-M6]** Magic item charges not decremented via API — no HTTP endpoint or `CharacterService` method to decrement `currentCharges` after item use (except potions). Staff of Fire casts unlimited times.
+- [x] **[ENT-M6]** Magic item charges not decremented via API — no HTTP endpoint or `CharacterService` method to decrement `currentCharges` after item use (except potions). Staff of Fire casts unlimited times.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
+  - Fix: Added `POST .../inventory/:itemName/use-charge` endpoint + `useItemCharge()` domain function. Validates charges exist and are available. 3 new tests.
 
 - [ ] **[ENT-M7]** No out-of-combat "use item" HTTP endpoint — `useConsumableItem()` exists as domain function but no `POST /sessions/:id/characters/:charId/inventory/:itemName/use` route.
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
@@ -353,8 +354,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L1]** `ConditionEffects` field naming inconsistency — `attackRollsHaveAdvantage` means "attacks against this creature have advantage" but `attackRollsHaveDisadvantage` means "this creature's attacks have disadvantage." Rename `attackRollsHaveAdvantage` → `incomingAttackAdvantage` to match `incomingAttackDisadvantage`.
   - File: `domain/entities/combat/conditions.ts:63-83`
 
-- [ ] **[CLEAN-L2]** `ConditionEffects` missing `resistsAllDamage?: boolean` and `damageImmunities?: DamageType[]` fields — required to properly model Petrified and similar conditions (see H2).
+- [x] **[CLEAN-L2]** `ConditionEffects` missing `resistsAllDamage?: boolean` and `damageImmunities?: DamageType[]` fields — required to properly model Petrified and similar conditions (see H2).
   - File: `domain/entities/combat/conditions.ts`
+  - Fix: Already implemented — `resistsAllDamage`, `damageImmunities`, and `conditionImmunities` fields already exist. Petrified has all three set.
 
 - [x] **[CLEAN-L3]** `computeSpellSaveDC()` should be a shared domain function — currently duplicated inline in `wizard.ts:142` and `warlock.ts:101`. Extract to `domain/rules/`.
   - File: `domain/entities/classes/wizard.ts:142`, `domain/entities/classes/warlock.ts:101`
@@ -404,8 +406,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/feat-modifiers.ts`, `domain/rules/hit-points.ts`
   - Fix: Added `FEAT_TOUGH` constant, `toughEnabled` field, `computeToughBonusHP(level)` function returning `level * 2`. 3 new tests.
 
-- [ ] **[RULES-L3]** `elevated` and `pit` terrain types exist in `TerrainType` but have no mechanical function — no elevation attack bonus, no pit fall effect.
+- [x] **[RULES-L3]** `elevated` and `pit` terrain types exist in `TerrainType` but have no mechanical function — no elevation attack bonus, no pit fall effect.
   - File: `domain/rules/combat-map-types.ts:15-16`, `domain/rules/combat-map-core.ts`
+  - Fix: Added `isElevatedTerrain()`, `isPitTerrain()`, `getElevationAttackModifier()`, `getPitFallDamage()`. 7 new tests.
 
 - [x] **[RULES-L4]** Stabilization via Medicine check — no `attemptStabilize()` function. DC 10 WIS (Medicine) check by another creature stabilizes a dying creature without HP.
   - File: `domain/rules/death-saves.ts`
@@ -428,8 +431,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/rules/ability-checks.ts`
   - Fix: Added `halfProficiency?: boolean` to all ability check option interfaces. When set and not proficient, adds `Math.floor(proficiencyBonus / 2)`. 3 new tests.
 
-- [ ] **[RULES-L10]** Alert feat `initiativeSwapEnabled` has no domain-level `swapInitiative()` function. Application layer handles it but domain support is incomplete.
+- [x] **[RULES-L10]** Alert feat `initiativeSwapEnabled` has no domain-level `swapInitiative()` function. Application layer handles it but domain support is incomplete.
   - File: `domain/rules/feat-modifiers.ts`, `domain/combat/initiative.ts`
+  - Fix: Added `swapInitiative(turnOrder, actorId, targetId)` pure function. Swaps initiative values and returns re-sorted order. 4 new tests.
 
 ### AI / Performance
 
