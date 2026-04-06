@@ -2,6 +2,8 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
+import { DEFLECT_ATTACKS } from "./feature-keys.js";
+import { classHasFeature } from "./registry.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { getMartialArtsDieSize } from "../../rules/martial-arts-die.js";
 
@@ -163,8 +165,7 @@ const DEFLECT_ATTACKS_REACTION: AttackReactionDef = {
   classId: "monk",
   detect(input: AttackReactionInput): DetectedAttackReaction | null {
     if (!input.hasReaction || !input.isCharacter) return null;
-    if (input.className !== "monk") return null;
-    if (input.level < 3) return null;
+    if (!classHasFeature(input.className, DEFLECT_ATTACKS, input.level)) return null;
 
     const dexScore = input.abilityScores.dexterity ?? 10;
     const dexMod = Math.floor((dexScore - 10) / 2);

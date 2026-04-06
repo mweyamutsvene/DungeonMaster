@@ -16,23 +16,34 @@ import { Sorcerer } from "./sorcerer.js";
 import { Warlock, WARLOCK_COMBAT_TEXT_PROFILE } from "./warlock.js";
 import { Wizard, WIZARD_COMBAT_TEXT_PROFILE } from "./wizard.js";
 
-const CLASS_DEFINITIONS: Record<CharacterClassId, CharacterClassDefinition> = {
-  barbarian: Barbarian,
-  bard: Bard,
-  cleric: Cleric,
-  druid: Druid,
-  fighter: Fighter,
-  monk: Monk,
-  paladin: Paladin,
-  ranger: Ranger,
-  rogue: Rogue,
-  sorcerer: Sorcerer,
-  warlock: Warlock,
-  wizard: Wizard,
-};
+// Lazy-init to avoid circular-dependency TDZ issues: class domain files
+// (monk.ts, rogue.ts, …) may import classHasFeature from this module while
+// this module imports their class definitions.  Deferring the object creation
+// to the first call guarantees all class exports have been fully evaluated.
+let _classDefs: Record<CharacterClassId, CharacterClassDefinition> | null = null;
+
+function classDefs(): Record<CharacterClassId, CharacterClassDefinition> {
+  if (!_classDefs) {
+    _classDefs = {
+      barbarian: Barbarian,
+      bard: Bard,
+      cleric: Cleric,
+      druid: Druid,
+      fighter: Fighter,
+      monk: Monk,
+      paladin: Paladin,
+      ranger: Ranger,
+      rogue: Rogue,
+      sorcerer: Sorcerer,
+      warlock: Warlock,
+      wizard: Wizard,
+    };
+  }
+  return _classDefs;
+}
 
 export function getClassDefinition(classId: CharacterClassId): CharacterClassDefinition {
-  return CLASS_DEFINITIONS[classId];
+  return classDefs()[classId];
 }
 
 // ----- Subclass normalization -----
@@ -55,7 +66,7 @@ function normalizeSubclassId(id: string): string {
 export function getSubclassDefinition(classId: string, subclassId: string): SubclassDefinition | undefined {
   const normalized = classId.toLowerCase();
   if (!isCharacterClassId(normalized)) return undefined;
-  const def = CLASS_DEFINITIONS[normalized];
+  const def = classDefs()[normalized];
   if (!def.subclasses) return undefined;
   const subNorm = normalizeSubclassId(subclassId);
   return def.subclasses.find(s => normalizeSubclassId(s.id) === subNorm);
@@ -71,7 +82,7 @@ export function getSubclassDefinition(classId: string, subclassId: string): Subc
 export function classHasFeature(classId: string, feature: string, classLevel: number, subclassId?: string): boolean {
   const normalized = classId.toLowerCase();
   if (!isCharacterClassId(normalized)) return false;
-  const def = CLASS_DEFINITIONS[normalized];
+  const def = classDefs()[normalized];
 
   // Check class-level features
   const minLevel = def.features?.[feature];
@@ -103,7 +114,7 @@ export function hasFeature(classLevels: ReadonlyArray<{ classId: string; level: 
 export function getClassFeatureLevel(classId: string, feature: string): number | undefined {
   const normalized = classId.toLowerCase();
   if (!isCharacterClassId(normalized)) return undefined;
-  return CLASS_DEFINITIONS[normalized].features?.[feature];
+  return classDefs()[normalized].features?.[feature];
 }
 
 // ----- Combat text profile registry -----
@@ -112,23 +123,30 @@ export function getClassFeatureLevel(classId: string, feature: string): number |
  * All registered class combat text profiles.
  * When adding a new class with combat abilities, add its profile here.
  */
-const COMBAT_TEXT_PROFILES: readonly ClassCombatTextProfile[] = [
-  MONK_COMBAT_TEXT_PROFILE,
-  FIGHTER_COMBAT_TEXT_PROFILE,
-  WIZARD_COMBAT_TEXT_PROFILE,
-  WARLOCK_COMBAT_TEXT_PROFILE,
-  BARBARIAN_COMBAT_TEXT_PROFILE,
-  PALADIN_COMBAT_TEXT_PROFILE,
-  CLERIC_COMBAT_TEXT_PROFILE,
-  ROGUE_COMBAT_TEXT_PROFILE,
-];
+let _textProfiles: readonly ClassCombatTextProfile[] | null = null;
+
+function combatTextProfiles(): readonly ClassCombatTextProfile[] {
+  if (!_textProfiles) {
+    _textProfiles = [
+      MONK_COMBAT_TEXT_PROFILE,
+      FIGHTER_COMBAT_TEXT_PROFILE,
+      WIZARD_COMBAT_TEXT_PROFILE,
+      WARLOCK_COMBAT_TEXT_PROFILE,
+      BARBARIAN_COMBAT_TEXT_PROFILE,
+      PALADIN_COMBAT_TEXT_PROFILE,
+      CLERIC_COMBAT_TEXT_PROFILE,
+      ROGUE_COMBAT_TEXT_PROFILE,
+    ];
+  }
+  return _textProfiles;
+}
 
 /** Get all registered combat text profiles (class + subclass). */
 export function getAllCombatTextProfiles(): readonly ClassCombatTextProfile[] {
-  const allProfiles: ClassCombatTextProfile[] = [...COMBAT_TEXT_PROFILES];
+  const allProfiles: ClassCombatTextProfile[] = [...combatTextProfiles()];
 
   // Include subclass combat text profiles
-  for (const classDef of Object.values(CLASS_DEFINITIONS)) {
+  for (const classDef of Object.values(classDefs())) {
     if (classDef.subclasses) {
       for (const sub of classDef.subclasses) {
         if (sub.combatTextProfile) {

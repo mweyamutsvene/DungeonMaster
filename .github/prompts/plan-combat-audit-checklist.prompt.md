@@ -122,11 +122,13 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/battle-plan-service.ts`
   - Fix: Extracted `ac` from `resources.armorClass`, `speed` from `resources.speed`, and `conditions` from combatant record — mirrors the existing `factionCreatures` pattern.
 
-- [ ] **[AI-H6]** Faction creature abilities not sent to LLM battle planner — `factionCreatures` never calls `listCreatureAbilities()`. LLM plans without knowing own faction's spells or abilities.
+- [x] **[AI-H6]** Faction creature abilities not sent to LLM battle planner — `factionCreatures` never calls `listCreatureAbilities()`. LLM plans without knowing own faction's spells or abilities.
   - File: `application/services/combat/ai/battle-plan-service.ts`
+  - Fix: Added `extractAbilitiesFromResources()` helper that extracts ability names from resource pools, spell flags, and legendary actions. Only includes abilities with remaining uses.
 
-- [ ] **[AI-H7]** `escapeGrapple` not in `isActionConsuming()` — action economy guard doesn't prevent AI from attempting escape twice in one turn.
+- [x] **[AI-H7]** `escapeGrapple` not in `isActionConsuming()` — action economy guard doesn't prevent AI from attempting escape twice in one turn.
   - File: `application/services/combat/ai/ai-action-executor.ts`
+  - Fix: Added `"escapeGrapple"` to the `isActionConsuming()` array.
 
 ### Class Abilities
 
@@ -134,17 +136,21 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/entities/classes/monk.ts:130-134`
   - Fix: Added `uncanny_metabolism` (long rest) and `wholeness_of_body` (long rest, `computeMax` uses WIS modifier) entries to `restRefreshPolicy`. Extended `RefreshClassResourcePoolsOptions` with `wisdomModifier` field. Updated `character-service.ts` to extract and pass WIS modifier. Added tests in `rest.test.ts` and `monk.test.ts`.
 
-- [ ] **[CLASS-H2]** Rogue Cunning Action: Hide returns `NOT_IMPLEMENTED` error — one of three core Cunning Action uses throws immediately.
+- [x] **[CLASS-H2]** Rogue Cunning Action: Hide returns `NOT_IMPLEMENTED` error — one of three core Cunning Action uses throws immediately.
   - File: `application/services/combat/abilities/executors/rogue/cunning-action-executor.ts:104`
+  - Fix: Already resolved — `services.hide` is properly wired in both tabletop (`class-ability-handlers.ts`) and AI (`ai-action-executor.ts`) executor paths. The NOT_IMPLEMENTED guard only triggers if service is null, which doesn't happen in practice.
 
-- [ ] **[CLASS-H3]** Evasion declared but not enforced in saving throw path — both Monk and Rogue have feature key + features map entry but `SavingThrowResolver` doesn't convert "half on success" → "no damage on success."
+- [x] **[CLASS-H3]** Evasion declared but not enforced in saving throw path — both Monk and Rogue have feature key + features map entry but `SavingThrowResolver` doesn't convert "half on success" → "no damage on success."
   - File: `application/services/combat/tabletop/rolls/saving-throw-resolver.ts`, `domain/entities/classes/monk.ts`, `domain/entities/classes/rogue.ts`
+  - Fix: Already implemented — `SavingThrowResolver` detects evasion via `classHasFeature()`, and `save-spell-delivery-handler.ts` applies it via `applyEvasion()` from `domain/rules/evasion.ts`.
 
-- [ ] **[CLASS-H4]** `UNCANNY_DODGE` reaction uses raw string `input.className !== "rogue"` instead of `classHasFeature()` — breaks multiclass characters.
+- [x] **[CLASS-H4]** `UNCANNY_DODGE` reaction uses raw string `input.className !== "rogue"` instead of `classHasFeature()` — breaks multiclass characters.
   - File: `domain/entities/classes/rogue.ts:120`
+  - Fix: Replaced raw string check with `classHasFeature(input.className, UNCANNY_DODGE, input.level)`. Fixed Uncanny Dodge level from 7 to 5 (correct per D&D 5e 2024).
 
-- [ ] **[CLASS-H5]** Monk `DeflectAttacks` reaction uses raw `className === "monk"` check — same anti-pattern as H4, breaks multiclass.
+- [x] **[CLASS-H5]** Monk `DeflectAttacks` reaction uses raw `className === "monk"` check — same anti-pattern as H4, breaks multiclass.
   - File: `domain/entities/classes/monk.ts`
+  - Fix: Replaced raw string check with `classHasFeature(input.className, DEFLECT_ATTACKS, input.level)`. Registry refactored to lazy-init to resolve circular dependency.
 
 - [ ] **[CLASS-H6]** Initiative tie-breaking uses alphabetical ID, not DEX score — D&D 2024 ties should break on DEX score (higher DEX first).
   - File: `domain/combat/initiative.ts:18`

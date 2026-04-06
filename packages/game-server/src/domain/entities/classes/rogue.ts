@@ -2,6 +2,7 @@ import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } fr
 import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
 import { isFinesse } from "../items/weapon-properties.js";
 import { UNCANNY_DODGE } from "./feature-keys.js";
+import { classHasFeature } from "./registry.js";
 
 export function sneakAttackDiceForLevel(level: number): number {
   if (!Number.isInteger(level) || level < 1 || level > 20) {
@@ -69,7 +70,7 @@ export const Rogue: CharacterClassDefinition = {
     "sneak-attack": 1,
     "weapon-mastery": 1,
     "cunning-action": 2,
-    "uncanny-dodge": 7,
+    "uncanny-dodge": 5,
     "evasion": 7,
   },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
@@ -79,7 +80,7 @@ export const Rogue: CharacterClassDefinition = {
     if (level >= 2) {
       caps.push({ name: "Cunning Action", economy: "bonusAction", effect: "Dash, Disengage, or Hide as bonus action", abilityId: "class:rogue:cunning-action" });
     }
-    if (level >= 7) {
+    if (level >= 5) {
       caps.push({ name: "Uncanny Dodge", economy: "reaction", requires: "Hit by an attack you can see", effect: "Halve the damage", abilityId: "class:rogue:uncanny-dodge" });
     }
     if (level >= 7) {
@@ -97,13 +98,13 @@ export const Rogue: CharacterClassDefinition = {
  * - "cunning-action" → bonus action, Dash/Disengage/Hide as bonus action
  *
  * Attack reactions:
- * - Uncanny Dodge (level 7+) → halves damage from an attack you can see
+ * - Uncanny Dodge (level 5+) → halves damage from an attack you can see
  */
 
 // ----- Attack Reaction: Uncanny Dodge -----
 
 /**
- * Uncanny Dodge reaction detection (Rogue level 7+).
+ * Uncanny Dodge reaction detection (Rogue level 5+).
  * D&D 5e 2024: When an attacker you can see hits you with an attack,
  * you can use your reaction to halve the incoming damage.
  * Uses reaction; no resource cost.
@@ -112,10 +113,8 @@ const UNCANNY_DODGE_REACTION: AttackReactionDef = {
   reactionType: "uncanny_dodge",
   classId: "rogue",
   detect(input: AttackReactionInput): DetectedAttackReaction | null {
-    const minLevel = Rogue.features?.[UNCANNY_DODGE] ?? 7;
     if (!input.hasReaction || !input.isCharacter) return null;
-    if (input.className.trim().toLowerCase() !== UNCANNY_DODGE_REACTION.classId) return null;
-    if (input.level < minLevel) return null;
+    if (!classHasFeature(input.className, UNCANNY_DODGE, input.level)) return null;
 
     return {
       reactionType: "uncanny_dodge",

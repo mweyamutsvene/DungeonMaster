@@ -20,9 +20,9 @@ describe("Rogue feature keys", () => {
     expect(classHasFeature("rogue", WEAPON_MASTERY, 1)).toBe(true);
   });
 
-  it("has uncanny-dodge at level 7", () => {
-    expect(classHasFeature("rogue", UNCANNY_DODGE, 7)).toBe(true);
-    expect(classHasFeature("rogue", UNCANNY_DODGE, 6)).toBe(false);
+  it("has uncanny-dodge at level 5", () => {
+    expect(classHasFeature("rogue", UNCANNY_DODGE, 5)).toBe(true);
+    expect(classHasFeature("rogue", UNCANNY_DODGE, 4)).toBe(false);
   });
 
   it("has evasion at level 7", () => {
@@ -34,7 +34,7 @@ describe("Rogue feature keys", () => {
 describe("Uncanny Dodge reaction detection", () => {
   const baseInput: AttackReactionInput = {
     className: "rogue",
-    level: 7,
+    level: 5,
     abilityScores: { strength: 10, dexterity: 16, constitution: 12, intelligence: 10, wisdom: 12, charisma: 8 },
     resources: {},
     hasReaction: true,
@@ -44,7 +44,7 @@ describe("Uncanny Dodge reaction detection", () => {
     targetAC: 15,
   };
 
-  it("detects Uncanny Dodge for level 7+ rogue with reaction available", () => {
+  it("detects Uncanny Dodge for level 5+ rogue with reaction available", () => {
     const detected = detectAttackReactions(baseInput, [ROGUE_COMBAT_TEXT_PROFILE]);
     expect(detected).toHaveLength(1);
     expect(detected[0]!.reactionType).toBe("uncanny_dodge");
@@ -56,8 +56,8 @@ describe("Uncanny Dodge reaction detection", () => {
     expect(detected).toHaveLength(0);
   });
 
-  it("does not detect Uncanny Dodge for rogue below level 7", () => {
-    const input = { ...baseInput, level: 6 };
+  it("does not detect Uncanny Dodge for rogue below level 5", () => {
+    const input = { ...baseInput, level: 4 };
     const detected = detectAttackReactions(input, [ROGUE_COMBAT_TEXT_PROFILE]);
     expect(detected).toHaveLength(0);
   });

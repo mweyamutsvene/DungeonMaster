@@ -140,7 +140,7 @@ export class AiActionExecutor {
    * Check if action economy allows this action type.
    */
   private isActionConsuming(action: string): boolean {
-    return ["attack", "disengage", "dash", "dodge", "help", "castSpell", "shove", "grapple", "hide", "search", "useObject"].includes(action);
+    return ["attack", "disengage", "dash", "dodge", "help", "castSpell", "shove", "grapple", "escapeGrapple", "hide", "search", "useObject"].includes(action);
   }
 
   /**

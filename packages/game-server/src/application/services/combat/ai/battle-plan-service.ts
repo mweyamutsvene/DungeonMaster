@@ -11,6 +11,7 @@ import type { CombatantStateRecord, CombatEncounterRecord } from "../../../types
 import type { FactionService } from "../helpers/faction-service.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { BattlePlan } from "./battle-plan-types.js";
+import { getResourcePools } from "../helpers/resource-utils.js";
 
 /**
  * Port: AI battle plan generator.
@@ -54,6 +55,52 @@ const REPLAN_STALE_ROUNDS = 2;
  */
 const REPLAN_HP_LOSS_THRESHOLD = 0.25;
 
+/** Map resource pool names to human-readable ability names for the battle planner. */
+const POOL_NAME_MAP: Record<string, string> = {
+  ki: "Ki",
+  rage: "Rage",
+  actionSurge: "Action Surge",
+  secondWind: "Second Wind",
+  layOnHands: "Lay on Hands",
+  channelDivinity: "Channel Divinity",
+  bardicInspiration: "Bardic Inspiration",
+  wholenessOfBody: "Wholeness of Body",
+};
+
+function extractAbilitiesFromResources(c: CombatantStateRecord): string[] {
+  const res = c.resources as Record<string, unknown> | undefined;
+  if (!res) return [];
+
+  const abilities: string[] = [];
+
+  // 1. Named abilities from resource pools (ki, rage, action surge, etc.)
+  const pools = getResourcePools(c.resources);
+  for (const pool of pools) {
+    if (pool.current <= 0) continue;
+    const friendly = POOL_NAME_MAP[pool.name];
+    if (friendly) {
+      abilities.push(friendly);
+    } else if (pool.name.startsWith("spellSlot_")) {
+      // Spell slots → "Spell Slots (level N)"
+      const level = pool.name.replace("spellSlot_", "");
+      abilities.push(`Spell Slots (level ${level})`);
+    }
+  }
+
+  // 2. Prepared spell flags
+  if (res.hasShieldPrepared === true) abilities.push("Shield (spell)");
+  if (res.hasCounterspellPrepared === true) abilities.push("Counterspell");
+  if (res.hasAbsorbElementsPrepared === true) abilities.push("Absorb Elements");
+  if (res.hasHellishRebukePrepared === true) abilities.push("Hellish Rebuke");
+
+  // 3. Legendary actions
+  if (Array.isArray(res.legendaryActions) && res.legendaryActions.length > 0) {
+    abilities.push("Legendary Actions");
+  }
+
+  return abilities;
+}
+
 export class BattlePlanService {
   constructor(
     private readonly combatRepo: ICombatRepository,
@@ -91,13 +138,18 @@ export class BattlePlanService {
 
     const factionCreatures = [combatant, ...allies.filter(a => a.id !== combatant.id)]
       .filter(c => c.hpCurrent > 0)
-      .map(c => ({
-        name: nameMap.get(c.id) || "Unknown",
-        hp: { current: c.hpCurrent, max: c.hpMax },
-        ac: (c.resources as Record<string, unknown>)?.armorClass as number | undefined,
-        speed: (c.resources as Record<string, unknown>)?.speed as number | undefined,
-        position: (c.resources as Record<string, unknown>)?.position as { x: number; y: number } | undefined,
-      }));
+      .map(c => {
+        const res = c.resources as Record<string, unknown> | undefined;
+        const abilities = extractAbilitiesFromResources(c);
+        return {
+          name: nameMap.get(c.id) || "Unknown",
+          hp: { current: c.hpCurrent, max: c.hpMax },
+          ac: res?.armorClass as number | undefined,
+          speed: res?.speed as number | undefined,
+          position: res?.position as { x: number; y: number } | undefined,
+          ...(abilities.length > 0 ? { abilities } : {}),
+        };
+      });
 
     const enemyList = enemies
       .filter(e => e.hpCurrent > 0)
