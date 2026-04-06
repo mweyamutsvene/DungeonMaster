@@ -189,7 +189,6 @@ export function hydrateCharacter(
   const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(sheet, 'armorClass') ?? readNumber(sheet, 'ac') ?? 10;
   const speed = readNumber(sheet, 'speed') ?? 30;
-  const proficiencyBonus = readNumber(sheet, 'proficiencyBonus') ?? Math.floor((level - 1) / 4) + 2;
   
   // Parse optional fields
   const experiencePoints = readNumber(sheet, 'experiencePoints') ?? readNumber(sheet, 'xp') ?? 0;

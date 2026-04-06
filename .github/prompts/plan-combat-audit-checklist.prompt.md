@@ -187,8 +187,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-M7]** Resilient feat entirely missing — no save proficiency modeling (`savingThrowProficiencies` field doesn't exist in `FeatModifiers`). Very common feat that affects concentration and death saves.
   - File: `domain/rules/feat-modifiers.ts`
 
-- [ ] **[RULES-M8]** Jump landing skill checks — two explicit TODO comments. DC 10 Acrobatics if landing in Difficult Terrain; DC 10 Athletics for clearing low obstacles.
+- [x] **[RULES-M8]** Jump landing skill checks — two explicit TODO comments. DC 10 Acrobatics if landing in Difficult Terrain; DC 10 Athletics for clearing low obstacles.
   - File: `domain/rules/movement.ts:193-194`
+  - Fix: Added `checkJumpLanding()` and `checkJumpObstacleClearance()` pure functions. Updated JSDoc. Added 11 tests.
 
 ### Missing Spell System Features
 
@@ -261,8 +262,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/ai/battle-plan-service.ts`
   - Fix: Replaced broken CR lookup with faction HP ratio heuristic — defensive when below 25%, offensive otherwise.
 
-- [ ] **[AI-M3]** Deterministic AI `pickBonusAction()` missing several bonus actions — no Patient Defense, Step of the Wind, Divine Smite, Bardic Inspiration, Action Surge.
+- [x] **[AI-M3]** Deterministic AI `pickBonusAction()` missing several bonus actions — no Patient Defense, Step of the Wind, Divine Smite, Bardic Inspiration, Action Surge.
   - File: `application/services/combat/ai/deterministic-ai.ts`
+  - Fix: Added Patient Defense (defensive when low HP/surrounded) and Step of the Wind (tactical retreat) with ki pool checks. Reordered priority. Extracted `findKiPool()` helper.
 
 - [ ] **[AI-M4]** No AI handler for primary-action class features — Turn Undead, Channel Divinity, Lay on Hands have no `"useFeature"` AI action type. AI can't trigger these.
   - File: `application/services/combat/ai/`, `ai-action-registry.ts`
@@ -355,8 +357,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `domain/entities/classes/wizard.ts:142`, `domain/entities/classes/warlock.ts:101`
   - Fix: Extracted to shared `computeSpellSaveDC()` in `domain/rules/spell-casting.ts`. Both wizard.ts and warlock.ts now use it.
 
-- [ ] **[CLEAN-L4]** 13 unconditional `console.log` calls in AI production code bypass debug gate — replace with `this.aiLog(...)`.
+- [x] **[CLEAN-L4]** 13 unconditional `console.log` calls in AI production code bypass debug gate — replace with `this.aiLog(...)`.
   - File: `application/services/combat/ai/handlers/attack-handler.ts`, `application/services/combat/ai/ai-attack-resolver.ts`
+  - Fix: Already done in AI-M6 (Batch 10). All 13 instances replaced with `aiLog()`.
 
 - [ ] **[CLEAN-L5]** Damage reactions in `TwoPhaseActionService` not delegated — Absorb Elements / Hellish Rebuke handlers are inline in the facade (~170 lines) instead of using dedicated handler classes like all other reaction types.
   - File: `application/services/combat/two-phase-action-service.ts`
@@ -367,14 +370,16 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L7]** `InventoryItem` legacy type in `inventory.ts` — comment says "legacy for backward compat." Investigate if it can be unified with `CharacterItemInstance`.
   - File: `domain/entities/items/inventory.ts:18-40`
 
-- [ ] **[CLEAN-L8]** `proficiencyBonus` computed but not used in `hydrateCharacter()` — `const proficiencyBonus = readNumber(...)` is set but never passed into `CharacterData`. Dead code.
+- [x] **[CLEAN-L8]** `proficiencyBonus` computed but not used in `hydrateCharacter()` — `const proficiencyBonus = readNumber(...)` is set but never passed into `CharacterData`. Dead code.
   - File: `application/services/combat/helpers/creature-hydration.ts:96`
+  - Fix: Removed dead `proficiencyBonus` variable from character hydration. `Character.getProficiencyBonus()` computes from level.
 
 - [ ] **[CLEAN-L9]** `Turn Undead` AoE post-processing inline in `ClassAbilityHandlers` — after executor runs, the multi-target zone saving throw loop is inline in the handler, not in `SavingThrowResolver` or a dedicated AoE resolver.
   - File: `application/services/combat/tabletop/dispatch/class-ability-handlers.ts`
 
-- [ ] **[CLEAN-L10]** Dead code `ready` branch in `handleSimpleAction()` — `case "ready": throw ValidationError(...)` can never be reached as  `ready` is intercepted by its own parser entry.
+- [x] **[CLEAN-L10]** Dead code `ready` branch in `handleSimpleAction()` — `case "ready": throw ValidationError(...)` can never be reached as  `ready` is intercepted by its own parser entry.
   - File: `application/services/combat/tabletop/dispatch/social-handlers.ts`
+  - Fix: Removed `"ready"` from `handleSimpleAction()` type union in both `social-handlers.ts` and `action-dispatcher.ts`. Ready is routed via dedicated `handleReadyAction()`.
 
 - [ ] **[CLEAN-L11]** 4 PromptBuilder migration TODOs — `battle-planner.ts`, `character-generator.ts`, `intent-parser.ts`, `narrative-generator.ts`, `story-generator.ts` all have TODO to migrate to `PromptBuilder`.
   - File: `infrastructure/llm/battle-planner.ts:70`, etc.

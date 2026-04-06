@@ -69,16 +69,16 @@ function pickBestAttack(
  */
 function pickBonusAction(
   combatant: AiCombatContext["combatant"],
-  _enemies: AiCombatContext["enemies"],
+  enemies: AiCombatContext["enemies"],
 ): string | undefined {
   const economy = combatant.economy;
   if (economy?.bonusActionSpent) return undefined;
 
   const classAbilities = combatant.classAbilities ?? [];
   const resourcePools = combatant.resourcePools ?? [];
-
-  // Second Wind (Fighter) — use when below 50% HP
   const hpPercent = combatant.hp.percentage;
+
+  // 1. Second Wind (Fighter) — use when below 50% HP
   const hasSecondWind = classAbilities.some(a => a.name.toLowerCase().includes("second wind"));
   if (hasSecondWind && hpPercent < 50) {
     const secondWindPool = resourcePools.find(p => p.name.toLowerCase().includes("second wind") || p.name.toLowerCase() === "secondwind");
@@ -87,22 +87,7 @@ function pickBonusAction(
     }
   }
 
-  // Flurry of Blows (Monk) — use when ki available and in melee
-  const hasFlurry = classAbilities.some(a => a.name.toLowerCase().includes("flurry"));
-  if (hasFlurry) {
-    const kiPool = resourcePools.find(p => p.name.toLowerCase() === "ki");
-    if (kiPool && kiPool.current > 0) {
-      return "flurryOfBlows";
-    }
-  }
-
-  // Cunning Action (Rogue) — disengage if surrounded / low HP
-  const hasCunning = classAbilities.some(a => a.name.toLowerCase().includes("cunning action"));
-  if (hasCunning && hpPercent < 30) {
-    return "cunningAction:disengage";
-  }
-
-  // Rage (Barbarian) — rage at start of combat if not already raging
+  // 2. Rage (Barbarian) — rage at start of combat if not already raging
   const hasRage = classAbilities.some(a => a.name.toLowerCase().includes("rage"));
   const isRaging = (combatant.activeBuffs ?? []).some(b => b.toLowerCase() === "raging");
   if (hasRage && !isRaging) {
@@ -110,6 +95,48 @@ function pickBonusAction(
     if (ragePool && ragePool.current > 0) {
       return "rage";
     }
+  }
+
+  // Helper: find ki / focus points pool (Monk resource)
+  const findKiPool = () => resourcePools.find(p => {
+    const name = p.name.toLowerCase();
+    return name === "ki" || name === "focuspoints" || name === "focus points";
+  });
+
+  // 3. Patient Defense (Monk) — defensive when low HP or surrounded
+  const hasPatientDefense = classAbilities.some(a => a.name.toLowerCase().includes("patient defense"));
+  if (hasPatientDefense) {
+    const kiPool = findKiPool();
+    if (kiPool && kiPool.current > 0) {
+      const livingEnemies = enemies.filter(e => !e.hp || e.hp.current > 0);
+      if (hpPercent < 20 || (hpPercent < 40 && livingEnemies.length >= 2)) {
+        return "patientDefense";
+      }
+    }
+  }
+
+  // 4. Flurry of Blows (Monk) — use when ki available and in melee
+  const hasFlurry = classAbilities.some(a => a.name.toLowerCase().includes("flurry"));
+  if (hasFlurry) {
+    const kiPool = findKiPool();
+    if (kiPool && kiPool.current > 0) {
+      return "flurryOfBlows";
+    }
+  }
+
+  // 5. Step of the Wind (Monk) — tactical retreat when low HP
+  const hasStepOfTheWind = classAbilities.some(a => a.name.toLowerCase().includes("step of the wind"));
+  if (hasStepOfTheWind) {
+    const kiPool = findKiPool();
+    if (kiPool && kiPool.current > 0 && hpPercent < 30) {
+      return "stepOfTheWind";
+    }
+  }
+
+  // 6. Cunning Action (Rogue) — disengage if surrounded / low HP
+  const hasCunning = classAbilities.some(a => a.name.toLowerCase().includes("cunning action"));
+  if (hasCunning && hpPercent < 30) {
+    return "cunningAction:disengage";
   }
 
   return undefined;

@@ -190,8 +190,8 @@ export interface JumpResult {
  *  When you make a standing Long Jump, you can leap only half that distance.
  *  Either way, each foot you jump costs a foot of movement."
  *
- * If landing in Difficult Terrain → DC 10 Acrobatics or Prone (not enforced here; TODO).
- * Clearing a low obstacle (≤ ¼ distance) → DC 10 Athletics (DM option; TODO).
+ * If landing in Difficult Terrain → DC 10 Acrobatics or Prone (see `checkJumpLanding()`).
+ * Clearing a low obstacle (≤ ¼ distance) → DC 10 Athletics (see `checkJumpObstacleClearance()`).
  *
  * @param strengthScore  The creature's Strength *score* (not modifier).
  * @param hasRunningStart  Whether the creature moved ≥ 10 ft on foot before the jump.
@@ -468,3 +468,65 @@ export const STANDARD_SPEEDS = {
   VERY_FAST: 50, // Tabaxi, some monsters
   FLY: 60,       // Flying speed
 } as const;
+
+// ——————————————————————————————————————————————
+// Jump Skill Checks (D&D 5e 2024)
+// ——————————————————————————————————————————————
+
+export interface JumpLandingCheckResult {
+  required: boolean;
+  dc: number;
+  ability: "dexterity";
+  skill: "acrobatics";
+  success: boolean;
+  fallsProne: boolean;
+}
+
+/**
+ * Check if a creature landing from a jump in Difficult Terrain falls Prone.
+ * D&D 5e 2024: DC 10 Acrobatics check or fall Prone.
+ *
+ * @param landingInDifficultTerrain Whether the landing square is Difficult Terrain.
+ * @param acrobaticsTotal The creature's Acrobatics check total (d20 + DEX mod + proficiency if applicable).
+ * @returns Result indicating whether the check was required and if the creature fell Prone.
+ */
+export function checkJumpLanding(
+  landingInDifficultTerrain: boolean,
+  acrobaticsTotal: number,
+): JumpLandingCheckResult {
+  if (!landingInDifficultTerrain) {
+    return { required: false, dc: 10, ability: "dexterity", skill: "acrobatics", success: true, fallsProne: false };
+  }
+  const success = acrobaticsTotal >= 10;
+  return { required: true, dc: 10, ability: "dexterity", skill: "acrobatics", success, fallsProne: !success };
+}
+
+export interface JumpObstacleCheckResult {
+  required: boolean;
+  dc: number;
+  ability: "strength";
+  skill: "athletics";
+  success: boolean;
+  hitObstacle: boolean;
+}
+
+/**
+ * Check if a creature clears a low obstacle during a jump.
+ * D&D 5e 2024: DC 10 Athletics check to clear an obstacle up to ¼ the jump distance in height.
+ *
+ * @param obstacleHeightFeet Height of the obstacle in feet.
+ * @param jumpDistanceFeet Total jump distance in feet.
+ * @param athleticsTotal The creature's Athletics check total (d20 + STR mod + proficiency if applicable).
+ * @returns Result indicating whether the check was required and if the creature hit the obstacle.
+ */
+export function checkJumpObstacleClearance(
+  obstacleHeightFeet: number,
+  jumpDistanceFeet: number,
+  athleticsTotal: number,
+): JumpObstacleCheckResult {
+  if (obstacleHeightFeet <= 0 || obstacleHeightFeet > jumpDistanceFeet / 4) {
+    return { required: false, dc: 10, ability: "strength", skill: "athletics", success: true, hitObstacle: false };
+  }
+  const success = athleticsTotal >= 10;
+  return { required: true, dc: 10, ability: "strength", skill: "athletics", success, hitObstacle: !success };
+}

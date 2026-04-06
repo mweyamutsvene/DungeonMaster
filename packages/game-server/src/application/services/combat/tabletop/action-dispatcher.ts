@@ -478,7 +478,7 @@ export class ActionDispatcher {
     _sessionId: string,
     encounterId: string,
     actorId: string,
-    action: "dash" | "dodge" | "disengage" | "ready",
+    action: "dash" | "dodge" | "disengage",
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     return this.socialHandlers.handleSimpleAction(_sessionId, encounterId, actorId, action, roster);

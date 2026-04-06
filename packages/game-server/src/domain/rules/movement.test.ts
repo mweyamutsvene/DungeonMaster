@@ -14,6 +14,8 @@ import {
   applyForcedMovement,
   directionFromTo,
   getGrappleDragSpeedMultiplier,
+  checkJumpLanding,
+  checkJumpObstacleClearance,
   type MovementAttempt,
   type Position,
 } from "./movement.js";
@@ -510,6 +512,99 @@ describe("Movement and Positioning", () => {
 
     it("should return 0.5 when dragging larger creature", () => {
       expect(getGrappleDragSpeedMultiplier("Small", "Medium")).toBe(0.5);
+    });
+  });
+
+  // ——————————————————————————————————————————————
+  // Jump Skill Checks (D&D 5e 2024)
+  // ——————————————————————————————————————————————
+
+  describe("checkJumpLanding", () => {
+    it("should not require a check when not landing in difficult terrain", () => {
+      const result = checkJumpLanding(false, 15);
+      expect(result.required).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.fallsProne).toBe(false);
+      expect(result.dc).toBe(10);
+      expect(result.ability).toBe("dexterity");
+      expect(result.skill).toBe("acrobatics");
+    });
+
+    it("should succeed when landing in difficult terrain with roll >= DC 10", () => {
+      const result = checkJumpLanding(true, 10);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.fallsProne).toBe(false);
+    });
+
+    it("should succeed with a high roll in difficult terrain", () => {
+      const result = checkJumpLanding(true, 18);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.fallsProne).toBe(false);
+    });
+
+    it("should fall prone when landing in difficult terrain with roll < DC 10", () => {
+      const result = checkJumpLanding(true, 9);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.fallsProne).toBe(true);
+    });
+
+    it("should fall prone with a very low roll", () => {
+      const result = checkJumpLanding(true, 2);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.fallsProne).toBe(true);
+    });
+  });
+
+  describe("checkJumpObstacleClearance", () => {
+    it("should not require a check when there is no obstacle", () => {
+      const result = checkJumpObstacleClearance(0, 16, 12);
+      expect(result.required).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.hitObstacle).toBe(false);
+      expect(result.dc).toBe(10);
+      expect(result.ability).toBe("strength");
+      expect(result.skill).toBe("athletics");
+    });
+
+    it("should not require a check when obstacle is too tall (> ¼ jump distance)", () => {
+      // Jump distance 16ft, ¼ = 4ft. Obstacle is 5ft → too tall
+      const result = checkJumpObstacleClearance(5, 16, 15);
+      expect(result.required).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.hitObstacle).toBe(false);
+    });
+
+    it("should require a check when obstacle height is exactly ¼ jump distance", () => {
+      // Jump distance 16ft, ¼ = 4ft. Obstacle is 4ft → exactly at threshold
+      const result = checkJumpObstacleClearance(4, 16, 12);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.hitObstacle).toBe(false);
+    });
+
+    it("should succeed when clearing obstacle with roll >= DC 10", () => {
+      const result = checkJumpObstacleClearance(3, 16, 10);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.hitObstacle).toBe(false);
+    });
+
+    it("should hit obstacle when roll < DC 10", () => {
+      const result = checkJumpObstacleClearance(3, 16, 9);
+      expect(result.required).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.hitObstacle).toBe(true);
+    });
+
+    it("should not require a check for negative obstacle height", () => {
+      const result = checkJumpObstacleClearance(-1, 16, 5);
+      expect(result.required).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.hitObstacle).toBe(false);
     });
   });
 });

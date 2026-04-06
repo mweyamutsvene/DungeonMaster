@@ -33,7 +33,7 @@ export class SocialHandlers {
     _sessionId: string,
     encounterId: string,
     actorId: string,
-    action: "dash" | "dodge" | "disengage" | "ready",
+    action: "dash" | "dodge" | "disengage",
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     const actor = inferActorRef(actorId, roster);
