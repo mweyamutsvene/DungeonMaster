@@ -13,8 +13,8 @@ import type { INarrativeGenerator } from "../../../../infrastructure/llm/narrati
 import { NotFoundError, ValidationError } from "../../../errors.js";
 import { normalizeConditions, getExhaustionD20Penalty, isAttackBlockedByCharm } from "../../../../domain/entities/combat/conditions.js";
 import {
-  hasSpentAction,
-  spendAction,
+  canMakeAttack,
+  useAttack,
   getActiveEffects,
   normalizeResources,
   getPosition,
@@ -71,7 +71,7 @@ export class AttackActionHandler {
       throw new ValidationError("It is not the attacker's turn");
     }
 
-    if (hasSpentAction(attackerState.resources)) {
+    if (!canMakeAttack(attackerState.resources)) {
       throw new ValidationError("Attacker has already spent their action this turn");
     }
 
@@ -109,9 +109,11 @@ export class AttackActionHandler {
       spec = parseAttackSpec(input.spec);
     }
 
-    if (input.attacker.type === "Monster" && !spec) {
-      // Preserve existing behavior: allow selecting a monster attack from statBlock by name.
-      const attacks = await this.combatants.getMonsterAttacks(input.attacker.monsterId);
+    if ((input.attacker.type === "Monster" || input.attacker.type === "NPC") && !spec) {
+      // Resolve attack from statBlock by name for Monsters and NPCs.
+      const attacks = input.attacker.type === "Monster"
+        ? await this.combatants.getMonsterAttacks(input.attacker.monsterId)
+        : await this.combatants.getAttacks(input.attacker);
       const desiredName = (input.monsterAttackName ?? "").trim().toLowerCase();
       const picked = attacks.find(
         (a: unknown) => isRecord(a) && typeof a.name === "string" && a.name.trim().toLowerCase() === desiredName,
@@ -324,7 +326,7 @@ export class AttackActionHandler {
     }
 
     await this.combat.updateCombatantState(attackerState.id, {
-      resources: spendAction(attackerState.resources),
+      resources: useAttack(attackerState.resources),
     });
 
     let narrative: string | undefined;

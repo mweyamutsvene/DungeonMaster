@@ -72,11 +72,9 @@ export class AttackHandler implements AiActionHandler {
     const targetPos = getPosition(normalizeResources(targetCombatant.resources));
     if (actorPos && targetPos) {
       const dist = calculateDistance(actorPos, targetPos);
-      const monsterAttacks = actorRef.type === "Monster"
-        ? await combatantResolver.getMonsterAttacks(actorRef.monsterId)
-        : [];
+      const allAttacks = await combatantResolver.getAttacks(actorRef);
       const desiredName = (decision.attackName ?? "").trim().toLowerCase();
-      const chosenAttack = monsterAttacks.find(
+      const chosenAttack = allAttacks.find(
         (a: any) => typeof a?.name === "string" && a.name.trim().toLowerCase() === desiredName,
       ) as Record<string, unknown> | undefined;
       const attackKindCheck: "melee" | "ranged" = (chosenAttack as any)?.kind === "ranged" ? "ranged" : "melee";
@@ -131,9 +129,7 @@ export class AttackHandler implements AiActionHandler {
     if ((targetHasShield || targetHasDeflectReaction) && diceRoller) {
       console.log("[AttackHandler] Target may have reactions (Shield/Deflect) - using two-phase attack flow");
 
-      const monsterAttacks = actorRef.type === "Monster"
-        ? await combatantResolver.getMonsterAttacks(actorRef.monsterId)
-        : [];
+      const monsterAttacks = await combatantResolver.getAttacks(actorRef);
 
       const attackOutcome = await new AiAttackResolver({
         combat,

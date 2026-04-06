@@ -1,6 +1,7 @@
 import type { Ability } from "../../../../domain/entities/core/ability-scores.js";
 import type { CreatureSize } from "../../../../domain/entities/core/types.js";
 import { isTwoHanded } from "../../../../domain/entities/items/weapon-properties.js";
+import { lookupWeapon } from "../../../../domain/entities/items/weapon-catalog.js";
 import { parseCharacterSheet, parseStatBlockJson, type EquipmentJson } from "./hydration-types.js";
 import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 
@@ -49,6 +50,8 @@ export interface ICombatantResolver {
   getNames(combatants: CombatantStateRecord[]): Promise<Map<string, string>>;
   getCombatStats(ref: CombatantRef): Promise<CombatantCombatStats>;
   getMonsterAttacks(monsterId: string): Promise<unknown[]>;
+  /** Get attacks for any combatant type (Character/Monster/NPC). */
+  getAttacks(ref: CombatantRef): Promise<unknown[]>;
 }
 
 function extractEquippedFromSheet(sheet: Record<string, unknown>): CombatantEquipment {
@@ -283,5 +286,61 @@ export class CombatantResolver implements ICombatantResolver {
 
     const statBlock = parseStatBlockJson(m.statBlock);
     return Array.isArray(statBlock.attacks) ? statBlock.attacks : [];
+  }
+
+  async getAttacks(ref: CombatantRef): Promise<unknown[]> {
+    if (ref.type === "Monster") {
+      return this.getMonsterAttacks(ref.monsterId);
+    }
+
+    if (ref.type === "NPC") {
+      const n = await this.npcs.getById(ref.npcId);
+      if (!n) throw new ValidationError(`NPC not found: ${ref.npcId}`);
+      if (!isRecord(n.statBlock)) return [];
+      const statBlock = parseStatBlockJson(n.statBlock);
+      return Array.isArray(statBlock.attacks) ? statBlock.attacks : [];
+    }
+
+    // Character — read attacks from raw sheet JSON, fall back to weapon catalog
+    const c = await this.characters.getById(ref.characterId);
+    if (!c) throw new ValidationError(`Character not found: ${ref.characterId}`);
+    if (!isRecord(c.sheet)) return [];
+
+    // Raw sheet may include an attacks array (test scenarios + character generator)
+    const rawAttacks = (c.sheet as Record<string, unknown>).attacks;
+    if (Array.isArray(rawAttacks) && rawAttacks.length > 0) {
+      return rawAttacks;
+    }
+
+    // Build from equipped weapon via weapon catalog
+    const sheet = parseCharacterSheet(c.sheet);
+    const weaponName = sheet.equipment?.weapon?.name;
+    if (!weaponName) return [];
+
+    const stripped = weaponName.replace(/^\+\d+\s+/, "");
+    const catalogEntry = lookupWeapon(weaponName) ?? lookupWeapon(stripped);
+    if (!catalogEntry) {
+      // Unknown weapon — assume melee 5ft reach
+      return [{ name: weaponName, kind: "melee", reach: 5 }];
+    }
+
+    const isRanged = catalogEntry.kind === "ranged";
+    const hasReach = catalogEntry.properties.includes("reach");
+
+    if (isRanged) {
+      const [normal, long] = catalogEntry.range ?? [30, 120];
+      return [{ name: weaponName, kind: "ranged", range: `${normal}/${long}` }];
+    }
+
+    const reach = hasReach ? 10 : 5;
+    const attack: Record<string, unknown> = { name: weaponName, kind: "melee", reach };
+
+    // If thrown, also include range
+    if (catalogEntry.range) {
+      const [normal, long] = catalogEntry.range;
+      attack.range = `${normal}/${long}`;
+    }
+
+    return [attack];
   }
 }

@@ -28,12 +28,13 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
-import { normalizeResources } from "../helpers/resource-utils.js";
+import { normalizeResources, setAttacksAllowed } from "../helpers/resource-utils.js";
 import { isLegendaryCreature as isLegendaryCreatureCheck } from "../helpers/resource-utils.js";
 import { spendLegendaryAction as spendLegendaryActionCharges } from "../helpers/resource-utils.js";
 import { chooseLegendaryAction, type LegendaryActionDecision } from "./legendary-action-handler.js";
 import type { BattlePlanService } from "./battle-plan-service.js";
 import { DeterministicAiDecisionMaker } from "./deterministic-ai.js";
+import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
 
 /**
  * LLM-driven tactical decision-making for AI-controlled combatants.
@@ -385,6 +386,14 @@ export class AiTurnOrchestrator {
     let currentCombatants = allCombatants;
     let currentAiCombatant = aiCombatant;
 
+    // Set up attacksAllowedThisTurn for Extra Attack / Multiattack
+    const attacksPerAction = this.computeAttacksPerAction(aiCombatant, entityData);
+    if (attacksPerAction > 1) {
+      const updatedResources = setAttacksAllowed(currentAiCombatant.resources, attacksPerAction);
+      await this.combat.updateCombatantState(currentAiCombatant.id, { resources: updatedResources });
+      currentAiCombatant = { ...currentAiCombatant, resources: updatedResources };
+    }
+
     while (!turnComplete && iterations < maxIterations) {
       iterations++;
 
@@ -606,6 +615,45 @@ export class AiTurnOrchestrator {
       console.warn("[AiTurnOrchestrator] Failed to load recent narrative:", err);
       return [];
     }
+  }
+
+  /**
+   * Compute the number of attacks per action for an AI combatant.
+   * Characters/NPCs use ClassFeatureResolver; Monsters parse the Multiattack action description.
+   */
+  private computeAttacksPerAction(
+    combatant: CombatantStateRecord,
+    entityData: Record<string, unknown>,
+  ): number {
+    if (combatant.combatantType === "Character") {
+      const className = entityData.className as string | undefined;
+      const level = entityData.level as number | undefined;
+      return ClassFeatureResolver.getAttacksPerAction(null, className, level);
+    }
+    if (combatant.combatantType === "NPC") {
+      const statBlock = entityData.statBlock as Record<string, unknown> | undefined;
+      const className = statBlock?.className as string | undefined;
+      const level = statBlock?.level as number | undefined;
+      return ClassFeatureResolver.getAttacksPerAction(null, className, level);
+    }
+    if (combatant.combatantType === "Monster") {
+      const statBlock = entityData.statBlock as Record<string, unknown> | undefined;
+      const actions = (statBlock?.actions as unknown[]) ?? [];
+      const multiattack = actions.find(
+        (a: any) => typeof a?.name === "string" && a.name.toLowerCase() === "multiattack",
+      ) as { description?: string } | undefined;
+      if (!multiattack?.description) return 1;
+
+      const desc = multiattack.description.toLowerCase();
+      const wordMap: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6 };
+      for (const [word, count] of Object.entries(wordMap)) {
+        if (desc.includes(word)) return count;
+      }
+      const numMatch = desc.match(/(\d+)\s*(?:attacks|strikes)/);
+      if (numMatch) return parseInt(numMatch[1], 10);
+      return 1;
+    }
+    return 1;
   }
 
   /**

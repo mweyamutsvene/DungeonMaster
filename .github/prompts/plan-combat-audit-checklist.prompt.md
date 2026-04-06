@@ -106,17 +106,21 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/helpers/spell-slot-manager.ts`, `application/services/combat/ai/handlers/cast-spell-handler.ts`
   - Fix: Removed character-only gating in `cast-spell-handler.ts` so `prepareSpellCast()` executes for Character/Monster/NPC casters; initiative resource initialization now loads spell slot pools from monster/NPC stat blocks via `buildCombatResources()`.
 
-- [ ] **[AI-H2]** Deterministic AI never uses Extra Attack — always sets `endTurn: true` after first attack. Fighters/Monks with Extra Attack only attack once.
+- [x] **[AI-H2]** Deterministic AI never uses Extra Attack — always sets `endTurn: true` after first attack. Fighters/Monks with Extra Attack only attack once.
   - File: `application/services/combat/ai/deterministic-ai.ts`
+  - Fix: Added `attacksPerAction` to AI context (via `parseMultiattackCount()` for monsters, `ClassFeatureResolver` for characters/NPCs). Deterministic AI counts attacks made this turn and sets `endTurn: false` until all attacks are used. Attack action handler switched to `canMakeAttack`/`useAttack` to allow multi-attack economy.
 
-- [ ] **[AI-H3]** Deterministic AI has no spell-casting path at all — monsters/NPCs with spells only ever melee/ranged attack.
+- [x] **[AI-H3]** Deterministic AI has no spell-casting path at all — monsters/NPCs with spells only ever melee/ranged attack.
   - File: `application/services/combat/ai/deterministic-ai.ts`
+  - Fix: Added spell-casting heuristic to deterministic AI — prioritizes healing allies below 50% HP, then cantrip damage, then leveled damage for weak attackers. Checks spell slot availability before casting.
 
-- [ ] **[AI-H4]** AI range check skipped for Character/NPC attackers — `attack-handler.ts` only loads `monsterAttacks` for Monsters. Characters/NPCs can attack from any range without validation.
+- [x] **[AI-H4]** AI range check skipped for Character/NPC attackers — `attack-handler.ts` only loads `monsterAttacks` for Monsters. Characters/NPCs can attack from any range without validation.
   - File: `application/services/combat/ai/handlers/attack-handler.ts:95`
+  - Fix: Added generic `getAttacks(ref)` method to `CombatantResolver` that works for all combatant types. `AttackHandler` now uses it instead of Monster-only `getMonsterAttacks()`.
 
-- [ ] **[AI-H5]** Battle plan LLM never receives enemy AC/speed — both hardcoded `undefined` in enemy list build.
+- [x] **[AI-H5]** Battle plan LLM never receives enemy AC/speed — both hardcoded `undefined` in enemy list build.
   - File: `application/services/combat/ai/battle-plan-service.ts`
+  - Fix: Extracted `ac` from `resources.armorClass`, `speed` from `resources.speed`, and `conditions` from combatant record — mirrors the existing `factionCreatures` pattern.
 
 - [ ] **[AI-H6]** Faction creature abilities not sent to LLM battle planner — `factionCreatures` never calls `listCreatureAbilities()`. LLM plans without knowing own faction's spells or abilities.
   - File: `application/services/combat/ai/battle-plan-service.ts`

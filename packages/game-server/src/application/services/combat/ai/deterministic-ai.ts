@@ -18,6 +18,7 @@
 
 import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "./ai-types.js";
 import { scoreTargets } from "./ai-target-scorer.js";
+import type { ScoredTarget } from "./ai-target-scorer.js";
 
 /**
  * Determine if a creature is primarily ranged based on its available attacks.
@@ -114,6 +115,210 @@ function pickBonusAction(
   return undefined;
 }
 
+// ── Spell type for AI evaluation (parsed from unknown[] spells) ──
+
+interface AiSpellInfo {
+  name: string;
+  level: number;
+  damage?: { diceCount: number; diceSides: number; modifier?: number };
+  damageType?: string;
+  healing?: { diceCount: number; diceSides: number; modifier?: number };
+  saveAbility?: string;
+  attackType?: string;
+  concentration?: boolean;
+  isBonusAction?: boolean;
+  area?: unknown;
+}
+
+/**
+ * Parse the untyped spells array into typed spell info for evaluation.
+ */
+function parseSpells(rawSpells: unknown[]): AiSpellInfo[] {
+  const parsed: AiSpellInfo[] = [];
+  for (const raw of rawSpells) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const s = raw as Record<string, unknown>;
+    const name = typeof s.name === "string" ? s.name : undefined;
+    const level = typeof s.level === "number" ? s.level : undefined;
+    if (!name || level === undefined) continue;
+    parsed.push({
+      name,
+      level,
+      damage: s.damage && typeof s.damage === "object" ? s.damage as AiSpellInfo["damage"] : undefined,
+      damageType: typeof s.damageType === "string" ? s.damageType : undefined,
+      healing: s.healing && typeof s.healing === "object" ? s.healing as AiSpellInfo["healing"] : undefined,
+      saveAbility: typeof s.saveAbility === "string" ? s.saveAbility : undefined,
+      attackType: typeof s.attackType === "string" ? s.attackType : undefined,
+      concentration: typeof s.concentration === "boolean" ? s.concentration : undefined,
+      isBonusAction: typeof s.isBonusAction === "boolean" ? s.isBonusAction : undefined,
+      area: s.area,
+    });
+  }
+  return parsed;
+}
+
+/**
+ * Check if the creature has an available spell slot at or above the given spell level.
+ * Spell slot pools are named `spellSlot_N`.
+ */
+function hasAvailableSlot(
+  resourcePools: Array<{ name: string; current: number; max: number }>,
+  minLevel: number,
+): boolean {
+  // Cantrips (level 0) don't need a slot
+  if (minLevel === 0) return true;
+  return resourcePools.some(p => {
+    const match = /^spellSlot_(\d+)$/i.exec(p.name);
+    if (!match) return false;
+    const slotLevel = parseInt(match[1]!, 10);
+    return slotLevel >= minLevel && p.current > 0;
+  });
+}
+
+/**
+ * Get the lowest available slot level at or above the spell's level.
+ */
+function getLowestAvailableSlotLevel(
+  resourcePools: Array<{ name: string; current: number; max: number }>,
+  minLevel: number,
+): number {
+  if (minLevel === 0) return 0;
+  let best = Infinity;
+  for (const p of resourcePools) {
+    const match = /^spellSlot_(\d+)$/i.exec(p.name);
+    if (!match) continue;
+    const slotLevel = parseInt(match[1]!, 10);
+    if (slotLevel >= minLevel && p.current > 0 && slotLevel < best) {
+      best = slotLevel;
+    }
+  }
+  return best === Infinity ? minLevel : best;
+}
+
+/**
+ * Estimate average damage from a spell's damage dice.
+ */
+function estimateSpellDamage(dmg: AiSpellInfo["damage"]): number {
+  if (!dmg) return 0;
+  const count = typeof dmg.diceCount === "number" ? dmg.diceCount : 0;
+  const sides = typeof dmg.diceSides === "number" ? dmg.diceSides : 0;
+  const mod = typeof dmg.modifier === "number" ? dmg.modifier : 0;
+  return count * ((sides + 1) / 2) + mod;
+}
+
+/**
+ * Pick the best spell to cast given the combat situation.
+ * Returns a castSpell decision or undefined to fall through to attack logic.
+ *
+ * Priorities:
+ * 1. Healing spells if allies are below 50% HP
+ * 2. Damage cantrips (free, no slot cost) against enemies
+ * 3. Damage spells if we have slots and no strong melee attacks
+ * 4. Skip if creature has good physical attacks (prefer attacking)
+ */
+function pickSpell(
+  combatant: AiCombatContext["combatant"],
+  primaryTarget: ScoredTarget,
+  allies: AiCombatContext["allies"],
+  combatantName: string,
+): AiDecision | undefined {
+  const rawSpells = combatant.spells as unknown[] | undefined;
+  if (!rawSpells || rawSpells.length === 0) return undefined;
+
+  const resourcePools = combatant.resourcePools ?? [];
+  const spells = parseSpells(rawSpells);
+  if (spells.length === 0) return undefined;
+
+  // Don't cast if already concentrating — keep it simple, don't replace
+  if (combatant.concentrationSpell) {
+    // Filter out concentration spells, can still cast non-concentration
+    const nonConcentration = spells.filter(s => !s.concentration);
+    if (nonConcentration.length === 0) return undefined;
+    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName);
+  }
+
+  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName);
+}
+
+function pickFromCandidates(
+  spells: AiSpellInfo[],
+  combatant: AiCombatContext["combatant"],
+  primaryTarget: ScoredTarget,
+  allies: AiCombatContext["allies"],
+  resourcePools: Array<{ name: string; current: number; max: number }>,
+  combatantName: string,
+): AiDecision | undefined {
+  // 1. Healing: check if any ally (including self) is below 50% HP
+  const hurtAllies = allies.filter(a => a.hp.percentage < 50 && a.hp.current > 0);
+  if (hurtAllies.length > 0 || combatant.hp.percentage < 50) {
+    const healingSpells = spells
+      .filter(s => s.healing && hasAvailableSlot(resourcePools, s.level))
+      .sort((a, b) => estimateSpellDamage(b.healing) - estimateSpellDamage(a.healing));
+
+    if (healingSpells.length > 0) {
+      const spell = healingSpells[0]!;
+      // Heal self if we're hurt, otherwise heal the most hurt ally
+      const healTarget = combatant.hp.percentage < 50
+        ? combatantName
+        : (hurtAllies.sort((a, b) => a.hp.percentage - b.hp.percentage)[0]?.name ?? combatantName);
+      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+      return {
+        action: "castSpell",
+        spellName: spell.name,
+        spellLevel: slotLevel,
+        target: healTarget,
+        endTurn: !spell.isBonusAction,
+        intentNarration: `${combatantName} casts ${spell.name} on ${healTarget}.`,
+      };
+    }
+  }
+
+  // 2. Damage cantrips — free to cast, always a good option
+  const cantrips = spells
+    .filter(s => s.level === 0 && s.damage)
+    .sort((a, b) => estimateSpellDamage(b.damage) - estimateSpellDamage(a.damage));
+
+  if (cantrips.length > 0) {
+    const cantrip = cantrips[0]!;
+    return {
+      action: "castSpell",
+      spellName: cantrip.name,
+      spellLevel: 0,
+      target: primaryTarget.name,
+      endTurn: true,
+      intentNarration: `${combatantName} casts ${cantrip.name} at ${primaryTarget.name}!`,
+    };
+  }
+
+  // 3. Leveled damage spells — only if creature has weak/no physical attacks
+  const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number }>;
+  const hasStrongAttacks = attacks.length >= 2 || attacks.some(a =>
+    typeof a.toHit === "number" && a.toHit >= 5,
+  );
+
+  // If creature has strong physical attacks, prefer those over spending slots
+  if (hasStrongAttacks) return undefined;
+
+  const damageSpells = spells
+    .filter(s => s.level > 0 && s.damage && hasAvailableSlot(resourcePools, s.level))
+    .sort((a, b) => estimateSpellDamage(b.damage) - estimateSpellDamage(a.damage));
+
+  if (damageSpells.length > 0) {
+    const spell = damageSpells[0]!;
+    const slotLevel = getLowestAvailableSlotLevel(resourcePools, spell.level);
+    return {
+      action: "castSpell",
+      spellName: spell.name,
+      spellLevel: slotLevel,
+      target: primaryTarget.name,
+      endTurn: true,
+      intentNarration: `${combatantName} casts ${spell.name} at ${primaryTarget.name}!`,
+    };
+  }
+
+  return undefined;
+}
+
 export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
@@ -169,7 +374,6 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const attackName = pickBestAttack(attacks);
 
     // Check what we've already done this turn
-    const hasAttacked = turnResults.some(r => r.action === "attack" && r.ok);
     const hasMoved = turnResults.some(r => (r.action === "move" || r.action === "moveToward" || r.action === "moveAwayFrom") && r.ok);
     const actionSpent = economy?.actionSpent ?? false;
     const movementSpent = economy?.movementSpent ?? false;
@@ -228,8 +432,27 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       };
     }
 
-    // Step 5: Attack with best available attack
-    if (!actionSpent && attackName) {
+    // Step 4b: Spell casting — evaluate before physical attacks
+    if (!actionSpent) {
+      const spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName);
+      if (spellDecision) {
+        // Attach bonus action if available and spell doesn't end turn
+        if (!bonusActionSpent && !spellDecision.endTurn) {
+          const bonusAction = pickBonusAction(combatant, livingEnemies);
+          if (bonusAction) {
+            spellDecision.bonusAction = bonusAction;
+          }
+        }
+        return spellDecision;
+      }
+    }
+
+    // Step 5: Attack with best available attack (supports Extra Attack / Multiattack)
+    const attacksMade = turnResults.filter(r => r.action === "attack").length;
+    const attacksPerAction = combatant.attacksPerAction ?? 1;
+    const hasAttacksRemaining = attacksMade < attacksPerAction;
+
+    if (!actionSpent && attackName && hasAttacksRemaining) {
       // Pick the closest target in reach if primary is too far
       let attackTarget = primaryTarget;
       if (primaryTarget.distanceFeet !== Infinity && primaryTarget.distanceFeet > meleeReach && !ranged) {
@@ -240,15 +463,17 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
         }
       }
 
-      // Determine bonus action
-      const bonusAction = !bonusActionSpent ? pickBonusAction(combatant, livingEnemies) : undefined;
+      const isLastAttack = attacksMade + 1 >= attacksPerAction;
+
+      // Only attach bonus action and endTurn on the final attack
+      const bonusAction = isLastAttack && !bonusActionSpent ? pickBonusAction(combatant, livingEnemies) : undefined;
 
       return {
         action: "attack",
         target: attackTarget.name,
         attackName,
         bonusAction,
-        endTurn: true,
+        endTurn: isLastAttack,
         intentNarration: `${input.combatantName} attacks ${attackTarget.name} with ${attackName}!`,
       };
     }

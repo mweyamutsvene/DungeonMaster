@@ -17,6 +17,7 @@ import { readConditionNames } from "../../../../domain/entities/combat/condition
 import { getResourcePools } from "../helpers/resource-utils.js";
 import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
+import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
 import type { TurnStepResult, AiCombatContext } from "./ai-types.js";
 import { getInventory } from "../helpers/resource-utils.js";
 import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
@@ -407,6 +408,30 @@ export class AiContextBuilder {
   }
 
   /**
+   * Parse the number of attacks from a monster's Multiattack action description.
+   * Returns the count if a Multiattack action is found, otherwise 1.
+   */
+  private parseMultiattackCount(actions: unknown[]): number {
+    if (!Array.isArray(actions)) return 1;
+    const multiattack = actions.find(
+      (a: any) => typeof a?.name === "string" && a.name.toLowerCase() === "multiattack",
+    ) as { description?: string } | undefined;
+    if (!multiattack?.description) return 1;
+
+    const desc = multiattack.description.toLowerCase();
+    const wordMap: Record<string, number> = {
+      two: 2, three: 3, four: 4, five: 5, six: 6,
+    };
+    for (const [word, count] of Object.entries(wordMap)) {
+      if (desc.includes(word)) return count;
+    }
+    // Try numeric: "makes 2 attacks"
+    const numMatch = desc.match(/(\d+)\s*(?:attacks|strikes)/);
+    if (numMatch) return parseInt(numMatch[1], 10);
+    return 1;
+  }
+
+  /**
    * Build entity info for the AI combatant itself.
    */
   private buildEntityInfo(
@@ -468,6 +493,7 @@ export class AiContextBuilder {
         abilities: (statBlock.abilities as unknown[]) || [],
         features: (statBlock.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
+        attacksPerAction: this.parseMultiattackCount((statBlock.actions as unknown[]) || []),
       };
     } else if (aiCombatant.combatantType === "NPC") {
       const statBlock = entityData.statBlock as Record<string, unknown>;
@@ -514,6 +540,7 @@ export class AiContextBuilder {
         abilities: (statBlock.abilities as unknown[]) || [],
         features: (statBlock.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
+        attacksPerAction: ClassFeatureResolver.getAttacksPerAction(null, npcClass, npcLevel),
       };
     } else {
       // AI-controlled Character
@@ -561,7 +588,7 @@ export class AiContextBuilder {
         abilities: (sheet?.abilities as unknown[]) || [],
         features: (sheet?.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
-
+        attacksPerAction: ClassFeatureResolver.getAttacksPerAction(null, charClass, charLevel),
       };
     }
   }

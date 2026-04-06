@@ -54,6 +54,7 @@ function stubCombatantResolver(): ICombatantResolver {
     },
     async getCombatStats() { throw new Error("Not needed"); },
     async getMonsterAttacks() { return []; },
+    async getAttacks() { return []; },
   };
 }
 

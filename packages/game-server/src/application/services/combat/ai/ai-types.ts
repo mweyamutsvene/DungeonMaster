@@ -138,6 +138,8 @@ export interface AiCombatContext {
       resourceCost?: string;
       effect?: string;
     }>;
+    /** Number of attacks per Attack action (Extra Attack, Multiattack). Defaults to 1. */
+    attacksPerAction?: number;
   };
   combat: {
     round: number;

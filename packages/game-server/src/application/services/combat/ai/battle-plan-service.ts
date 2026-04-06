@@ -104,10 +104,10 @@ export class BattlePlanService {
       .map(e => ({
         name: nameMap.get(e.id) || "Unknown",
         hp: { current: e.hpCurrent, max: e.hpMax },
-        ac: undefined as number | undefined,
-        speed: undefined as number | undefined,
+        ac: (e.resources as Record<string, unknown>)?.armorClass as number | undefined,
+        speed: (e.resources as Record<string, unknown>)?.speed as number | undefined,
         position: (e.resources as Record<string, unknown>)?.position as { x: number; y: number } | undefined,
-        conditions: undefined as string[] | undefined,
+        conditions: e.conditions as string[] | undefined,
       }));
 
     // Try LLM planner first, fall back to deterministic
