@@ -30,13 +30,15 @@ export interface OpportunityAttackTrigger {
   leavingReach: boolean;
   /** Whether the observer is charmed by the moving creature (cannot attack charmer) */
   observerCharmedByTarget?: boolean;
+  /** Whether the movement is involuntary (teleportation, push, pull, carried) — does not provoke OAs */
+  involuntaryMovement?: boolean;
 }
 
 export interface OpportunityAttackResult {
   /** Whether an opportunity attack can be made */
   canAttack: boolean;
   /** Reason if can't attack */
-  reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach' | 'charmed-by-target';
+  reason?: 'no-reaction' | 'disengaged' | 'cannot-see' | 'incapacitated' | 'not-leaving-reach' | 'charmed-by-target' | 'involuntary-movement';
 }
 
 /**
@@ -54,6 +56,11 @@ export function canMakeOpportunityAttack(
   // Creature must be leaving reach
   if (!trigger.leavingReach) {
     return { canAttack: false, reason: 'not-leaving-reach' };
+  }
+
+  // Involuntary movement (teleportation, push, pull, carried) doesn't provoke
+  if (trigger.involuntaryMovement) {
+    return { canAttack: false, reason: 'involuntary-movement' };
   }
 
   // Can't attack if moving creature disengaged

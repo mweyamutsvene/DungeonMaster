@@ -169,8 +169,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[RULES-M2]** Creature-based cover not computed — `getCoverLevel()` only ray-marches terrain cells, never consults the `MapEntity[]` list. Intervening Large creatures should grant half cover (+2 AC).
   - File: `domain/rules/combat-map-sight.ts`
 
-- [ ] **[RULES-M3]** Teleportation/involuntary movement has no OA exception flag — `OpportunityAttackTrigger` has no `isTeleporting` or `isCarried` field. These movement types should not provoke OAs.
+- [x] **[RULES-M3]** Teleportation/involuntary movement has no OA exception flag — `OpportunityAttackTrigger` has no `isTeleporting` or `isCarried` field. These movement types should not provoke OAs.
   - File: `domain/rules/opportunity-attack.ts:17-30`
+  - Fix: Added `involuntaryMovement?: boolean` field to `OpportunityAttackTrigger` and `'involuntary-movement'` to reason union. Guard check blocks OA when flag is set. Added 3 tests.
 
 - [ ] **[RULES-M4]** War Caster feat entirely missing — no `FEAT_WAR_CASTER` constant, no advantage on CON concentration saves pathway, no spell-as-OA reaction handler.
   - File: `domain/rules/feat-modifiers.ts`
@@ -195,8 +196,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/entities/character-service.ts` (rest handling)
   - Fix: Added concentration clearing in the POST rest route handler after `takeSessionRest()` completes. Finds active encounter, iterates combatants with `concentrationSpellName`, calls `breakConcentration()`.
 
-- [ ] **[SPELL-M2]** Pact Magic slot level validation absent — `prepareSpellCast()` only checks `hasResourceAvailable(resources, "pactMagic", 1)` without verifying slot level ≥ required spell level.
+- [x] **[SPELL-M2]** Pact Magic slot level validation absent — `prepareSpellCast()` only checks `hasResourceAvailable(resources, "pactMagic", 1)` without verifying slot level ≥ required spell level.
   - File: `application/services/combat/helpers/spell-slot-manager.ts:115-125`
+  - Fix: Added `pactSlotLevel` to `CombatResourcesResult`, stored in combatant resources at init. Pact Magic fallback now validates slot level ≥ effective spell level. Added 3 tests.
 
 - [ ] **[SPELL-M3]** AoE cover bonus not applied per-target — single-target path applies `getCoverSaveBonus(coverLevel)` to DEX saves; AoE `handleAoE()` path skips per-target cover checks entirely.
   - File: `application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts`
@@ -214,8 +216,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/two-phase/spell-reaction-handler.ts:79`
   - Fix: Removed combatant type gate. All combatant types (Character/Monster/NPC) can now counterspell if they have reaction, Counterspell prepared, and spell slots.
 
-- [ ] **[SPELL-M8]** Self-buff spells without `effects[]` array are silently no-ops — no guard or warning emitted when a buff/debuff spell is cast with no effects defined.
+- [x] **[SPELL-M8]** Self-buff spells without `effects[]` array are silently no-ops — no guard or warning emitted when a buff/debuff spell is cast with no effects defined.
   - File: `application/services/combat/tabletop/spell-action-handler.ts`, `application/services/combat/tabletop/spell-delivery/buff-debuff-spell-delivery-handler.ts`
+  - Fix: Added debug warning log in SpellActionHandler when no delivery handler matches a spell.
 
 ### Missing Class Features
 
@@ -251,8 +254,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[AI-M1]** `counterspell` AI decision is always `true` — no context-awareness. Goblin with 1 slot counters cantrips; never saves reaction for high-value spells.
   - File: `application/services/combat/ai/ai-turn-orchestrator.ts`
 
-- [ ] **[AI-M2]** Deterministic battle plan `priority` always `"offensive"` — reads `combatant.resources.challengeRating` which doesn't exist in resource type, always `undefined`, always defaults to `"offensive"`.
+- [x] **[AI-M2]** Deterministic battle plan `priority` always `"offensive"` — reads `combatant.resources.challengeRating` which doesn't exist in resource type, always `undefined`, always defaults to `"offensive"`.
   - File: `application/services/combat/ai/battle-plan-service.ts`
+  - Fix: Replaced broken CR lookup with faction HP ratio heuristic — defensive when below 25%, offensive otherwise.
 
 - [ ] **[AI-M3]** Deterministic AI `pickBonusAction()` missing several bonus actions — no Patient Defense, Step of the Wind, Divine Smite, Bardic Inspiration, Action Surge.
   - File: `application/services/combat/ai/deterministic-ai.ts`

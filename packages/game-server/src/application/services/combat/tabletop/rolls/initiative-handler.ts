@@ -139,6 +139,9 @@ export class InitiativeHandler {
       if (combatRes.hasHellishRebukePrepared) {
         (charResources as any).hasHellishRebukePrepared = true;
       }
+      if (combatRes.pactSlotLevel !== undefined) {
+        (charResources as any).pactSlotLevel = combatRes.pactSlotLevel;
+      }
 
       // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
       if (charClassName.toLowerCase() === "barbarian" && classHasFeature("barbarian", DANGER_SENSE, charLevel)) {

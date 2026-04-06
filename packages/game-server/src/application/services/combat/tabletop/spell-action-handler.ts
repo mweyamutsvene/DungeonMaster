@@ -290,6 +290,14 @@ export class SpellActionHandler {
         };
         return handler.handle(ctx);
       }
+
+      // Warn when a known spell has no delivery handler — likely missing effects[], damage, or healing definition
+      if (this.debugLogsEnabled) {
+        console.log(
+          `[SpellActionHandler] Warning: spell "${spellMatch.name}" (level ${spellMatch.level}) has no delivery handler — no mechanical effect applied. ` +
+            `Missing effects[] or damage/healing/area definition?`,
+        );
+      }
     }
 
     // --- Simple spell (Magic Missile, unknown spells, etc.) ---

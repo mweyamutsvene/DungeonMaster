@@ -121,6 +121,14 @@ export async function prepareSpellCast(
     // that the pact slot level can cover (pact slot level determined by warlock level,
     // validated at character creation/import time — here we just check availability)
     if (hasResourceAvailable(resources, "pactMagic", 1)) {
+      // Validate pact slot level is high enough for the spell
+      const normalized = normalizeResources(resources);
+      const pactSlotLevel = typeof normalized.pactSlotLevel === "number" ? normalized.pactSlotLevel : undefined;
+      if (pactSlotLevel !== undefined && pactSlotLevel < effectiveLevel) {
+        throw new ValidationError(
+          `Pact Magic slot level ${pactSlotLevel} is too low for a level ${effectiveLevel} spell`,
+        );
+      }
       log?.(`[SpellSlotManager] No standard level ${effectiveLevel} slot; using Pact Magic slot`);
       slotPoolName = "pactMagic";
     } else {

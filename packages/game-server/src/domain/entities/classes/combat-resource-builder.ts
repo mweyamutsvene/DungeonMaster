@@ -15,6 +15,7 @@ import type { CharacterClassId } from "./class-definition.js";
 import { isCharacterClassId } from "./class-definition.js";
 import { getClassDefinition } from "./registry.js";
 import type { CharacterSheetLike } from "./class-feature-resolver.js";
+import { pactMagicSlotsForLevel } from "./warlock.js";
 
 // ----- Types -----
 
@@ -29,6 +30,8 @@ export interface CombatResourcesResult {
   hasAbsorbElementsPrepared: boolean;
   /** Whether the character has Hellish Rebuke prepared. */
   hasHellishRebukePrepared: boolean;
+  /** Warlock Pact Magic slot level (undefined for non-warlocks). */
+  pactSlotLevel?: number;
 }
 
 export interface CombatResourceBuilderInput {
@@ -111,5 +114,11 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
     }
   }
 
-  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared };
+  // 5. Pact Magic slot level (Warlock only)
+  let pactSlotLevel: number | undefined;
+  if (classId === "warlock" && level >= 1) {
+    pactSlotLevel = pactMagicSlotsForLevel(level).slotLevel;
+  }
+
+  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, pactSlotLevel };
 }

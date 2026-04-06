@@ -209,7 +209,7 @@ export class BattlePlanService {
    * Build a simple deterministic battle plan when LLM is unavailable.
    *
    * Heuristics:
-   * - Priority: offensive if any faction creature has CR ≥ average enemy level, defensive otherwise
+   * - Priority: offensive unless faction HP ratio is below 25%
    * - Focus target: lowest-HP living enemy
    * - Retreat: below 25% HP
    */
@@ -221,9 +221,11 @@ export class BattlePlanService {
     enemies: Array<{ name: string; hp: { current: number; max: number } }>,
     nameMap: Map<string, string>,
   ): BattlePlan {
-    // Determine priority: offensive for strong factions, defensive for weak
-    const cr = ((combatant.resources as Record<string, unknown>)?.challengeRating as number) ?? 1;
-    const priority: BattlePlan["priority"] = cr >= 1 ? "offensive" : "defensive";
+    // Determine priority by comparing faction health status
+    const factionTotalCurrent = factionCreatures.reduce((sum, c) => sum + c.hp.current, 0);
+    const factionTotalMax = factionCreatures.reduce((sum, c) => sum + c.hp.max, 0);
+    const factionHpRatio = factionTotalMax > 0 ? factionTotalCurrent / factionTotalMax : 0;
+    const priority: BattlePlan["priority"] = factionHpRatio < 0.25 ? "defensive" : "offensive";
 
     // Focus target: lowest-HP living enemy
     const livingEnemies = enemies.filter(e => e.hp.current > 0);

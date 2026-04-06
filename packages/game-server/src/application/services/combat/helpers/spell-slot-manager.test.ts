@@ -325,4 +325,61 @@ describe("prepareSpellCast", () => {
       expect(slot2?.current).toBe(1);
     });
   });
+
+  describe("Pact Magic slot level validation", () => {
+    it("uses Pact Magic when pact slot level >= spell level", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "pactMagic", current: 2, max: 2 },
+        ],
+        pactSlotLevel: 3,
+      });
+      // Cast a level 2 spell with pact slot level 3 — should succeed
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hold Person", 2, false, repo);
+
+      expect(repo.updateCombatantState).toHaveBeenCalledOnce();
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const pactPool = update.resources.resourcePools.find((p) => p.name === "pactMagic");
+      expect(pactPool?.current).toBe(1);
+    });
+
+    it("throws ValidationError when pact slot level is too low for the spell", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "pactMagic", current: 2, max: 2 },
+        ],
+        pactSlotLevel: 1,
+      });
+      // Cast a level 2 spell with pact slot level 1 — should fail
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hold Person", 2, false, repo),
+      ).rejects.toThrow(ValidationError);
+      await expect(
+        prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hold Person", 2, false, repo),
+      ).rejects.toThrow(/Pact Magic slot level 1 is too low/);
+      expect(repo.updateCombatantState).not.toHaveBeenCalled();
+    });
+
+    it("falls through gracefully when pactSlotLevel is not present (legacy data)", async () => {
+      const repo = makeRepo({
+        resourcePools: [
+          { name: "pactMagic", current: 2, max: 2 },
+        ],
+        // No pactSlotLevel — legacy/old data
+      });
+      // Should still use Pact Magic without validation
+      await prepareSpellCast(COMBATANT_ID, ENCOUNTER_ID, "Hold Person", 2, false, repo);
+
+      expect(repo.updateCombatantState).toHaveBeenCalledOnce();
+      const [, update] = vi.mocked(repo.updateCombatantState).mock.calls[0] as [
+        string,
+        { resources: { resourcePools: Array<{ name: string; current: number }> } },
+      ];
+      const pactPool = update.resources.resourcePools.find((p) => p.name === "pactMagic");
+      expect(pactPool?.current).toBe(1);
+    });
+  });
 });

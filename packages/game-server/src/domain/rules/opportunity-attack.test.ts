@@ -90,6 +90,30 @@ describe("Opportunity Attacks", () => {
 
       expect(result.canAttack).toBe(true);
     });
+
+    it("should prevent opportunity attack for involuntary movement (teleportation, push, pull)", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, involuntaryMovement: true };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(false);
+      expect(result.reason).toBe("involuntary-movement");
+    });
+
+    it("should allow opportunity attack when involuntaryMovement is false", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const trigger = { ...baseTrigger, involuntaryMovement: false };
+      const result = canMakeOpportunityAttack(reaction, trigger);
+
+      expect(result.canAttack).toBe(true);
+    });
+
+    it("should allow opportunity attack when involuntaryMovement is undefined (voluntary)", () => {
+      const reaction: ReactionState = { reactionUsed: false };
+      const result = canMakeOpportunityAttack(reaction, baseTrigger);
+
+      expect(result.canAttack).toBe(true);
+    });
   });
 
   describe("reaction state", () => {
