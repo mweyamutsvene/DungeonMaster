@@ -36,8 +36,8 @@ describe("getConditionEffects", () => {
 
     it("gives disadvantage on attacks and advantage to attackers", () => {
       const effects = getConditionEffects("Restrained");
-      expect(effects.attackRollsHaveDisadvantage).toBe(true);
-      expect(effects.attackRollsHaveAdvantage).toBe(true);
+      expect(effects.outgoingAttacksHaveDisadvantage).toBe(true);
+      expect(effects.incomingAttacksHaveAdvantage).toBe(true);
     });
   });
 
@@ -86,7 +86,7 @@ describe("getConditionEffects", () => {
 
     it("attacks against have advantage", () => {
       const effects = getConditionEffects("Petrified");
-      expect(effects.attackRollsHaveAdvantage).toBe(true);
+      expect(effects.incomingAttacksHaveAdvantage).toBe(true);
     });
 
     it("cannot move or speak", () => {
@@ -147,14 +147,14 @@ describe("getConditionEffects", () => {
       expect(effects.rangedAttackDisadvantage).toBe(true);
     });
 
-    it("no longer uses generic attackRollsHaveAdvantage", () => {
+    it("no longer uses generic incomingAttacksHaveAdvantage", () => {
       const effects = getConditionEffects("Prone");
-      expect(effects.attackRollsHaveAdvantage).toBe(false);
+      expect(effects.incomingAttacksHaveAdvantage).toBe(false);
     });
 
-    it("still has attackRollsHaveDisadvantage for the prone creature's own attacks", () => {
+    it("still has outgoingAttacksHaveDisadvantage for the prone creature's own attacks", () => {
       const effects = getConditionEffects("Prone");
-      expect(effects.attackRollsHaveDisadvantage).toBe(true);
+      expect(effects.outgoingAttacksHaveDisadvantage).toBe(true);
     });
   });
 
@@ -208,9 +208,9 @@ describe("getConditionEffects", () => {
       expect(effects.abilityCheckDisadvantage).toBe(true);
     });
 
-    it("still has attackRollsHaveDisadvantage", () => {
+    it("still has outgoingAttacksHaveDisadvantage", () => {
       const effects = getConditionEffects("Poisoned");
-      expect(effects.attackRollsHaveDisadvantage).toBe(true);
+      expect(effects.outgoingAttacksHaveDisadvantage).toBe(true);
     });
   });
 
@@ -312,9 +312,9 @@ describe("getConditionEffects", () => {
       expect(effects.incomingAttackDisadvantage).toBe(true);
     });
 
-    it("no longer uses generic attackRollsHaveAdvantage", () => {
+    it("no longer uses generic incomingAttacksHaveAdvantage", () => {
       const effects = getConditionEffects("Invisible");
-      expect(effects.attackRollsHaveAdvantage).toBe(false);
+      expect(effects.incomingAttacksHaveAdvantage).toBe(false);
     });
   });
 
@@ -479,9 +479,9 @@ describe("getConditionEffects", () => {
     });
 
     describe("Exhaustion condition effects flags", () => {
-      it("no longer has generic attackRollsHaveDisadvantage", () => {
+      it("no longer has generic outgoingAttacksHaveDisadvantage", () => {
         const effects = getConditionEffects("Exhaustion");
-        expect(effects.attackRollsHaveDisadvantage).toBe(false);
+        expect(effects.outgoingAttacksHaveDisadvantage).toBe(false);
       });
 
       it("has movementImpaired for speed reduction", () => {

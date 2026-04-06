@@ -12,8 +12,8 @@ import type { ActiveCondition } from "../../../../domain/entities/combat/conditi
 import {
   hasSelfAttackAdvantage,
   hasIncomingAttackDisadvantage,
-  hasAttackAdvantage,
-  hasAttackDisadvantage,
+  hasIncomingAttackAdvantage,
+  hasOutgoingAttackDisadvantage,
   getProneAttackModifier,
 } from "../../../../domain/entities/combat/conditions.js";
 
@@ -54,12 +54,12 @@ export function deriveRollModeFromConditions(
   // Attacker conditions — delegate to condition helpers
   // hasSelfAttackAdvantage: Invisible, Hidden → advantage on own attacks
   if (hasSelfAttackAdvantage(attackerConditions)) advantageSources++;
-  // hasAttackDisadvantage: Blinded, Frightened, Poisoned, Restrained, Prone, Sapped, Addled → disadvantage
-  if (hasAttackDisadvantage(attackerConditions)) disadvantageSources++;
+  // hasOutgoingAttackDisadvantage: Blinded, Frightened, Poisoned, Restrained, Prone, Sapped, Addled → disadvantage
+  if (hasOutgoingAttackDisadvantage(attackerConditions)) disadvantageSources++;
 
   // Target conditions — delegate to condition helpers
-  // hasAttackAdvantage: Blinded, Paralyzed, Stunned, Unconscious, Petrified, Restrained, StunningStrikePartial → advantage
-  if (hasAttackAdvantage(targetConditions)) advantageSources++;
+  // hasIncomingAttackAdvantage: Blinded, Paralyzed, Stunned, Unconscious, Petrified, Restrained, StunningStrikePartial → advantage
+  if (hasIncomingAttackAdvantage(targetConditions)) advantageSources++;
   // hasIncomingAttackDisadvantage: Invisible → disadvantage on incoming attacks
   if (hasIncomingAttackDisadvantage(targetConditions)) disadvantageSources++;
 

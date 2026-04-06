@@ -10,7 +10,7 @@ import {
   removeCondition,
   createCondition,
   hasAbilityCheckDisadvantage,
-  hasAttackDisadvantage,
+  hasOutgoingAttackDisadvantage,
   getExhaustionD20Penalty,
   type Condition,
 } from "../../../../domain/entities/combat/conditions.js";
@@ -170,7 +170,7 @@ export class GrappleActionHandler {
     const actorShoveConditions = normalizeConditions(actorState.conditions as unknown[]);
     const targetShoveConditions = normalizeConditions(targetState.conditions as unknown[]);
     const shoveOptions = {
-      attackerMode: hasAttackDisadvantage(actorShoveConditions) ? "disadvantage" as const : "normal" as const,
+      attackerMode: hasOutgoingAttackDisadvantage(actorShoveConditions) ? "disadvantage" as const : "normal" as const,
       attackerD20Penalty: getExhaustionD20Penalty(actorShoveConditions),
       targetSaveMode: hasAbilityCheckDisadvantage(targetShoveConditions) ? "disadvantage" as const : "normal" as const,
       targetSavePenalty: getExhaustionD20Penalty(targetShoveConditions),
@@ -356,7 +356,7 @@ export class GrappleActionHandler {
     const actorGrappleConditions = normalizeConditions(actorState.conditions as unknown[]);
     const targetGrappleConditions = normalizeConditions(targetState.conditions as unknown[]);
     const grappleOptions = {
-      attackerMode: hasAttackDisadvantage(actorGrappleConditions) ? "disadvantage" as const : "normal" as const,
+      attackerMode: hasOutgoingAttackDisadvantage(actorGrappleConditions) ? "disadvantage" as const : "normal" as const,
       attackerD20Penalty: getExhaustionD20Penalty(actorGrappleConditions),
       targetSaveMode: hasAbilityCheckDisadvantage(targetGrappleConditions) ? "disadvantage" as const : "normal" as const,
       targetSavePenalty: getExhaustionD20Penalty(targetGrappleConditions),

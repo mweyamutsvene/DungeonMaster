@@ -79,8 +79,8 @@ export interface ConditionEffects {
   readonly cannotTakeReactions: boolean; // Cannot take reactions
   
   // Attack/Defense
-  readonly attackRollsHaveAdvantage: boolean; // Attacks against have advantage
-  readonly attackRollsHaveDisadvantage: boolean; // Attack rolls have disadvantage
+  readonly incomingAttacksHaveAdvantage: boolean; // Attacks against this creature have advantage
+  readonly outgoingAttacksHaveDisadvantage: boolean; // This creature's attack rolls have disadvantage
   readonly meleeAttackAdvantage: boolean; // Melee attacks (within 5ft) against this creature have advantage (Prone)
   readonly rangedAttackDisadvantage: boolean; // Ranged attacks (beyond 5ft) against this creature have disadvantage (Prone)
   readonly selfAttackAdvantage: boolean; // This creature has advantage on its own attack rolls (Invisible)
@@ -116,8 +116,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     cannotTakeActions: false,
     cannotTakeBonusActions: false,
     cannotTakeReactions: false,
-    attackRollsHaveAdvantage: false,
-    attackRollsHaveDisadvantage: false,
+    incomingAttacksHaveAdvantage: false,
+    outgoingAttacksHaveDisadvantage: false,
     meleeAttackAdvantage: false,
     rangedAttackDisadvantage: false,
     selfAttackAdvantage: false,
@@ -141,8 +141,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       return {
         ...baseEffects,
         cannotSee: true,
-        attackRollsHaveDisadvantage: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        outgoingAttacksHaveDisadvantage: true,
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
       };
 
     case 'Charmed':
@@ -161,7 +161,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     case 'Frightened':
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: true,
+        outgoingAttacksHaveDisadvantage: true,
         abilityCheckDisadvantage: true,
         cannotMoveCloserToSource: true,
       };
@@ -196,7 +196,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotTakeReactions: true,
         cannotSpeak: true,
         autoFailStrDexSaves: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
         // Any attack within 5 ft is crit
       };
 
@@ -208,7 +208,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotTakeBonusActions: true,
         cannotTakeReactions: true,
         cannotSpeak: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
         autoFailStrDexSaves: true,
         resistsAllDamage: true,
         damageImmunities: ['poison'],
@@ -218,7 +218,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
     case 'Poisoned':
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: true,
+        outgoingAttacksHaveDisadvantage: true,
         abilityCheckDisadvantage: true,
       };
 
@@ -226,7 +226,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       return {
         ...baseEffects,
         movementImpaired: true, // Must use movement to stand
-        attackRollsHaveDisadvantage: true, // Prone creature's own attacks have disadvantage
+        outgoingAttacksHaveDisadvantage: true, // Prone creature's own attacks have disadvantage
         meleeAttackAdvantage: true, // Melee attacks within 5ft against prone creature have advantage
         rangedAttackDisadvantage: true, // Ranged attacks beyond 5ft against prone creature have disadvantage
       };
@@ -235,8 +235,8 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       return {
         ...baseEffects,
         cannotMove: true,
-        attackRollsHaveDisadvantage: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        outgoingAttacksHaveDisadvantage: true,
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
         savingThrowDisadvantage: ['dexterity'], // D&D 2024: disadvantage on DEX saves only
       };
 
@@ -249,7 +249,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotTakeReactions: true,
         cannotSpeak: true,
         autoFailStrDexSaves: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
       };
 
     case 'Unconscious':
@@ -263,7 +263,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
         cannotSee: true,
         autoMissAttacks: true,
         autoFailStrDexSaves: true,
-        attackRollsHaveAdvantage: true, // Attacks against
+        incomingAttacksHaveAdvantage: true, // Attacks against this creature
         // Any attack within 5 ft is crit, drops items, automatically prone
       };
 
@@ -274,7 +274,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       // based on the exhaustion level stored in the ActiveCondition.
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: false, // Replaced by d20 penalty system
+        outgoingAttacksHaveDisadvantage: false, // Replaced by d20 penalty system
         movementImpaired: true, // Speed reduced by 5 × level
       };
 
@@ -282,7 +282,7 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       // Sap mastery: disadvantage on next attack roll
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: true,
+        outgoingAttacksHaveDisadvantage: true,
       };
 
     case 'Slowed':
@@ -303,14 +303,14 @@ export function getConditionEffects(condition: Condition): ConditionEffects {
       // 2024 partial stun: advantage on next attack against this target, speed halved
       return {
         ...baseEffects,
-        attackRollsHaveAdvantage: true,
+        incomingAttacksHaveAdvantage: true,
       };
 
     case 'Addled':
       // Open Hand Technique: disadvantage on next attack roll
       return {
         ...baseEffects,
-        attackRollsHaveDisadvantage: true,
+        outgoingAttacksHaveDisadvantage: true,
       };
 
     default:
@@ -359,22 +359,22 @@ export function canMove(conditions: readonly ActiveCondition[]): boolean {
 }
 
 /**
- * Determine if attacks have advantage due to conditions
+ * Determine if incoming attacks against this creature have advantage due to conditions
  */
-export function hasAttackAdvantage(conditions: readonly ActiveCondition[]): boolean {
+export function hasIncomingAttackAdvantage(conditions: readonly ActiveCondition[]): boolean {
   return conditions.some(c => {
     const effects = getConditionEffects(c.condition);
-    return effects.attackRollsHaveAdvantage;
+    return effects.incomingAttacksHaveAdvantage;
   });
 }
 
 /**
- * Determine if attacks have disadvantage due to conditions
+ * Determine if this creature's outgoing attacks have disadvantage due to conditions
  */
-export function hasAttackDisadvantage(conditions: readonly ActiveCondition[]): boolean {
+export function hasOutgoingAttackDisadvantage(conditions: readonly ActiveCondition[]): boolean {
   return conditions.some(c => {
     const effects = getConditionEffects(c.condition);
-    return effects.attackRollsHaveDisadvantage;
+    return effects.outgoingAttacksHaveDisadvantage;
   });
 }
 

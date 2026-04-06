@@ -179,82 +179,23 @@ export class ClassAbilityHandlers {
     // The executor validated resource spend; now resolve saves against
     // each Undead within 30 ft and apply Frightened on failure.
     if (result.data?.aoeEffect === "turnUndead" && this.deps.diceRoller) {
-      const saveDC = result.data.saveDC as number;
-      const saveAbility = (result.data.saveAbility as string) || "wisdom";
-
-      const allCombatants = await this.deps.combatRepo.listCombatants(encounterId);
-      const actorResNorm = normalizeResources(actorCombatant.resources);
-      const actorPos = getPosition(actorResNorm);
-
-      if (actorPos) {
-        const monsters = await this.deps.monsters.listBySession(sessionId);
-        const npcs = await this.deps.npcs.listBySession(sessionId);
-
-        const savingThrowResolver = new SavingThrowResolver(
-          this.deps.combatRepo,
-          this.deps.diceRoller,
-          this.debugLogsEnabled,
-        );
-
-        const turnResults: string[] = [];
-
-        for (const combatant of allCombatants) {
-          if (combatant.combatantType !== "Monster" || !combatant.monsterId) continue;
-
-          // Check if the monster is Undead
-          const monsterRecord = monsters.find((m: any) => m.id === combatant.monsterId);
-          if (!monsterRecord) continue;
-          const statBlock = monsterRecord.statBlock as Record<string, unknown> | null;
-          const creatureType = ((statBlock?.type as string) ?? "").toLowerCase();
-          if (creatureType !== "undead") continue;
-
-          // Check within 30 ft
-          const cRes = normalizeResources(combatant.resources);
-          const cPos = getPosition(cRes);
-          if (!cPos) continue;
-          const dist = calculateDistance(actorPos, cPos);
-          if (dist > 30) continue;
-
-          // Build & resolve the Wisdom saving throw
-          const saveAction = savingThrowResolver.buildPendingAction({
-            actorId: combatant.monsterId,
-            sourceId: actorId,
-            ability: saveAbility,
-            dc: saveDC,
-            reason: "Turn Undead",
-            onSuccess: { summary: "Resists the turning" },
-            onFailure: {
-              summary: "Turned!",
-              conditions: { add: ["Frightened"] },
-            },
-          });
-
-          const resolution = await savingThrowResolver.resolve(
-            saveAction,
-            encounterId,
-            characters,
-            monsters as any[],
-            npcs as any[],
-          );
-
-          const monsterName = monsterRecord.name ?? "Unknown";
-          if (resolution.success) {
-            turnResults.push(`${monsterName} succeeds (rolled ${resolution.total} vs DC ${saveDC})`);
-          } else {
-            turnResults.push(`${monsterName} fails (rolled ${resolution.total} vs DC ${saveDC}) — Frightened!`);
-          }
-        }
-
-        if (turnResults.length > 0) {
-          const turnSummary = turnResults.join("; ");
-          return {
-            requiresPlayerInput: false,
-            actionComplete: true,
-            type: "SIMPLE_ACTION_COMPLETE",
-            action: "Turn Undead",
-            message: `${result.summary} ${turnSummary}`,
-          };
-        }
+      const turnSummary = await this.processTurnUndeadAoE(
+        sessionId,
+        encounterId,
+        actorId,
+        actorCombatant,
+        result.data.saveDC as number,
+        (result.data.saveAbility as string) || "wisdom",
+        characters,
+      );
+      if (turnSummary) {
+        return {
+          requiresPlayerInput: false,
+          actionComplete: true,
+          type: "SIMPLE_ACTION_COMPLETE",
+          action: "Turn Undead",
+          message: `${result.summary} ${turnSummary}`,
+        };
       }
     }
 
@@ -265,6 +206,87 @@ export class ClassAbilityHandlers {
       action: (result.data?.abilityName as string) ?? abilityId,
       message: result.summary,
     };
+  }
+
+  /**
+   * Resolve Turn Undead AoE: find all Undead monsters within 30 ft,
+   * roll Wisdom saving throws, and apply Frightened on failure.
+   *
+   * @returns A summary string of results, or null if no undead were in range.
+   */
+  private async processTurnUndeadAoE(
+    sessionId: string,
+    encounterId: string,
+    actorId: string,
+    actorCombatant: { resources: unknown },
+    saveDC: number,
+    saveAbility: string,
+    characters: SessionCharacterRecord[],
+  ): Promise<string | null> {
+    const allCombatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const actorResNorm = normalizeResources(actorCombatant.resources);
+    const actorPos = getPosition(actorResNorm);
+    if (!actorPos) return null;
+
+    const monsters = await this.deps.monsters.listBySession(sessionId);
+    const npcs = await this.deps.npcs.listBySession(sessionId);
+
+    const savingThrowResolver = new SavingThrowResolver(
+      this.deps.combatRepo,
+      this.deps.diceRoller!,
+      this.debugLogsEnabled,
+    );
+
+    const turnResults: string[] = [];
+
+    for (const combatant of allCombatants) {
+      if (combatant.combatantType !== "Monster" || !combatant.monsterId) continue;
+
+      // Check if the monster is Undead
+      const monsterRecord = monsters.find((m: any) => m.id === combatant.monsterId);
+      if (!monsterRecord) continue;
+      const statBlock = monsterRecord.statBlock as Record<string, unknown> | null;
+      const creatureType = ((statBlock?.type as string) ?? "").toLowerCase();
+      if (creatureType !== "undead") continue;
+
+      // Check within 30 ft
+      const cRes = normalizeResources(combatant.resources);
+      const cPos = getPosition(cRes);
+      if (!cPos) continue;
+      const dist = calculateDistance(actorPos, cPos);
+      if (dist > 30) continue;
+
+      // Build & resolve the Wisdom saving throw
+      const saveAction = savingThrowResolver.buildPendingAction({
+        actorId: combatant.monsterId,
+        sourceId: actorId,
+        ability: saveAbility,
+        dc: saveDC,
+        reason: "Turn Undead",
+        onSuccess: { summary: "Resists the turning" },
+        onFailure: {
+          summary: "Turned!",
+          conditions: { add: ["Frightened"] },
+        },
+      });
+
+      const resolution = await savingThrowResolver.resolve(
+        saveAction,
+        encounterId,
+        characters,
+        monsters as any[],
+        npcs as any[],
+      );
+
+      const monsterName = monsterRecord.name ?? "Unknown";
+      if (resolution.success) {
+        turnResults.push(`${monsterName} succeeds (rolled ${resolution.total} vs DC ${saveDC})`);
+      } else {
+        turnResults.push(`${monsterName} fails (rolled ${resolution.total} vs DC ${saveDC}) — Frightened!`);
+      }
+    }
+
+    return turnResults.length > 0 ? turnResults.join("; ") : null;
   }
 
   /**

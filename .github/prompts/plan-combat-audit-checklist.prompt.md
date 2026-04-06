@@ -339,8 +339,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `infrastructure/api/routes/sessions/session-inventory.ts`
   - Fix: Added `POST .../inventory/:itemName/use` endpoint. Looks up `MagicItemDefinition`, validates consumable (potion), applies healing/tempHP, decrements quantity. 3 new tests.
 
-- [ ] **[ENT-M8]** `ItemDefinition` Prisma table orphaned — comment in `magic-item-catalog.ts:7` implies intent to use it for catalog storage, but all items served from static code catalog. No write path.
+- [x] **[ENT-M8]** `ItemDefinition` Prisma table orphaned — comment in `magic-item-catalog.ts:7` implies intent to use it for catalog storage, but all items served from static code catalog. No write path.
   - File: `prisma/schema.prisma`, `domain/entities/items/magic-item-catalog.ts`
+  - Fix: Added `/// ORPHANED:` comments to `ItemDefinition`, `ClassFeatureDefinition`, and `ConditionDefinition` Prisma models. Updated misleading comment in `magic-item-catalog.ts`.
 
 - [x] **[SPELL-M9]** `SpellLookupService` TODO is stale/misleading — lists 6 "future" features most of which are already implemented elsewhere. Misleads future developers.
   - File: `application/services/entities/spell-lookup-service.ts:10-16`
@@ -370,8 +371,9 @@ These are active correctness bugs or production data-loss issues that affect rea
 - [ ] **[CLEAN-L5]** Damage reactions in `TwoPhaseActionService` not delegated — Absorb Elements / Hellish Rebuke handlers are inline in the facade (~170 lines) instead of using dedicated handler classes like all other reaction types.
   - File: `application/services/combat/two-phase-action-service.ts`
 
-- [ ] **[CLEAN-L6]** 10 trivial one-liner proxy methods in `ActionDispatcher` add no abstraction — `handlePickupAction()` etc. exclusively forward to handler classes. Remove them; call handler methods directly from `buildParserChain()`.
+- [x] **[CLEAN-L6]** 10 trivial one-liner proxy methods in `ActionDispatcher` add no abstraction — `handlePickupAction()` etc. exclusively forward to handler classes. Remove them; call handler methods directly from `buildParserChain()`.
   - File: `application/services/combat/tabletop/action-dispatcher.ts`
+  - Fix: Removed 13 proxy methods, inlined 24 call sites in `buildParserChain()` + `dispatch()` LLM fallback. File reduced ~200 lines.
 
 - [x] **[CLEAN-L7]** `InventoryItem` legacy type in `inventory.ts` — comment says "legacy for backward compat." Investigate if it can be unified with `CharacterItemInstance`.
   - File: `domain/entities/items/inventory.ts:18-40`
@@ -388,8 +390,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/tabletop/dispatch/social-handlers.ts`
   - Fix: Removed `"ready"` from `handleSimpleAction()` type union in both `social-handlers.ts` and `action-dispatcher.ts`. Ready is routed via dedicated `handleReadyAction()`.
 
-- [ ] **[CLEAN-L11]** 4 PromptBuilder migration TODOs — `battle-planner.ts`, `character-generator.ts`, `intent-parser.ts`, `narrative-generator.ts`, `story-generator.ts` all have TODO to migrate to `PromptBuilder`.
+- [x] **[CLEAN-L11]** 4 PromptBuilder migration TODOs — `battle-planner.ts`, `character-generator.ts`, `intent-parser.ts`, `narrative-generator.ts`, `story-generator.ts` all have TODO to migrate to `PromptBuilder`.
   - File: `infrastructure/llm/battle-planner.ts:70`, etc.
+  - Fix: Migrated all 5 files to use `PromptBuilder`. TODOs removed.
 
 - [x] **[CLEAN-L12]** AI LLM retry uses same parameters — retry `options` (model/temp/seed) are identical to initial call. Retry won't produce different results. Consider temperature increase on retry.
   - File: `application/services/combat/ai/llm/ai-decision-maker.ts:77`
@@ -456,8 +459,9 @@ These are active correctness bugs or production data-loss issues that affect rea
   - File: `application/services/combat/two-phase/spell-reaction-handler.ts:295`
   - Fix: Added `getSpellcastingAbility(classId)` in `spell-casting.ts`. Spell reaction handler now uses class-appropriate ability (CHA for Warlock/Bard/Sorcerer/Paladin, WIS for Cleric/Druid/Ranger). 6 new tests.
 
-- [ ] **[AI-L5]** OpenAI provider is a stub that throws on first call — `DM_LLM_PROVIDER=openai` config silently fails.
+- [x] **[AI-L5]** OpenAI provider is a stub that throws on first call — `DM_LLM_PROVIDER=openai` config silently fails.
   - File: `infrastructure/llm/openai-provider.ts`
+  - Fix: Throws at construction time with actionable error. Factory also throws immediately for `openai` provider.
 
 ### Entity / Infrastructure
 
