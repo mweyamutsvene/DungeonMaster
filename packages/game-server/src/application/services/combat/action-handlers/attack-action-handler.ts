@@ -37,6 +37,7 @@ import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
 import { isRecord, readNumber } from "../helpers/json-helpers.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
+import { hasElevationAdvantage, type CombatMap } from "../../../../domain/rules/combat-map.js";
 import {
   type AttackActionInput,
   hashStringToInt32,
@@ -200,6 +201,10 @@ export class AttackActionHandler {
     const attackerPos = getPosition(attackerResources);
     const targetPos = getPosition(targetResources);
     const distanceFt = attackerPos && targetPos ? calculateDistance(attackerPos, targetPos) : undefined;
+    const combatMap = encounter.mapData as unknown as CombatMap | undefined;
+    const elevationAdvantage = combatMap
+      ? hasElevationAdvantage(combatMap, attackerPos, targetPos)
+      : false;
 
     const effectRollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, attackKind, effectAdvantage, effectDisadvantage, distanceFt);
     if (!spec.mode || spec.mode === "normal") {
@@ -289,6 +294,7 @@ export class AttackActionHandler {
     const target = targetAdapter.creature as unknown as any;
     const result = resolveAttack(diceRoller, attacker, target, spec, {
       targetDefenses: mergedDefenses,
+      elevationAdvantage,
     });
 
     const newHp = targetAdapter.getHpCurrent();

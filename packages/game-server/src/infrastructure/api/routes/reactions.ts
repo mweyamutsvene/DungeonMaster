@@ -13,6 +13,11 @@ import type { AiTurnOrchestrator } from "../../../application/services/combat/ai
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import { NotFoundError, ValidationError } from "../../../application/errors.js";
 import type { JsonValue } from "../../../application/types.js";
+import {
+  normalizeResources,
+  spendResourceFromPool,
+  useAttack,
+} from "../../../application/services/combat/helpers/resource-utils.js";
 
 export function registerReactionRoutes(
   app: FastifyInstance,
@@ -34,9 +39,11 @@ export function registerReactionRoutes(
   app.post<{
     Params: { encounterId: string; pendingActionId: string };
     Body: {
-      combatantId: string;
-      opportunityId: string;
-      choice: "use" | "decline";
+      combatantId?: string;
+      opportunityId?: string;
+      choice?: "use" | "decline";
+      /** Lucky prompt shortcut: true = use, false = decline */
+      spend?: boolean;
       /** For War Caster spell-as-OA: which spell to cast */
       spellName?: string;
       /** For War Caster spell-as-OA: optional upcast level */
@@ -44,17 +51,7 @@ export function registerReactionRoutes(
     };
   }>("/encounters/:encounterId/reactions/:pendingActionId/respond", async (req, reply) => {
     const { encounterId, pendingActionId } = req.params;
-    const { combatantId, opportunityId, choice, spellName, castAtLevel } = req.body;
-
-    console.log(`[Reactions] ${choice} reaction (${pendingActionId.slice(0, 8)}…)`);
-
-    if (!combatantId || !opportunityId) {
-      throw new ValidationError("combatantId and opportunityId are required");
-    }
-
-    if (choice !== "use" && choice !== "decline") {
-      throw new ValidationError("choice must be 'use' or 'decline'");
-    }
+    const { spellName, castAtLevel } = req.body;
 
     // Get pending action
     const pendingAction = await deps.pendingActions.getById(pendingActionId);
@@ -66,6 +63,33 @@ export function registerReactionRoutes(
     if (pendingAction.encounterId !== encounterId) {
       throw new ValidationError("Encounter ID mismatch");
     }
+
+    let combatantId = req.body.combatantId;
+    let opportunityId = req.body.opportunityId;
+    let choice: "use" | "decline" | undefined = req.body.choice;
+
+    if (typeof req.body.spend === "boolean") {
+      choice = req.body.spend ? "use" : "decline";
+    }
+
+    // Lucky reroll prompts can infer ids from the single opportunity.
+    if (pendingAction.type === "lucky_reroll") {
+      const luckyOpportunity = pendingAction.reactionOpportunities[0];
+      if (luckyOpportunity) {
+        opportunityId = opportunityId ?? luckyOpportunity.id;
+        combatantId = combatantId ?? luckyOpportunity.combatantId;
+      }
+    }
+
+    if (!combatantId || !opportunityId) {
+      throw new ValidationError("combatantId and opportunityId are required");
+    }
+
+    if (choice !== "use" && choice !== "decline") {
+      throw new ValidationError("choice must be 'use' or 'decline'");
+    }
+
+    console.log(`[Reactions] ${choice} reaction (${pendingActionId.slice(0, 8)}…)`);
 
     // Verify this opportunity exists
 
@@ -116,17 +140,20 @@ export function registerReactionRoutes(
       throw err;
     }
 
-    // Emit event
-    const combatantRef =
-      opportunity.context.targetId ?
-        { type: "Character" as const, characterId: combatantId } :
-        { type: "Monster" as const, monsterId: combatantId };
-
     // Resolve combatant name from encounter roster
     const combatants = await deps.combat.listCombatants(encounterId);
     const combatantState = combatants.find(c =>
       (c.characterId === combatantId || c.monsterId === combatantId || c.npcId === combatantId)
     );
+    const combatantRef = combatantState?.characterId
+      ? { type: "Character" as const, characterId: combatantState.characterId }
+      : combatantState?.monsterId
+        ? { type: "Monster" as const, monsterId: combatantState.monsterId }
+        : combatantState?.npcId
+          ? { type: "NPC" as const, npcId: combatantState.npcId }
+          : opportunity.context.targetId
+            ? { type: "Character" as const, characterId: combatantId }
+            : { type: "Monster" as const, monsterId: combatantId };
     const combatantName = combatantState
       ? await deps.combatants.getName(combatantRef, combatantState)
       : combatantId;
@@ -148,6 +175,85 @@ export function registerReactionRoutes(
 
     // Check if all reactions are now resolved
     const status = await deps.pendingActions.getStatus(pendingActionId);
+
+    // Auto-complete lucky_reroll pending actions after spend/decline.
+    if (status === "ready_to_complete" && pendingAction.type === "lucky_reroll") {
+      const luckyData = pendingAction.data as {
+        actorEntityId?: string;
+        originalRoll?: number;
+        originalTotal?: number;
+        attackBonus?: number;
+        targetAC?: number;
+        originalAttackAction?: Record<string, unknown>;
+      };
+
+      if (choice === "use") {
+        const combatants = await deps.combat.listCombatants(encounterId);
+        const actorCombatant = combatants.find(
+          (c) => c.characterId === luckyData.actorEntityId || c.monsterId === luckyData.actorEntityId || c.npcId === luckyData.actorEntityId,
+        );
+
+        if (!actorCombatant) {
+          throw new NotFoundError("Lucky actor combatant not found");
+        }
+
+        const spentResources = spendResourceFromPool(actorCombatant.resources, "luckPoints", 1);
+        await deps.combat.updateCombatantState(actorCombatant.id, {
+          resources: normalizeResources(spentResources) as JsonValue,
+        });
+
+        if (!luckyData.originalAttackAction || typeof luckyData.originalAttackAction !== "object") {
+          throw new ValidationError("Lucky prompt is missing original attack action context");
+        }
+
+        await deps.combat.setPendingAction(encounterId, luckyData.originalAttackAction as JsonValue);
+        await deps.pendingActions.markCompleted(pendingActionId);
+        await deps.pendingActions.delete(pendingActionId);
+
+        return {
+          success: true,
+          pendingActionId,
+          status: "awaiting_reroll",
+          message: "Lucky spent. Reroll the attack now.",
+          rollType: "attack",
+          diceNeeded: "d20",
+          requiresPlayerInput: true,
+        };
+      }
+
+      await deps.combat.setPendingAction(encounterId, null as any);
+
+      const combatants = await deps.combat.listCombatants(encounterId);
+      const actorCombatant = combatants.find(
+        (c) => c.characterId === luckyData.actorEntityId || c.monsterId === luckyData.actorEntityId || c.npcId === luckyData.actorEntityId,
+      );
+      if (actorCombatant && actorCombatant.combatantType === "Character") {
+        const spentAttack = useAttack(actorCombatant.resources ?? {});
+        await deps.combat.updateCombatantState(actorCombatant.id, {
+          resources: spentAttack as JsonValue,
+        });
+      }
+
+      await deps.pendingActions.markCompleted(pendingActionId);
+      await deps.pendingActions.delete(pendingActionId);
+
+      return {
+        success: true,
+        pendingActionId,
+        status: "completed",
+        message: "Lucky declined. Attack remains a miss.",
+        attackResult: {
+          rollType: "attack",
+          rawRoll: luckyData.originalRoll ?? 0,
+          modifier: luckyData.attackBonus ?? 0,
+          total: luckyData.originalTotal ?? 0,
+          targetAC: luckyData.targetAC ?? 10,
+          hit: false,
+          actionComplete: true,
+          requiresPlayerInput: false,
+        },
+      };
+    }
 
     // Auto-complete attack pending actions after all reactions are resolved
     if (status === "ready_to_complete" && pendingAction.type === "attack") {

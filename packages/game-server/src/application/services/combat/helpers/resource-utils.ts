@@ -399,15 +399,19 @@ export function getEffectiveSpeed(resources: JsonValue): number {
   const normalized = normalizeResources(resources);
   const baseSpeed = typeof normalized.speed === "number" ? normalized.speed : 30;
   const effects = getActiveEffects(resources);
-  // Combine speed_modifier type effects + bonus/penalty on speed target
+  // Combine additive speed effects first, then multiplicative effects.
   let modifier = 0;
+  let multiplier = 1;
   for (const e of effects) {
     if (e.type === 'speed_modifier' || (e.target === 'speed' && (e.type === 'bonus' || e.type === 'penalty'))) {
       const val = e.value ?? 0;
       modifier += e.type === 'penalty' ? -val : val;
     }
+    if (e.type === 'speed_multiplier' && typeof e.value === 'number' && Number.isFinite(e.value)) {
+      multiplier *= Math.max(0, e.value);
+    }
   }
-  return Math.max(0, baseSpeed + modifier);
+  return Math.max(0, Math.floor((baseSpeed + modifier) * multiplier));
 }
 
 /**

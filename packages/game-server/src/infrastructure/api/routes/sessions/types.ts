@@ -6,6 +6,7 @@
 
 import type { GameSessionService } from "../../../../application/services/entities/game-session-service.js";
 import type { CharacterService } from "../../../../application/services/entities/character-service.js";
+import type { ItemLookupService } from "../../../../application/services/entities/item-lookup-service.js";
 import type { CombatService } from "../../../../application/services/combat/combat-service.js";
 import type { ActionService } from "../../../../application/services/combat/action-service.js";
 import type { TwoPhaseActionService } from "../../../../application/services/combat/two-phase-action-service.js";
@@ -39,6 +40,7 @@ export interface SessionRouteDeps {
   tacticalView: TacticalViewService;
   tabletopCombat: TabletopCombatService;
   combatants: CombatantResolver;
+  itemLookup: ItemLookupService;
 
   // Repositories
   pendingActions: PendingActionRepository;

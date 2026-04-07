@@ -9,6 +9,12 @@
 import type { Position } from "./movement.js";
 import { calculateDistance } from "./movement.js";
 import type { CombatMap, MapCell, MapEntity, TerrainType } from "./combat-map-types.js";
+import type { DiceRoller } from "./dice-roller.js";
+
+export interface TerrainCellOptions {
+  terrainElevation?: number;
+  terrainDepth?: number;
+}
 
 /**
  * Create a new combat map with default terrain.
@@ -61,19 +67,12 @@ export function getCellAt(map: CombatMap, position: Position): MapCell | null {
 
 /**
  * Set terrain type for a cell.
- *
- * TODO: RULES-L3 — elevated/pit terrain require additional mechanics:
- * - elevated: creatures on elevated terrain get advantage on attacks vs ground-level targets.
- *   Needs `terrainElevation: number` field on MapCell (feet above ground level).
- * - pit: entering a pit cell (or being pushed in) requires DC 15 DEX save;
- *   on failure the creature falls and takes 1d6 per 10ft of depth.
- *   Needs `terrainDepth: number` field on MapCell.
- * See .github/prompts/plan-terrain-mechanics.prompt.md
  */
 export function setTerrainAt(
   map: CombatMap,
   position: Position,
   terrain: TerrainType,
+  options?: TerrainCellOptions,
 ): CombatMap {
   const cell = getCellAt(map, position);
   if (!cell) return map;
@@ -83,6 +82,12 @@ export function setTerrainAt(
       ? {
           ...c,
           terrain,
+          terrainElevation: terrain === "elevated"
+            ? options?.terrainElevation ?? c.terrainElevation ?? 0
+            : undefined,
+          terrainDepth: terrain === "pit"
+            ? options?.terrainDepth ?? c.terrainDepth ?? 0
+            : undefined,
           blocksLineOfSight: terrain === "wall" || terrain === "cover-full",
           passable: terrain !== "wall" && terrain !== "obstacle",
         }
@@ -192,6 +197,8 @@ export function getTerrainSpeedModifier(map: CombatMap, position: Position): num
 
 // ── Elevation / pit terrain utilities ──────────────────────────────────
 
+export const PIT_DEX_SAVE_DC = 15;
+
 /**
  * Whether the terrain type is elevated ground.
  */
@@ -207,31 +214,73 @@ export function isPitTerrain(terrain: TerrainType): boolean {
 }
 
 /**
- * Elevation-based attack modifier.
- *
- * Design hook — these exist for future terrain-aware attack resolution:
- *  - Attacker on elevated + defender in pit → "advantage"
- *  - Attacker in pit → "disadvantage"
- *  - Otherwise → "none"
- *
- * Returns a string indicator (not a numeric bonus) so the caller
- * can fold it into the standard advantage / disadvantage system.
+ * Get elevation (feet above ground level) for a map position.
+ * Returns 0 when the cell does not define terrainElevation.
+ */
+export function getElevationOf(map: CombatMap, position: Position): number {
+  const cell = getCellAt(map, position);
+  if (!cell) return 0;
+  return typeof cell.terrainElevation === "number" ? cell.terrainElevation : 0;
+}
+
+/**
+ * Get pit depth in feet for a map position.
+ * Returns 0 when the cell is not a pit or has no terrainDepth value.
+ */
+export function getPitDepthOf(map: CombatMap, position: Position): number {
+  const cell = getCellAt(map, position);
+  if (!cell || !isPitTerrain(cell.terrain)) return 0;
+  return typeof cell.terrainDepth === "number" ? cell.terrainDepth : 0;
+}
+
+/**
+ * Determine attack roll mode from elevation difference.
+ * Returns advantage only when attacker is at least `minHeightDifferenceFeet`
+ * higher than defender.
  */
 export function getElevationAttackModifier(
-  attackerTerrain: TerrainType,
-  defenderTerrain: TerrainType,
+  attackerElevationFeet: number,
+  defenderElevationFeet: number,
+  minHeightDifferenceFeet: number = 5,
 ): "advantage" | "disadvantage" | "none" {
-  if (isPitTerrain(attackerTerrain)) return "disadvantage";
-  if (isElevatedTerrain(attackerTerrain) && isPitTerrain(defenderTerrain)) return "advantage";
+  if (attackerElevationFeet - defenderElevationFeet >= minHeightDifferenceFeet) {
+    return "advantage";
+  }
   return "none";
 }
 
 /**
- * Suggested fall damage for a creature falling into a pit (10 ft fall).
- * Returns a dice expression string per D&D 5e rules (1d6 per 10 ft).
- *
- * Design hook — not yet integrated into damage resolution.
+ * Convenience helper for checking whether the attacker has higher-ground advantage.
  */
-export function getPitFallDamage(): string {
-  return "1d6";
+export function hasElevationAdvantage(
+  map: CombatMap,
+  attackerPosition: Position | null | undefined,
+  defenderPosition: Position | null | undefined,
+): boolean {
+  if (!attackerPosition || !defenderPosition) return false;
+  const attackerElevation = getElevationOf(map, attackerPosition);
+  const defenderElevation = getElevationOf(map, defenderPosition);
+  const modifier = getElevationAttackModifier(attackerElevation, defenderElevation, map.gridSize);
+  return modifier === "advantage";
+}
+
+/**
+ * True when movement enters a pit cell from a non-pit cell.
+ */
+export function isPitEntry(map: CombatMap, from: Position, to: Position): boolean {
+  const toCell = getCellAt(map, to);
+  if (!toCell || !isPitTerrain(toCell.terrain)) return false;
+
+  const fromCell = getCellAt(map, from);
+  return !fromCell || !isPitTerrain(fromCell.terrain);
+}
+
+/**
+ * Compute fall damage for pit entry.
+ * D&D 5e: 1d6 per 10ft fallen, minimum 1d6.
+ */
+export function computePitFallDamage(depthFeet: number, diceRoller: DiceRoller): number {
+  const safeDepth = Number.isFinite(depthFeet) ? Math.max(0, depthFeet) : 0;
+  const diceCount = Math.max(1, Math.floor(safeDepth / 10));
+  return diceRoller.rollDie(6, diceCount).total;
 }

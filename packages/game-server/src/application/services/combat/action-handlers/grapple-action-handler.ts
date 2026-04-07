@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { shoveTarget, grappleTarget, escapeGrapple, isTargetTooLarge } from "../../../../domain/rules/grapple-shove.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { Position } from "../../../../domain/rules/movement.js";
+import type { CombatMap } from "../../../../domain/rules/combat-map.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
 import {
   normalizeConditions,
@@ -26,6 +27,7 @@ import {
   setAttacksAllowed,
   getAttacksAllowedThisTurn,
 } from "../helpers/resource-utils.js";
+import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 
 import { NotFoundError, ValidationError } from "../../../errors.js";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
@@ -44,6 +46,7 @@ import {
   clamp,
   hashStringToInt32,
 } from "../helpers/combat-utils.js";
+import { resolvePitEntry } from "../helpers/pit-terrain-resolver.js";
 
 export class GrappleActionHandler {
   constructor(
@@ -214,9 +217,38 @@ export class GrappleActionHandler {
         y: height === null ? proposed.y : clamp(proposed.y, 0, height),
       };
 
-      updatedTarget = await this.combat.updateCombatantState(targetState.id, {
-        resources: setPosition(targetState.resources, pushedTo),
-      });
+      const updatedTargetResources = setPosition(targetState.resources, pushedTo);
+      const pitResult = resolvePitEntry(
+        encounter.mapData as CombatMap | undefined,
+        targetPos,
+        pushedTo,
+        targetStats.abilityScores.dexterity,
+        targetState.hpCurrent,
+        targetState.conditions,
+        new SeededDiceRoller(hashStringToInt32(`${sessionId}:${encounter.id}:${targetState.id}:${targetPos.x}:${targetPos.y}:${pushedTo.x}:${pushedTo.y}:pit`)),
+      );
+
+      const forcedMovementResources = pitResult.triggered
+        ? {
+            ...(updatedTargetResources as Record<string, unknown>),
+            movementRemaining: 0,
+            movementSpent: true,
+          }
+        : updatedTargetResources;
+
+      const targetPatch: Partial<Pick<CombatantStateRecord, "resources" | "hpCurrent" | "conditions">> = {
+        resources: forcedMovementResources,
+      };
+      if (pitResult.triggered) {
+        targetPatch.hpCurrent = pitResult.hpAfter;
+        targetPatch.conditions = pitResult.updatedConditions as any;
+      }
+
+      updatedTarget = await this.combat.updateCombatantState(targetState.id, targetPatch);
+
+      if (pitResult.triggered && pitResult.damageApplied > 0) {
+        await applyKoEffectsIfNeeded(targetState, targetState.hpCurrent, pitResult.hpAfter, this.combat);
+      }
     }
 
     if (result.success && shoveType === "prone") {

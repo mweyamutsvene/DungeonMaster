@@ -5,6 +5,7 @@ import {
   CharacterService,
   CombatService,
   GameSessionService,
+  ItemLookupService,
   TacticalViewService,
   TabletopCombatService,
 } from "../../application/services/index.js";
@@ -40,6 +41,7 @@ import type {
   ICombatRepository,
   IEventRepository,
   IGameSessionRepository,
+  IItemDefinitionRepository,
   IMonsterRepository,
   INPCRepository,
   ISpellRepository,
@@ -72,6 +74,7 @@ export type AppDeps = {
   combatRepo: ICombatRepository;
   eventsRepo: IEventRepository;
   spellsRepo: ISpellRepository;
+  itemDefinitionsRepo?: IItemDefinitionRepository;
   unitOfWork?: PrismaUnitOfWork;
   /** Raw Prisma client for read-only catalog queries (monster definitions, etc.). Optional — omit in tests. */
   prismaClient?: PrismaClient;
@@ -165,6 +168,17 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const sessions = new GameSessionService(deps.sessionsRepo, deps.eventsRepo);
   const characters = new CharacterService(deps.sessionsRepo, deps.charactersRepo, deps.eventsRepo, deps.diceRoller);
+  const defaultItemDefinitionsRepo: IItemDefinitionRepository = {
+    findById: async () => null,
+    findByName: async () => null,
+    listAll: async () => [],
+    upsert: async (item) => ({
+      ...item,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    }),
+  };
+  const itemLookup = new ItemLookupService(deps.itemDefinitionsRepo ?? defaultItemDefinitionsRepo);
   const factionService = new FactionService({
     combat: deps.combatRepo,
     characters: deps.charactersRepo,
@@ -331,6 +345,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     narrativeGenerator: deps.narrativeGenerator,
     characterGenerator: deps.characterGenerator,
     diceRoller: deps.diceRoller,
+    itemLookup,
     createServicesForRepos: (repos) => {
       const sessionsService = new GameSessionService(repos.sessionsRepo, repos.eventsRepo);
       const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo, deps.diceRoller);

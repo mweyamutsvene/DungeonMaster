@@ -10,7 +10,6 @@ import {
   type AttackKind,
   type WeaponContext,
 } from "../rules/feat-modifiers.js";
-import { canUseLucky } from "../rules/lucky.js";
 import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
 import { hasProperty } from "../entities/items/weapon-properties.js";
 import { getAdjustedMode } from "../rules/ability-checks.js";
@@ -78,6 +77,8 @@ export interface AttackResolveOptions {
   attackerDistance?: number;
   /** Whether the attacker is the source of a Grappled condition on the target (Grappler feat → advantage). */
   attackerIsGrapplingTarget?: boolean;
+  /** Whether terrain elevation grants advantage for this attack. */
+  elevationAdvantage?: boolean;
 }
 
 /**
@@ -127,6 +128,10 @@ export function resolveAttack(
 
   let baseMode: RollMode = spec.mode ?? "normal";
 
+  if (options?.elevationAdvantage) {
+    baseMode = baseMode === "disadvantage" ? "normal" : "advantage";
+  }
+
   // Grappler feat: advantage on attack rolls against a creature grappled by you
   if (featMods.grapplerEnabled && options?.attackerIsGrapplingTarget) {
     baseMode = baseMode === "disadvantage" ? "normal" : "advantage";
@@ -168,29 +173,7 @@ export function resolveAttack(
     critical = true;
   }
 
-  // Lucky feat: on a miss, auto-reroll the d20 and use result if it would hit.
-  // Auto-use policy (structural foundation): always reroll on a miss; keep lucky
-  // roll only when it results in a hit. Application layer tracks remaining points.
   let luckyUsed = false;
-  if (!hit && featMods.luckyEnabled && canUseLucky(featMods.luckPoints ?? 0)) {
-    const luckyRoll = diceRoller.rollDie(20);
-    const luckyD20 = luckyRoll.total;
-    const luckyTotal = luckyD20 + attackBonus;
-    const luckyCritical = luckyD20 === 20;
-    const luckyHit = luckyD20 !== 1 && (luckyCritical || luckyTotal >= target.getAC());
-    if (luckyHit) {
-      d20 = luckyD20;
-      naturalMiss = false;
-      critical = luckyCritical;
-      total = luckyTotal;
-      hit = true;
-      luckyUsed = true;
-      // Re-check paralyzed/unconscious auto-crit for the lucky hit
-      if (!critical && isAutoCriticalHit(target, spec.kind, options?.attackerDistance)) {
-        critical = true;
-      }
-    }
-  }
 
   const damageDiceCount = critical ? spec.damage.diceCount * 2 : spec.damage.diceCount;
   let damageRoll = diceRoller.rollDie(

@@ -40,6 +40,10 @@ export type CoverLevel = "none" | "half" | "three-quarters" | "full";
 export interface MapCell {
   position: Position;
   terrain: TerrainType;
+  /** Feet above base ground level for elevated terrain cells. */
+  terrainElevation?: number;
+  /** Pit depth in feet for pit terrain cells. */
+  terrainDepth?: number;
   /** Whether line of sight can pass through */
   blocksLineOfSight: boolean;
   /** Whether creatures can move through */

@@ -5,6 +5,7 @@ import type {
   ICombatRepository,
   IEventRepository,
   IGameSessionRepository,
+  IItemDefinitionRepository,
   IMonsterRepository,
   INPCRepository,
   ISpellRepository,
@@ -18,6 +19,7 @@ import { PrismaGameSessionRepository } from "./game-session-repository.js";
 import { PrismaMonsterRepository } from "./monster-repository.js";
 import { PrismaNPCRepository } from "./npc-repository.js";
 import { PrismaSpellRepository } from "./spell-repository.js";
+import { PrismaItemDefinitionRepository } from "./item-definition-repository.js";
 import { PrismaPendingActionRepository } from "./pending-action-repository.js";
 import {
   DeferredPublishingEventRepository,
@@ -33,6 +35,7 @@ export type RepositoryBundle = {
   combatRepo: ICombatRepository;
   eventsRepo: IEventRepository;
   spellsRepo: ISpellRepository;
+  itemDefinitionsRepo: IItemDefinitionRepository;
   pendingActionsRepo: PendingActionRepository;
 };
 
@@ -58,6 +61,7 @@ export class PrismaUnitOfWork {
         combatRepo: new PrismaCombatRepository(tx),
         eventsRepo: events,
         spellsRepo: new PrismaSpellRepository(tx),
+        itemDefinitionsRepo: new PrismaItemDefinitionRepository(tx),
         pendingActionsRepo: new PrismaPendingActionRepository(tx),
       };
 

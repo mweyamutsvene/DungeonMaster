@@ -119,6 +119,39 @@ describe("Character rest", () => {
     at5.takeRest("short");
     expect(at5.getResourcePools()[0]!.current).toBe(3);
   });
+
+  it("refreshes luckPoints only on long rest", () => {
+    const c = new Character({
+      id: "luck-rest",
+      name: "Lucky",
+      maxHP: 12,
+      currentHP: 12,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 14,
+        dexterity: 14,
+        constitution: 12,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 4,
+      characterClass: "fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_lucky"],
+      resourcePools: [{ name: "luckPoints", current: 1, max: 3 }],
+    });
+
+    c.takeRest("short");
+    expect(c.getResourcePools().find((p) => p.name === "luckPoints")?.current).toBe(1);
+
+    c.takeRest("long");
+    const luckPool = c.getResourcePools().find((p) => p.name === "luckPoints");
+    expect(luckPool?.current).toBe(3);
+    expect(luckPool?.max).toBe(3);
+  });
 });
 
 describe("Character level up", () => {

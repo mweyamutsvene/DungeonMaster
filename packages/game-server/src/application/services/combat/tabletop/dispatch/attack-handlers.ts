@@ -8,7 +8,7 @@
 import { ValidationError } from "../../../../errors.js";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
-import { getCoverLevel, getCoverACBonus } from "../../../../../domain/rules/combat-map.js";
+import { getCoverLevel, getCoverACBonus, hasElevationAdvantage } from "../../../../../domain/rules/combat-map.js";
 import {
   getPosition,
   normalizeResources,
@@ -797,14 +797,21 @@ export class AttackHandlers {
 
     let extraDisadvantage = 0;
     let extraAdvantage = 0;
+    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
+    const mapData = encounter?.mapData as unknown as FlankingCombatMap | undefined;
+    const targetPos = getPosition(targetCombatant.resources ?? {});
+
+    if (mapData && targetPos && hasElevationAdvantage(mapData as unknown as CombatMap, actorPos, targetPos)) {
+      extraAdvantage++;
+      if (this.debugLogsEnabled) {
+        console.log("[AttackHandlers] Higher ground detected -> advantage on attack roll");
+      }
+    }
 
     // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when
     // the attacker and an ally are on opposite sides of the target.
     if (inferredKind === "melee") {
-      const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
-      const mapData = encounter?.mapData as unknown as FlankingCombatMap | undefined;
       if (mapData?.flankingEnabled) {
-        const targetPos = getPosition(targetCombatant.resources ?? {});
         if (targetPos) {
           // Gather positions of living allies (same faction as attacker, excluding attacker and target)
           const actorFaction = this.getActorFaction(actorCombatant, combatantStates);
@@ -936,6 +943,26 @@ export class AttackHandlers {
         resources: updatedTargetRes as any,
       });
       if (this.debugLogsEnabled) console.log(`[AttackHandlers] Help action advantage consumed on attack against ${targetId}`);
+    }
+
+    // Brutal Strike (Staggering Blow): disadvantage on next attack roll or saving throw.
+    // Apply once and consume immediately when used by an attack roll.
+    const staggeringEffect = actorActiveEffects.find(
+      (e) =>
+        e.source === "Brutal Strike: Staggering Blow"
+        && e.type === "disadvantage"
+        && e.target === "custom"
+        && e.duration === "until_triggered",
+    );
+    if (staggeringEffect) {
+      extraDisadvantage++;
+      const updatedRes = removeActiveEffectById(actorCombatant.resources ?? {}, staggeringEffect.id);
+      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: updatedRes as any,
+      });
+      if (this.debugLogsEnabled) {
+        console.log(`[AttackHandlers] Brutal Strike Staggering Blow consumed on attack for ${actorCombatant.id}`);
+      }
     }
 
     return deriveRollModeFromConditions(attackerConditions, targetConditions, inferredKind, extraAdvantage, extraDisadvantage, dist);

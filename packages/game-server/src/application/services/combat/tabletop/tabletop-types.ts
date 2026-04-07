@@ -94,6 +94,8 @@ export interface AttackPendingAction {
   flurryStrike?: 1 | 2;
   /** AC bonus from cover between attacker and target (D&D 5e 2024) */
   coverACBonus?: number;
+  /** Prevents offering Lucky more than once for the same attack roll sequence. */
+  luckyPrompted?: boolean;
 }
 
 export interface DamagePendingAction {
@@ -283,6 +285,15 @@ export interface AttackResult {
   narration?: string;
   type?: "REQUEST_ROLL";
   diceNeeded?: string;
+  pendingActionId?: string;
+  luckyPrompt?: {
+    pendingActionId: string;
+    reactionType: "lucky_reroll";
+    rollType: "attack";
+    originalRoll: number;
+    originalTotal: number;
+    targetAC: number;
+  };
   /** Eligible on-hit enhancements the player can opt into with damage roll text (2024 rules). */
   eligibleEnhancements?: Array<{
     keyword: string;

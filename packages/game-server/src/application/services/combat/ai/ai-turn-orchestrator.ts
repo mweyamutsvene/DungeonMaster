@@ -529,6 +529,7 @@ export class AiTurnOrchestrator {
         currentAiCombatant,
         decision,
         currentCombatants,
+        encounter,
       );
 
       // Add result to history for next iteration

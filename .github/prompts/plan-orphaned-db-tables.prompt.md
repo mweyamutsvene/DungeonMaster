@@ -1,62 +1,43 @@
-# Plan: Orphaned Prisma Tables (ENT-L1)
+# Plan: Prisma Tables Previously Flagged as Orphaned (ENT-L1)
 
 ## Problem
-Three tables in `prisma/schema.prisma` have no read/write path in application code. They were created with future intent but are currently orphaned. Their status needs to be documented and a decision made.
+Older audit notes treated three Prisma tables as orphaned. Current codebase state is mixed:
+- `ItemDefinition` is now implemented and active.
+- `ClassFeatureDefinition` and `ConditionDefinition` remain intentionally unused placeholders.
 
-## The Three Tables
+This plan applies the practical path for today: keep the two placeholders explicitly marked for future use, and document `ItemDefinition` as active.
+
+## Final Decisions (Current Codebase)
 
 ### 1. `ClassFeatureDefinition`
-- **Current state**: Orphaned. Class features are declared as static TypeScript data in `domain/entities/classes/*.ts` files with the `features?: Record<string, number>` map and queried via `classHasFeature()` / `hasFeature()` from `registry.ts`.
-- **Prisma comment**: `/// ORPHANED: No application code reads or writes this table. All class feature checks use the in-code features map on CharacterClassDefinition + feature-keys.ts.`
-- **Options**:
-  - **DROP** — Remove entirely. All class features live in code; DB adds no value.
-  - **IMPLEMENT** — Store class features in DB so DMs can add/override features without recompiling.
-  - **KEEP-FOR-FUTURE** — Leave as schema placeholder with no code until a homebrew/custom class need arises.
-- **Recommended**: KEEP-FOR-FUTURE. Low risk, and enables homebrew class feature storage without a migration.
+- **Current state**: Orphaned by design.
+- **Live behavior**: Class features are sourced from in-code class definitions (`features?: Record<string, number>`) and queried via `classHasFeature()` / `hasFeature()`.
+- **Final decision**: **KEEP-FOR-FUTURE**.
+- **Why now**: Homebrew/custom class feature persistence is plausible later, but not needed for current deterministic rules flow.
+- **Schema/doc requirement**: Keep explicit `KEEP-FOR-FUTURE (ORPHANED)` comment in Prisma schema so no one assumes it is wired.
 
 ### 2. `ItemDefinition`
-- **Current state**: Orphaned. All magic items served from `domain/entities/items/magic-item-catalog.ts` static catalog.
-- **Prisma comment**: `/// ORPHANED: No application code reads or writes this table. All items are served from the static in-memory catalog in magic-item-catalog.ts.`
-- **Full implementation plan**: `.github/prompts/plan-custom-item-catalog.prompt.md`
-- **Options**:
-  - **DROP** — Remove the table; items will always be code-defined.
-  - **IMPLEMENT** — Wire up for DM-custom item definitions. See plan above.
-  - **KEEP-FOR-FUTURE** — Leave as placeholder.
-- **Recommended**: KEEP-FOR-FUTURE. See linked plan for full implementation details.
+- **Current state**: Implemented and active (not orphaned).
+- **Live behavior**: Runtime/custom items are persisted via `IItemDefinitionRepository` and `PrismaItemDefinitionRepository`; `ItemLookupService` checks DB first, then falls back to `magic-item-catalog.ts`.
+- **Final decision**: **IMPLEMENTED - KEEP ACTIVE**.
+- **Why now**: This supports runtime custom item definitions while preserving static-catalog fallback.
+- **Schema/doc requirement**: Prisma schema must describe this table as active and document DB-first lookup with static fallback.
 
 ### 3. `ConditionDefinition`
-- **Current state**: Orphaned. All conditions are pure TypeScript in `domain/entities/combat/conditions.ts`.
-- **Prisma comment**: `/// ORPHANED: No application code reads or writes this table. All condition logic lives in domain/entities/combat/conditions.ts as pure functions.`
-- **Options**:
-  - **DROP** — Remove entirely. Conditions are rules data, not user data — DB storage adds complexity with no benefit.
-  - **IMPLEMENT** — Store condition definitions in DB for rules-reference lookup or custom conditions.
-  - **KEEP-FOR-FUTURE** — Leave as placeholder for homebrew condition storage.
-- **Recommended**: DROP or KEEP-FOR-FUTURE. Unlike items, conditions are rarely customized.
+- **Current state**: Orphaned by design.
+- **Live behavior**: Condition logic is deterministic TypeScript in `domain/entities/combat/conditions.ts`; no repository path reads/writes this table.
+- **Final decision**: **KEEP-FOR-FUTURE**.
+- **Why now**: Custom condition persistence is low priority; dropping now adds migration churn with little benefit.
+- **Schema/doc requirement**: Keep explicit `KEEP-FOR-FUTURE (ORPHANED)` comment in Prisma schema.
 
-## Decision Summary
+## Practical Path Selected
 
-| Table | Recommended | Rationale |
-|-------|-------------|-----------|
-| `ClassFeatureDefinition` | KEEP-FOR-FUTURE | Enables homebrew class features without migration |
-| `ItemDefinition` | KEEP-FOR-FUTURE | Custom DM items are a plausible near-term need |
-| `ConditionDefinition` | KEEP-FOR-FUTURE or DROP | Low value; pure rules data |
-
-## If Deciding to DROP
-
-1. Remove the model blocks from `prisma/schema.prisma`
-2. Run `pnpm -C packages/game-server prisma migrate dev --name drop-orphaned-tables`
-3. Verify no code references the table names
-
-## If Deciding to IMPLEMENT
-
-For each table, follow the Repository Pattern:
-1. Create `IXxxRepository` interface in `application/repositories/`
-2. Create `PrismaXxxRepository` in `infrastructure/db/`
-3. Add in-memory implementation in `infrastructure/testing/memory-repos.ts`
-4. Wire into `app.ts`
-5. Add tests
+1. Do not run drop migrations now.
+2. Do not add new repositories or wiring for class features/conditions now.
+3. Update schema comments and plan docs to match actual behavior exactly.
+4. Add tests only if runtime behavior changes.
 
 ## Related
 - Class features: `domain/entities/classes/feature-keys.ts`, `domain/entities/classes/registry.ts`
 - Conditions: `domain/entities/combat/conditions.ts`
-- Items: `domain/entities/items/magic-item-catalog.ts`, `.github/prompts/plan-custom-item-catalog.prompt.md`
+- Items: `application/services/entities/item-lookup-service.ts`, `infrastructure/db/item-definition-repository.ts`, `domain/entities/items/magic-item-catalog.ts`

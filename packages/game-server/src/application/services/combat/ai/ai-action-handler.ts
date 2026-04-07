@@ -9,7 +9,7 @@
  * Layer: Application
  */
 
-import type { CombatantStateRecord } from "../../../types.js";
+import type { CombatEncounterRecord, CombatantStateRecord } from "../../../types.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { ActionService as CombatActionService } from "../action-service.js";
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
@@ -47,6 +47,7 @@ export type AiHandlerResult = Omit<TurnStepResult, "step">;
 export interface AiActionHandlerContext {
   sessionId: string;
   encounterId: string;
+  encounter?: CombatEncounterRecord;
   aiCombatant: CombatantStateRecord;
   decision: AiDecision;
   allCombatants: CombatantStateRecord[];

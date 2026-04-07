@@ -9,8 +9,8 @@
 import type { Position } from "../../rules/movement.js";
 import type { CombatantRef } from "../../../application/services/combat/helpers/combatant-ref.js";
 
-export type PendingActionType = "move" | "spell_cast" | "attack" | "damage_reaction";
-export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack";
+export type PendingActionType = "move" | "spell_cast" | "attack" | "damage_reaction" | "lucky_reroll";
+export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll";
 
 /**
  * Tracks an action awaiting reaction resolution.
@@ -29,7 +29,7 @@ export interface PendingAction {
   type: PendingActionType;
   
   /** Action-specific data */
-  data: PendingMoveData | PendingSpellCastData | PendingAttackData | PendingDamageReactionData;
+  data: PendingMoveData | PendingSpellCastData | PendingAttackData | PendingDamageReactionData | PendingLuckyRerollData;
   
   /** Reaction opportunities detected */
   reactionOpportunities: ReactionOpportunity[];
@@ -79,6 +79,25 @@ export interface PendingDamageReactionData {
   damageAmount: number;
   /** Session ID for event emission */
   sessionId?: string;
+}
+
+/**
+ * Data for pending Lucky reroll decision.
+ * Stores enough context to either finalize a miss (decline) or resume attack roll flow (use).
+ */
+export interface PendingLuckyRerollData {
+  type: "lucky_reroll";
+  /** Session ID for event emission and AI resume hooks. */
+  sessionId: string;
+  /** Encounter actor entity ID (characterId / monsterId / npcId). */
+  actorEntityId: string;
+  /** Original attack roll values before Lucky decision. */
+  originalRoll: number;
+  originalTotal: number;
+  attackBonus: number;
+  targetAC: number;
+  /** Serialized ATTACK pending action used to resume reroll flow if Lucky is spent. */
+  originalAttackAction: Record<string, unknown>;
 }
 
 /**

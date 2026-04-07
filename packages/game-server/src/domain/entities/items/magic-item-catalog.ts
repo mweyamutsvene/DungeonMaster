@@ -4,11 +4,8 @@
  * These serve as reference implementations and are available for use in
  * combat scenarios, test harnesses, and character creation.
  *
- * More items can be added here. The Prisma ItemDefinition table exists in the
- * schema but has no read/write path — all items are currently served from this
- * static in-memory catalog.
- * TODO: ENT-M8 — If custom/runtime item definitions are needed, wire them through
- * the ItemDefinition Prisma table. Plan: .github/prompts/plan-custom-item-catalog.prompt.md
+ * More items can be added here. This remains the static fallback catalog, while
+ * runtime custom items are resolved through ItemLookupService + ItemDefinition repository.
  */
 
 import type { MagicItemDefinition } from "./magic-item.js";

@@ -290,9 +290,13 @@ interface AssertStateAction {
     characterHp?: { min?: number; max?: number };
     /** Assert HP of a specific monster by name */
     monsterHp?: { name: string; min?: number; max?: number; exact?: number };
+    /** Assert position of a specific monster by name */
+    monsterPosition?: { name: string; x?: number; y?: number };
     combatStatus?: "Pending" | "Active" | "Complete";
     /** Assert conditions on a combatant by name or type */
     monsterConditions?: { name: string; hasConditions?: string[]; doesNotHaveConditions?: string[] };
+    /** Assert ActiveEffect sources on a specific monster */
+    monsterActiveEffects?: { name: string; hasSources?: string[]; doesNotHaveSources?: string[] };
     characterConditions?: { hasConditions?: string[]; doesNotHaveConditions?: string[] };
     /** Assert a resource pool value on the player character */
     characterResource?: { poolName: string; current?: number; max?: number };
@@ -364,7 +368,13 @@ interface QueryAction {
 interface SetTerrainAction {
   type: "setTerrain";
   input: {
-    terrainZones: Array<{ x: number; y: number; terrain: string }>;
+    terrainZones: Array<{
+      x: number;
+      y: number;
+      terrain: string;
+      terrainElevation?: number;
+      terrainDepth?: number;
+    }>;
   };
   comment?: string;
 }
@@ -1205,6 +1215,28 @@ export async function runScenario(
             }
             log(`   ${colors.green}✓${colors.reset} Monster "${name}" HP = ${monster.hpCurrent}`);
           }
+          // Assert monster position by name
+          if (action.expect.monsterPosition) {
+            const { name, x: expectX, y: expectY } = action.expect.monsterPosition;
+            const monsterIndex = scenario.setup.monsters.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
+            if (monsterIndex === -1) throw new Error(`Monster "${name}" not found in scenario setup`);
+            const matchMonsterId = monsterIds[monsterIndex];
+            const monster = body.combatants?.find((c: any) => c.monsterId === matchMonsterId);
+            if (!monster) throw new Error(`Monster "${name}" not found in combatants (id: ${matchMonsterId})`);
+
+            const resources = (monster.resources ?? {}) as Record<string, unknown>;
+            const pos = resources.position as { x?: number; y?: number } | undefined;
+            if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") {
+              throw new Error(`Monster "${name}" has no position in resources`);
+            }
+            if (expectX !== undefined && pos.x !== expectX) {
+              throw new Error(`Expected monster "${name}" position.x=${expectX}, got ${pos.x}`);
+            }
+            if (expectY !== undefined && pos.y !== expectY) {
+              throw new Error(`Expected monster "${name}" position.y=${expectY}, got ${pos.y}`);
+            }
+            log(`   ${colors.green}✓${colors.reset} Monster "${name}" position: (${pos.x}, ${pos.y})`);
+          }
           // Assert conditions on a monster (match by name → monsterId from setup)
           if (action.expect.monsterConditions) {
             const { name, hasConditions, doesNotHaveConditions } = action.expect.monsterConditions;
@@ -1229,6 +1261,39 @@ export async function runScenario(
               }
             }
             log(`   ${colors.green}✓${colors.reset} Monster "${name}" conditions: [${monsterConds.join(", ")}]`);
+          }
+          // Assert ActiveEffect sources on a monster
+          if (action.expect.monsterActiveEffects) {
+            const { name, hasSources, doesNotHaveSources } = action.expect.monsterActiveEffects;
+            const monsterIndex = scenario.setup.monsters.findIndex(m => m.name.toLowerCase() === name.toLowerCase());
+            if (monsterIndex === -1) throw new Error(`Monster "${name}" not found in scenario setup`);
+            const matchMonsterId = monsterIds[monsterIndex];
+            const monster = body.combatants?.find((c: any) => c.monsterId === matchMonsterId);
+            if (!monster) throw new Error(`Monster "${name}" not found in combatants (id: ${matchMonsterId})`);
+
+            const resources = (monster.resources ?? {}) as Record<string, unknown>;
+            const activeEffects = Array.isArray(resources.activeEffects)
+              ? resources.activeEffects as Array<Record<string, unknown>>
+              : [];
+            const sources = activeEffects
+              .map((e) => (typeof e.source === "string" ? e.source : ""))
+              .filter((s) => s.length > 0);
+
+            if (hasSources) {
+              for (const expectedSource of hasSources) {
+                if (!sources.some((s) => s.toLowerCase().includes(expectedSource.toLowerCase()))) {
+                  throw new Error(`Expected monster "${name}" to have ActiveEffect source containing "${expectedSource}", found: [${sources.join(", ")}]`);
+                }
+              }
+            }
+            if (doesNotHaveSources) {
+              for (const source of doesNotHaveSources) {
+                if (sources.some((s) => s.toLowerCase().includes(source.toLowerCase()))) {
+                  throw new Error(`Expected monster "${name}" to NOT have ActiveEffect source containing "${source}", found: [${sources.join(", ")}]`);
+                }
+              }
+            }
+            log(`   ${colors.green}✓${colors.reset} Monster "${name}" active effect sources: [${sources.join(", ")}]`);
           }
           // Assert conditions on the player character
           if (action.expect.characterConditions) {

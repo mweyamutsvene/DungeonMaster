@@ -16,7 +16,7 @@ export class AttackHandler implements AiActionHandler {
   }
 
   async execute(ctx: AiActionHandlerContext, deps: AiActionHandlerDeps): Promise<AiHandlerResult> {
-    const { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef } = ctx;
+    const { sessionId, encounterId, encounter, aiCombatant, decision, allCombatants, actorRef } = ctx;
     const { actionService, twoPhaseActions, combat, pendingActions, combatantResolver, diceRoller, events, aiLog, executeBonusAction } = deps;
 
     aiLog("[AttackHandler] Executing attack action: " + JSON.stringify({ target: decision.target, attackName: decision.attackName }));
@@ -138,6 +138,8 @@ export class AttackHandler implements AiActionHandler {
         aiLog,
       }).resolve({
         sessionId, encounterId,
+        encounter,
+        allCombatants,
         aiCombatant, targetCombatant,
         actorRef, targetRef: targetRef as ActorRef,
         attackName: decision.attackName,

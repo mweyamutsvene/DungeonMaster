@@ -190,6 +190,28 @@ describe("rest resource refresh", () => {
     expect(refreshed[1]!.current).toBe(5); // ki refreshed
   });
 
+  it("refreshes luckPoints only on long rest", () => {
+    const pools = [{ name: "luckPoints", current: 1, max: 3 }];
+
+    const shortRest = refreshClassResourcePools({
+      classId: "fighter",
+      level: 4,
+      rest: "short",
+      pools,
+    });
+    expect(shortRest[0]!.current).toBe(1);
+    expect(shortRest[0]!.max).toBe(3);
+
+    const longRest = refreshClassResourcePools({
+      classId: "fighter",
+      level: 4,
+      rest: "long",
+      pools,
+    });
+    expect(longRest[0]!.current).toBe(3);
+    expect(longRest[0]!.max).toBe(3);
+  });
+
   it("refreshes monk uncanny_metabolism on long rest only", () => {
     const pools = [{ name: "uncanny_metabolism", current: 0, max: 1 }];
 

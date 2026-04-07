@@ -46,6 +46,7 @@ import {
   PrismaCombatRepository,
   PrismaEventRepository,
   PrismaGameSessionRepository,
+  PrismaItemDefinitionRepository,
   PrismaMonsterRepository,
   PrismaNPCRepository,
   PrismaSpellRepository,
@@ -78,6 +79,7 @@ const npcsRepo = new PrismaNPCRepository(prisma);
 const combatRepo = new PrismaCombatRepository(prisma);
 const eventsRepo = new PublishingEventRepository(new PrismaEventRepository(prisma));
 const spellsRepo = new PrismaSpellRepository(prisma);
+const itemDefinitionsRepo = new PrismaItemDefinitionRepository(prisma);
 
 const llmProvider = createLlmProviderFromEnv();
 const llmModel = getDefaultModelFromEnv();
@@ -97,6 +99,7 @@ const app = buildApp({
   combatRepo,
   eventsRepo,
   spellsRepo,
+  itemDefinitionsRepo,
   unitOfWork,
   prismaClient: prisma,
   diceRoller: new RandomDiceRoller(),

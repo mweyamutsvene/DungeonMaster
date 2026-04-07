@@ -23,6 +23,7 @@ import {
   getPosition,
   normalizeResources,
   getResourcePools,
+  hasResourceAvailable,
   getActiveEffects,
   setActiveEffects,
 } from "../helpers/resource-utils.js";
@@ -78,6 +79,11 @@ import {
 import { addGroundItem } from "../../../../domain/rules/combat-map.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
 import type { GroundItem } from "../../../../domain/entities/items/ground-item.js";
+import type {
+  PendingAction as TwoPhasePendingAction,
+  PendingLuckyRerollData,
+  ReactionOpportunity,
+} from "../../../../domain/entities/combat/pending-action.js";
 import type {
   TabletopCombatServiceDeps,
   TabletopPendingAction,
@@ -480,12 +486,10 @@ export class RollStateMachine {
     const attackerChar = characters.find((c) => c.id === actorId);
     const attackerSheet = (attackerChar?.sheet ?? {}) as Record<string, unknown>;
     const featIds: string[] = (attackerSheet.featIds as string[] | undefined) ?? (attackerSheet.feats as string[] | undefined) ?? [];
-    if (featIds.length > 0) {
-      const featMods = computeFeatModifiers(featIds);
-      if (action.weaponSpec?.kind === "ranged" && featMods.rangedAttackBonus) {
-        attackBonus += featMods.rangedAttackBonus;
-        if (this.debugLogsEnabled) console.log(`[RollStateMachine] Archery feat: +${featMods.rangedAttackBonus} ranged attack bonus (total bonus: ${attackBonus})`);
-      }
+    const attackerFeatMods = computeFeatModifiers(featIds);
+    if (action.weaponSpec?.kind === "ranged" && attackerFeatMods.rangedAttackBonus) {
+      attackBonus += attackerFeatMods.rangedAttackBonus;
+      if (this.debugLogsEnabled) console.log(`[RollStateMachine] Archery feat: +${attackerFeatMods.rangedAttackBonus} ranged attack bonus (total bonus: ${attackBonus})`);
     }
 
     // ── ActiveEffect: attack bonus + AC modifiers ──
@@ -586,6 +590,92 @@ export class RollStateMachine {
     }
 
     if (!hit) {
+      const combatantStatesForLucky = await this.deps.combatRepo.listCombatants(encounter.id);
+      const actorCombatantForLucky = combatantStatesForLucky.find(
+        (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+      );
+
+      // Lucky interactive decision: pause miss resolution and prompt spend/decline.
+      if (
+        !action.luckyPrompted
+        && attackerFeatMods.luckyEnabled
+        && actorCombatantForLucky
+        && actorCombatantForLucky.combatantType === "Character"
+        && hasResourceAvailable(actorCombatantForLucky.resources, "luckPoints", 1)
+      ) {
+        const pendingActionId = nanoid();
+        const opportunityId = nanoid();
+        const actorRef = { type: "Character" as const, characterId: actorId };
+        const opportunity: ReactionOpportunity = {
+          id: opportunityId,
+          combatantId: actorCombatantForLucky.id,
+          reactionType: "lucky_reroll",
+          canUse: true,
+          context: {
+            rollType: "attack",
+            originalRoll: rollValue,
+            originalTotal: total,
+            targetAC: effectAdjustedAC,
+          },
+        };
+        const luckyData: PendingLuckyRerollData = {
+          type: "lucky_reroll",
+          sessionId,
+          actorEntityId: actorId,
+          originalRoll: rollValue,
+          originalTotal: total,
+          attackBonus,
+          targetAC: effectAdjustedAC,
+          originalAttackAction: {
+            ...action,
+            luckyPrompted: true,
+            timestamp: new Date(),
+          } as Record<string, unknown>,
+        };
+        const luckyPendingAction: TwoPhasePendingAction = {
+          id: pendingActionId,
+          encounterId: encounter.id,
+          actor: actorRef,
+          type: "lucky_reroll",
+          data: luckyData,
+          reactionOpportunities: [opportunity],
+          resolvedReactions: [],
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 60000),
+        };
+
+        await this.deps.pendingActions.create(luckyPendingAction);
+        await this.deps.combatRepo.setPendingAction(encounter.id, {
+          id: pendingActionId,
+          type: "reaction_pending",
+          pendingActionId,
+          reactionType: "lucky_reroll",
+          target: actorRef,
+        } as any);
+
+        return {
+          rollType: "attack",
+          rawRoll: rollValue,
+          modifier: attackBonus,
+          total,
+          targetAC: effectAdjustedAC,
+          hit: false,
+          targetHpRemaining: (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0,
+          requiresPlayerInput: true,
+          actionComplete: false,
+          message: `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Spend 1 Luck Point to reroll?`,
+          pendingActionId,
+          luckyPrompt: {
+            pendingActionId,
+            reactionType: "lucky_reroll",
+            rollType: "attack",
+            originalRoll: rollValue,
+            originalTotal: total,
+            targetAC: effectAdjustedAC,
+          },
+        };
+      }
+
       // Handle miss for Flurry strike 1
       if (action.bonusAction === "flurry-of-blows" && action.flurryStrike === 1) {
         const pendingAction2: AttackPendingAction = {

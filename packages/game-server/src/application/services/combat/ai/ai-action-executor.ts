@@ -11,7 +11,7 @@
  *   3. Register in `setupRegistry()` below
  */
 
-import type { CombatantStateRecord } from "../../../types.js";
+import type { CombatEncounterRecord, CombatantStateRecord } from "../../../types.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { ActionService as CombatActionService } from "../action-service.js";
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
@@ -219,6 +219,7 @@ export class AiActionExecutor {
     aiCombatant: CombatantStateRecord,
     decision: AiDecision,
     allCombatants: CombatantStateRecord[],
+    encounter?: CombatEncounterRecord,
   ): Promise<Omit<TurnStepResult, "step">> {
     try {
       const actorRef = this.buildActorRef(aiCombatant);
@@ -235,7 +236,7 @@ export class AiActionExecutor {
         };
       }
 
-      const ctx: AiActionHandlerContext = { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef };
+      const ctx: AiActionHandlerContext = { sessionId, encounterId, encounter, aiCombatant, decision, allCombatants, actorRef };
       return this.registry.execute(ctx, this.buildDeps());
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

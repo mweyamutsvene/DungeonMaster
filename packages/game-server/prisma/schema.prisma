@@ -21,9 +21,11 @@ model SpellDefinition {
   updatedAt DateTime @updatedAt
 }
 
-/// ORPHANED: No application code reads or writes this table. All class feature
-/// checks use the in-code features map on CharacterClassDefinition + feature-keys.ts.
-/// Kept as schema placeholder for potential future catalog persistence.
+/// KEEP-FOR-FUTURE (ORPHANED): Intentionally unused right now.
+/// All class feature checks use the in-code features map on
+/// CharacterClassDefinition + feature-keys.ts.
+/// Reserved as a schema placeholder for potential homebrew/custom class
+/// feature persistence.
 model ClassFeatureDefinition {
   id        String @id
   className String
@@ -37,9 +39,10 @@ model ClassFeatureDefinition {
   @@index([className, level])
 }
 
-/// ORPHANED: No application code reads or writes this table. All items are
-/// served from the static in-memory catalog in magic-item-catalog.ts.
-/// Kept as schema placeholder for future custom-item persistence.
+/// ACTIVE: Runtime/custom item definitions are persisted here and read through
+/// IItemDefinitionRepository + ItemLookupService.
+/// Item lookup prefers this table, then falls back to the static in-memory
+/// catalog in magic-item-catalog.ts.
 model ItemDefinition {
   id       String @id
   name     String @unique
@@ -50,9 +53,10 @@ model ItemDefinition {
   updatedAt DateTime @updatedAt
 }
 
-/// ORPHANED: No application code reads or writes this table. All condition
-/// logic lives in domain/entities/combat/conditions.ts as pure functions.
-/// Kept as schema placeholder for future rules-reference persistence.
+/// KEEP-FOR-FUTURE (ORPHANED): Intentionally unused right now.
+/// All condition rules logic lives in domain/entities/combat/conditions.ts as
+/// pure functions.
+/// Reserved as a schema placeholder for future homebrew condition persistence.
 model ConditionDefinition {
   id   String @id
   name String @unique

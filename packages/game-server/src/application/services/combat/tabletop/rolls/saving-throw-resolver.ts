@@ -19,7 +19,7 @@ import {
   type ConditionDuration,
 } from "../../../../../domain/entities/combat/conditions.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
-import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../../helpers/resource-utils.js";
+import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects, removeActiveEffectById } from "../../helpers/resource-utils.js";
 import {
   applyForcedMovement,
   calculateDistance,
@@ -162,6 +162,27 @@ export class SavingThrowResolver {
       (c: any) => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
     );
     const targetEffects = getActiveEffects(targetCombatantForEffects?.resources ?? {});
+
+    // Brutal Strike (Staggering Blow): disadvantage on next attack roll OR saving throw.
+    // If consumed by a saving throw, remove immediately.
+    let staggeringSaveDisadvantage = false;
+    const staggeringEffect = targetEffects.find(
+      (e) =>
+        e.source === "Brutal Strike: Staggering Blow"
+        && e.type === "disadvantage"
+        && e.target === "custom"
+        && e.duration === "until_triggered",
+    );
+    if (staggeringEffect && targetCombatantForEffects) {
+      staggeringSaveDisadvantage = true;
+      const updatedResources = removeActiveEffectById(targetCombatantForEffects.resources ?? {}, staggeringEffect.id);
+      await this.combatRepo.updateCombatantState(targetCombatantForEffects.id, {
+        resources: updatedResources as any,
+      });
+      if (this.debugLogsEnabled) {
+        console.log(`[SavingThrowResolver] Brutal Strike Staggering Blow consumed on save for ${targetCombatantForEffects.id}`);
+      }
+    }
     const saveAbility = action.ability as import("../../../../../domain/entities/core/ability-scores.js").Ability | undefined;
     const saveBonusResult = calculateBonusFromEffects(targetEffects, 'saving_throws', saveAbility);
     totalModifier += saveBonusResult.flatBonus;
@@ -278,7 +299,7 @@ export class SavingThrowResolver {
       }
     }
     const hasEffectAdvantage = hasAdvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
-    const hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
+    const hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility) || staggeringSaveDisadvantage;
 
     // Roll the d20 (with advantage/disadvantage from effects)
     let roll;

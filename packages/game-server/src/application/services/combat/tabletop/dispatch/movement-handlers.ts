@@ -8,8 +8,9 @@ import { ValidationError } from "../../../../errors.js";
 import { calculateDistance, calculateLongJumpDistance, calculateHighJumpDistance, computeJumpLandingPosition } from "../../../../../domain/rules/movement.js";
 import { findPath, findAdjacentPosition } from "../../../../../domain/rules/pathfinding.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
-import { getCellAt } from "../../../../../domain/rules/combat-map.js";
+import { getCellAt, isPitEntry } from "../../../../../domain/rules/combat-map.js";
 import { abilityCheck } from "../../../../../domain/rules/ability-checks.js";
+import { SeededDiceRoller } from "../../../../../domain/rules/dice-roller.js";
 import {
   normalizeConditions,
   addCondition,
@@ -37,9 +38,12 @@ import { findCombatantStateByRef, getPositionByRef } from "../../helpers/combata
 import { syncEntityPosition } from "../../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../../helpers/zone-damage-resolver.js";
 import { syncAuraZones } from "../../helpers/aura-sync.js";
+import { applyKoEffectsIfNeeded } from "../../helpers/ko-handler.js";
+import { resolvePitEntry } from "../../helpers/pit-terrain-resolver.js";
 import { creatureHasEvasion } from "../../../../../domain/rules/evasion.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import { buildPathNarration } from "../path-narrator.js";
+import { hashStringToInt32 } from "../../helpers/combat-utils.js";
 import type {
   TabletopCombatServiceDeps,
   ActionParseResult,
@@ -98,15 +102,43 @@ export class MovementHandlers {
 
       const resources = (actorState.resources as any) ?? {};
       const currentPos = resources.position;
+      const encounterForTerrain = await this.deps.combatRepo.getEncounterById(encounterId);
+      const terrainMap = encounterForTerrain?.mapData as CombatMap | undefined;
 
       const movedFeet = currentPos ? calculateDistance(currentPos, destination) : null;
       // Calculate remaining movement after this move
       const currentRemaining = typeof resources.movementRemaining === "number"
         ? resources.movementRemaining
         : getEffectiveSpeed(actorState.resources);
-      const newMovementRemaining = Math.max(0, currentRemaining - (movedFeet ?? 0));
+      let newMovementRemaining = Math.max(0, currentRemaining - (movedFeet ?? 0));
+      let updatedConditions = actorState.conditions;
+      let updatedHpCurrent = actorState.hpCurrent;
+
+      if (currentPos && terrainMap && isPitEntry(terrainMap, currentPos, destination)) {
+        const actorStats = await this.deps.combatants.getCombatStats(actorRef);
+        const pitSeed = hashStringToInt32(`${sessionId}:${encounterId}:${actorState.id}:${currentPos.x}:${currentPos.y}:${destination.x}:${destination.y}:pit`);
+        const pitResult = resolvePitEntry(
+          terrainMap,
+          currentPos,
+          destination,
+          actorStats.abilityScores.dexterity,
+          actorState.hpCurrent,
+          actorState.conditions,
+          new SeededDiceRoller(pitSeed),
+        );
+
+        if (pitResult.triggered) {
+          updatedConditions = pitResult.updatedConditions as any;
+          updatedHpCurrent = pitResult.hpAfter;
+          if (pitResult.movementEnds) {
+            newMovementRemaining = 0;
+          }
+        }
+      }
 
       await this.deps.combatRepo.updateCombatantState(actorState.id, {
+        hpCurrent: updatedHpCurrent,
+        conditions: updatedConditions as any,
         resources: {
           ...resources,
           position: destination,
@@ -122,6 +154,10 @@ export class MovementHandlers {
         } as any,
       });
 
+      if (updatedHpCurrent < actorState.hpCurrent) {
+        await applyKoEffectsIfNeeded(actorState, actorState.hpCurrent, updatedHpCurrent, this.deps.combatRepo);
+      }
+
       // Keep CombatMap entities[] in sync with the position update
       await syncEntityPosition(this.deps.combatRepo, encounterId, actorState.id, destination);
 
@@ -132,7 +168,7 @@ export class MovementHandlers {
       const encounters = await this.deps.combatRepo.listEncountersBySession(sessionId);
       const encounter = encounters.find((e: any) => e.status === "Active") ?? encounters[0];
       let zoneDamageNote = "";
-      if (encounter && currentPos) {
+      if (encounter && currentPos && updatedHpCurrent > 0) {
         const combatMap = encounter.mapData as unknown as CombatMap | undefined;
         if (combatMap && (combatMap.zones?.length ?? 0) > 0) {
           const actorEntityId = actorState.characterId ?? actorState.monsterId ?? actorState.npcId ?? actorState.id;
@@ -354,9 +390,35 @@ export class MovementHandlers {
       const curRemaining = typeof res.movementRemaining === "number"
         ? res.movementRemaining
         : (typeof res.speed === "number" ? res.speed : 30);
-      const newRemaining = Math.max(0, curRemaining - pathResult.totalCostFeet);
+      let newRemaining = Math.max(0, curRemaining - pathResult.totalCostFeet);
+      let updatedConditions = freshActor.conditions;
+      let updatedHpCurrent = freshActor.hpCurrent;
+
+      if (map && isPitEntry(map, actorPos, finalDestination)) {
+        const actorStats = await this.deps.combatants.getCombatStats(actorRefForMove);
+        const pitSeed = hashStringToInt32(`${sessionId}:${encounterId}:${freshActor.id}:${actorPos.x}:${actorPos.y}:${finalDestination.x}:${finalDestination.y}:pit`);
+        const pitResult = resolvePitEntry(
+          map,
+          actorPos,
+          finalDestination,
+          actorStats.abilityScores.dexterity,
+          freshActor.hpCurrent,
+          freshActor.conditions,
+          new SeededDiceRoller(pitSeed),
+        );
+
+        if (pitResult.triggered) {
+          updatedConditions = pitResult.updatedConditions as any;
+          updatedHpCurrent = pitResult.hpAfter;
+          if (pitResult.movementEnds) {
+            newRemaining = 0;
+          }
+        }
+      }
 
       await this.deps.combatRepo.updateCombatantState(freshActor.id, {
+        hpCurrent: updatedHpCurrent,
+        conditions: updatedConditions as any,
         resources: {
           ...res,
           position: finalDestination,
@@ -368,6 +430,10 @@ export class MovementHandlers {
           },
         } as any,
       });
+
+      if (updatedHpCurrent < freshActor.hpCurrent) {
+        await applyKoEffectsIfNeeded(freshActor, freshActor.hpCurrent, updatedHpCurrent, this.deps.combatRepo);
+      }
 
       // Keep CombatMap entities[] in sync with the position update
       await syncEntityPosition(this.deps.combatRepo, encounterId, freshActor.id, finalDestination);

@@ -1,0 +1,149 @@
+{
+  "name": "Barbarian Brutal Strike Variants: forceful, hamstring, staggering",
+  "description": "Level 9 Barbarian activates Rage + Reckless Attack, then uses each Brutal Strike variant to verify bonus damage and variant-specific effects.",
+  "setup": {
+    "character": {
+      "name": "Thora",
+      "className": "Barbarian",
+      "level": 17,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 85,
+        "currentHp": 85,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 6,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 4, "max": 4 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Brutal Target",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 10,
+            "constitution": 14,
+            "intelligence": 3,
+            "wisdom": 8,
+            "charisma": 6
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Claw",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I start the fight" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "rage" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "reckless attack" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "forceful blow brutal target" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterPosition": { "name": "Brutal Target", "x": 30, "y": 10 },
+        "monsterHp": { "name": "Brutal Target", "max": 79 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "hamstring blow brutal target" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterActiveEffects": {
+          "name": "Brutal Target",
+          "hasSources": ["Hamstring Blow"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "staggering blow brutal target" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterActiveEffects": {
+          "name": "Brutal Target",
+          "hasSources": ["Staggering Blow"]
+        }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 6000
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterActiveEffects": {
+          "name": "Brutal Target",
+          "doesNotHaveSources": ["Hamstring Blow", "Staggering Blow"]
+        }
+      }
+    }
+  ]
+}

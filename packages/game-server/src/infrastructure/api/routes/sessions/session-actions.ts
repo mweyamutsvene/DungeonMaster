@@ -33,6 +33,17 @@ export function registerSessionActionsRoutes(app: FastifyInstance, deps: Session
           seed?: number;
           spec?: unknown;
           monsterAttackName?: string;
+        }
+      | {
+          kind: "classAbility";
+          encounterId?: string;
+          actor: { type: "Character"; characterId: string };
+          abilityId: string;
+          target?:
+            | { type: "Character"; characterId: string }
+            | { type: "Monster"; monsterId: string }
+            | { type: "NPC"; npcId: string };
+          params?: { variant?: string };
         };
   }>("/sessions/:id/actions", async (req) => {
     const sessionId = req.params.id;
@@ -69,6 +80,51 @@ export function registerSessionActionsRoutes(app: FastifyInstance, deps: Session
     if (req.body?.kind !== "attack") {
       // Check for help action
       const body = req.body as any;
+
+      // Programmatic class ability execution via tabletop parser flow.
+      if (body?.kind === "classAbility" || body?.type === "classAbility") {
+        if (!body.actor || body.actor.type !== "Character" || typeof body.actor.characterId !== "string") {
+          throw new ValidationError("classAbility requires a Character actor");
+        }
+        if (!body.encounterId || typeof body.encounterId !== "string") {
+          throw new ValidationError("classAbility requires encounterId");
+        }
+        if (!body.abilityId || typeof body.abilityId !== "string") {
+          throw new ValidationError("classAbility requires abilityId");
+        }
+
+        const normalizedAbilityId = body.abilityId.toLowerCase();
+        let text = body.params?.variant ?? body.abilityId;
+        if (normalizedAbilityId.includes("forceful")) text = "forceful blow";
+        else if (normalizedAbilityId.includes("staggering")) text = "staggering blow";
+        else if (normalizedAbilityId.includes("hamstring") || normalizedAbilityId.includes("brutal-strike")) text = "hamstring blow";
+
+        // If a target is provided, append its display name so the dispatcher can resolve it deterministically.
+        if (body.target && typeof body.target === "object") {
+          let targetName: string | null = null;
+          if (body.target.type === "Monster" && typeof body.target.monsterId === "string") {
+            const targetMonster = await deps.monsters.getById(body.target.monsterId);
+            targetName = targetMonster?.name ?? null;
+          } else if (body.target.type === "Character" && typeof body.target.characterId === "string") {
+            const targetCharacter = await deps.charactersRepo.getById(body.target.characterId);
+            targetName = targetCharacter?.name ?? null;
+          } else if (body.target.type === "NPC" && typeof body.target.npcId === "string") {
+            const targetNpc = await deps.npcs.getById(body.target.npcId);
+            targetName = targetNpc?.name ?? null;
+          }
+          if (targetName) {
+            text = `${text} ${targetName}`;
+          }
+        }
+
+        return deps.tabletopCombat.parseCombatAction(
+          sessionId,
+          text,
+          body.actor.characterId,
+          body.encounterId,
+        );
+      }
+
       if (body?.kind === "help") {
         if (!body.actor || !body.target) {
           throw new ValidationError("help action requires actor and target");

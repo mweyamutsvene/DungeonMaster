@@ -100,3 +100,12 @@ export type SpellDefinitionRecord = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type ItemDefinitionRecord = {
+  id: string;
+  name: string;
+  category: string;
+  data: JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+};

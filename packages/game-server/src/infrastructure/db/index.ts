@@ -8,5 +8,6 @@ export * from "./event-repository.js";
 export * from "./publishing-event-repository.js";
 export * from "./deferred-publishing-event-repository.js";
 export * from "./spell-repository.js";
+export * from "./item-definition-repository.js";
 export * from "./pending-action-repository.js";
 export * from "./unit-of-work.js";

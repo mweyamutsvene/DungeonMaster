@@ -13,6 +13,7 @@ import type {
   IEventRepository,
   GameEventInput,
   IGameSessionRepository,
+  IItemDefinitionRepository,
   IMonsterRepository,
   INPCRepository,
   ISpellRepository,
@@ -24,6 +25,7 @@ import type {
   GameSessionRecord,
   JsonValue,
   SessionCharacterRecord,
+  ItemDefinitionRecord,
   SessionMonsterRecord,
   SessionNPCRecord,
   SpellDefinitionRecord,
@@ -429,6 +431,55 @@ export class MemorySpellRepository implements ISpellRepository {
 }
 
 // ============================================================================
+// MemoryItemDefinitionRepository
+// ============================================================================
+
+export class MemoryItemDefinitionRepository implements IItemDefinitionRepository {
+  private readonly itemsById = new Map<string, ItemDefinitionRecord>();
+
+  async findById(id: string): Promise<ItemDefinitionRecord | null> {
+    return this.itemsById.get(id) ?? null;
+  }
+
+  async findByName(name: string): Promise<ItemDefinitionRecord | null> {
+    for (const item of this.itemsById.values()) {
+      if (item.name === name) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  async listAll(): Promise<ItemDefinitionRecord[]> {
+    return [...this.itemsById.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async upsert(item: {
+    id: string;
+    name: string;
+    category: string;
+    data: JsonValue;
+  }): Promise<ItemDefinitionRecord> {
+    const existing = this.itemsById.get(item.id);
+    const timestamp = now();
+    const record: ItemDefinitionRecord = {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      data: item.data,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    };
+    this.itemsById.set(item.id, record);
+    return record;
+  }
+
+  clear(): void {
+    this.itemsById.clear();
+  }
+}
+
+// ============================================================================
 // MemoryNPCRepository
 // ============================================================================
 
@@ -590,6 +641,7 @@ export interface InMemoryRepos {
   combatRepo: MemoryCombatRepository;
   eventsRepo: MemoryEventRepository;
   spellsRepo: MemorySpellRepository;
+  itemDefinitionsRepo: MemoryItemDefinitionRepository;
   pendingActionsRepo: InMemoryPendingActionRepository;
 }
 
@@ -602,6 +654,7 @@ export function createInMemoryRepos(): InMemoryRepos {
     combatRepo: new MemoryCombatRepository(),
     eventsRepo: new MemoryEventRepository(),
     spellsRepo: new MemorySpellRepository(),
+    itemDefinitionsRepo: new MemoryItemDefinitionRepository(),
     pendingActionsRepo: new InMemoryPendingActionRepository(),
   };
 }
@@ -614,5 +667,6 @@ export function clearAllRepos(repos: InMemoryRepos): void {
   repos.combatRepo.clear();
   repos.eventsRepo.clear();
   repos.spellsRepo.clear();
+  repos.itemDefinitionsRepo.clear();
   repos.pendingActionsRepo.clear();
 }

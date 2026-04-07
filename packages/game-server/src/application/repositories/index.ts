@@ -5,3 +5,4 @@ export type { INPCRepository } from "./npc-repository.js";
 export type { ICombatRepository } from "./combat-repository.js";
 export type { IEventRepository, GameEventInput, GameEventType } from "./event-repository.js";
 export type { ISpellRepository } from "./spell-repository.js";
+export type { IItemDefinitionRepository, ItemDefinitionUpsertInput } from "./item-definition-repository.js";

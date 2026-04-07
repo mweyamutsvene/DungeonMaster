@@ -7,7 +7,7 @@
  * Layer: Application
  */
 
-import type { CombatantStateRecord } from "../../../types.js";
+import type { CombatEncounterRecord, CombatantStateRecord } from "../../../types.js";
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
 import type { ICombatRepository } from "../../../repositories/index.js";
 import type { PendingActionRepository } from "../../../repositories/pending-action-repository.js";
@@ -51,6 +51,10 @@ export interface AiAttackResolverDeps {
 export interface AiAttackParams {
   sessionId: string;
   encounterId: string;
+  /** Optional pre-loaded encounter for flanking/map checks (avoids redundant DB call). */
+  encounter?: CombatEncounterRecord;
+  /** Optional pre-loaded combatant list for flanking checks (avoids redundant DB call). */
+  allCombatants?: CombatantStateRecord[];
   /** The attacking AI combatant. */
   aiCombatant: CombatantStateRecord;
   /** The attack's target combatant. */
@@ -147,15 +151,13 @@ export class AiAttackResolver {
     const tgtPos = getPosition(normalizeResources(targetCombatant.resources));
     const distanceFt = aiPos && tgtPos ? calculateDistance(aiPos, tgtPos) : undefined;
 
-    // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when flanking
-    // PERF: AI-L2 — encounter and combatants are loaded here per-attack even though
-    // the outer turn orchestrator already has them. To fix: add optional encounter/allCombatants
-    // params to AiAttackParams and pass them down from AiTurnOrchestrator.executeAiTurn().
+    // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when flanking.
+    // Prefer pre-loaded encounter/combatants from caller to avoid redundant DB queries.
     if (attackKind === "melee" && aiPos && tgtPos) {
-      const encounter = await combat.getEncounterById(encounterId);
+      const encounter = params.encounter ?? await combat.getEncounterById(encounterId);
       const mapData = encounter?.mapData as unknown as CombatMap | undefined;
       if (mapData?.flankingEnabled) {
-        const allCombatants = await combat.listCombatants(encounterId);
+        const allCombatants = params.allCombatants ?? await combat.listCombatants(encounterId);
         const attackerFaction = this.getActorFaction(aiCombatant);
         const allyPositions: Array<{ x: number; y: number }> = [];
         for (const c of allCombatants) {

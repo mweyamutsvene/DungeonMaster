@@ -19,14 +19,13 @@ import type {
 } from "../../../../domain/entities/combat/pending-action.js";
 import {
   attemptMovement,
-  crossesThroughReach,
   calculateDistance,
   getGrappleDragSpeedMultiplier,
   type MovementAttempt,
   type CreatureSizeForDrag,
 } from "../../../../domain/rules/movement.js";
-import { getTerrainSpeedModifier, type CombatMap } from "../../../../domain/rules/combat-map.js";
-import { canMakeOpportunityAttack, hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
+import { getTerrainSpeedModifier, isPitEntry, type CombatMap } from "../../../../domain/rules/combat-map.js";
+import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
 import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
 import { ValidationError, NotFoundError } from "../../../errors.js";
@@ -36,13 +35,17 @@ import {
   getPosition,
   getEffectiveSpeed,
 } from "../helpers/resource-utils.js";
+import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { resolveMovementTriggers } from "../helpers/movement-trigger-resolver.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
+import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
+import { resolvePitEntry } from "../helpers/pit-terrain-resolver.js";
 import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
-import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, isAttackBlockedByCharm, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
-import { resolveOpportunityAttacks, type SpellOaDeps } from "../helpers/opportunity-attack-resolver.js";
+import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
+import { hashForOA, resolveOpportunityAttacks, type SpellOaDeps } from "../helpers/opportunity-attack-resolver.js";
+import { detectOpportunityAttacks } from "../helpers/oa-detection.js";
 import type { JsonValue } from "../../../types.js";
 import type {
   InitiateMoveInput,
@@ -252,22 +255,16 @@ export class MoveReactionHandler {
     // Calculate path — use pre-computed A* cells or fall back to simple destination
     const path = input.pathCells ?? [input.destination];
 
-    // ── Opportunity Attack Detection (Tabletop/Two-Phase Path) ──
-    // This is the TABLETOP OA path used for player-facing movement via MoveReactionHandler.
-    // It detects OAs and creates a pending action with reaction opportunities, waiting for
-    // player/AI responses before resolving in completeMove().
-    //
-    // The PROGRAMMATIC path (ActionService.move()) handles AI/server-driven movement:
-    // it detects AND resolves OAs immediately in one pass without player interaction.
-    // Both paths delegate eligibility checks to the same domain functions:
-    //   - crossesThroughReach() for geometry
-    //   - canMakeOpportunityAttack() for D&D 5e rules (reaction, disengage, charm, incapacitated)
-    //
-    // Key differences from the programmatic path:
-    //   - Supports path-cell arrays for accurate A* path detection
-    //   - Creates pending action for two-phase reaction resolution
-    //   - Detects readied-action triggers (creature_moves_within_range)
-    //   - OA execution deferred to resolveOpportunityAttacks() in completeMove()
+    // Tabletop/two-phase path: detect OAs via shared helper, then create reaction opportunities.
+    const oaDetections = detectOpportunityAttacks({
+      combatants,
+      actor,
+      from: currentPos,
+      to: input.destination,
+      pathCells: path,
+      includeObserverFeatFlags: true,
+    });
+
     const opportunityAttacks: Array<{
       combatantId: string;
       combatantName: string;
@@ -278,95 +275,38 @@ export class MoveReactionHandler {
 
     const reactionOpportunities: ReactionOpportunity[] = [];
 
-    for (const other of combatants) {
-      if (other.id === actor.id) continue;
-      if (other.hpCurrent <= 0) continue;
+    for (const detection of oaDetections) {
+      const other = detection.combatant;
+      const otherName = await this.combatants.getName(
+        other.combatantType === "Character" && other.characterId ? { type: "Character", characterId: other.characterId } :
+        other.combatantType === "Monster" && other.monsterId ? { type: "Monster", monsterId: other.monsterId } :
+        other.combatantType === "NPC" && other.npcId ? { type: "NPC", npcId: other.npcId } :
+        { type: "Character", characterId: "" },
+        other,
+      );
 
-      const otherResources = normalizeResources(other.resources);
-      const otherPos = getPosition(otherResources);
-      if (!otherPos) continue;
+      const opportunityId = detection.canAttack ? nanoid() : undefined;
 
-      const reachValue = otherResources.reach;
-      const reach = typeof reachValue === "number" ? reachValue : 5;
+      opportunityAttacks.push({
+        combatantId: other.id,
+        combatantName: otherName,
+        opportunityId,
+        canAttack: detection.canAttack,
+        hasReaction: detection.hasReaction,
+      });
 
-      let crossesReach = false;
-      if (path.length > 1) {
-        let prevPos = currentPos;
-        for (const cell of path) {
-          if (crossesThroughReach({ from: prevPos, to: cell }, otherPos, reach)) {
-            crossesReach = true;
-            break;
-          }
-          prevPos = cell;
-        }
-      } else {
-        crossesReach = crossesThroughReach(
-          { from: currentPos, to: input.destination },
-          otherPos,
-          reach,
-        );
-      }
-
-      if (crossesReach) {
-        const hasReaction = hasReactionAvailable({ reactionUsed: false, ...otherResources } as any);
-        const isDisengaged = readBoolean(resources, "disengaged") ?? false;
-
-        // D&D 2024 Charmed: observer can't attack the creature that charmed them
-        const otherConditions = normalizeConditions(other.conditions as unknown[]);
-        const observerCharmedByTarget = isAttackBlockedByCharm(otherConditions, actor.id);
-
-        // War Caster feat: observer can cast a spell instead of weapon OA
-        const observerWarCaster = readBoolean(otherResources, "warCasterEnabled") ?? false;
-
-        // Sentinel feat: OA even against Disengage, hit reduces speed to 0
-        const observerSentinel = readBoolean(otherResources, "sentinelEnabled") ?? false;
-
-        const canAttack = canMakeOpportunityAttack(
-          { reactionUsed: !hasReaction },
-          {
-            movingCreatureId: actor.id,
-            observerId: other.id,
-            disengaged: isDisengaged,
-            canSee: true,
-            observerIncapacitated: false,
-            leavingReach: true,
-            observerCharmedByTarget,
-            warCasterEnabled: observerWarCaster,
-            sentinelEnabled: observerSentinel,
-          },
-        );
-
-        const otherName = await this.combatants.getName(
-          other.combatantType === "Character" && other.characterId ? { type: "Character", characterId: other.characterId } :
-          other.combatantType === "Monster" && other.monsterId ? { type: "Monster", monsterId: other.monsterId } :
-          other.combatantType === "NPC" && other.npcId ? { type: "NPC", npcId: other.npcId } :
-          { type: "Character", characterId: "" },
-          other,
-        );
-
-        const opportunityId = canAttack.canAttack ? nanoid() : undefined;
-
-        opportunityAttacks.push({
+      if (detection.canAttack) {
+        reactionOpportunities.push({
+          id: opportunityId!,
           combatantId: other.id,
-          combatantName: otherName,
-          opportunityId,
-          canAttack: canAttack.canAttack,
-          hasReaction,
+          reactionType: "opportunity_attack",
+          canUse: true,
+          ...(detection.canCastSpellAsOA ? { oaType: "spell" as const } : {}),
+          context: {
+            targetId: actor.id,
+            reach: detection.reach,
+          },
         });
-
-        if (canAttack.canAttack) {
-          reactionOpportunities.push({
-            id: opportunityId!,
-            combatantId: other.id,
-            reactionType: "opportunity_attack",
-            canUse: true,
-            ...(canAttack.canCastSpellAsOA ? { oaType: "spell" as const } : {}),
-            context: {
-              targetId: actor.id,
-              reach,
-            },
-          });
-        }
       }
     }
 
@@ -560,10 +500,51 @@ export class MoveReactionHandler {
       movementSpent: newMovementRemaining <= 0,
       movementRemaining: newMovementRemaining,
     };
+    let resourcesAfterMove = updatedResources;
 
     await this.combat.updateCombatantState(actor.id, {
       resources: updatedResources as JsonValue,
     });
+
+    if (targetStillAlive) {
+      const actorAfterMove = (await this.combat.listCombatants(encounter.id)).find((c) => c.id === actor.id);
+      const terrainMap = encounter.mapData as CombatMap | undefined;
+      if (actorAfterMove && terrainMap && isPitEntry(terrainMap, moveData.from, finalPosition)) {
+        const actorStats = await this.combatants.getCombatStats(pendingAction.actor);
+        const pitSeed = hashForOA(`${encounter.id}:${pendingAction.id}:${moveData.from.x}:${moveData.from.y}:${finalPosition.x}:${finalPosition.y}:pit`);
+        const pitResult = resolvePitEntry(
+          terrainMap,
+          moveData.from,
+          finalPosition,
+          actorStats.abilityScores.dexterity,
+          actorAfterMove.hpCurrent,
+          actorAfterMove.conditions,
+          new SeededDiceRoller(pitSeed),
+        );
+
+        if (pitResult.triggered) {
+          resourcesAfterMove = {
+            ...updatedResources,
+            movementRemaining: pitResult.movementEnds ? 0 : updatedResources.movementRemaining,
+            movementSpent: pitResult.movementEnds ? true : updatedResources.movementSpent,
+          };
+
+          await this.combat.updateCombatantState(actor.id, {
+            hpCurrent: pitResult.hpAfter,
+            conditions: pitResult.updatedConditions as unknown as JsonValue,
+            resources: resourcesAfterMove as JsonValue,
+          });
+
+          if (pitResult.damageApplied > 0) {
+            await applyKoEffectsIfNeeded(actorAfterMove, actorAfterMove.hpCurrent, pitResult.hpAfter, this.combat);
+          }
+
+          if (pitResult.hpAfter <= 0) {
+            targetStillAlive = false;
+          }
+        }
+      }
+    }
 
     // Keep CombatMap entities[] in sync with the position update
     await syncEntityPosition(this.combat, encounter.id, actor.id, finalPosition);
@@ -620,7 +601,7 @@ export class MoveReactionHandler {
           targetStillAlive = false;
           finalPosition = zoneDmg.finalPosition;
           await this.combat.updateCombatantState(actor.id, {
-            resources: { ...updatedResources, position: finalPosition } as JsonValue,
+            resources: { ...resourcesAfterMove, position: finalPosition } as JsonValue,
           });
           await syncEntityPosition(this.combat, encounter.id, actor.id, finalPosition);
         }

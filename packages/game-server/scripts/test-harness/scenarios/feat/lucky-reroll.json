@@ -1,0 +1,117 @@
+{
+  "name": "Feat: Lucky interactive reroll on miss",
+  "description": "A fighter with Lucky misses an attack, gets a Lucky reaction prompt, spends 1 luck point, rerolls, and lands the hit.",
+  "setup": {
+    "character": {
+      "name": "Fortunate Blade",
+      "className": "Fighter",
+      "level": 4,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 34,
+        "currentHp": 34,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "featIds": ["feat_lucky"],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 16,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 16" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack Ogre Dummy with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 3" },
+      "comment": "3 + 6 = 9 vs AC 16 miss; Lucky prompt should appear",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true, "actionComplete": false }
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "lucky_reroll" },
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" },
+      "comment": "Spend 1 luck point to reroll"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15 + 6 = 21 vs AC 16 hit",
+      "expect": { "hit": true, "requiresPlayerInput": true, "rollType": "damage" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "luckPoints", "current": 2 }
+      }
+    }
+  ]
+}

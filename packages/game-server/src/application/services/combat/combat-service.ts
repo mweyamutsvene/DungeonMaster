@@ -1130,9 +1130,16 @@ export class CombatService {
       // Phase B: Cleanup expired effects
       const cleanedEffects: ActiveEffect[] = [];
       for (const eff of updatedEffects) {
-        const shouldRemove = event === "end_of_turn"
-          ? shouldRemoveAtEndOfTurn(eff, round, turn, isActiveCreatureTurn)
-          : shouldRemoveAtStartOfTurn(eff, round, turn, isActiveCreatureTurn);
+        let shouldRemove = false;
+
+        // expiresAt targeting takes precedence over generic duration checks.
+        if (eff.expiresAt) {
+          shouldRemove = eff.expiresAt.event === event && eff.expiresAt.combatantId === activeEntityId;
+        } else {
+          shouldRemove = event === "end_of_turn"
+            ? shouldRemoveAtEndOfTurn(eff, round, turn, isActiveCreatureTurn)
+            : shouldRemoveAtStartOfTurn(eff, round, turn, isActiveCreatureTurn);
+        }
 
         if (shouldRemove) {
           console.log(`[CombatService] Removing expired effect "${eff.source ?? eff.id}" from ${record.id} at ${event}`);

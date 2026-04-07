@@ -3,11 +3,10 @@ import { nanoid } from "nanoid";
 
 import { resolveAttack, type AttackSpec } from "../../../domain/combat/attack-resolver.js";
 import { SeededDiceRoller } from "../../../domain/rules/dice-roller.js";
-import { attemptMovement, crossesThroughReach, calculateDistance, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
-import { canMakeOpportunityAttack } from "../../../domain/rules/opportunity-attack.js";
+import { attemptMovement, calculateDistance, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
+import { hasElevationAdvantage, isPitEntry, type CombatMap } from "../../../domain/rules/combat-map.js";
 
 import { NotFoundError, ValidationError } from "../../errors.js";
-import { normalizeConditions, isAttackBlockedByCharm } from "../../../domain/entities/combat/conditions.js";
 import {
   normalizeResources,
   readBoolean,
@@ -15,7 +14,6 @@ import {
   spendAction,
   markDisengaged,
   getPosition,
-  hasReactionAvailable,
   getEffectiveSpeed,
   useReaction,
   addActiveEffectsToResources,
@@ -47,6 +45,8 @@ import {
   hashStringToInt32,
   buildCreatureAdapter,
 } from "./helpers/combat-utils.js";
+import { resolvePitEntry } from "./helpers/pit-terrain-resolver.js";
+import { detectOpportunityAttacks } from "./helpers/oa-detection.js";
 import { lookupWeapon, hasWeaponProperty } from "../../../domain/entities/items/weapon-catalog.js";
 
 import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
@@ -416,11 +416,24 @@ export class ActionService {
       hasReaction: boolean;
     }>;
   }> {
+    if (input.seed !== undefined && !Number.isInteger(input.seed)) {
+      throw new ValidationError("seed must be an integer");
+    }
+
     const encounter = await resolveEncounterOrThrow(this.sessions, this.combat, sessionId, input.encounterId);
     const combatants = await this.combat.listCombatants(encounter.id);
+    const combatMap = encounter.mapData as CombatMap | undefined;
 
     const actor = findCombatantStateByRef(combatants, input.actor);
     if (!actor) throw new NotFoundError("Actor not found in encounter");
+
+    let actorCombatStats: Awaited<ReturnType<ICombatantResolver["getCombatStats"]>> | null = null;
+    const getActorCombatStats = async () => {
+      if (!actorCombatStats) {
+        actorCombatStats = await this.combatants.getCombatStats(input.actor);
+      }
+      return actorCombatStats;
+    };
 
     // Check if actor has action available
     const resources = normalizeResources(actor.resources);
@@ -455,85 +468,25 @@ export class ActionService {
       throw new ValidationError(movementResult.reason || "Movement not allowed");
     }
 
-    // ── Opportunity Attack Detection (Programmatic Path) ──
-    // TODO: ORCH-M3 — This OA detection duplicates TwoPhaseActionService.checkOpportunityAttack().
-    // Both paths can drift. Consolidate: programmatic move path should call TwoPhaseActionService directly.
-    // See .github/prompts/plan-oa-path-consolidation.prompt.md
-    // This is the PROGRAMMATIC OA path used by ActionService.move() for AI/server-driven movement.
-    // It detects AND resolves OAs immediately in a single pass (no player interaction).
-    //
-    // The TABLETOP path (MoveReactionHandler in two-phase/) handles player-facing movement:
-    // it detects OAs, creates a pending action, and waits for player/AI reaction responses
-    // before resolving. Both paths delegate eligibility checks to the same domain functions:
-    //   - crossesThroughReach() for geometry
-    //   - canMakeOpportunityAttack() for D&D 5e rules (reaction, disengage, charm, incapacitated)
-    //
-    // Key differences from the tabletop path:
-    //   - No path-cell support (uses simple from→to line)
-    //   - Resolves attacks immediately via resolveAttack() (no two-phase pending action)
-    //   - No readied-action trigger detection
+    // Programmatic move path: detect OAs via shared helper, then resolve immediately.
+    const oaDetections = detectOpportunityAttacks({
+      combatants,
+      actor,
+      from: currentPos,
+      to: input.destination,
+    });
+
     const opportunityAttacks: Array<{
       attackerId: string;
       targetId: string;
       canAttack: boolean;
       hasReaction: boolean;
-    }> = [];
-
-    // Check each combatant for opportunity attacks
-    for (const other of combatants) {
-      if (other.id === actor.id) continue; // Skip self
-      if (other.hpCurrent <= 0) continue; // Skip unconscious/dead
-
-      const otherResources = normalizeResources(other.resources);
-      const otherPos = getPosition(otherResources);
-      if (!otherPos) continue; // Skip if no position
-
-      // Get reach (default 5ft, can be modified by polearms)
-      const reachValue = otherResources.reach;
-      const reach = typeof reachValue === "number" ? reachValue : 5;
-
-      // Check if movement crosses through reach
-      const crossesReach = crossesThroughReach(
-        { from: currentPos, to: input.destination },
-        otherPos,
-        reach,
-      );
-
-      if (crossesReach) {
-        const hasReaction = hasReactionAvailable(otherResources);
-        const isDisengaged = readBoolean(resources, "disengaged") ?? false;
-        
-        // Check if observer is incapacitated (can't make opportunity attacks)
-        const otherConditions = Array.isArray(other.conditions) ? (other.conditions as string[]) : [];
-        const observerIncapacitated = otherConditions.some(
-          (c) => typeof c === "string" && c.toLowerCase() === "incapacitated",
-        );
-
-        // D&D 2024 Charmed: observer can't attack the creature that charmed them
-        const observerActiveConditions = normalizeConditions(other.conditions as unknown[]);
-        const observerCharmedByTarget = isAttackBlockedByCharm(observerActiveConditions, actor.id);
-        
-        const canAttack = canMakeOpportunityAttack(
-          { reactionUsed: !hasReaction },
-          {
-            movingCreatureId: actor.id,
-            observerId: other.id,
-            disengaged: isDisengaged,
-            canSee: true, // Vision checks would require line-of-sight calculation
-            observerIncapacitated,
-            leavingReach: true,
-            observerCharmedByTarget,
-          },
-        );
-
-        opportunityAttacks.push({
-          attackerId: other.id,
-          targetId: actor.id,
-          canAttack: canAttack.canAttack,
-          hasReaction,
-        });
-      }
-    }
+    }> = oaDetections.map((detection) => ({
+      attackerId: detection.combatant.id,
+      targetId: actor.id,
+      canAttack: detection.canAttack,
+      hasReaction: detection.hasReaction,
+    }));
 
     // Update position and track remaining movement
     const distanceMoved = currentPos ? calculateDistance(currentPos, input.destination) : 0;
@@ -564,6 +517,7 @@ export class ActionService {
       targetId: string;
       result: unknown;
     }> = [];
+    let latestHpCurrent = actor.hpCurrent;
 
     for (const opp of opportunityAttacks) {
       if (!opp.canAttack) continue; // Skip if can't attack
@@ -589,7 +543,7 @@ export class ActionService {
 
       const attackerStats = await this.combatants.getCombatStats(attackerRef);
 
-      const targetStats = await this.combatants.getCombatStats(input.actor);
+      const targetStats = await getActorCombatStats();
 
       // Build attack spec (use equipped weapon or default melee attack)
       let spec: AttackSpec | null = null;
@@ -684,20 +638,28 @@ export class ActionService {
       const targetAdapter = buildCreatureAdapter({
         armorClass: targetStats.armorClass,
         abilityScores: targetStats.abilityScores,
-        hpCurrent: updatedActor.hpCurrent,
+        hpCurrent: latestHpCurrent,
       });
 
       const target = targetAdapter.creature as any;
-      const attackResult = resolveAttack(diceRoller, attackerAdapter, target, spec);
+      const attackerPosition = getPosition(attackerResources);
+      const elevationAdvantage = combatMap
+        ? hasElevationAdvantage(combatMap, attackerPosition, currentPos)
+        : false;
+      const attackResult = resolveAttack(diceRoller, attackerAdapter, target, spec, {
+        elevationAdvantage,
+      });
 
       // Apply damage to moving actor
+      const hpBeforeAttack = latestHpCurrent;
       const newHp = targetAdapter.getHpCurrent();
       await this.combat.updateCombatantState(actor.id, {
         hpCurrent: newHp,
       });
+      latestHpCurrent = newHp;
 
       // Apply KO effects if target dropped to 0 HP from opportunity attack
-      await applyKoEffectsIfNeeded(updatedActor, updatedActor.hpCurrent, newHp, this.combat);
+      await applyKoEffectsIfNeeded(actor, hpBeforeAttack, newHp, this.combat);
 
       executedAttacks.push({
         attackerId: opp.attackerId,
@@ -734,6 +696,39 @@ export class ActionService {
       }
     }
 
+    if (latestHpCurrent > 0 && combatMap && isPitEntry(combatMap, currentPos, input.destination)) {
+      const actorAfterOa = (await this.combat.listCombatants(encounter.id)).find((c) => c.id === actor.id) ?? actor;
+      const actorStats = await getActorCombatStats();
+      const pitSeed =
+        (input.seed as number | undefined) ??
+        hashStringToInt32(`${sessionId}:${encounter.id}:${actor.id}:${currentPos.x}:${currentPos.y}:${input.destination.x}:${input.destination.y}:pit`);
+      const pitResult = resolvePitEntry(
+        combatMap,
+        currentPos,
+        input.destination,
+        actorStats.abilityScores.dexterity,
+        actorAfterOa.hpCurrent,
+        actorAfterOa.conditions,
+        new SeededDiceRoller(pitSeed),
+      );
+
+      if (pitResult.triggered) {
+        await this.combat.updateCombatantState(actor.id, {
+          hpCurrent: pitResult.hpAfter,
+          conditions: pitResult.updatedConditions as unknown as JsonValue,
+          resources: {
+            ...updatedResources,
+            movementRemaining: pitResult.movementEnds ? 0 : updatedResources.movementRemaining,
+            movementSpent: pitResult.movementEnds ? true : updatedResources.movementSpent,
+          } as JsonValue,
+        });
+
+        if (pitResult.damageApplied > 0) {
+          await applyKoEffectsIfNeeded(actorAfterOa, actorAfterOa.hpCurrent, pitResult.hpAfter, this.combat);
+        }
+      }
+    }
+
     // Emit movement event
     if (this.events) {
       await this.events.append(sessionId, {
@@ -749,8 +744,10 @@ export class ActionService {
       });
     }
 
+    const finalActor = (await this.combat.listCombatants(encounter.id)).find((c) => c.id === actor.id) ?? updatedActor;
+
     return { 
-      actor: updatedActor,
+      actor: finalActor,
       result: {
         from: currentPos,
         to: input.destination,

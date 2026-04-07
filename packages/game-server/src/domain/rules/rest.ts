@@ -26,6 +26,11 @@ export interface RefreshClassResourcePoolsOptions {
 }
 
 function shouldRefreshOnRest(poolName: string, rest: RestType, level: number, classId: CharacterClassId): boolean {
+  // Lucky feat pool refreshes on long rest regardless of class.
+  if (poolName === "luckPoints") {
+    return rest === "long";
+  }
+
   // Spell slot pools (spellSlot_1, spellSlot_2, etc.) refresh on long rest only
   if (poolName.startsWith("spellSlot_")) {
     return rest === "long";
@@ -47,6 +52,10 @@ function computeMaxForPool(
   poolName: string,
   currentMax: number,
 ): number {
+  if (poolName === "luckPoints") {
+    return LUCKY_POINTS_MAX;
+  }
+
   const { classId, level } = options;
 
   const def = getClassDefinition(classId);

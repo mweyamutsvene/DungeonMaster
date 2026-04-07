@@ -24,6 +24,7 @@ export type EffectType =
   | 'immunity'            // Immunity to damage type
   | 'temp_hp'             // Temporary hit points
   | 'speed_modifier'      // Speed increase/decrease
+  | 'speed_multiplier'    // Multiplicative speed changes (e.g., halved speed)
   | 'ongoing_damage'      // Recurring damage at start/end of turn
   | 'retaliatory_damage'  // Damage dealt back to melee attacker
   | 'condition_immunity'  // Prevents a specific condition from being applied
@@ -113,6 +114,11 @@ export interface ActiveEffect {
   };
   /** Conditions applied when trigger fires (e.g., Restrained, Prone) */
   readonly triggerConditions?: readonly string[];
+  /** Optional precise expiry keyed to a specific combatant's turn event. */
+  readonly expiresAt?: {
+    readonly event: 'start_of_turn' | 'end_of_turn';
+    readonly combatantId: string;
+  };
 }
 
 /**
@@ -148,6 +154,7 @@ export function createEffect(
     conditionName?: string;
     triggerSave?: { ability: Ability; dc: number; halfDamageOnSave?: boolean };
     triggerConditions?: string[];
+    expiresAt?: { event: 'start_of_turn' | 'end_of_turn'; combatantId: string };
   }
 ): ActiveEffect {
   return {
@@ -171,6 +178,7 @@ export function createEffect(
     conditionName: options?.conditionName,
     triggerSave: options?.triggerSave,
     triggerConditions: options?.triggerConditions,
+    expiresAt: options?.expiresAt,
   };
 }
 

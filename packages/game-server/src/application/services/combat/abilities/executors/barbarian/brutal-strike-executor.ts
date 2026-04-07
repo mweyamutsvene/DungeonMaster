@@ -25,6 +25,21 @@ import { canUseBrutalStrike, getBrutalStrikeBonusDice, type BrutalStrikeOption }
 import { requireActor, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 import { getActiveEffects, readBoolean } from "../../../helpers/resource-utils.js";
 
+function resolveTargetId(params: Record<string, unknown> | undefined): string | null {
+  if (!params) return null;
+
+  if (typeof params.targetId === "string" && params.targetId.length > 0) {
+    return params.targetId;
+  }
+
+  const target = params.target as { type?: string; characterId?: string; monsterId?: string; npcId?: string } | undefined;
+  if (!target || typeof target !== "object") return null;
+  if (target.type === "Character" && typeof target.characterId === "string") return target.characterId;
+  if (target.type === "Monster" && typeof target.monsterId === "string") return target.monsterId;
+  if (target.type === "NPC" && typeof target.npcId === "string") return target.npcId;
+  return null;
+}
+
 export class BrutalStrikeExecutor implements AbilityExecutor {
   canExecute(abilityId: string): boolean {
     const normalized = abilityId.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -85,6 +100,15 @@ export class BrutalStrikeExecutor implements AbilityExecutor {
     const weaponDamageDice = (params?.weaponDamageDice as string | undefined) ?? "1d12";
     const bonusDice = getBrutalStrikeBonusDice(weaponDamageDice);
 
+    const targetId = resolveTargetId(params);
+    if (!targetId) {
+      return {
+        success: false,
+        summary: "Brutal Strike requires a target",
+        error: "MISSING_TARGET",
+      };
+    }
+
     const variantDescriptions: Record<BrutalStrikeOption, string> = {
       "hamstring-blow": `+${bonusDice} damage, target's speed halved until start of your next turn`,
       "forceful-blow": `+${bonusDice} damage, target pushed 15 ft away`,
@@ -108,6 +132,9 @@ export class BrutalStrikeExecutor implements AbilityExecutor {
         abilityName: "Brutal Strike",
         variant,
         bonusDice,
+        brutalStrikeVariant: variant,
+        brutalStrikeBonusDice: bonusDice,
+        brutalStrikeTargetId: targetId,
         updatedResources,
         level,
       },

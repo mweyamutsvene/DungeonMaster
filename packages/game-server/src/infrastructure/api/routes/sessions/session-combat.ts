@@ -104,11 +104,28 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
   /**
    * PATCH /sessions/:id/combat/terrain
    * Set terrain zones on the current encounter's combat map.
-   * Body: { terrainZones: Array<{ x: number; y: number; terrain: TerrainType }> }
+   * Body: {
+   *   terrainZones: Array<{
+   *     x: number;
+   *     y: number;
+   *     terrain: TerrainType;
+   *     terrainElevation?: number;
+   *     terrainDepth?: number;
+   *   }>
+   * }
    */
   app.patch<{
     Params: { id: string };
-    Body: { encounterId?: string; terrainZones: Array<{ x: number; y: number; terrain: string }> };
+    Body: {
+      encounterId?: string;
+      terrainZones: Array<{
+        x: number;
+        y: number;
+        terrain: string;
+        terrainElevation?: number;
+        terrainDepth?: number;
+      }>;
+    };
   }>("/sessions/:id/combat/terrain", async (req) => {
     const sessionId = req.params.id;
     const { terrainZones, encounterId } = req.body;
@@ -135,7 +152,15 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
 
     // Apply terrain zones
     for (const zone of terrainZones) {
-      map = setTerrainAt(map, { x: zone.x, y: zone.y }, zone.terrain as TerrainType);
+      map = setTerrainAt(
+        map,
+        { x: zone.x, y: zone.y },
+        zone.terrain as TerrainType,
+        {
+          terrainElevation: zone.terrainElevation,
+          terrainDepth: zone.terrainDepth,
+        },
+      );
     }
 
     // Save updated map

@@ -1,22 +1,26 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   addEntity,
+  computePitFallDamage,
   createCombatMap,
   getCellAt,
   getCoverLevel,
   getCoverSaveBonus,
   getCreatures,
   getElevationAttackModifier,
+  getElevationOf,
   getEntitiesAt,
   getEntitiesInRadius,
   getEntity,
   getFactionsInRange,
   getItems,
-  getPitFallDamage,
+  getPitDepthOf,
   getTerrainSpeedModifier,
+  hasElevationAdvantage,
   hasLineOfSight,
   isElevatedTerrain,
   isOnMap,
+  isPitEntry,
   isPitTerrain,
   isPositionPassable,
   moveEntity,
@@ -25,6 +29,7 @@ import {
   type CombatMap,
   type MapEntity,
 } from "./combat-map.js";
+import { FixedDiceRoller } from "./dice-roller.js";
 
 describe("Combat Map", () => {
   describe("createCombatMap", () => {
@@ -101,6 +106,29 @@ describe("Combat Map", () => {
       const cell = getCellAt(map, { x: 10, y: 10 });
       expect(cell?.passable).toBe(true);
       expect(cell?.blocksLineOfSight).toBe(false);
+    });
+
+    it("supports terrain metadata for elevated and pit cells", () => {
+      let map = createCombatMap({
+        id: "test",
+        name: "Test",
+        width: 30,
+        height: 30,
+      });
+
+      map = setTerrainAt(map, { x: 10, y: 10 }, "elevated", { terrainElevation: 10 });
+      map = setTerrainAt(map, { x: 15, y: 10 }, "pit", { terrainDepth: 20 });
+
+      const elevatedCell = getCellAt(map, { x: 10, y: 10 });
+      const pitCell = getCellAt(map, { x: 15, y: 10 });
+
+      expect(elevatedCell?.terrain).toBe("elevated");
+      expect(elevatedCell?.terrainElevation).toBe(10);
+      expect(elevatedCell?.terrainDepth).toBeUndefined();
+
+      expect(pitCell?.terrain).toBe("pit");
+      expect(pitCell?.terrainDepth).toBe(20);
+      expect(pitCell?.terrainElevation).toBeUndefined();
     });
   });
 
@@ -648,7 +676,7 @@ describe("Combat Map", () => {
     });
   });
 
-  describe("elevation / pit terrain utilities", () => {
+  describe("elevation / pit terrain mechanics", () => {
     it("isElevatedTerrain returns true only for elevated", () => {
       expect(isElevatedTerrain("elevated")).toBe(true);
       expect(isElevatedTerrain("normal")).toBe(false);
@@ -661,25 +689,49 @@ describe("Combat Map", () => {
       expect(isPitTerrain("elevated")).toBe(false);
     });
 
-    it("attacker on elevated + defender in pit → advantage", () => {
-      expect(getElevationAttackModifier("elevated", "pit")).toBe("advantage");
+    it("computes elevation values and attack advantage threshold", () => {
+      let map = createCombatMap({
+        id: "terrain",
+        name: "Terrain",
+        width: 30,
+        height: 30,
+      });
+
+      map = setTerrainAt(map, { x: 5, y: 5 }, "elevated", { terrainElevation: 10 });
+      map = setTerrainAt(map, { x: 10, y: 5 }, "normal");
+
+      expect(getElevationOf(map, { x: 5, y: 5 })).toBe(10);
+      expect(getElevationOf(map, { x: 10, y: 5 })).toBe(0);
+      expect(getElevationAttackModifier(10, 0, 5)).toBe("advantage");
+      expect(getElevationAttackModifier(4, 0, 5)).toBe("none");
+
+      expect(hasElevationAdvantage(map, { x: 5, y: 5 }, { x: 10, y: 5 })).toBe(true);
+      expect(hasElevationAdvantage(map, { x: 10, y: 5 }, { x: 5, y: 5 })).toBe(false);
     });
 
-    it("attacker in pit → disadvantage regardless of defender terrain", () => {
-      expect(getElevationAttackModifier("pit", "normal")).toBe("disadvantage");
-      expect(getElevationAttackModifier("pit", "elevated")).toBe("disadvantage");
+    it("detects pit entry and reads pit depth", () => {
+      let map = createCombatMap({
+        id: "terrain",
+        name: "Terrain",
+        width: 30,
+        height: 30,
+      });
+
+      map = setTerrainAt(map, { x: 10, y: 5 }, "pit", { terrainDepth: 20 });
+
+      expect(getPitDepthOf(map, { x: 10, y: 5 })).toBe(20);
+      expect(getPitDepthOf(map, { x: 5, y: 5 })).toBe(0);
+      expect(isPitEntry(map, { x: 5, y: 5 }, { x: 10, y: 5 })).toBe(true);
+      expect(isPitEntry(map, { x: 10, y: 5 }, { x: 10, y: 5 })).toBe(false);
     });
 
-    it("normal vs normal → none", () => {
-      expect(getElevationAttackModifier("normal", "normal")).toBe("none");
-    });
+    it("computes pit fall damage from depth", () => {
+      const dice = new FixedDiceRoller([4, 5, 6]);
 
-    it("elevated vs normal → none (advantage only when defender in pit)", () => {
-      expect(getElevationAttackModifier("elevated", "normal")).toBe("none");
-    });
-
-    it("getPitFallDamage returns 1d6", () => {
-      expect(getPitFallDamage()).toBe("1d6");
+      // 20ft pit = 2d6
+      expect(computePitFallDamage(20, dice)).toBe(9);
+      // Minimum 1d6 even when depth is 0
+      expect(computePitFallDamage(0, dice)).toBe(6);
     });
   });
 });

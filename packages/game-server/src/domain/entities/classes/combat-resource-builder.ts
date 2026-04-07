@@ -17,6 +17,7 @@ import { getClassDefinition } from "./registry.js";
 import type { CharacterSheetLike } from "./class-feature-resolver.js";
 import { pactMagicSlotsForLevel } from "./warlock.js";
 import { computeFeatModifiers, FEAT_WAR_CASTER, FEAT_SENTINEL } from "../../rules/feat-modifiers.js";
+import { LUCKY_POINTS_MAX } from "../../rules/lucky.js";
 
 // ----- Types -----
 
@@ -121,6 +122,13 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
 
   // 5. War Caster feat detection (for OA spell option)
   const featIds: readonly string[] = (sheet as any)?.featIds ?? (sheet as any)?.feats ?? [];
+  const featMods = computeFeatModifiers(Array.isArray(featIds) ? featIds : []);
+
+  // Lucky feat is tracked as a runtime resource pool in combat.
+  if (featMods.luckyEnabled && !resourcePools.some((p) => p.name === "luckPoints")) {
+    resourcePools.push({ name: "luckPoints", current: LUCKY_POINTS_MAX, max: LUCKY_POINTS_MAX });
+  }
+
   const warCasterEnabled = Array.isArray(featIds) && featIds.includes(FEAT_WAR_CASTER);
 
   // 6. Sentinel feat detection (for OA enhancements)

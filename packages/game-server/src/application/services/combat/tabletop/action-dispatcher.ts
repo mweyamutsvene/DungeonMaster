@@ -228,7 +228,7 @@ export class ActionDispatcher {
       const match = tryMatchClassAction(command.abilityName, profiles);
       if (match) {
         if (match.category === "classAction") {
-          return this.classAbilityHandlers.handleClassAbility(sessionId, encounterId, actorId, match.abilityId, characters, roster);
+          return this.classAbilityHandlers.handleClassAbility(sessionId, encounterId, actorId, match.abilityId, characters, monsters, npcs, roster, text);
         }
         return this.classAbilityHandlers.handleBonusAbility(sessionId, encounterId, actorId, match.abilityId, text, characters, monsters, npcs, roster);
       }
@@ -306,7 +306,7 @@ export class ActionDispatcher {
         tryParse: (text) => tryMatchClassAction(text, profiles),
         handle: (parsed, ctx) => {
           if (parsed.category === "classAction") {
-            return this.classAbilityHandlers.handleClassAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.abilityId, ctx.characters, ctx.roster);
+            return this.classAbilityHandlers.handleClassAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.abilityId, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster, ctx.text);
           }
           return this.classAbilityHandlers.handleBonusAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.abilityId, ctx.text, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster);
         },

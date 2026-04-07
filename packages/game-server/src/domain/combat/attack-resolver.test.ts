@@ -99,6 +99,30 @@ function makeGreatWeaponFighter(id: string): Character {
   });
 }
 
+function makeLuckyFighter(id: string): Character {
+  return new Character({
+    id,
+    name: id,
+    maxHP: 20,
+    currentHP: 20,
+    armorClass: 10,
+    speed: 30,
+    abilityScores: new AbilityScores({
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    }),
+    level: 1,
+    characterClass: "Fighter",
+    classId: "fighter",
+    experiencePoints: 0,
+    featIds: ["feat_lucky"],
+  });
+}
+
 describe("resolveAttack", () => {
   it("applies damage on hit", () => {
     // Fixed roller returns 15 for d20 and all damage dice.
@@ -135,6 +159,22 @@ describe("resolveAttack", () => {
     expect(target.getCurrentHP()).toBe(20);
   });
 
+  it("does not auto-spend Lucky on miss (application layer decides)", () => {
+    const dice = new SequenceDiceRoller([5]);
+    const attacker = makeLuckyFighter("lucky");
+    const target = makeNpc("target", 20);
+
+    const result = resolveAttack(dice, attacker, target, {
+      attackBonus: 3,
+      damage: { diceCount: 1, diceSides: 8, modifier: 2 },
+    });
+
+    expect(result.hit).toBe(false);
+    expect(result.attack.d20).toBe(5);
+    expect(result.luckyUsed).toBe(false);
+    expect(target.getCurrentHP()).toBe(20);
+  });
+
   it("applies Archery feat bonus to ranged attack rolls", () => {
     const dice = new FixedDiceRoller(10);
     const attacker = makeArcher("archer");
@@ -148,6 +188,27 @@ describe("resolveAttack", () => {
 
     // d20=10 + 2 from Archery
     expect(result.attack.total).toBe(12);
+    expect(result.hit).toBe(true);
+  });
+
+  it("applies terrain elevation advantage when requested", () => {
+    const dice = new SequenceDiceRoller([4, 16]);
+    const attacker = makeNpc("attacker", 10);
+    const target = makeNpc("target", 12);
+
+    const result = resolveAttack(
+      dice,
+      attacker,
+      target,
+      {
+        kind: "melee",
+        attackBonus: 0,
+        damage: { diceCount: 1, diceSides: 6, modifier: 0 },
+      },
+      { elevationAdvantage: true },
+    );
+
+    expect(result.attack.d20).toBe(16);
     expect(result.hit).toBe(true);
   });
 

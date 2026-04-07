@@ -1539,6 +1539,172 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("tabletop miss prompts Lucky spend and resumes reroll via reactions endpoint", async () => {
+    const intentParser: IIntentParser = {
+      async parseIntent({ text, schemaHint }: any) {
+        const rosterJson =
+          typeof schemaHint === "string" && schemaHint.includes("Roster (valid IDs):")
+            ? schemaHint.split("Roster (valid IDs):").pop()?.trim()
+            : null;
+        const roster = rosterJson ? (JSON.parse(rosterJson) as any) : null;
+        const attackerId = roster?.characters?.[0]?.id as string | undefined;
+        const targetId = roster?.monsters?.[0]?.id as string | undefined;
+
+        if (typeof text === "string" && text.toLowerCase().includes("attack") && attackerId && targetId) {
+          return {
+            kind: "attack",
+            attacker: { type: "Character", characterId: attackerId },
+            target: { type: "Monster", monsterId: targetId },
+            spec: {
+              kind: "melee",
+              attackBonus: 6,
+              damage: { diceCount: 1, diceSides: 8, modifier: 4 },
+              damageType: "slashing",
+            },
+          } as any;
+        }
+
+        return {} as any;
+      },
+    };
+
+    const { app } = buildTestApp({ intentParser });
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const charRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Lucky",
+        level: 4,
+        className: "fighter",
+        sheet: {
+          armorClass: 16,
+          maxHp: 34,
+          abilityScores: { strength: 18, dexterity: 12, constitution: 14 },
+          proficiencyBonus: 2,
+          featIds: ["feat_lucky"],
+          attacks: [
+            {
+              name: "Longsword",
+              kind: "melee",
+              attackBonus: 6,
+              damage: { diceCount: 1, diceSides: 8, modifier: 4 },
+              damageType: "slashing",
+            },
+          ],
+        },
+      },
+    });
+    const characterId = (charRes.json() as any).id as string;
+
+    const monRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: { name: "Ogre", statBlock: { hp: 40, armorClass: 16 } },
+    });
+    const monsterId = (monRes.json() as any).id as string;
+
+    const started = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId,
+            initiative: 20,
+            hpCurrent: 34,
+            hpMax: 34,
+            resources: {
+              position: { x: 10, y: 10 },
+              speed: 30,
+              resourcePools: [{ name: "luckPoints", current: 3, max: 3 }],
+            },
+          },
+          {
+            combatantType: "Monster",
+            monsterId,
+            initiative: 10,
+            hpCurrent: 40,
+            hpMax: 40,
+            resources: { position: { x: 15, y: 10 }, speed: 30 },
+          },
+        ],
+      },
+    });
+    expect(started.statusCode).toBe(200);
+    const encounterId = (started.json() as any).id as string;
+
+    const actionRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: { text: "attack Ogre with Longsword", actorId: characterId, encounterId },
+    });
+    expect(actionRes.statusCode).toBe(200);
+    const actionBody = actionRes.json() as any;
+    expect(actionBody.rollType).toBe("attack");
+
+    const missRollRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 3", actorId: characterId },
+    });
+    expect(missRollRes.statusCode).toBe(200);
+    const missBody = missRollRes.json() as any;
+    expect(missBody.luckyPrompt).toBeTruthy();
+    expect(missBody.luckyPrompt.reactionType).toBe("lucky_reroll");
+    expect(typeof missBody.pendingActionId).toBe("string");
+
+    const pendingRes = await app.inject({
+      method: "GET",
+      url: `/encounters/${encounterId}/reactions`,
+    });
+    expect(pendingRes.statusCode).toBe(200);
+    const pendingBody = pendingRes.json() as any;
+    const luckyPending = (pendingBody.pendingActions as any[]).find((p) => p.id === missBody.pendingActionId);
+    expect(luckyPending).toBeTruthy();
+    expect(luckyPending.type).toBe("lucky_reroll");
+
+    const spendRes = await app.inject({
+      method: "POST",
+      url: `/encounters/${encounterId}/reactions/${missBody.pendingActionId}/respond`,
+      payload: { spend: true },
+    });
+    expect(spendRes.statusCode).toBe(200);
+    const spendBody = spendRes.json() as any;
+    expect(spendBody.status).toBe("awaiting_reroll");
+    expect(spendBody.rollType).toBe("attack");
+
+    const stateAfterSpend = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/combat?encounterId=${encounterId}`,
+    });
+    expect(stateAfterSpend.statusCode).toBe(200);
+    const stateBody = stateAfterSpend.json() as any;
+    const actorCombatant = (stateBody.combatants as any[]).find((c) => c.characterId === characterId);
+    const luckPool = (actorCombatant.resources.resourcePools as any[]).find((p) => p.name === "luckPoints");
+    expect(luckPool.current).toBe(2);
+
+    const rerollRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/roll-result`,
+      payload: { text: "I rolled 15", actorId: characterId },
+    });
+    expect(rerollRes.statusCode).toBe(200);
+    const rerollBody = rerollRes.json() as any;
+    expect(rerollBody.rollType).toBe("damage");
+    expect(rerollBody.requiresPlayerInput).toBe(true);
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/combat/action supports direct move text without LLM", async () => {
     const { app } = buildTestApp();
 

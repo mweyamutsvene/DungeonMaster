@@ -92,6 +92,18 @@ describe("buildCombatResources", () => {
     expect(result.resourcePools.find(p => p.name === "spellSlot_2")).toEqual({ name: "spellSlot_2", current: 2, max: 2 });
   });
 
+  it("adds luckPoints pool when Lucky feat is present", () => {
+    const result = buildCombatResources({
+      className: "Fighter",
+      level: 4,
+      sheet: {
+        featIds: ["feat_lucky"],
+      } as any,
+    });
+
+    expect(result.resourcePools.find(p => p.name === "luckPoints")).toEqual({ name: "luckPoints", current: 3, max: 3 });
+  });
+
   it("detects Shield spell prepared", () => {
     const result = buildCombatResources({
       className: "Wizard",

@@ -29,7 +29,6 @@ import {
   MAX_ATTUNEMENT_SLOTS,
 } from "../../../../domain/entities/items/inventory.js";
 import { recomputeArmorFromInventory } from "../../../../domain/entities/items/armor-catalog.js";
-import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
 
 function getInventoryFromSheet(sheet: Record<string, unknown>): CharacterItemInstance[] {
   return Array.isArray(sheet.inventory) ? (sheet.inventory as CharacterItemInstance[]) : [];
@@ -310,8 +309,10 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
 
     // Look up magic item definition to check if it's consumable
     const itemDef = item.magicItemId
-      ? lookupMagicItem(item.name) ?? lookupMagicItem(itemName)
-      : lookupMagicItem(itemName);
+      ? await deps.itemLookup.lookupItem(item.magicItemId)
+        ?? await deps.itemLookup.lookupItem(item.name)
+        ?? await deps.itemLookup.lookupItem(itemName)
+      : await deps.itemLookup.lookupItem(itemName);
 
     if (!itemDef?.potionEffects && itemDef?.category !== "potion") {
       throw new ValidationError(

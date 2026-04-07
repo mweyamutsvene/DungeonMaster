@@ -5,8 +5,11 @@
  */
 
 import { ValidationError } from "../../../../errors.js";
+import { nanoid } from "nanoid";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
 import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { createEffect } from "../../../../../domain/entities/combat/effects.js";
 import type {
   SessionCharacterRecord,
   SessionMonsterRecord,
@@ -20,6 +23,7 @@ import {
   hasBonusActionAvailable,
   useBonusAction,
   spendResourceFromPool,
+  addActiveEffectsToResources,
   getActiveEffects,
   setActiveEffects,
 } from "../../helpers/resource-utils.js";
@@ -72,6 +76,12 @@ function buildTargetActor(
   };
 }
 
+function combatantRefToEntityId(ref: CombatantRef): string {
+  if (ref.type === "Character") return ref.characterId!;
+  if (ref.type === "Monster") return ref.monsterId!;
+  return ref.npcId!;
+}
+
 export class ClassAbilityHandlers {
   constructor(
     private readonly deps: TabletopCombatServiceDeps,
@@ -89,7 +99,10 @@ export class ClassAbilityHandlers {
     actorId: string,
     abilityId: string,
     characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
     roster: LlmRoster,
+    text: string,
   ): Promise<ActionParseResult> {
     const actor = inferActorRef(actorId, roster);
 
@@ -116,6 +129,66 @@ export class ClassAbilityHandlers {
 
     const resources = actorCombatant.resources ?? {};
 
+    // Resolve target from action text or nearest hostile. Some class actions are untargeted,
+    // so missing target remains valid unless the executor requires one.
+    const actorPos = getPosition(actorCombatant.resources ?? {});
+    let targetRef: CombatantRef | null = null;
+    let targetName: string | null = null;
+
+    const lowerText = text.toLowerCase();
+    for (const monster of monsters) {
+      if (lowerText.includes(monster.name.toLowerCase())) {
+        targetRef = { type: "Monster", monsterId: monster.id };
+        targetName = monster.name;
+        break;
+      }
+    }
+
+    if (!targetRef) {
+      for (const npc of npcs) {
+        if (lowerText.includes(npc.name.toLowerCase())) {
+          targetRef = { type: "NPC", npcId: npc.id };
+          targetName = npc.name;
+          break;
+        }
+      }
+    }
+
+    if (!targetRef && actorPos) {
+      const hostiles = combatantStates.filter((c: any) => c.hpCurrent > 0 && c.id !== actorCombatant.id && c.combatantType !== "Character");
+      if (hostiles.length > 0) {
+        let nearest = hostiles[0]!;
+        let minDist = Infinity;
+        for (const hostile of hostiles) {
+          const hostilePos = getPosition(hostile.resources ?? {});
+          if (!hostilePos) continue;
+          const dist = calculateDistance(actorPos, hostilePos);
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = hostile;
+          }
+        }
+
+        if (nearest.combatantType === "Monster" && nearest.monsterId) {
+          targetRef = { type: "Monster", monsterId: nearest.monsterId };
+          targetName = monsters.find((m) => m.id === nearest.monsterId)?.name ?? "target";
+        } else if (nearest.combatantType === "NPC" && nearest.npcId) {
+          targetRef = { type: "NPC", npcId: nearest.npcId };
+          targetName = npcs.find((n) => n.id === nearest.npcId)?.name ?? "target";
+        }
+      }
+    }
+
+    const targetActor: AbilityActor | undefined = targetRef
+      ? buildTargetActor(targetRef, targetName ?? "target")
+      : undefined;
+
+    let brutalStrikeVariant: "hamstring-blow" | "forceful-blow" | "staggering-blow" | undefined;
+    const normalizedText = text.toLowerCase();
+    if (normalizedText.includes("forceful")) brutalStrikeVariant = "forceful-blow";
+    else if (normalizedText.includes("staggering")) brutalStrikeVariant = "staggering-blow";
+    else if (normalizedText.includes("hamstring") || normalizedText.includes("brutal strike")) brutalStrikeVariant = "hamstring-blow";
+
     const mockCreature = buildAbilityActor(
       actorId,
       character.name,
@@ -139,8 +212,13 @@ export class ClassAbilityHandlers {
       actor: mockCreature,
       combat: mockCombat,
       abilityId,
+      target: targetActor,
       params: {
         actor,
+        target: targetRef ?? undefined,
+        targetId: targetRef ? combatantRefToEntityId(targetRef) : undefined,
+        targetName,
+        variant: brutalStrikeVariant,
         resources,
         className,
         level,
@@ -199,6 +277,26 @@ export class ClassAbilityHandlers {
       }
     }
 
+    // Brutal Strike is validated by the executor, but variant-specific damage/effects are
+    // resolved here against the concrete target combatant in encounter state.
+    if (result.data?.brutalStrikeVariant && result.data?.brutalStrikeTargetId) {
+      const brutalSummary = await this.processBrutalStrike(
+        encounterId,
+        actorId,
+        result.data,
+        characters,
+        monsters,
+        npcs,
+      );
+      return {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE",
+        action: (result.data?.abilityName as string) ?? abilityId,
+        message: brutalSummary ? `${result.summary} ${brutalSummary}` : result.summary,
+      };
+    }
+
     return {
       requiresPlayerInput: false,
       actionComplete: true,
@@ -206,6 +304,160 @@ export class ClassAbilityHandlers {
       action: (result.data?.abilityName as string) ?? abilityId,
       message: result.summary,
     };
+  }
+
+  private parseDiceNotation(dice: string): { count: number; sides: number } {
+    const m = dice.trim().toLowerCase().match(/^(\d+)d(\d+)$/);
+    if (!m) return { count: 1, sides: 6 };
+    const count = Math.max(1, Number.parseInt(m[1]!, 10));
+    const sides = Math.max(2, Number.parseInt(m[2]!, 10));
+    return { count, sides };
+  }
+
+  private resolveEntityName(
+    entityId: string,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
+  ): string {
+    const char = characters.find((c) => c.id === entityId);
+    if (char) return char.name;
+    const monster = monsters.find((m) => m.id === entityId);
+    if (monster) return monster.name;
+    const npc = npcs.find((n) => n.id === entityId);
+    if (npc) return npc.name;
+    return "target";
+  }
+
+  private async processBrutalStrike(
+    encounterId: string,
+    actorId: string,
+    data: Record<string, unknown>,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
+  ): Promise<string | null> {
+    if (!this.deps.diceRoller) return null;
+
+    const targetId = typeof data.brutalStrikeTargetId === "string" ? data.brutalStrikeTargetId : "";
+    const variant = typeof data.brutalStrikeVariant === "string" ? data.brutalStrikeVariant : "hamstring-blow";
+    const bonusDice = typeof data.brutalStrikeBonusDice === "string" ? data.brutalStrikeBonusDice : "1d6";
+    if (!targetId) return null;
+
+    const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
+    const round = encounter?.round ?? 1;
+    const turn = encounter?.turn ?? 0;
+
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const targetCombatant = combatants.find((c: any) =>
+      c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
+    );
+    if (!targetCombatant || targetCombatant.hpCurrent <= 0) return null;
+
+    const actorCharacter = characters.find((c) => c.id === actorId);
+    const actorSheet = (actorCharacter?.sheet ?? {}) as Record<string, unknown>;
+
+    // Bonus damage: roll the brutal strike die and apply directly to HP.
+    const { count, sides } = this.parseDiceNotation(bonusDice);
+    const damageRoll = this.deps.diceRoller.rollDie(sides, count);
+    const bonusDamage = Math.max(0, damageRoll.total);
+
+    let hpAfter = targetCombatant.hpCurrent;
+    if (bonusDamage > 0) {
+      hpAfter = Math.max(0, targetCombatant.hpCurrent - bonusDamage);
+      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+        hpCurrent: hpAfter,
+      });
+    }
+
+    const targetName = this.resolveEntityName(targetId, characters, monsters, npcs);
+
+    if (variant === "hamstring-blow") {
+      const hamstringEffect = createEffect(
+        nanoid(),
+        "speed_multiplier",
+        "speed",
+        "until_start_of_next_turn",
+        {
+          value: 0.5,
+          source: "Brutal Strike: Hamstring Blow",
+          sourceCombatantId: actorId,
+          appliedAtRound: round,
+          appliedAtTurnIndex: turn,
+          expiresAt: { event: "start_of_turn", combatantId: actorId },
+          description: "Speed is halved until the start of the barbarian's next turn.",
+        },
+      );
+      const updatedResources = addActiveEffectsToResources(targetCombatant.resources ?? {}, hamstringEffect);
+      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+        resources: updatedResources as any,
+      });
+      return `${targetName} takes ${bonusDamage} bonus damage (${bonusDice}) and has speed halved until the start of your next turn.`;
+    }
+
+    if (variant === "forceful-blow") {
+      const abilityScores = (actorSheet.abilityScores ?? {}) as Record<string, unknown>;
+      const strScoreRaw = abilityScores.strength ?? abilityScores.str ?? 10;
+      const strScore = typeof strScoreRaw === "number" ? strScoreRaw : 10;
+      const levelRaw = actorSheet.level ?? actorCharacter?.level ?? 1;
+      const level = typeof levelRaw === "number" ? levelRaw : 1;
+      const saveDC = 8 + getAbilityModifier(strScore) + getProficiencyBonus(level);
+
+      const savingThrowResolver = new SavingThrowResolver(
+        this.deps.combatRepo,
+        this.deps.diceRoller,
+        this.debugLogsEnabled,
+      );
+      const saveAction = savingThrowResolver.buildPendingAction({
+        actorId: targetId,
+        sourceId: actorId,
+        ability: "strength",
+        dc: saveDC,
+        reason: "Brutal Strike (Forceful Blow)",
+        onSuccess: { summary: "Resists the shove." },
+        onFailure: {
+          summary: "Pushed 15 feet.",
+          movement: { push: 15 },
+        },
+      });
+
+      const resolution = await savingThrowResolver.resolve(
+        saveAction,
+        encounterId,
+        characters,
+        monsters,
+        npcs,
+      );
+
+      const pushSummary = resolution.success
+        ? `${targetName} succeeds STR save (${resolution.total} vs DC ${saveDC}) and is not pushed.`
+        : `${targetName} fails STR save (${resolution.total} vs DC ${saveDC}) and is pushed 15 feet.`;
+      return `${targetName} takes ${bonusDamage} bonus damage (${bonusDice}). ${pushSummary}`;
+    }
+
+    if (variant === "staggering-blow") {
+      const staggeringEffect = createEffect(
+        nanoid(),
+        "disadvantage",
+        "custom",
+        "until_triggered",
+        {
+          source: "Brutal Strike: Staggering Blow",
+          sourceCombatantId: actorId,
+          appliedAtRound: round,
+          appliedAtTurnIndex: turn,
+          expiresAt: { event: "start_of_turn", combatantId: actorId },
+          description: "Disadvantage on the next attack roll or saving throw.",
+        },
+      );
+      const updatedResources = addActiveEffectsToResources(targetCombatant.resources ?? {}, staggeringEffect);
+      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+        resources: updatedResources as any,
+      });
+      return `${targetName} takes ${bonusDamage} bonus damage (${bonusDice}) and has disadvantage on the next attack roll or saving throw before the start of your next turn.`;
+    }
+
+    return `${targetName} takes ${bonusDamage} bonus damage (${bonusDice}).`;
   }
 
   /**
