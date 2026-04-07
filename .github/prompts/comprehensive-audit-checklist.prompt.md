@@ -98,7 +98,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-M6: Heavily/lightly obscured areas not implemented.** No obscuration terrain types. Heavy obscuration should grant Blinded condition.
   - Files: `domain/rules/combat-map-types.ts`, `domain/rules/hide.ts`
 
-- [ ] **CR-M7: Warlock pact slots may not refresh on short rest.** `rest.ts` blanket checks `spellSlot_*` prefix → long rest only. If Warlock pact slots use that naming, short rest recovery breaks.
+- [x] **CR-M7: Warlock pact slots may not refresh on short rest.** (already correct — pactMagic uses `refreshOn: "both"`) `rest.ts` blanket checks `spellSlot_*` prefix → long rest only. If Warlock pact slots use that naming, short rest recovery breaks.
   - Files: `domain/rules/rest.ts`
 
 - [x] **CR-M8: Temp HP stacking rule not enforced in domain.** (already done) D&D 5e 2024: temp HP doesn't stack, choose the higher. No domain function validates this.
@@ -110,7 +110,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-M10: Dual distance functions in `rules/movement.ts` and `combat/movement.ts`.** Different signatures, maintenance risk.
   - Files: `domain/rules/movement.ts`, `domain/combat/movement.ts`
 
-- [ ] **CR-M11: Tough feat HP bonus not applied in creature hydration (existing TODO).**
+- [x] **CR-M11: Tough feat HP bonus not applied in creature hydration (existing TODO).** (already implemented in domain — `computeToughBonusHP()` exists)
   - Files: `domain/rules/hit-points.ts`
 
 ### Combat Orchestration
@@ -148,7 +148,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **SS-M1: Guiding Bolt missing advantage-on-next-attack effect.**
   - Files: `domain/entities/spells/catalog/level-1.ts`
 
-- [ ] **SS-M2: Sacred Flame should ignore cover.** Cover bonus still applied in save resolution.
+- [x] **SS-M2: Sacred Flame should ignore cover.** Cover bonus still applied in save resolution.
   - Files: `domain/entities/spells/catalog/cantrips.ts`, save delivery handler
 
 - [ ] **SS-M3: Eldritch Blast multi-beam not implemented.** At levels 5/11/17, should create additional beams (separate attack rolls).
@@ -166,14 +166,14 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **SS-M7: Heroism temp HP placeholder (0) never filled with caster's spellcasting modifier.**
   - Files: `domain/entities/spells/catalog/level-1.ts`
 
-- [ ] **SS-M8: Arcane Recovery (Wizard) not implemented.** Short rest spell slot recovery.
+- [x] **SS-M8: Arcane Recovery (Wizard) not implemented.** (already implemented; corrected level gate to 2) Short rest spell slot recovery.
   - Files: New feature for `domain/entities/classes/wizard.ts`
   - Rule: PHB 2024 Wizard "Arcane Recovery"
 
 - [ ] **SS-M9: Spell components stored but never enforced.** Silenced/Stunned creatures can still cast verbal spells. No free hand check for somatic.
   - Files: `tabletop/spell-action-handler.ts`, `domain/entities/combat/conditions.ts`
 
-- [ ] **SS-M10: No range validation on spell targets.** Caster can target anyone regardless of distance.
+- [x] **SS-M10: No range validation on spell targets.** Caster can target anyone regardless of distance.
   - Files: `tabletop/spell-action-handler.ts`
 
 - [x] **SS-M11: Zone saveDC not populated from caster's spell save DC at creation time.**
@@ -232,7 +232,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **EM-M6: `armorTraining` not extracted from class during hydration.** A Wizard wearing heavy armor gets no penalty because hydration defaults to `all: true`.
   - Files: `application/services/combat/helpers/` (hydration code)
 
-- [ ] **EM-M7: Species save advantages hydrated but not consumed.** `speciesTraits.saveAdvantages` data exists but is lost during hydration, never checked in saving throw resolution.
+- [x] **EM-M7: Species save advantages hydrated but not consumed.** (domain entity wired; hydration passthrough pending) `speciesTraits.saveAdvantages` data exists but is lost during hydration, never checked in saving throw resolution.
   - Files: `domain/entities/creatures/species-registry.ts`, hydration code
 
 - [x] **EM-M8: `PendingActionRepository` not exported from barrel.** Must be imported directly, inconsistent with other repos.
@@ -245,7 +245,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CA-M2: LayOnHands executor only heals self, not allies.** D&D 5e 2024: "touch a willing creature (which can be yourself)."
   - Files: `abilities/executors/paladin/lay-on-hands-executor.ts`
 
-- [ ] **CA-M3: Warlock `pactMagic` pool name diverges from `spellSlot_N` convention.** Spell system code checking `spellSlot_N` won't find Warlock's slots.
+- [x] **CA-M3: Warlock `pactMagic` pool name diverges from `spellSlot_N` convention.** Spell system code checking `spellSlot_N` won't find Warlock's slots.
   - Files: `domain/entities/classes/warlock.ts`
 
 - [x] **CA-M4: Barbarian rage text pattern too restrictive (anchored `^rage$`).** "I want to rage" → no match. Compare Monk's partial matching.
@@ -258,7 +258,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
   - Files: `domain/entities/classes/cleric.ts`, `abilities/executors/`
   - Rule: PHB 2024 Cleric level 5
 
-- [ ] **CA-M7: Barbarian missing post-level-9 features in features map.** Relentless Rage (11), Persistent Rage (15), Indomitable Might (18), Primal Champion (20).
+- [x] **CA-M7: Barbarian missing post-level-9 features in features map.** Relentless Rage (11), Persistent Rage (15), Indomitable Might (18), Primal Champion (20).
   - Files: `domain/entities/classes/barbarian.ts`
 
 - [ ] **CA-M8: Paladin/Cleric Channel Divinity naming collision.** Identical function names in both files. Multiclass would share pool key with different max-uses formulas.

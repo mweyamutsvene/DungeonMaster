@@ -75,6 +75,15 @@ export const RAY_OF_FROST = {
   attackType: 'ranged_spell',
   damage: { diceCount: 1, diceSides: 8 },
   damageType: 'cold',
+  onHitEffects: [
+    {
+      type: 'speed_modifier' as const,
+      target: 'speed' as const,
+      value: -10,
+      duration: 'until_start_of_next_turn' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
   school: 'evocation',
   castingTime: 'action',
   range: 60,
@@ -88,6 +97,7 @@ export const TOLL_THE_DEAD = {
   level: 0,
   saveAbility: 'wisdom',
   damage: { diceCount: 1, diceSides: 8 },
+  damageDiceSidesOnDamaged: 12,
   damageType: 'necrotic',
   halfDamageOnSave: false,
   school: 'necromancy',
@@ -104,6 +114,17 @@ export const CHILL_TOUCH = {
   attackType: 'melee_spell',
   damage: { diceCount: 1, diceSides: 10 },
   damageType: 'necrotic',
+  onHitEffects: [
+    {
+      type: 'custom' as const,
+      target: 'hit_points' as const,
+      duration: 'until_start_of_next_turn' as const,
+      appliesTo: 'target' as const,
+      // TODO: No 'prevent_healing' EffectType yet. The healing delivery handler
+      // and any HP-restore logic must check for this custom effect and skip
+      // regeneration/healing when present. See SS-L3.
+    },
+  ],
   school: 'necromancy',
   castingTime: 'action',
   range: 'touch',

@@ -162,7 +162,11 @@ const indomitable = createIndomitableState(level);
     if (level >= 2) {
       caps.push({ name: "Action Surge", economy: "free", cost: "1 use/short rest", effect: "Take one additional action this turn", abilityId: "class:fighter:action-surge", resourceCost: { pool: "actionSurge", amount: 1 } });
     }
-    if (level >= 5) {
+    if (level >= 20) {
+      caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack four times per Attack action" });
+    } else if (level >= 11) {
+      caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack three times per Attack action" });
+    } else if (level >= 5) {
       caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
     }
     if (level >= 9) {

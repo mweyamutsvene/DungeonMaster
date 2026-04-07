@@ -5,7 +5,7 @@ import type {
   ClassCombatTextProfile,
   DamageReactionDef, DamageReactionInput, DetectedDamageReaction,
 } from "./combat-text-profile.js";
-import { ELDRITCH_INVOCATIONS, PACT_BOON } from "./feature-keys.js";
+import { ELDRITCH_INVOCATIONS, PACT_BOON, MYSTIC_ARCANUM_6, MYSTIC_ARCANUM_7, MYSTIC_ARCANUM_8, MYSTIC_ARCANUM_9, ELDRITCH_MASTER } from "./feature-keys.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { computeSpellSaveDC } from "../../rules/spell-casting.js";
 
@@ -68,6 +68,11 @@ export const Warlock: CharacterClassDefinition = {
     "pact-magic": 1,
     [ELDRITCH_INVOCATIONS]: 2,
     [PACT_BOON]: 3,
+    [MYSTIC_ARCANUM_6]: 11,
+    [MYSTIC_ARCANUM_7]: 13,
+    [MYSTIC_ARCANUM_8]: 15,
+    [MYSTIC_ARCANUM_9]: 17,
+    [ELDRITCH_MASTER]: 20,
   },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [];

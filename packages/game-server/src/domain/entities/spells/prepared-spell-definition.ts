@@ -99,6 +99,10 @@ export interface PreparedSpellDefinition {
   readonly range?: number | 'self' | 'touch';
   /** When true, the target gains no benefit from cover for saving throws against this spell (e.g. Sacred Flame). */
   readonly ignoresCover?: boolean;
+  /** Die size upgrade when the target is already damaged (e.g., Toll the Dead d8 → d12). */
+  readonly damageDiceSidesOnDamaged?: number;
+  /** Effects applied on a successful spell attack hit (separate from `effects` which drives buff/debuff delivery routing). */
+  readonly onHitEffects?: SpellEffectDeclaration[];
   /** On failed save, push the target this many feet away from the caster (e.g. Thunderwave 10ft). */
   readonly pushOnFailFeet?: number;
   /** Turn-end save: target repeats saving throw at end of each of its turns to end an applied condition. */

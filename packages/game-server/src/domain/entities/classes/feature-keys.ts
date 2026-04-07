@@ -88,6 +88,11 @@ export const COUNTERCHARM = "countercharm";
 // ── Warlock ─────────────────────────────────────────────────
 export const ELDRITCH_INVOCATIONS = "eldritch-invocations";
 export const PACT_BOON = "pact-boon";
+export const MYSTIC_ARCANUM_6 = "mystic-arcanum-6";
+export const MYSTIC_ARCANUM_7 = "mystic-arcanum-7";
+export const MYSTIC_ARCANUM_8 = "mystic-arcanum-8";
+export const MYSTIC_ARCANUM_9 = "mystic-arcanum-9";
+export const ELDRITCH_MASTER = "eldritch-master";
 
 // ── Druid ───────────────────────────────────────────────────
 export const WILD_SHAPE = "wild-shape";
