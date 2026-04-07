@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canMakeOpportunityAttack,
+  canMakeSentinelReaction,
   createReactionState,
   hasReactionAvailable,
   isLeavingReach,
@@ -9,6 +10,7 @@ import {
   useReaction,
   type OpportunityAttackTrigger,
   type ReactionState,
+  type SentinelReactionTrigger,
 } from "./opportunity-attack.js";
 
 describe("Opportunity Attacks", () => {
@@ -252,6 +254,57 @@ describe("Opportunity Attacks", () => {
       expect(isWithinReach(10, 10)).toBe(true);
       expect(isWithinReach(11, 10)).toBe(false);
       expect(isLeavingReach(10, 15, 10)).toBe(true);
+    });
+  });
+
+  describe("canMakeSentinelReaction (Effect #3)", () => {
+    const baseTrigger: SentinelReactionTrigger = {
+      observerHasSentinel: true,
+      observerHasReaction: true,
+      observerIncapacitated: false,
+      distanceToAttacker: 5,
+      observerIsTarget: false,
+    };
+
+    it("should allow reaction when all conditions met", () => {
+      const result = canMakeSentinelReaction(baseTrigger);
+      expect(result.canReact).toBe(true);
+      expect(result.reason).toBeUndefined();
+    });
+
+    it("should deny when observer does not have Sentinel feat", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, observerHasSentinel: false });
+      expect(result.canReact).toBe(false);
+      expect(result.reason).toBe("no-sentinel");
+    });
+
+    it("should deny when observer has no reaction available", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, observerHasReaction: false });
+      expect(result.canReact).toBe(false);
+      expect(result.reason).toBe("no-reaction");
+    });
+
+    it("should deny when observer is incapacitated", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, observerIncapacitated: true });
+      expect(result.canReact).toBe(false);
+      expect(result.reason).toBe("incapacitated");
+    });
+
+    it("should deny when attacker is more than 5 feet away", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, distanceToAttacker: 10 });
+      expect(result.canReact).toBe(false);
+      expect(result.reason).toBe("too-far");
+    });
+
+    it("should allow when attacker is exactly 5 feet away", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, distanceToAttacker: 5 });
+      expect(result.canReact).toBe(true);
+    });
+
+    it("should deny when observer IS the target of the attack", () => {
+      const result = canMakeSentinelReaction({ ...baseTrigger, observerIsTarget: true });
+      expect(result.canReact).toBe(false);
+      expect(result.reason).toBe("is-target");
     });
   });
 });

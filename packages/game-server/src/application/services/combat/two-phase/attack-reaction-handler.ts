@@ -20,9 +20,9 @@ import type {
   PendingDamageReactionData,
 } from "../../../../domain/entities/combat/pending-action.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
-import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
+import { hasReactionAvailable, canMakeSentinelReaction } from "../../../../domain/rules/opportunity-attack.js";
 import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
-import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
+import { findCombatantStateByRef, combatantRefFromState } from "../helpers/combatant-ref.js";
 import { ValidationError, NotFoundError } from "../../../errors.js";
 import {
   normalizeResources,
@@ -30,11 +30,13 @@ import {
   getPosition,
   getActiveEffects,
 } from "../helpers/resource-utils.js";
+import { normalizeConditions, hasCondition } from "../../../../domain/entities/combat/conditions.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { calculateFlatBonusFromEffects } from "../../../../domain/entities/combat/effects.js";
 import { detectAttackReactions, detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
+import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { JsonValue } from "../../../types.js";
 
 /** Deps shared with TwoPhaseActionService for damage-reaction initiation */
@@ -185,6 +187,74 @@ export class AttackReactionHandler {
       // If we can't look up target stats, skip reaction detection
     }
 
+    // ── Sentinel Feat Effect #3: nearby allies can react to ally being attacked ──
+    const actorPos = getPosition(normalizeResources(actor.resources));
+    if (actorPos) {
+      for (const other of combatants) {
+        // Skip the attacker and the target
+        if (other.id === actor.id) continue;
+        if (other.id === target.id) continue;
+        // Must be alive
+        if (other.hpCurrent <= 0) continue;
+
+        const otherResources = normalizeResources(other.resources);
+        const otherPos = getPosition(otherResources);
+        if (!otherPos) continue;
+
+        const sentinelFlag = readBoolean(otherResources, "sentinelEnabled") ?? false;
+        if (!sentinelFlag) continue;
+
+        const otherHasReaction = hasReactionAvailable({ reactionUsed: false, ...otherResources } as any)
+          && !readBoolean(otherResources, "reactionUsed");
+
+        const dist = calculateDistance(otherPos, actorPos);
+
+        // D&D 5e 2024: Incapacitated, Stunned, Unconscious, Paralyzed, and Petrified
+        // all prevent taking reactions (they include the Incapacitated condition).
+        const otherConditions = normalizeConditions(other.conditions as unknown[]);
+        const observerIncapacitated =
+          hasCondition(otherConditions, "Incapacitated") ||
+          hasCondition(otherConditions, "Stunned") ||
+          hasCondition(otherConditions, "Unconscious") ||
+          hasCondition(otherConditions, "Paralyzed") ||
+          hasCondition(otherConditions, "Petrified");
+
+        const sentinelCheck = canMakeSentinelReaction({
+          observerHasSentinel: true,
+          observerHasReaction: otherHasReaction,
+          observerIncapacitated,
+          distanceToAttacker: dist,
+          observerIsTarget: false,
+        });
+
+        if (sentinelCheck.canReact) {
+          const otherRef = combatantRefFromState(other);
+          if (!otherRef) continue;
+          const otherName = await this.combatants.getName(otherRef, other);
+
+          const oppId = nanoid();
+          reactionOpportunities.push({
+            id: oppId,
+            combatantId: other.id,
+            reactionType: "sentinel_attack",
+            canUse: true,
+            context: {
+              attackerId: actor.id,
+              sentinelName: otherName,
+            },
+          });
+
+          shieldOpportunities.push({
+            combatantId: other.id,
+            combatantName: otherName,
+            canUse: true,
+            hasReaction: true,
+            hasSpellSlot: false,
+          });
+        }
+      }
+    }
+
     // If no reaction opportunities, attack hits
     if (reactionOpportunities.length === 0) {
       return {
@@ -276,6 +346,15 @@ export class AttackReactionHandler {
       pendingActionId: string;
       reactionType: string;
     };
+    sentinelAttacks?: Array<{
+      attackerId: string;
+      attackerName: string;
+      targetId: string;
+      attackRoll: number;
+      targetAC: number;
+      hit: boolean;
+      damage: number;
+    }>;
   }> {
     const pendingAction = await this.pendingActions.getById(input.pendingActionId);
     if (!pendingAction) {
@@ -680,6 +759,133 @@ export class AttackReactionHandler {
       }
     }
 
+    // --- Sentinel reaction attacks ---
+    const sentinelAttacks: Array<{
+      attackerId: string;
+      attackerName: string;
+      targetId: string;
+      attackRoll: number;
+      targetAC: number;
+      hit: boolean;
+      damage: number;
+    }> = [];
+
+    const sentinelReactions = pendingAction.resolvedReactions.filter(
+      (r) => r.choice === "use" &&
+        pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "sentinel_attack",
+    );
+
+    for (const sentinelReaction of sentinelReactions) {
+      const sentinelOpp = pendingAction.reactionOpportunities.find((o) => o.id === sentinelReaction.opportunityId);
+      if (!sentinelOpp) continue;
+
+      const freshCombatantsForSentinel = await this.combat.listCombatants(encounter.id);
+      const sentinelCombatant = freshCombatantsForSentinel.find((c) => c.id === sentinelOpp.combatantId);
+      if (!sentinelCombatant || sentinelCombatant.hpCurrent <= 0) continue;
+
+      const attacker = findCombatantStateByRef(freshCombatantsForSentinel, pendingAction.actor);
+      if (!attacker || attacker.hpCurrent <= 0) continue;
+
+      // Mark Sentinel's reaction as used
+      const sentinelRes = normalizeResources(sentinelCombatant.resources);
+      await this.combat.updateCombatantState(sentinelCombatant.id, {
+        resources: { ...sentinelRes, reactionUsed: true } as JsonValue,
+      });
+
+      // Get Sentinel's attack stats
+      const sentinelRef = combatantRefFromState(sentinelCombatant);
+      if (!sentinelRef) continue;
+
+      let sentinelAttackBonus = 0;
+      let sentinelDamageDice = { count: 1, sides: 6, modifier: 0 };
+      let sentinelAttackName = "melee attack";
+      try {
+        const attacks = await this.combatants.getAttacks(sentinelRef) as Array<{
+          name?: string;
+          kind?: string;
+          attackBonus?: number;
+          damage?: { diceCount?: number; diceSides?: number; modifier?: number };
+        }>;
+        const meleeAttack = attacks.find((a) => a.kind === "melee") ?? attacks[0];
+        if (meleeAttack) {
+          sentinelAttackBonus = meleeAttack.attackBonus ?? 0;
+          sentinelAttackName = meleeAttack.name ?? "melee attack";
+          if (meleeAttack.damage) {
+            sentinelDamageDice = {
+              count: meleeAttack.damage.diceCount ?? 1,
+              sides: meleeAttack.damage.diceSides ?? 6,
+              modifier: meleeAttack.damage.modifier ?? 0,
+            };
+          }
+        }
+      } catch { /* use defaults */ }
+
+      // Get attacker's AC
+      let attackerAC: number;
+      try {
+        const attackerStats = await this.combatants.getCombatStats(pendingAction.actor);
+        attackerAC = attackerStats.armorClass;
+      } catch {
+        const attackerRes = normalizeResources(attacker.resources);
+        attackerAC = typeof attackerRes.armorClass === "number" ? attackerRes.armorClass : 10;
+      }
+
+      // Roll Sentinel attack (deterministic via seed)
+      const seed = (sentinelCombatant.id + pendingAction.id + "sentinel").split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+      const sentinelDiceRoller = new SeededDiceRoller(seed);
+      const d20Roll = sentinelDiceRoller.rollDie(20);
+      const sentinelTotal = d20Roll.total + sentinelAttackBonus;
+      const sentinelHit = sentinelTotal >= attackerAC;
+      let sentinelDamage = 0;
+
+      if (sentinelHit) {
+        const dmgRoll = sentinelDiceRoller.rollDie(
+          sentinelDamageDice.sides,
+          sentinelDamageDice.count,
+          sentinelDamageDice.modifier,
+        );
+        sentinelDamage = Math.max(1, dmgRoll.total);
+
+        const attackerHpBefore = attacker.hpCurrent;
+        const attackerHpAfter = Math.max(0, attackerHpBefore - sentinelDamage);
+        await this.combat.updateCombatantState(attacker.id, { hpCurrent: attackerHpAfter });
+        await applyKoEffectsIfNeeded(attacker, attackerHpBefore, attackerHpAfter, this.combat);
+      }
+
+      const sentinelName = (sentinelOpp.context as any).sentinelName ?? "Sentinel";
+      const attackerName = await this.combatants.getName(pendingAction.actor, attacker);
+
+      sentinelAttacks.push({
+        attackerId: sentinelCombatant.id,
+        attackerName: sentinelName,
+        targetId: attacker.id,
+        attackRoll: sentinelTotal,
+        targetAC: attackerAC,
+        hit: sentinelHit,
+        damage: sentinelDamage,
+      });
+
+      // Emit Sentinel attack event
+      if (this.events) {
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "SentinelReactionAttack",
+          payload: {
+            encounterId: encounter.id,
+            sentinelId: sentinelCombatant.id,
+            sentinelName,
+            targetId: attacker.id,
+            targetName: attackerName,
+            attackName: sentinelAttackName,
+            attackRoll: sentinelTotal,
+            targetAC: attackerAC,
+            hit: sentinelHit,
+            damage: sentinelDamage,
+          },
+        });
+      }
+    }
+
     return {
       hit,
       shieldUsed,
@@ -688,6 +894,7 @@ export class AttackReactionHandler {
       damageApplied,
       redirect: redirectResult,
       damageReaction: damageReactionResult,
+      sentinelAttacks: sentinelAttacks.length > 0 ? sentinelAttacks : undefined,
     };
   }
 }

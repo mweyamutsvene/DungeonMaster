@@ -145,3 +145,50 @@ export function isLeavingReach(
 ): boolean {
   return isWithinReach(startDistance, reach) && !isWithinReach(endDistance, reach);
 }
+
+// ── Sentinel Feat Effect #3 ──
+
+export interface SentinelReactionTrigger {
+  /** Whether the observer has the Sentinel feat */
+  observerHasSentinel: boolean;
+  /** Whether the observer has their reaction available */
+  observerHasReaction: boolean;
+  /** Whether the observer is incapacitated */
+  observerIncapacitated: boolean;
+  /** Distance (feet) from observer to attacker */
+  distanceToAttacker: number;
+  /** Whether the observer IS the target of the attack */
+  observerIsTarget: boolean;
+}
+
+export interface SentinelReactionResult {
+  /** Whether the Sentinel reaction can be made */
+  canReact: boolean;
+  /** Reason if can't react */
+  reason?: 'no-sentinel' | 'no-reaction' | 'incapacitated' | 'too-far' | 'is-target';
+}
+
+/**
+ * D&D 5e 2024 Sentinel Feat (Effect #3):
+ * When a creature within 5 feet of you makes an attack roll against a target
+ * other than you, you can use your Reaction to make a melee weapon attack
+ * against the attacking creature.
+ */
+export function canMakeSentinelReaction(trigger: SentinelReactionTrigger): SentinelReactionResult {
+  if (!trigger.observerHasSentinel) {
+    return { canReact: false, reason: 'no-sentinel' };
+  }
+  if (!trigger.observerHasReaction) {
+    return { canReact: false, reason: 'no-reaction' };
+  }
+  if (trigger.observerIncapacitated) {
+    return { canReact: false, reason: 'incapacitated' };
+  }
+  if (trigger.distanceToAttacker > 5) {
+    return { canReact: false, reason: 'too-far' };
+  }
+  if (trigger.observerIsTarget) {
+    return { canReact: false, reason: 'is-target' };
+  }
+  return { canReact: true };
+}

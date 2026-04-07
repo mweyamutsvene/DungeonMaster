@@ -67,6 +67,8 @@ export interface ScenarioSetup {
       properties?: string[];
     };
   }>;
+  /** Enable the optional flanking rule for this encounter */
+  flankingEnabled?: boolean;
 }
 
 export type ScenarioAction =
@@ -269,7 +271,13 @@ interface ConfigureAiAction {
 
 interface ReactionRespondAction {
   type: "reactionRespond";
-  input: { choice: "use" | "decline" };
+  input: {
+    choice: "use" | "decline";
+    /** For War Caster spell-as-OA: which spell to cast */
+    spellName?: string;
+    /** For War Caster spell-as-OA: optional upcast level */
+    castAtLevel?: number;
+  };
   comment?: string;
 }
 
@@ -812,6 +820,20 @@ export async function runScenario(
             scenario.setup.groundItems = [];
           }
 
+          // Enable flanking if configured in setup
+          if (encounterId && scenario.setup.flankingEnabled) {
+            const flankPayload = { enabled: true };
+            logRequest("PATCH", `${baseUrl}/sessions/${sessionId}/combat/flanking`, flankPayload);
+            const flankRes = await httpPatch(`${baseUrl}/sessions/${sessionId}/combat/flanking`, flankPayload);
+            logResponse(flankRes.status, flankRes.body);
+            if (flankRes.status !== 200) {
+              throw new Error(`Failed to enable flanking: ${JSON.stringify(flankRes.body)}`);
+            }
+            log(`${colors.green}✓${colors.reset} Flanking rule enabled for encounter`);
+            // Mark as consumed so we don't repeat
+            scenario.setup.flankingEnabled = false;
+          }
+
           // Validate expectations
           if (action.expect) {
             if (action.expect.rollType && body.rollType !== action.expect.rollType) {
@@ -863,6 +885,20 @@ export async function runScenario(
             }
             log(`${colors.green}✓${colors.reset} Placed ${scenario.setup.groundItems.length} ground item(s) on the map`);
             scenario.setup.groundItems = [];
+          }
+
+          // Enable flanking once we have an encounterId (fallback path)
+          if (encounterId && scenario.setup.flankingEnabled) {
+            const flankPayload = { enabled: true };
+            logRequest("PATCH", `${baseUrl}/sessions/${sessionId}/combat/flanking`, flankPayload);
+            const flankRes = await httpPatch(`${baseUrl}/sessions/${sessionId}/combat/flanking`, flankPayload);
+            logResponse(flankRes.status, flankRes.body);
+            if (flankRes.status !== 200) {
+              throw new Error(`Failed to enable flanking: ${JSON.stringify(flankRes.body)}`);
+            }
+            log(`${colors.green}✓${colors.reset} Flanking rule enabled for encounter`);
+            // Mark as consumed
+            scenario.setup.flankingEnabled = false;
           }
 
           // Validate expectations
@@ -1544,11 +1580,19 @@ export async function runScenario(
             throw new Error("Cannot reactionRespond: no pending opportunity attacks");
           }
           const oa = opportunityAttacks.shift()!;
-          const payload = {
+          const reactAction = action as ReactionRespondAction;
+          const payload: Record<string, unknown> = {
             combatantId: oa.combatantId,
             opportunityId: oa.opportunityId,
-            choice: (action as ReactionRespondAction).input.choice,
+            choice: reactAction.input.choice,
           };
+          // War Caster spell-as-OA: include spell selection
+          if (reactAction.input.spellName) {
+            payload.spellName = reactAction.input.spellName;
+          }
+          if (reactAction.input.castAtLevel != null) {
+            payload.castAtLevel = reactAction.input.castAtLevel;
+          }
           logRequest("POST", `${baseUrl}/encounters/${encounterId}/reactions/${pendingActionId}/respond`, payload);
           const res = await httpPost(`${baseUrl}/encounters/${encounterId}/reactions/${pendingActionId}/respond`, payload);
           logResponse(res.status, res.body);
@@ -1558,9 +1602,9 @@ export async function runScenario(
           const body = res.body as any;
           
           // Show player-facing message
-          logPlayerMessage(body.message, body.narration, (action as ReactionRespondAction).input.choice === "use" ? "Opportunity Attack" : "Declined");
+          logPlayerMessage(body.message, body.narration, reactAction.input.choice === "use" ? "Opportunity Attack" : "Declined");
           
-          log(`${colors.green}✓${colors.reset} Reaction response: ${(action as ReactionRespondAction).input.choice}`);
+          log(`${colors.green}✓${colors.reset} Reaction response: ${reactAction.input.choice}`);
           break;
         }
 

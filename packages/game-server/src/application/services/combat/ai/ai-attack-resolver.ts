@@ -33,6 +33,8 @@ import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
+import { checkFlanking } from "../../../../domain/rules/flanking.js";
+import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
 
 type AiLogger = (msg: string) => void;
 
@@ -144,6 +146,28 @@ export class AiAttackResolver {
     const aiPos = getPosition(normalizeResources(aiCombatant.resources));
     const tgtPos = getPosition(normalizeResources(targetCombatant.resources));
     const distanceFt = aiPos && tgtPos ? calculateDistance(aiPos, tgtPos) : undefined;
+
+    // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when flanking
+    if (attackKind === "melee" && aiPos && tgtPos) {
+      const encounter = await combat.getEncounterById(encounterId);
+      const mapData = encounter?.mapData as unknown as CombatMap | undefined;
+      if (mapData?.flankingEnabled) {
+        const allCombatants = await combat.listCombatants(encounterId);
+        const attackerFaction = this.getActorFaction(aiCombatant);
+        const allyPositions: Array<{ x: number; y: number }> = [];
+        for (const c of allCombatants) {
+          if (c.id === aiCombatant.id || c.id === targetCombatant.id) continue;
+          if (c.hpCurrent <= 0) continue;
+          if (this.getActorFaction(c) !== attackerFaction) continue;
+          const cPos = getPosition(normalizeResources(c.resources));
+          if (cPos) allyPositions.push(cPos);
+        }
+        if (checkFlanking(aiPos, tgtPos, allyPositions)) {
+          effectAdvantage++;
+          aiLog(`[AiAttackResolver] Flanking detected → advantage on melee attack`);
+        }
+      }
+    }
 
     const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, attackKind, effectAdvantage, effectDisadvantage, distanceFt);
 
@@ -521,5 +545,19 @@ export class AiAttackResolver {
 
     // Fallback: unexpected initiateResult status
     return { status: "not_applicable" };
+  }
+
+  private getActorFaction(combatant: CombatantStateRecord): string {
+    const char = combatant.character;
+    const mon = combatant.monster;
+    const npc = combatant.npc;
+    if (char?.faction) return char.faction;
+    if (mon?.faction) return mon.faction;
+    if (npc?.faction) return npc.faction;
+    const resFaction = (combatant.resources as any)?.faction;
+    if (typeof resFaction === "string") return resFaction;
+    if (combatant.combatantType === "Character") return "party";
+    if (combatant.combatantType === "NPC") return "party";
+    return "enemies";
   }
 }

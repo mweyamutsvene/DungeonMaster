@@ -1,0 +1,144 @@
+{
+  "name": "Flanking: Advantage on Melee Attacks",
+  "description": "Two Fighters position on opposite sides of a goblin. With flanking enabled, melee attacks should get advantage. Verifies the optional flanking rule grants advantage when allies are on opposite sides.",
+  "setup": {
+    "flankingEnabled": true,
+    "characters": [
+      {
+        "name": "Kael",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 14, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Lyra",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 20, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 16, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Rapier", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "armorClass": 15,
+          "maxHp": 40,
+          "currentHp": 40,
+          "speed": 30,
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Kael",
+      "input": { "text": "roll initiative" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Kael",
+      "input": { "text": "18" },
+      "comment": "Kael rolls 18, Lyra and Goblin auto-roll. Kael goes first."
+    },
+    {
+      "type": "action",
+      "actor": "Kael",
+      "input": { "text": "attack Goblin with Longsword" },
+      "expect": {
+        "rollType": "attack",
+        "advantage": true
+      },
+      "comment": "Kael at (10,10), Goblin at (15,10), Lyra at (20,10) — east-west flanking → advantage"
+    },
+    {
+      "type": "rollResult",
+      "actor": "Kael",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Kael",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Kael"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Lyra"
+    },
+    {
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "attack Goblin with Rapier" },
+      "expect": {
+        "rollType": "attack",
+        "advantage": true
+      },
+      "comment": "Lyra at (20,10), Kael at (10,10) — still flanking from opposite side → advantage"
+    },
+    {
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

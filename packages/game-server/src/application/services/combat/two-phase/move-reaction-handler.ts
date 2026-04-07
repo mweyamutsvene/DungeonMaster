@@ -42,7 +42,7 @@ import { resolveMovementTriggers } from "../helpers/movement-trigger-resolver.js
 import { syncAuraZones } from "../helpers/aura-sync.js";
 import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
 import { normalizeConditions, hasCondition, removeCondition, getFrightenedSourceId, isFrightenedMovementBlocked, isAttackBlockedByCharm, getExhaustionLevel, getExhaustionSpeedReduction } from "../../../../domain/entities/combat/conditions.js";
-import { resolveOpportunityAttacks } from "../helpers/opportunity-attack-resolver.js";
+import { resolveOpportunityAttacks, type SpellOaDeps } from "../helpers/opportunity-attack-resolver.js";
 import type { JsonValue } from "../../../types.js";
 import type {
   InitiateMoveInput,
@@ -58,6 +58,7 @@ export class MoveReactionHandler {
     private readonly combatants: ICombatantResolver,
     private readonly pendingActions: PendingActionRepository,
     private readonly events?: IEventRepository,
+    private readonly spellOaDeps?: SpellOaDeps,
   ) {}
 
   /**
@@ -539,6 +540,7 @@ export class MoveReactionHandler {
         combat: this.combat,
         combatants: this.combatants,
         events: this.events,
+        spellOaDeps: this.spellOaDeps,
       },
     );
 

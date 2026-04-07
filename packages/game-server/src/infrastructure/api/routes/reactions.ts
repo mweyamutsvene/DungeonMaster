@@ -37,10 +37,14 @@ export function registerReactionRoutes(
       combatantId: string;
       opportunityId: string;
       choice: "use" | "decline";
+      /** For War Caster spell-as-OA: which spell to cast */
+      spellName?: string;
+      /** For War Caster spell-as-OA: optional upcast level */
+      castAtLevel?: number;
     };
   }>("/encounters/:encounterId/reactions/:pendingActionId/respond", async (req, reply) => {
     const { encounterId, pendingActionId } = req.params;
-    const { combatantId, opportunityId, choice } = req.body;
+    const { combatantId, opportunityId, choice, spellName, castAtLevel } = req.body;
 
     console.log(`[Reactions] ${choice} reaction (${pendingActionId.slice(0, 8)}…)`);
 
@@ -91,12 +95,17 @@ export function registerReactionRoutes(
 
 
     // Add response
+    // For spell-type OA reactions, store the spell selection in the result
+    const resultData = (opportunity.oaType === "spell" && choice === "use" && spellName)
+      ? { spellName, castAtLevel } as Record<string, unknown>
+      : undefined;
+
     const response = {
       opportunityId,
       combatantId,
       choice,
       respondedAt: new Date(),
-      result: undefined, // Will be filled in during completeMove/completeSpellCast
+      result: resultData,
     };
 
     try {
@@ -181,7 +190,7 @@ export function registerReactionRoutes(
           // Expected: AI turn may have ended naturally
         }
 
-        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : opportunity.reactionType === "uncanny_dodge" ? "Uncanny Dodge" : "Reaction";
+        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : opportunity.reactionType === "uncanny_dodge" ? "Uncanny Dodge" : opportunity.reactionType === "sentinel_attack" ? "Sentinel reaction attack" : "Reaction";
         return {
           success: true,
           pendingActionId,

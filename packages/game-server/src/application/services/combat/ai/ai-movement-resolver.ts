@@ -20,6 +20,9 @@ import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { syncAuraZones } from "../helpers/aura-sync.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
+import { normalizeResources } from "../helpers/resource-utils.js";
+import { findBestWarCasterSpell } from "../../../../domain/rules/war-caster-oa.js";
+import { findSpellDefinition } from "./handlers/ai-spell-delivery.js";
 
 type AiLogger = (msg: string) => void;
 
@@ -232,6 +235,25 @@ export async function resolveAiMovement(
       });
 
       if (shouldUseReaction && opp.opportunityId) {
+        // Check if this is a spell-type OA (War Caster) — AI needs to select a spell
+        const reactionOpp = pendingAction.reactionOpportunities.find(
+          (ro: any) => ro.id === opp.opportunityId,
+        );
+        let spellOaResult: Record<string, unknown> | undefined;
+        if (reactionOpp?.oaType === "spell") {
+          const attackerRes = normalizeResources(attackerState.resources);
+          const attackerSource = (attackerState as any).sheet ?? (attackerState as any).statBlock ?? attackerRes;
+          const preparedSpells = findPreparedSpellsFromSource(attackerSource);
+          const bestSpell = findBestWarCasterSpell(preparedSpells, attackerRes);
+          if (bestSpell) {
+            spellOaResult = {
+              spellName: bestSpell.spell.name,
+              castAtLevel: bestSpell.castAtLevel,
+            };
+          }
+          // If no eligible spell found, still use the reaction (falls back to weapon OA)
+        }
+
         const updatedResolvedReactions = [
           ...pendingAction.resolvedReactions,
           {
@@ -239,6 +261,7 @@ export async function resolveAiMovement(
             combatantId: opp.combatantId,
             choice: "use" as const,
             respondedAt: new Date(),
+            result: spellOaResult,
           },
         ];
         await pendingActions.update({
@@ -286,4 +309,20 @@ export async function resolveAiMovement(
     opportunityAttacks: moveComplete.opportunityAttacks,
     aiDecisions,
   };
+}
+
+/** Extract prepared spells from a character sheet or stat block source. */
+function findPreparedSpellsFromSource(source: unknown): import("../../../../domain/entities/spells/prepared-spell-definition.js").PreparedSpellDefinition[] {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return [];
+  const s = source as Record<string, unknown>;
+  for (const key of ["preparedSpells", "spells"] as const) {
+    const arr = s[key];
+    if (Array.isArray(arr)) {
+      return arr.filter(
+        (entry): entry is import("../../../../domain/entities/spells/prepared-spell-definition.js").PreparedSpellDefinition =>
+          entry !== null && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as any).name === "string",
+      );
+    }
+  }
+  return [];
 }

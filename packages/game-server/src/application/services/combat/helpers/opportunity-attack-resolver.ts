@@ -11,6 +11,9 @@
 import { nanoid } from "nanoid";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
 import type { IEventRepository } from "../../../repositories/event-repository.js";
+import type { ICharacterRepository } from "../../../repositories/character-repository.js";
+import type { IMonsterRepository } from "../../../repositories/monster-repository.js";
+import type { INPCRepository } from "../../../repositories/npc-repository.js";
 import type { ICombatantResolver } from "./combatant-resolver.js";
 import type { CombatantRef } from "./combatant-ref.js";
 import type {
@@ -19,7 +22,7 @@ import type {
   ReactionResponse,
 } from "../../../../domain/entities/combat/pending-action.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
-import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
+import { SeededDiceRoller, type DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
 import { applyKoEffectsIfNeeded } from "./ko-handler.js";
@@ -36,6 +39,10 @@ import {
   getDamageDefenseEffects,
 } from "../../../../domain/entities/combat/effects.js";
 import type { JsonValue } from "../../../types.js";
+import { resolveSpell } from "./spell-slot-manager.js";
+import { prepareSpellCast } from "./spell-slot-manager.js";
+import { isEligibleWarCasterSpell } from "../../../../domain/rules/war-caster-oa.js";
+import { AiSpellDelivery, findSpellDefinition } from "../ai/handlers/ai-spell-delivery.js";
 
 /** Simple string → int32 hash for deterministic OA dice seeding. */
 export function hashForOA(text: string): number {
@@ -79,6 +86,17 @@ export interface ResolveOAResult {
 }
 
 /**
+ * Optional deps for resolving War Caster spell-as-OA.
+ * When present, spell-type OA reactions will use spell delivery instead of weapon attacks.
+ */
+export interface SpellOaDeps {
+  characters: ICharacterRepository;
+  monsters: IMonsterRepository;
+  npcs: INPCRepository;
+  diceRoller: DiceRoller;
+}
+
+/**
  * Resolve all opportunity attacks / readied actions from a pending move.
  * Returns executed OA results and whether the target survived.
  */
@@ -88,6 +106,7 @@ export async function resolveOpportunityAttacks(
     combat: ICombatRepository;
     combatants: ICombatantResolver;
     events?: IEventRepository;
+    spellOaDeps?: SpellOaDeps;
   },
 ): Promise<ResolveOAResult> {
   const { sessionId, pendingAction, encounter, actor, combatants } = input;
@@ -108,6 +127,28 @@ export async function resolveOpportunityAttacks(
 
     const attacker = combatants.find((c: any) => c.id === reaction.combatantId);
     if (!attacker || attacker.hpCurrent <= 0) continue;
+
+    // ── War Caster spell-as-OA branch ──
+    if (opp.oaType === "spell" && deps.spellOaDeps) {
+      const spellResult = await resolveSpellOA(
+        sessionId, encounter, attacker, actor, reaction, opp, deps,
+      );
+      if (spellResult) {
+        executedOAs.push(spellResult.oaResult);
+        if (!spellResult.targetStillAlive) {
+          targetStillAlive = false;
+        }
+        // Mark reaction as used
+        const attackerResources = normalizeResources(attacker.resources);
+        await deps.combat.updateCombatantState(attacker.id, {
+          resources: { ...attackerResources, reactionUsed: true } as JsonValue,
+        });
+        if (!targetStillAlive) break;
+        continue;
+      }
+      // If spell OA resolution failed (no spell specified, invalid spell, etc.),
+      // fall through to weapon OA as fallback
+    }
 
     let hit = false;
     let totalDamage = 0;
@@ -392,4 +433,158 @@ export async function resolveOpportunityAttacks(
   }
 
   return { executedOAs, targetStillAlive };
+}
+
+// ── War Caster spell OA resolution ──
+
+interface SpellOAResult {
+  oaResult: OAExecutionResult;
+  targetStillAlive: boolean;
+}
+
+/**
+ * Resolve a War Caster spell-as-opportunity-attack.
+ *
+ * Uses the spell name from the reaction result (player-specified or AI-selected).
+ * Falls back to null if the spell cannot be resolved, allowing weapon OA fallback.
+ */
+async function resolveSpellOA(
+  sessionId: string,
+  encounter: { id: string; round: number; mapData?: unknown },
+  attacker: any,
+  actor: any,
+  reaction: ReactionResponse,
+  opp: ReactionOpportunity,
+  deps: {
+    combat: ICombatRepository;
+    combatants: ICombatantResolver;
+    events?: IEventRepository;
+    spellOaDeps?: SpellOaDeps;
+  },
+): Promise<SpellOAResult | null> {
+  if (!deps.spellOaDeps) return null;
+
+  // Get spell name from reaction result
+  const storedResult = reaction.result as Record<string, unknown> | undefined;
+  const spellName = storedResult?.spellName as string | undefined;
+  if (!spellName) return null;
+
+  // Resolve spell definition — try catalog first, then character sheet
+  const attackerRef: CombatantRef =
+    attacker.combatantType === "Character" && attacker.characterId
+      ? { type: "Character", characterId: attacker.characterId }
+      : attacker.combatantType === "Monster" && attacker.monsterId
+        ? { type: "Monster", monsterId: attacker.monsterId }
+        : attacker.combatantType === "NPC" && attacker.npcId
+          ? { type: "NPC", npcId: attacker.npcId }
+          : { type: "Character", characterId: "" };
+
+  // Get the caster's source data (character sheet or stat block)
+  let casterSource: Record<string, unknown> = {};
+  if (attacker.characterId) {
+    const char = await deps.spellOaDeps.characters.getById(attacker.characterId);
+    if (char) casterSource = (char.sheet ?? {}) as Record<string, unknown>;
+  } else if (attacker.monsterId) {
+    const mon = await deps.spellOaDeps.monsters.getById(attacker.monsterId);
+    if (mon) casterSource = (mon.statBlock ?? mon) as Record<string, unknown>;
+  } else if (attacker.npcId) {
+    const npc = await deps.spellOaDeps.npcs.getById(attacker.npcId);
+    if (npc) casterSource = ((npc as any).sheet ?? (npc as any).statBlock ?? {}) as Record<string, unknown>;
+  }
+
+  // Resolve spell from catalog (shared with tabletop path) or from caster source
+  const spellDef = resolveSpell(spellName, casterSource) ?? findSpellDefinition(casterSource, spellName);
+  if (!spellDef) return null;
+
+  // Validate War Caster eligibility
+  if (!isEligibleWarCasterSpell(spellDef)) return null;
+
+  // Spend spell slot + handle concentration (cantrips skip this)
+  const castAtLevel = storedResult?.castAtLevel as number | undefined;
+  if (spellDef.level > 0) {
+    try {
+      await prepareSpellCast(
+        attacker.id,
+        encounter.id,
+        spellName,
+        spellDef.level,
+        spellDef.concentration ?? false,
+        deps.combat,
+        undefined,
+        castAtLevel,
+      );
+    } catch {
+      // No spell slot available — fall back to weapon OA
+      return null;
+    }
+  }
+
+  // Deliver spell effects via AiSpellDelivery (handles all delivery modes)
+  const delivery = new AiSpellDelivery({
+    combat: deps.combat,
+    characters: deps.spellOaDeps.characters,
+    monsters: deps.spellOaDeps.monsters,
+    npcs: deps.spellOaDeps.npcs,
+    diceRoller: deps.spellOaDeps.diceRoller,
+  });
+
+  // The target of the spell is the moving creature (actor)
+  const result = await delivery.deliver(
+    sessionId,
+    encounter.id,
+    attacker,
+    spellDef,
+    actor,
+    undefined,
+    castAtLevel ?? (spellDef.level > 0 ? spellDef.level : undefined),
+    casterSource,
+  );
+
+  // Calculate damage from post-delivery HP change
+  const updatedActor = (await deps.combat.listCombatants(encounter.id))
+    .find((c: any) => c.id === actor.id);
+  const hpAfter = updatedActor?.hpCurrent ?? actor.hpCurrent;
+  const damage = Math.max(0, actor.hpCurrent - hpAfter);
+
+  const attackerName = await deps.combatants.getName(attackerRef, attacker);
+
+  const oaResult: OAExecutionResult = {
+    attackerId: attacker.id,
+    attackerName,
+    targetId: actor.id,
+    damage,
+  };
+
+  // Emit spell OA event
+  if (deps.events) {
+    await deps.events.append(sessionId, {
+      id: nanoid(),
+      type: "OpportunityAttack",
+      payload: {
+        encounterId: encounter.id,
+        attackerId: attacker.id,
+        attackerName,
+        targetId: actor.id,
+        spellName,
+        spellOA: true,
+        damage,
+        summary: result.summary,
+      },
+    });
+  }
+
+  // D&D 5e 2024: Rage damage-taken tracking for OA target
+  if (damage > 0) {
+    const actorRes = normalizeResources(actor.resources);
+    if (actorRes.raging === true) {
+      await deps.combat.updateCombatantState(actor.id, {
+        resources: { ...actorRes, rageDamageTakenThisTurn: true } as any,
+      });
+    }
+  }
+
+  return {
+    oaResult,
+    targetStillAlive: hpAfter > 0,
+  };
 }

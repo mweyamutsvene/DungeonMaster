@@ -342,8 +342,13 @@ export class TabletopCombatService {
         return combatant?.combatantType === "Character";
       });
 
-    // Find OAs that still need rolls (either attack roll or damage roll)
+    // Find OAs that still need rolls (either attack roll or damage roll).
+    // Spell OA reactions (War Caster) are auto-resolved by the server — skip them.
     const playerOAsAwaitingRolls = playerOAs.filter((r: any) => {
+      const opp = pendingAction.reactionOpportunities.find(
+        (o: any) => o.id === r.opportunityId,
+      );
+      if (opp?.oaType === "spell") return false;
       if (!r.result || !r.result.attackRoll) return true;
       if (r.result.hit === true && !r.result.damageRoll) return true;
       return false;

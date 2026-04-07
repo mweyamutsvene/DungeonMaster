@@ -86,4 +86,6 @@ export interface CombatMap {
   zones?: CombatZone[];
   /** Items on the ground (thrown, dropped, pre-placed) */
   groundItems?: GroundItem[];
+  /** Optional rule: when true, flanking grants advantage on melee attacks */
+  flankingEnabled?: boolean;
 }

@@ -10,7 +10,7 @@ import type { Position } from "../../rules/movement.js";
 import type { CombatantRef } from "../../../application/services/combat/helpers/combatant-ref.js";
 
 export type PendingActionType = "move" | "spell_cast" | "attack" | "damage_reaction";
-export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action";
+export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack";
 
 /**
  * Tracks an action awaiting reaction resolution.

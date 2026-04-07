@@ -39,6 +39,8 @@ import { readConditionNames, normalizeConditions, getExhaustionD20Penalty, isAtt
 import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery.js";
 import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
+import { checkFlanking } from "../../../../../domain/rules/flanking.js";
+import type { CombatMap as FlankingCombatMap } from "../../../../../domain/rules/combat-map-types.js";
 
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type {
@@ -528,6 +530,7 @@ export class AttackHandlers {
       dist,
       actorPos,
       combatantStates,
+      encounterId,
     });
 
     // Parse attack enhancement declarations via class combat text profiles
@@ -783,15 +786,50 @@ export class AttackHandlers {
     dist: number;
     actorPos: { x: number; y: number };
     combatantStates: any[];
+    encounterId: string;
   }): Promise<"normal" | "advantage" | "disadvantage"> {
     const {
       actorCombatant, targetCombatant, targetId,
       inferredKind, inferredProperties, actorSheet,
       normalRange, dist, actorPos, combatantStates,
+      encounterId,
     } = params;
 
     let extraDisadvantage = 0;
     let extraAdvantage = 0;
+
+    // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when
+    // the attacker and an ally are on opposite sides of the target.
+    if (inferredKind === "melee") {
+      const encounter = await this.deps.combatRepo.getEncounterById(encounterId);
+      const mapData = encounter?.mapData as unknown as FlankingCombatMap | undefined;
+      if (mapData?.flankingEnabled) {
+        const targetPos = getPosition(targetCombatant.resources ?? {});
+        if (targetPos) {
+          // Gather positions of living allies (same faction as attacker, excluding attacker and target)
+          const actorFaction = this.getActorFaction(actorCombatant, combatantStates);
+          const allyPositions: Array<{ x: number; y: number }> = [];
+          for (const c of combatantStates) {
+            if (c.id === actorCombatant.id || c.id === targetCombatant.id) continue;
+            if (c.hpCurrent <= 0) continue;
+            const cFaction = this.getActorFaction(c, combatantStates);
+            if (cFaction !== actorFaction) continue;
+            // Skip incapacitated allies
+            const cConditions = normalizeConditions(c.conditions as unknown[]);
+            if (cConditions.some((cond: any) => {
+              const name = typeof cond === "string" ? cond : cond?.name;
+              return name?.toLowerCase() === "incapacitated";
+            })) continue;
+            const cPos = getPosition(c.resources ?? {});
+            if (cPos) allyPositions.push(cPos);
+          }
+          if (checkFlanking(actorPos, targetPos, allyPositions)) {
+            extraAdvantage++;
+            if (this.debugLogsEnabled) console.log(`[AttackHandlers] Flanking detected → advantage on melee attack`);
+          }
+        }
+      }
+    }
 
     // Heavy weapon + Small/Tiny creature → disadvantage (D&D 5e 2024)
     if (inferredProperties?.some((p: string) => p.toLowerCase() === "heavy")) {
@@ -901,5 +939,25 @@ export class AttackHandlers {
     }
 
     return deriveRollModeFromConditions(attackerConditions, targetConditions, inferredKind, extraAdvantage, extraDisadvantage, dist);
+  }
+
+  /**
+   * Determine combatant faction from the relational data embedded in the combatant record.
+   * Falls back to combatantType as a crude faction proxy.
+   */
+  private getActorFaction(combatant: any, _combatantStates: any[]): string {
+    const char = combatant.character;
+    const mon = combatant.monster;
+    const npc = combatant.npc;
+    if (char?.faction) return char.faction;
+    if (mon?.faction) return mon.faction;
+    if (npc?.faction) return npc.faction;
+    // Check resources for faction (stored by scenario runner / combat start)
+    const resFaction = (combatant.resources ?? {}).faction;
+    if (typeof resFaction === "string") return resFaction;
+    // Crude fallback: Characters are "party", Monsters are "enemies"
+    if (combatant.combatantType === "Character") return "party";
+    if (combatant.combatantType === "NPC") return "party";
+    return "enemies";
   }
 }

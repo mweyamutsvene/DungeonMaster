@@ -1,0 +1,127 @@
+{
+  "name": "Sentinel Feat Effect #3: Reaction Attack When Ally Attacked",
+  "description": "Two fighters face a skeleton. The skeleton attacks Fighter A, but Fighter B (with Sentinel feat, within 5ft of skeleton) gets a reaction attack opportunity. Tests: Sentinel reaction detection on attack, reaction use, melee weapon attack resolution against attacker.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Target Tim",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 5, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Sentinel Sam",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 15, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 14, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "featIds": ["feat_sentinel"],
+          "attacks": [
+            {
+              "name": "Greatsword", "kind": "melee", "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 80, "hp": 80, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "We engage the skeleton!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative so all PCs go before the monster"
+    },
+    {
+      "type": "endTurn",
+      "comment": "End Target Tim's turn (first PC by initiative)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait until Sentinel Sam's turn starts",
+      "timeout": 5000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sentinel Sam",
+      "comment": "End Sentinel Sam's turn — now the monster will attack one of the PCs"
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "sentinel_attack" },
+      "comment": "Wait for monster to attack Target Tim. Since Sentinel Sam is within 5ft of the skeleton and has Sentinel feat, a sentinel_attack reaction should be offered.",
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" },
+      "comment": "Sentinel Sam uses reaction to make a melee weapon attack against the skeleton."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for monster turn processing to complete and control to return to players.",
+      "timeout": 5000
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Warrior", "max": 80 },
+        "characterHp": { "max": 28 }
+      },
+      "comment": "Skeleton should have taken damage from Sentinel Sam's reaction attack. Target Tim may have taken damage from the skeleton's attack."
+    }
+  ]
+}

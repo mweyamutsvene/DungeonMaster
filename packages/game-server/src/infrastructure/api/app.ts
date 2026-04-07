@@ -208,6 +208,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     combatants,
     pendingActionsRepo,
     deps.eventsRepo,
+    {
+      characters: deps.charactersRepo,
+      monsters: deps.monstersRepo,
+      npcs: deps.npcsRepo,
+      diceRoller,
+    },
   );
   
   const aiDecisionMaker = deps.aiDecisionMaker
@@ -393,6 +399,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         combatantsInner,
         pendingActionsRepoInner,
         repos.eventsRepo,
+        {
+          characters: repos.charactersRepo,
+          monsters: repos.monstersRepo,
+          npcs: repos.npcsRepo,
+          diceRoller: diceRollerInner,
+        },
       );
       
       const battlePlannerInner = deps.llmProvider && deps.llmConfig

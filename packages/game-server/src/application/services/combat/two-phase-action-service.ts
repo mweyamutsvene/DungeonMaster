@@ -17,6 +17,7 @@ import type { PendingActionRepository } from "../../repositories/pending-action-
 import type { ICombatantResolver } from "./helpers/combatant-resolver.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import type { Position } from "../../../domain/rules/movement.js";
+import type { SpellOaDeps } from "./helpers/opportunity-attack-resolver.js";
 import { MoveReactionHandler } from "./two-phase/move-reaction-handler.js";
 import { AttackReactionHandler } from "./two-phase/attack-reaction-handler.js";
 import { SpellReactionHandler } from "./two-phase/spell-reaction-handler.js";
@@ -83,8 +84,9 @@ export class TwoPhaseActionService {
     private readonly combatants: ICombatantResolver,
     private readonly pendingActions: PendingActionRepository,
     private readonly events?: IEventRepository,
+    private readonly spellOaDeps?: SpellOaDeps,
   ) {
-    this.moveHandler = new MoveReactionHandler(sessions, combat, combatants, pendingActions, events);
+    this.moveHandler = new MoveReactionHandler(sessions, combat, combatants, pendingActions, events, spellOaDeps);
     this.attackHandler = new AttackReactionHandler(sessions, combat, combatants, pendingActions, events);
     this.spellHandler = new SpellReactionHandler(sessions, combat, combatants, pendingActions, events);
     this.damageHandler = new DamageReactionHandler(sessions, combat, combatants, pendingActions, events);
@@ -184,6 +186,16 @@ export class TwoPhaseActionService {
       pendingActionId: string;
       reactionType: string;
     };
+    /** Sentinel feat reaction attacks resolved during this attack */
+    sentinelAttacks?: Array<{
+      attackerId: string;
+      attackerName: string;
+      targetId: string;
+      attackRoll: number;
+      targetAC: number;
+      hit: boolean;
+      damage: number;
+    }>;
   }> {
     return this.attackHandler.complete(sessionId, input, this);
   }

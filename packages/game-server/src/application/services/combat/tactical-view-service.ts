@@ -23,6 +23,7 @@ import {
 } from "./helpers/resource-utils.js";
 import { ClassFeatureResolver } from "../../../domain/entities/classes/class-feature-resolver.js";
 import { readConditionNames } from "../../../domain/entities/combat/conditions.js";
+import { checkFlanking } from "../../../domain/rules/flanking.js";
 
 export interface TacticalCombatant {
   id: string;
@@ -51,6 +52,8 @@ export interface TacticalCombatant {
     reactionUsed: boolean;
     disengaged: boolean;
   };
+  /** IDs of enemies this combatant is currently flanking (only populated when flankingEnabled) */
+  flankingTargets?: string[];
 }
 
 export interface TacticalView {
@@ -85,6 +88,8 @@ export interface TacticalView {
     position: { x: number; y: number };
     distanceFromActive: number | null;
   }>;
+  /** Whether the optional flanking rule is active for this encounter */
+  flankingEnabled?: boolean;
 }
 
 export interface CombatQueryContext {
@@ -258,6 +263,50 @@ export class TacticalViewService {
         }))
       : undefined;
 
+    // Flanking computation
+    const flankingEnabled = !!(mapData as unknown as CombatMap | undefined)?.flankingEnabled;
+    if (flankingEnabled) {
+      // Build faction map for each combatant
+      const factionOf = (c: any): string => {
+        if (c.character?.faction) return c.character.faction;
+        if (c.monster?.faction) return c.monster.faction;
+        if (c.npc?.faction) return c.npc.faction;
+        const rf = (c.resources ?? {}).faction;
+        if (typeof rf === "string") return rf;
+        if (c.combatantType === "Character" || c.combatantType === "NPC") return "party";
+        return "enemies";
+      };
+      const combatantArray = combatants as any[];
+      for (const tc of tacticalCombatants) {
+        if (!tc.position || tc.hp.current <= 0) continue;
+        const rawCombatant = combatantArray.find((c: any) => c.id === tc.id);
+        if (!rawCombatant) continue;
+        const myFaction = factionOf(rawCombatant);
+        const targets: string[] = [];
+        // Check each enemy for flanking
+        for (const enemy of combatantArray) {
+          if (enemy.id === tc.id) continue;
+          if (enemy.hpCurrent <= 0) continue;
+          if (factionOf(enemy) === myFaction) continue;
+          const enemyPos = getPosition(enemy.resources ?? {});
+          if (!enemyPos) continue;
+          // Gather ally positions
+          const allyPositions: Array<{ x: number; y: number }> = [];
+          for (const ally of combatantArray) {
+            if (ally.id === tc.id || ally.id === enemy.id) continue;
+            if (ally.hpCurrent <= 0) continue;
+            if (factionOf(ally) !== myFaction) continue;
+            const aPos = getPosition(ally.resources ?? {});
+            if (aPos) allyPositions.push(aPos);
+          }
+          if (checkFlanking(tc.position, enemyPos, allyPositions)) {
+            targets.push(enemy.id);
+          }
+        }
+        if (targets.length > 0) tc.flankingTargets = targets;
+      }
+    }
+
     return {
       encounterId: encounter.id,
       status: (encounter as any).status ?? "Active",
@@ -268,6 +317,7 @@ export class TacticalViewService {
       lastMovePath,
       zones,
       groundItems,
+      ...(flankingEnabled ? { flankingEnabled } : {}),
     };
   }
 

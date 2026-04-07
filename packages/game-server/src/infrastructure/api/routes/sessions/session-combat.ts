@@ -145,6 +145,40 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
   });
 
   /**
+   * PATCH /sessions/:id/combat/flanking
+   * Toggle the optional flanking rule for the current encounter.
+   * When enabled, melee attackers with an ally on the opposite side of a target gain advantage.
+   * Body: { enabled: boolean, encounterId?: string }
+   */
+  app.patch<{
+    Params: { id: string };
+    Body: { encounterId?: string; enabled: boolean };
+  }>("/sessions/:id/combat/flanking", async (req) => {
+    const sessionId = req.params.id;
+    const { enabled, encounterId } = req.body;
+
+    if (typeof enabled !== "boolean") {
+      throw new ValidationError("enabled must be a boolean");
+    }
+
+    const encounters = await deps.combatRepo.listEncountersBySession(sessionId);
+    const encounter = encounterId
+      ? encounters.find(e => e.id === encounterId)
+      : encounters.find(e => e.status === "Active") ?? encounters[0];
+
+    if (!encounter) {
+      throw new ValidationError("No encounter found for session");
+    }
+
+    let map = (encounter.mapData ?? {}) as Record<string, unknown>;
+    map = { ...map, flankingEnabled: enabled };
+
+    await deps.combatRepo.updateEncounter(encounter.id, { mapData: map as unknown as JsonValue });
+
+    return { success: true, flankingEnabled: enabled };
+  });
+
+  /**
    * PATCH /sessions/:id/combat/surprise
    * Set surprise state on the current encounter (DM override).
    * Creates a new "Pending" encounter if none exists for the session.
