@@ -79,6 +79,8 @@ export interface DiceValue {
 export interface SaveToEnd {
   readonly ability: Ability;
   readonly dc: number;
+  /** Conditions to remove from the creature when the save succeeds. */
+  readonly removeConditions?: readonly string[];
 }
 
 /**

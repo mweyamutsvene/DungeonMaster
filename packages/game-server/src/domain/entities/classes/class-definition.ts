@@ -86,6 +86,8 @@ export interface ClassCapability {
     kind: string;
     [key: string]: unknown;
   };
+  /** Subclass ID required for this capability (e.g. "berserker", "open-hand"). */
+  requiresSubclass?: string;
 }
 
 export interface CharacterClassDefinition {

@@ -1123,6 +1123,19 @@ export class CombatService {
           if (success) {
             updatedEffects.splice(i, 1);
             resourcesChanged = true;
+
+            // Remove linked conditions on successful save (e.g., Paralyzed from Hold Person)
+            if (eff.saveToEnd.removeConditions && eff.saveToEnd.removeConditions.length > 0) {
+              let conditions = normalizeConditions(record.conditions);
+              for (const condName of eff.saveToEnd.removeConditions) {
+                conditions = removeCondition(conditions, condName as Condition);
+                console.log(`[CombatService] Save-to-end success: removed condition "${condName}" from ${record.id}`);
+              }
+              await this.combat.updateCombatantState(record.id, {
+                conditions: conditions as any,
+              });
+              record.conditions = conditions as any; // Update local copy
+            }
           }
         }
       }

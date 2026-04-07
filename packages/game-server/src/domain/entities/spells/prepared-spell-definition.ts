@@ -93,6 +93,11 @@ export interface PreparedSpellDefinition {
   readonly upcastScaling?: UpcastScaling;
   /** Area of effect for multi-target spells (Burning Hands, Fireball, etc.) */
   readonly area?: AreaOfEffect;
+  /** Turn-end save: target repeats saving throw at end of each of its turns to end an applied condition. */
+  readonly turnEndSave?: {
+    readonly ability: string;
+    readonly removeConditionOnSuccess: boolean;
+  };
 }
 
 /**

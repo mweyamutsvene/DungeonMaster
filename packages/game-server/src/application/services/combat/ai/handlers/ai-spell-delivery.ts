@@ -16,9 +16,14 @@ import { SavingThrowResolver } from "../../tabletop/rolls/saving-throw-resolver.
 import { applyKoEffectsIfNeeded } from "../../helpers/ko-handler.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
 import { applyEvasion } from "../../../../../domain/rules/evasion.js";
-import { normalizeResources, addActiveEffectsToResources } from "../../helpers/resource-utils.js";
+import { normalizeResources, addActiveEffectsToResources, getPosition } from "../../helpers/resource-utils.js";
 import { normalizeConditions, removeCondition } from "../../../../../domain/entities/combat/conditions.js";
 import { createEffect } from "../../../../../domain/entities/combat/effects.js";
+import { createZone } from "../../../../../domain/entities/combat/zones.js";
+import type { ZoneEffect } from "../../../../../domain/entities/combat/zones.js";
+import { addZone } from "../../../../../domain/rules/combat-map-zones.js";
+import type { CombatMap } from "../../../../../domain/rules/combat-map-types.js";
+import type { JsonValue } from "../../../../types.js";
 import { nanoid } from "nanoid";
 
 /** Look up a spell from character preparedSpells or monster spells array. */
@@ -103,6 +108,12 @@ export class AiSpellDelivery {
     }
     if (spellDef.effects && spellDef.effects.length > 0) {
       return this.deliverBuffDebuff(caster, spellDef, targetCombatant, combatants);
+    }
+    if (spellDef.zone) {
+      return this.deliverZone(
+        encounterId, caster, spellDef, targetCombatant,
+        effectiveLevel, casterSource, combatants, chars, mons, npcArr,
+      );
     }
     return { applied: false, summary: "" };
   }
@@ -396,6 +407,174 @@ export class AiSpellDelivery {
     return {
       applied: true,
       summary: spellDef.name + " applied to " + count + " target(s)" + cn,
+    };
+  }
+
+  private async deliverZone(
+    encounterId: string,
+    caster: CombatantStateRecord,
+    spellDef: PreparedSpellDefinition,
+    targetCombatant: CombatantStateRecord | null,
+    effectiveLevel: number,
+    casterSource: Record<string, unknown>,
+    combatants: CombatantStateRecord[],
+    chars: any[],
+    mons: any[],
+    npcArr: any[],
+  ): Promise<SpellDeliveryResult> {
+    const zoneDef = spellDef.zone!;
+    const isConc = spellDef.concentration ?? false;
+    const casterId = this.getEntityId(caster);
+
+    // Determine zone center position
+    let zoneCenter = { x: 0, y: 0 };
+    if (zoneDef.attachToSelf || zoneDef.type === "aura") {
+      const pos = getPosition(caster.resources);
+      if (pos) zoneCenter = pos;
+    } else if (targetCombatant) {
+      const pos = getPosition(targetCombatant.resources);
+      if (pos) zoneCenter = pos;
+    } else {
+      const pos = getPosition(caster.resources);
+      if (pos) zoneCenter = pos;
+    }
+
+    // Build ZoneEffect array from spell declaration
+    const zoneEffects: ZoneEffect[] = zoneDef.effects.map((eff) => {
+      const ze: ZoneEffect = {
+        trigger: eff.trigger,
+        damage: eff.damage,
+        damageType: eff.damageType,
+        saveAbility: eff.saveAbility as any,
+        saveDC: eff.saveDC,
+        halfDamageOnSave: eff.halfDamageOnSave,
+        conditions: eff.conditions,
+        activeEffect: eff.activeEffect
+          ? createEffect(
+              nanoid(),
+              eff.activeEffect.type,
+              eff.activeEffect.target,
+              isConc ? "concentration" : "permanent",
+              {
+                value: eff.activeEffect.value,
+                source: spellDef.name,
+                sourceCombatantId: casterId,
+                description: `${spellDef.name} zone aura`,
+              },
+            )
+          : undefined,
+        affectsAllies: eff.affectsAllies,
+        affectsEnemies: eff.affectsEnemies,
+        affectsSelf: eff.affectsSelf,
+      };
+      return ze;
+    });
+
+    // Fetch encounter to access mapData
+    const encounter = await this.deps.combat.getEncounterById(encounterId);
+    if (!encounter) {
+      return { applied: false, summary: "No active encounter found" };
+    }
+    const map = encounter.mapData as unknown as CombatMap | undefined;
+
+    const currentRound = encounter.round ?? 1;
+    const currentTurnIndex = encounter.turn ?? 0;
+
+    // Create the zone
+    const zone = createZone(
+      nanoid(),
+      zoneDef.type,
+      zoneCenter,
+      zoneDef.radiusFeet,
+      spellDef.name,
+      casterId,
+      zoneEffects,
+      isConc ? "concentration" : "rounds",
+      {
+        attachedTo:
+          zoneDef.attachToSelf || zoneDef.type === "aura" ? casterId : undefined,
+        shape: zoneDef.shape ?? "circle",
+        createdAtRound: currentRound,
+        createdAtTurnIndex: currentTurnIndex,
+        direction: zoneDef.direction,
+        width: zoneDef.width,
+      },
+    );
+
+    // Add zone to map
+    if (map) {
+      const updatedMap = addZone(map, zone);
+      await this.deps.combat.updateEncounter(encounter.id, {
+        mapData: updatedMap as unknown as JsonValue,
+      });
+    }
+
+    // Apply immediate save-based damage to enemies in zone radius
+    const saveSummaries: string[] = [];
+    if (spellDef.saveAbility && spellDef.damage) {
+      const dc = this.getSpellSaveDC(casterSource);
+      const targets = this.resolveTargets(caster, combatants, null, true);
+
+      let sharedDmg = 0;
+      let dice = spellDef.damage.diceCount;
+      const up = getUpcastBonusDice(spellDef, effectiveLevel);
+      if (up) dice += up.bonusDiceCount;
+      sharedDmg =
+        this.deps.diceRoller.rollDie(spellDef.damage.diceSides, dice).total +
+        (spellDef.damage.modifier ?? 0);
+
+      for (const t of targets) {
+        const tId = this.getEntityId(t);
+        const name = this.getDisplayName(t, chars, mons, npcArr);
+
+        const saveAction = this.saveResolver.buildPendingAction({
+          actorId: tId,
+          sourceId: casterId,
+          ability: spellDef.saveAbility,
+          dc,
+          reason: spellDef.name,
+          onSuccess: { summary: "Save succeeded" },
+          onFailure: { summary: "Save failed" },
+        });
+
+        const res = await this.saveResolver.resolve(
+          saveAction, encounterId, chars, mons, npcArr,
+        );
+        let dmg = sharedDmg;
+        dmg = applyEvasion(dmg, res.success, !!res.hasEvasion, spellDef.halfDamageOnSave ?? true);
+        if (dmg > 0) {
+          const defs = extractDamageDefenses(this.getStatSource(t, chars, mons, npcArr));
+          if (
+            spellDef.damageType &&
+            (defs.damageResistances || defs.damageImmunities || defs.damageVulnerabilities)
+          ) {
+            dmg = applyDamageDefenses(dmg, spellDef.damageType, defs).adjustedDamage;
+          }
+          const hpBefore = t.hpCurrent;
+          const hpAfter = Math.max(0, hpBefore - dmg);
+          await this.deps.combat.updateCombatantState(t.id, { hpCurrent: hpAfter });
+          await applyKoEffectsIfNeeded(t, hpBefore, hpAfter, this.deps.combat);
+          saveSummaries.push(
+            name + ": " + spellDef.saveAbility + " save " +
+              (res.success ? "succeeded" : "failed") +
+              ", " + dmg + " " + (spellDef.damageType ?? "") + " damage",
+          );
+        } else {
+          saveSummaries.push(name + ": save succeeded, no damage");
+        }
+      }
+    }
+
+    const concNote = isConc ? " [concentration]" : "";
+    const typeNote =
+      zoneDef.type === "aura"
+        ? " (aura, moves with caster)"
+        : ` at (${zoneCenter.x}, ${zoneCenter.y})`;
+    const dmgNote = saveSummaries.length > 0 ? " -- " + saveSummaries.join("; ") : "";
+
+    return {
+      applied: true,
+      summary: spellDef.name + typeNote + ", " + zoneDef.radiusFeet + "ft radius" + concNote + dmgNote,
     };
   }
 

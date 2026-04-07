@@ -346,6 +346,64 @@ function pickFromCandidates(
   return undefined;
 }
 
+/**
+ * Evaluate class features that should be used as the primary action (useFeature).
+ * Focused on action-cost healing abilities when HP is low.
+ * Bonus-action abilities (Second Wind, Patient Defense, Flurry) are handled
+ * separately by pickBonusAction.
+ *
+ * Priorities:
+ * 1. Wholeness of Body (Monk) — if below 50% HP and has resource
+ * 2. Lay on Hands (Paladin) — if below 50% HP and has resource
+ */
+function pickFeatureAction(
+  combatant: AiCombatContext["combatant"],
+  combatantName: string,
+): AiDecision | undefined {
+  const classAbilities = combatant.classAbilities ?? [];
+  const resourcePools = combatant.resourcePools ?? [];
+  const hpPercent = combatant.hp.percentage;
+
+  // Only consider healing features when hurt
+  if (hpPercent >= 50) return undefined;
+
+  // Wholeness of Body (Monk)
+  const hasWholenessOfBody = classAbilities.some(a => a.name.toLowerCase().includes("wholeness of body"));
+  if (hasWholenessOfBody) {
+    const pool = resourcePools.find(p => {
+      const name = p.name.toLowerCase();
+      return name === "wholeness_of_body" || name.includes("wholeness");
+    });
+    if (pool && pool.current > 0) {
+      return {
+        action: "useFeature",
+        featureId: "wholenessOfBody",
+        endTurn: false,
+        intentNarration: `${combatantName} uses Wholeness of Body to heal!`,
+      };
+    }
+  }
+
+  // Lay on Hands (Paladin)
+  const hasLayOnHands = classAbilities.some(a => a.name.toLowerCase().includes("lay on hands"));
+  if (hasLayOnHands) {
+    const pool = resourcePools.find(p => {
+      const name = p.name.toLowerCase();
+      return name === "layonhands" || name.includes("lay on hands") || name === "lay_on_hands";
+    });
+    if (pool && pool.current > 0) {
+      return {
+        action: "useFeature",
+        featureId: "layOnHands",
+        endTurn: false,
+        intentNarration: `${combatantName} uses Lay on Hands!`,
+      };
+    }
+  }
+
+  return undefined;
+}
+
 export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
@@ -471,6 +529,20 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
           }
         }
         return spellDecision;
+      }
+    }
+
+    // Step 4c: Class feature usage — healing when hurt
+    if (!actionSpent) {
+      const featureDecision = pickFeatureAction(combatant, input.combatantName);
+      if (featureDecision) {
+        if (!bonusActionSpent && !featureDecision.endTurn) {
+          const bonusAction = pickBonusAction(combatant, livingEnemies);
+          if (bonusAction) {
+            featureDecision.bonusAction = bonusAction;
+          }
+        }
+        return featureDecision;
       }
     }
 

@@ -53,17 +53,14 @@ describe("Ranger capabilitiesForLevel", () => {
 });
 
 describe("Ranger combat text profile", () => {
-  it("matches 'hunters mark' text", () => {
+  it("does not match 'hunters mark' (spell, not class ability)", () => {
     const match = tryMatchClassAction("huntersmark", [RANGER_COMBAT_TEXT_PROFILE]);
-    expect(match).not.toBeNull();
-    expect(match!.abilityId).toBe("class:ranger:hunters-mark");
-    expect(match!.category).toBe("bonusAction");
+    expect(match).toBeNull();
   });
 
-  it("matches 'cast hunters mark' text", () => {
+  it("does not match 'cast hunters mark' (spell, not class ability)", () => {
     const match = tryMatchClassAction("casthuntersmark", [RANGER_COMBAT_TEXT_PROFILE]);
-    expect(match).not.toBeNull();
-    expect(match!.abilityId).toBe("class:ranger:hunters-mark");
+    expect(match).toBeNull();
   });
 
   it("does not match unrelated text", () => {

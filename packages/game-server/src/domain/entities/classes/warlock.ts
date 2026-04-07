@@ -131,9 +131,7 @@ const HELLISH_REBUKE_REACTION: DamageReactionDef = {
 /** Combat text profile for Warlock — Hellish Rebuke damage reaction. */
 export const WARLOCK_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "warlock",
-  actionMappings: [
-    { keyword: "eldritch-blast", normalizedPatterns: [/eldritchblast|casteldritchblast/], abilityId: "class:warlock:eldritch-blast", category: "classAction" },
-  ],
+  actionMappings: [],
   attackEnhancements: [],
   damageReactions: [HELLISH_REBUKE_REACTION],
 };

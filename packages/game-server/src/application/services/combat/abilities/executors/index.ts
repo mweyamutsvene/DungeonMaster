@@ -5,10 +5,16 @@
  */
 
 // Barbarian abilities
-export { RageExecutor, RecklessAttackExecutor, BrutalStrikeExecutor } from "./barbarian/index.js";
+export { RageExecutor, RecklessAttackExecutor, BrutalStrikeExecutor, FrenzyExecutor } from "./barbarian/index.js";
+
+// Bard abilities
+export { BardicInspirationExecutor } from "./bard/index.js";
 
 // Cleric abilities
 export { TurnUndeadExecutor } from "./cleric/index.js";
+
+// Druid abilities
+export { WildShapeExecutor } from "./druid/index.js";
 
 // Fighter abilities
 export { ActionSurgeExecutor, IndomitableExecutor, SecondWindExecutor } from "./fighter/index.js";
@@ -27,6 +33,9 @@ export { LayOnHandsExecutor } from "./paladin/index.js";
 
 // Rogue abilities
 export { CunningActionExecutor } from "./rogue/index.js";
+
+// Sorcerer abilities
+export { QuickenedSpellExecutor, TwinnedSpellExecutor } from "./sorcerer/index.js";
 
 // Monster abilities
 export { NimbleEscapeExecutor } from "./monster/index.js";

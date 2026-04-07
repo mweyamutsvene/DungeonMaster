@@ -131,6 +131,12 @@ export const BARBARIAN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       abilityId: "class:barbarian:brutal-strike",
       category: "classAction",
     },
+    {
+      keyword: "frenzy",
+      normalizedPatterns: [/^frenzy$|frenzyattack|frenziedstrike|^usefrenzy$/],
+      abilityId: "class:barbarian:frenzy",
+      category: "bonusAction",
+    },
   ],
   attackEnhancements: [],
 };
@@ -188,6 +194,10 @@ export const Barbarian: CharacterClassDefinition = {
     }
     if (level >= 9) {
       caps.push({ name: "Brutal Strike", economy: "free", requires: "Raging + Reckless Attack hit", effect: "Extra weapon die + choose: Forceful Blow (push 15ft/prone), Hamstring Blow (-15ft speed), or Staggering Blow (disadvantage on next attack)" });
+    }
+    // Berserker subclass capabilities
+    if (level >= 3) {
+      caps.push({ name: "Frenzy", economy: "bonusAction", requires: "While raging", effect: "Make one extra melee weapon attack as a bonus action", abilityId: "class:barbarian:frenzy", requiresSubclass: "berserker" });
     }
     return caps;
   },

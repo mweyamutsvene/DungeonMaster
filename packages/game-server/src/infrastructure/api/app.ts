@@ -29,8 +29,13 @@ import {
   RageExecutor,
   RecklessAttackExecutor,
   BrutalStrikeExecutor,
+  FrenzyExecutor,
   LayOnHandsExecutor,
   TurnUndeadExecutor,
+  BardicInspirationExecutor,
+  WildShapeExecutor,
+  QuickenedSpellExecutor,
+  TwinnedSpellExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../testing/memory-repos.js";
@@ -263,8 +268,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new RageExecutor());
   abilityRegistry.register(new RecklessAttackExecutor());
   abilityRegistry.register(new BrutalStrikeExecutor());
+  abilityRegistry.register(new FrenzyExecutor());
   abilityRegistry.register(new LayOnHandsExecutor());
   abilityRegistry.register(new TurnUndeadExecutor());
+  abilityRegistry.register(new BardicInspirationExecutor());
+  abilityRegistry.register(new WildShapeExecutor());
+  abilityRegistry.register(new QuickenedSpellExecutor());
+  abilityRegistry.register(new TwinnedSpellExecutor());
   
   const aiOrchestrator = new AiTurnOrchestrator(
     deps.combatRepo,

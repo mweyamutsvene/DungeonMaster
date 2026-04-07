@@ -44,6 +44,7 @@ export const HOLD_PERSON = {
   concentration: true,
   saveAbility: 'wisdom',
   conditions: { onFailure: ['Paralyzed'] },
+  turnEndSave: { ability: 'wisdom', removeConditionOnSuccess: true },
   school: 'enchantment',
   castingTime: 'action',
   range: 60,

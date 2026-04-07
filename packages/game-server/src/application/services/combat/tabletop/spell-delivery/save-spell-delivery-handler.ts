@@ -13,7 +13,7 @@
  */
 
 import { ValidationError } from '../../../../errors.js';
-import { normalizeResources, getPosition } from '../../helpers/resource-utils.js';
+import { normalizeResources, getPosition, addActiveEffectsToResources } from '../../helpers/resource-utils.js';
 import { applyKoEffectsIfNeeded } from '../../helpers/ko-handler.js';
 import { findCombatantByName } from '../combat-text-parser.js';
 import { applyDamageDefenses, extractDamageDefenses } from '../../../../../domain/rules/damage-defenses.js';
@@ -25,6 +25,8 @@ import type { Position } from '../../../../../domain/rules/movement.js';
 import type { CombatMap } from '../../../../../domain/rules/combat-map.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import { createEffect } from '../../../../../domain/entities/combat/effects.js';
+import type { Ability } from '../../../../../domain/entities/core/ability-scores.js';
 import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
@@ -260,6 +262,42 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       resolution.conditionsApplied.length > 0
         ? ` ${resolution.conditionsApplied.join(", ")} applied!`
         : "";
+
+    // Turn-end save: if the spell has turnEndSave and conditions were applied,
+    // attach a tracking ActiveEffect with saveToEnd so the target repeats the save
+    // at the end of each of its turns (D&D 5e 2024).
+    if (spellMatch.turnEndSave && resolution.conditionsApplied.length > 0) {
+      const targetCombatant = combatants.find(
+        (c: any) =>
+          c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
+      );
+      if (targetCombatant) {
+        const trackingEffect = createEffect(
+          `turn-end-save-${castInfo.spellName}-${targetId}`,
+          'custom',
+          'custom',
+          spellMatch.concentration ? 'concentration' : 'permanent',
+          {
+            source: castInfo.spellName,
+            description: `End-of-turn ${spellMatch.turnEndSave.ability} save DC ${spellSaveDC} to end ${resolution.conditionsApplied.join(', ')}`,
+            saveToEnd: {
+              ability: spellMatch.turnEndSave.ability as Ability,
+              dc: spellSaveDC,
+              removeConditions: spellMatch.turnEndSave.removeConditionOnSuccess
+                ? resolution.conditionsApplied
+                : undefined,
+            },
+          },
+        );
+        const updatedRes = addActiveEffectsToResources(
+          targetCombatant.resources ?? {},
+          trackingEffect,
+        );
+        await deps.combatRepo.updateCombatantState(targetCombatant.id, {
+          resources: updatedRes as any,
+        });
+      }
+    }
 
     // Mark action spent
     await deps.actions.castSpell(sessionId, {
@@ -545,6 +583,34 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
             hpAfter,
           );
         }
+      }
+
+      // Turn-end save tracking for AoE spells with conditions
+      if (spellMatch.turnEndSave && resolution.conditionsApplied.length > 0) {
+        const trackingEffect = createEffect(
+          `turn-end-save-${castInfo.spellName}-${entityId}`,
+          'custom',
+          'custom',
+          spellMatch.concentration ? 'concentration' : 'permanent',
+          {
+            source: castInfo.spellName,
+            description: `End-of-turn ${spellMatch.turnEndSave.ability} save DC ${spellSaveDC} to end ${resolution.conditionsApplied.join(', ')}`,
+            saveToEnd: {
+              ability: spellMatch.turnEndSave.ability as Ability,
+              dc: spellSaveDC,
+              removeConditions: spellMatch.turnEndSave.removeConditionOnSuccess
+                ? resolution.conditionsApplied
+                : undefined,
+            },
+          },
+        );
+        const updatedRes = addActiveEffectsToResources(
+          targetComb.resources ?? {},
+          trackingEffect,
+        );
+        await deps.combatRepo.updateCombatantState(targetComb.id, {
+          resources: updatedRes as any,
+        });
       }
 
       targetResults.push({

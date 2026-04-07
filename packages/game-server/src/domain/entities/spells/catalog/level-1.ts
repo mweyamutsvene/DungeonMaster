@@ -75,6 +75,7 @@ export const CAUSE_FEAR = {
   damageType: 'psychic',
   halfDamageOnSave: false,
   conditions: { onFailure: ['Frightened'] },
+  turnEndSave: { ability: 'wisdom', removeConditionOnSuccess: true },
   school: 'necromancy',
   castingTime: 'action',
   range: 60,
@@ -173,17 +174,16 @@ export const HEROISM = {
 export const INFLICT_WOUNDS = {
   name: 'Inflict Wounds',
   level: 1,
-  saveAbility: 'constitution',
-  damage: { diceCount: 2, diceSides: 10 },
+  attackType: 'melee_spell',
+  damage: { diceCount: 3, diceSides: 10 },
   damageType: 'necrotic',
-  halfDamageOnSave: true,
   upcastScaling: { additionalDice: { diceCount: 1, diceSides: 10 } },
   school: 'necromancy',
   castingTime: 'action',
   range: 'touch',
   components: { v: true, s: true },
   classLists: ['Cleric'],
-  description: 'A creature you touch makes a CON save, taking necrotic damage on failure or half on success.',
+  description: 'Make a melee spell attack against a creature you can touch. On a hit, the target takes 3d10 necrotic damage.',
 } as const satisfies CanonicalSpell;
 
 export const LONGSTRIDER = {

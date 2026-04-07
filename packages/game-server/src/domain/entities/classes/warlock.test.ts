@@ -75,17 +75,14 @@ describe("Warlock features map", () => {
 });
 
 describe("Warlock combat text profile", () => {
-  it("matches eldritch blast text", () => {
+  it("does not match eldritch blast (spell, not class ability)", () => {
     const match = tryMatchClassAction("eldritch blast", [WARLOCK_COMBAT_TEXT_PROFILE]);
-    expect(match).not.toBeNull();
-    expect(match!.keyword).toBe("eldritch-blast");
-    expect(match!.abilityId).toBe("class:warlock:eldritch-blast");
+    expect(match).toBeNull();
   });
 
-  it("matches 'cast eldritch blast'", () => {
+  it("does not match 'cast eldritch blast' (spell, not class ability)", () => {
     const match = tryMatchClassAction("cast eldritch blast", [WARLOCK_COMBAT_TEXT_PROFILE]);
-    expect(match).not.toBeNull();
-    expect(match!.keyword).toBe("eldritch-blast");
+    expect(match).toBeNull();
   });
 
   it("does not match unrelated text", () => {

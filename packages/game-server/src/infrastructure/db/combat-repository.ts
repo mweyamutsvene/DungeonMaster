@@ -173,7 +173,7 @@ export class PrismaCombatRepository implements ICombatRepository {
   // Helper methods for tabletop flow
   async findActiveEncounter(sessionId: string): Promise<CombatEncounterRecord | null> {
     const encounters = await this.listEncountersBySession(sessionId);
-    return encounters.find(e => e.status === 'Active') ?? encounters[0] ?? null;
+    return encounters.find(e => e.status === 'Active') ?? null;
   }
 
   async findById(encounterId: string): Promise<CombatEncounterRecord | null> {
