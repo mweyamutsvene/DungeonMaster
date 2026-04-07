@@ -80,16 +80,16 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 ## TIER 3 — MEDIUM (Incomplete Rules / Missing Features)
 
 ### Combat Rules
-- [ ] **CR-M1: Savage Attacker fires every hit instead of once-per-turn.** D&D 5e 2024 says once per turn. No turn-tracking state in `resolveAttack()`.
+- [x] **CR-M1: Savage Attacker fires every hit instead of once-per-turn.** D&D 5e 2024 says once per turn. No turn-tracking state in `resolveAttack()`.
   - Files: `domain/combat/attack-resolver.ts`
 
 - [ ] **CR-M2: Multiple damage types per attack not supported.** `AttackSpec` has single `damageType`. Flame Tongue (slashing + fire), Divine Smite (weapon + radiant) need separate resistance checks per type.
   - Files: `domain/combat/attack-resolver.ts`
 
-- [ ] **CR-M3: Incapacitated/death doesn't break concentration in domain layer.** Only damage triggers checks. D&D 5e 2024 also ends concentration on Incapacitated or death.
+- [x] **CR-M3: Incapacitated/death doesn't break concentration in domain layer.** Only damage triggers checks. D&D 5e 2024 also ends concentration on Incapacitated or death.
   - Files: `domain/rules/concentration.ts`
 
-- [ ] **CR-M4: Grapple/Shove ignores natural 1/20 on attack roll.** Nat 1 should auto-miss, nat 20 should auto-hit the initial strike.
+- [x] **CR-M4: Grapple/Shove ignores natural 1/20 on attack roll.** Nat 1 should auto-miss, nat 20 should auto-hit the initial strike.
   - Files: `domain/rules/grapple-shove.ts`
 
 - [ ] **CR-M5: `attemptMovement()` uses Euclidean distance instead of alternating diagonal cost.** May be legacy — verify if still called.
@@ -101,10 +101,10 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-M7: Warlock pact slots may not refresh on short rest.** `rest.ts` blanket checks `spellSlot_*` prefix → long rest only. If Warlock pact slots use that naming, short rest recovery breaks.
   - Files: `domain/rules/rest.ts`
 
-- [ ] **CR-M8: Temp HP stacking rule not enforced in domain.** D&D 5e 2024: temp HP doesn't stack, choose the higher. No domain function validates this.
+- [x] **CR-M8: Temp HP stacking rule not enforced in domain.** (already done) D&D 5e 2024: temp HP doesn't stack, choose the higher. No domain function validates this.
   - Files: `domain/entities/combat/effects.ts`
 
-- [ ] **CR-M9: `DamageEffect.apply()` bypasses damage defenses.** Calls `target.takeDamage()` directly without checking resistance/immunity/vulnerability.
+- [x] **CR-M9: `DamageEffect.apply()` bypasses damage defenses.** Calls `target.takeDamage()` directly without checking resistance/immunity/vulnerability.
   - Files: `domain/effects/damage-effect.ts`
 
 - [ ] **CR-M10: Dual distance functions in `rules/movement.ts` and `combat/movement.ts`.** Different signatures, maintenance risk.
@@ -120,7 +120,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CO-M2: Legendary actions between turns not orchestrated.** Charges tracked but no trigger point for AI to spend them between turns.
   - Files: `application/services/combat/combat-service.ts`
 
-- [ ] **CO-M3: Bonus action spell limitations not enforced.** If BA spell cast, only cantrip allowed as action. Not checked.
+- [x] **CO-M3: Bonus action spell limitations not enforced.** (already done) If BA spell cast, only cantrip allowed as action. Not checked.
   - Files: `tabletop/action-dispatcher.ts`, `tabletop/spell-action-handler.ts`
 
 - [ ] **CO-M4: `handleDamageRoll` is ~370 lines — extract to DamageResolver class.**
@@ -129,7 +129,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CO-M5: Redundant `listCombatants` calls (5-7 per damage resolution).** Each call is a DB read.
   - Files: `tabletop/roll-state-machine.ts`
 
-- [ ] **CO-M6: Sentinel incapacitation check hardcoded to `false` (existing TODO).**
+- [x] **CO-M6: Sentinel incapacitation check hardcoded to `false` (existing TODO).** (already done)
   - Files: `two-phase/attack-reaction-handler.ts`
 
 - [ ] **CO-M7: `CombatService.nextTurn()` at ~280 lines — growing unwieldy.**
@@ -145,7 +145,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
   - Files: `tabletop-combat-service.ts`
 
 ### Spell System
-- [ ] **SS-M1: Guiding Bolt missing advantage-on-next-attack effect.**
+- [x] **SS-M1: Guiding Bolt missing advantage-on-next-attack effect.**
   - Files: `domain/entities/spells/catalog/level-1.ts`
 
 - [ ] **SS-M2: Sacred Flame should ignore cover.** Cover bonus still applied in save resolution.
@@ -157,13 +157,13 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **SS-M4: Scorching Ray multi-ray not implemented.** Should be 3 separate attack rolls, +1 per upcast level.
   - Files: `domain/entities/spells/catalog/level-2.ts`, `tabletop/spell-delivery/`
 
-- [ ] **SS-M5: Thunderwave missing push-on-fail.** Save delivery supports `outcome.movement.push` but catalog entry lacks movement data.
+- [x] **SS-M5: Thunderwave missing push-on-fail.** Save delivery supports `outcome.movement.push` but catalog entry lacks movement data.
   - Files: `domain/entities/spells/catalog/level-1.ts`
 
-- [ ] **SS-M6: Spiritual Weapon incorrectly requires concentration.** D&D 5e 2024 Spiritual Weapon does NOT require concentration. Also missing "bonus action move + attack" on subsequent turns.
+- [x] **SS-M6: Spiritual Weapon incorrectly requires concentration.** D&D 5e 2024 Spiritual Weapon does NOT require concentration. Also missing "bonus action move + attack" on subsequent turns.
   - Files: `domain/entities/spells/catalog/level-2.ts`
 
-- [ ] **SS-M7: Heroism temp HP placeholder (0) never filled with caster's spellcasting modifier.**
+- [x] **SS-M7: Heroism temp HP placeholder (0) never filled with caster's spellcasting modifier.**
   - Files: `domain/entities/spells/catalog/level-1.ts`
 
 - [ ] **SS-M8: Arcane Recovery (Wizard) not implemented.** Short rest spell slot recovery.
@@ -176,7 +176,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **SS-M10: No range validation on spell targets.** Caster can target anyone regardless of distance.
   - Files: `tabletop/spell-action-handler.ts`
 
-- [ ] **SS-M11: Zone saveDC not populated from caster's spell save DC at creation time.**
+- [x] **SS-M11: Zone saveDC not populated from caster's spell save DC at creation time.**
   - Files: `tabletop/spell-delivery/zone-spell-delivery-handler.ts`
 
 - [ ] **SS-M12: Missing important spells from catalog.** Detect Magic, Command, Faerie Fire, Hunter's Mark, Hex, Sleep, Aid, Darkness, Invisibility, Lesser Restoration, Silence, Web, Haste, Slow, Lightning Bolt, Fly.
@@ -189,10 +189,10 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **AI-M2: No multi-target/AoE spell evaluation in deterministic AI.** Only single-target considered.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M3: No Disengage-before-retreat logic in deterministic AI.** Retreats provoke OAs needlessly.
+- [x] **AI-M3: No Disengage-before-retreat logic in deterministic AI.** Retreats provoke OAs needlessly.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M4: No triage for dying allies.** Ignores allies at 0 HP with death saves. No Help/Spare the Dying consideration.
+- [x] **AI-M4: No triage for dying allies.** Ignores allies at 0 HP with death saves. No Help/Spare the Dying consideration.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 - [ ] **AI-M5: Deterministic AI ignores buff/debuff spells entirely.** Only considers healing and damage spells. Bless, Hold Person, etc. are dead code for non-LLM play.
@@ -204,7 +204,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **AI-M7: No cover-seeking positioning for ranged combatants.**
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M8: Extra Attack doesn't re-evaluate targets between swings.** First target might die but AI sends all attacks to same target.
+- [x] **AI-M8: Extra Attack doesn't re-evaluate targets between swings.** First target might die but AI sends all attacks to same target.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 - [ ] **AI-M9: No token/context limit awareness for LLM payloads.** `AiContextBuilder.build()` can produce very large payloads.
@@ -226,32 +226,32 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **EM-M4: No spell preparation / known-spells management API.** `SpellLookupService` is read-only. No CRUD for prepared spells.
   - Files: `application/services/entities/spell-lookup-service.ts`
 
-- [ ] **EM-M5: `listCombatants` hydration difference between Prisma and Memory.** Prisma includes relations, Memory doesn't. Code relying on `combatant.character?.faction` silently gets `undefined` in tests.
+- [x] **EM-M5: `listCombatants` hydration difference between Prisma and Memory.** Prisma includes relations, Memory doesn't. Code relying on `combatant.character?.faction` silently gets `undefined` in tests.
   - Files: `infrastructure/db/combat-repository.ts`, `infrastructure/testing/memory-repos.ts`
 
-- [ ] **EM-M6: `armorTraining` not extracted from class during hydration.** A Wizard wearing heavy armor gets no penalty because hydration defaults to `all: true`.
+- [x] **EM-M6: `armorTraining` not extracted from class during hydration.** A Wizard wearing heavy armor gets no penalty because hydration defaults to `all: true`.
   - Files: `application/services/combat/helpers/` (hydration code)
 
 - [ ] **EM-M7: Species save advantages hydrated but not consumed.** `speciesTraits.saveAdvantages` data exists but is lost during hydration, never checked in saving throw resolution.
   - Files: `domain/entities/creatures/species-registry.ts`, hydration code
 
-- [ ] **EM-M8: `PendingActionRepository` not exported from barrel.** Must be imported directly, inconsistent with other repos.
+- [x] **EM-M8: `PendingActionRepository` not exported from barrel.** Must be imported directly, inconsistent with other repos.
   - Files: `application/repositories/index.ts`
 
 ### Class Abilities
 - [ ] **CA-M1: Paladin Channel Divinity pool tracked but nothing spends it.** No executor, no `abilityId` in capabilities.
   - Files: `domain/entities/classes/paladin.ts`
 
-- [ ] **CA-M2: LayOnHands executor only heals self, not allies.** D&D 5e 2024: "touch a willing creature (which can be yourself)."
+- [x] **CA-M2: LayOnHands executor only heals self, not allies.** D&D 5e 2024: "touch a willing creature (which can be yourself)."
   - Files: `abilities/executors/paladin/lay-on-hands-executor.ts`
 
 - [ ] **CA-M3: Warlock `pactMagic` pool name diverges from `spellSlot_N` convention.** Spell system code checking `spellSlot_N` won't find Warlock's slots.
   - Files: `domain/entities/classes/warlock.ts`
 
-- [ ] **CA-M4: Barbarian rage text pattern too restrictive (anchored `^rage$`).** "I want to rage" → no match. Compare Monk's partial matching.
+- [x] **CA-M4: Barbarian rage text pattern too restrictive (anchored `^rage$`).** "I want to rage" → no match. Compare Monk's partial matching.
   - Files: `domain/entities/classes/barbarian.ts`
 
-- [ ] **CA-M5: Warlock missing `spellcasting` in features map.** `classHasFeature("warlock", SPELLCASTING, level)` returns false. Generic checks miss Warlocks.
+- [x] **CA-M5: Warlock missing `spellcasting` in features map.** `classHasFeature("warlock", SPELLCASTING, level)` returns false. Generic checks miss Warlocks.
   - Files: `domain/entities/classes/warlock.ts`
 
 - [ ] **CA-M6: Cleric missing Destroy Undead upgrade (level 5).** When Undead fails Turn save and has CR below threshold, it's instantly destroyed.
@@ -264,7 +264,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CA-M8: Paladin/Cleric Channel Divinity naming collision.** Identical function names in both files. Multiclass would share pool key with different max-uses formulas.
   - Files: `domain/entities/classes/paladin.ts`, `domain/entities/classes/cleric.ts`
 
-- [ ] **CA-M9: Open Hand Technique enhancement in base Monk profile, not subclass profile.** `SubclassDefinition` supports `combatTextProfile` — OHT should use it.
+- [x] **CA-M9: Open Hand Technique enhancement in base Monk profile, not subclass profile.** `SubclassDefinition` supports `combatTextProfile` — OHT should use it.
   - Files: `domain/entities/classes/monk.ts`
 
 ---

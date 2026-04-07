@@ -2,7 +2,7 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
-import { MINDLESS_RAGE, INTIMIDATING_PRESENCE } from "./feature-keys.js";
+import { MINDLESS_RAGE, INTIMIDATING_PRESENCE, RELENTLESS_RAGE, PERSISTENT_RAGE, INDOMITABLE_MIGHT, PRIMAL_CHAMPION } from "./feature-keys.js";
 
 export interface RageState {
   pool: ResourcePool;
@@ -173,6 +173,10 @@ export const Barbarian: CharacterClassDefinition = {
     "extra-attack": 5,
     "feral-instinct": 7,
     "brutal-strike": 9,
+    [RELENTLESS_RAGE]: 11,
+    [PERSISTENT_RAGE]: 15,
+    [INDOMITABLE_MIGHT]: 18,
+    [PRIMAL_CHAMPION]: 20,
   },
   resourcesAtLevel: (level) => [createRageState(level).pool],
   resourcePoolFactory: (level) => [createRageState(level).pool],

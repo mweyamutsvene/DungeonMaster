@@ -22,7 +22,8 @@
 import { ValidationError } from "../../../errors.js";
 import { resolveSpell, prepareSpellCast } from "../helpers/spell-slot-manager.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
-import { normalizeResources } from "../helpers/resource-utils.js";
+import { normalizeResources, getPosition } from "../helpers/resource-utils.js";
+import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
@@ -144,6 +145,43 @@ export class SpellActionHandler {
           throw new ValidationError(
             "Cannot cast a leveled action spell — a leveled bonus action spell was already cast this turn. Only cantrips are allowed.",
           );
+        }
+      }
+    }
+
+    // D&D 5e 2024: Spell range validation
+    // Validate that the target is within the spell's range before proceeding.
+    // Self-range spells skip validation (they may affect other creatures via AoE).
+    if (spellMatch?.range !== undefined && spellMatch.range !== 'self' && castInfo.targetName) {
+      const { combatants: rangeCombatants, actorCombatant: rangeActor } =
+        await this.resolveEncounterContext(sessionId, actorId);
+      if (rangeActor) {
+        const rangeTargetRef = findCombatantByName(castInfo.targetName, roster);
+        if (rangeTargetRef) {
+          const rangeTargetId =
+            (rangeTargetRef as any).characterId ??
+            (rangeTargetRef as any).monsterId ??
+            (rangeTargetRef as any).npcId;
+          const rangeTarget = rangeCombatants.find(
+            (c: any) =>
+              c.characterId === rangeTargetId ||
+              c.monsterId === rangeTargetId ||
+              c.npcId === rangeTargetId,
+          );
+          if (rangeTarget) {
+            const casterPos = getPosition(normalizeResources(rangeActor.resources ?? {}));
+            const targetPos = getPosition(normalizeResources(rangeTarget.resources ?? {}));
+            if (casterPos && targetPos) {
+              const maxRange = spellMatch.range === 'touch' ? 5 : spellMatch.range;
+              const distance = calculateDistance(casterPos, targetPos);
+              if (distance > maxRange) {
+                const rangeLabel = spellMatch.range === 'touch' ? 'Touch (5 ft)' : `${spellMatch.range} ft`;
+                throw new ValidationError(
+                  `${castInfo.spellName} has a range of ${rangeLabel}. ${castInfo.targetName} is ${Math.round(distance)} ft away.`,
+                );
+              }
+            }
+          }
         }
       }
     }

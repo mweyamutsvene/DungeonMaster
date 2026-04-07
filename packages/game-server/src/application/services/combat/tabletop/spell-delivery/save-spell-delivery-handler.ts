@@ -112,8 +112,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       {};
 
     // D&D 5e 2024: DEX saving throw cover bonus
+    // Sacred Flame and similar spells explicitly ignore cover.
     let coverBonus = 0;
-    if (saveAbility === "dexterity") {
+    if (saveAbility === "dexterity" && !spellMatch.ignoresCover) {
       const map = encounter?.mapData as unknown as CombatMap | undefined;
       if (map && map.cells && map.cells.length > 0) {
         const targetCombatant = combatants.find(
@@ -487,8 +488,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       const displayName: string = rosterEntry?.name ?? entityId;
 
       // --- Per-target cover check for DEX saves (D&D 5e 2024) ---
+      // Sacred Flame and similar spells explicitly ignore cover.
       let coverBonus = 0;
-      if (saveAbility === 'dexterity' && hasMap && originIsReal) {
+      if (saveAbility === 'dexterity' && hasMap && originIsReal && !spellMatch.ignoresCover) {
         const tPos = getPosition(normalizeResources((targetComb as any).resources ?? {}));
         if (tPos) {
           const coverLevel = getCoverLevel(map!, origin, tPos);

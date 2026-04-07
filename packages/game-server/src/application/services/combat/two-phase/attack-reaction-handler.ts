@@ -382,6 +382,9 @@ export class AttackReactionHandler {
       (r: ReactionResponse) => r.choice === "use" &&
         pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "shield",
     );
+    const shieldOpp = shieldReaction
+      ? pendingAction.reactionOpportunities.find((o) => o.id === shieldReaction.opportunityId)
+      : null;
 
     // Check if Deflect Attacks was used
     const deflectReaction = pendingAction.resolvedReactions.find(
@@ -416,11 +419,14 @@ export class AttackReactionHandler {
       finalAC += 5;
       shieldUsed = true;
 
-      // Spend level 1 spell slot for Shield
+      // Spend spell slot for Shield (use context.slotToSpend for Pact Magic support)
       const { spendResourceFromPool } = await import("../helpers/resource-utils.js");
+      const shieldSlot = shieldOpp && typeof shieldOpp.context.slotToSpend === "string"
+        ? shieldOpp.context.slotToSpend
+        : "spellSlot_1";
       let updatedResources: JsonValue;
       try {
-        updatedResources = spendResourceFromPool(target.resources, "spellSlot_1", 1);
+        updatedResources = spendResourceFromPool(target.resources, shieldSlot, 1);
       } catch {
         updatedResources = target.resources;
       }

@@ -6,6 +6,7 @@
  */
 
 import { Creature, type CreatureData } from "./creature.js";
+import type { SpeciesSaveAdvantage } from "./species.js";
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassId } from "../classes/class-definition.js";
@@ -94,6 +95,11 @@ export interface CharacterData extends CreatureData {
    * Damage resistances from species traits (e.g. ["poison"] for Dwarf, ["fire"] for Tiefling).
    */
   speciesDamageResistances?: readonly string[];
+
+  /**
+   * Saving throw advantages from species traits (e.g. Elf: advantage vs charmed).
+   */
+  speciesSaveAdvantages?: readonly SpeciesSaveAdvantage[];
 }
 
 export class Character extends Creature {
@@ -108,6 +114,7 @@ export class Character extends Creature {
   private fightingStyle?: FightingStyleId;
   private darkvisionRange: number;
   private speciesDamageResistances: string[];
+  private speciesSaveAdvantages: readonly SpeciesSaveAdvantage[];
 
   constructor(data: CharacterData) {
     super(data);
@@ -125,6 +132,7 @@ export class Character extends Creature {
     this.experiencePoints = data.experiencePoints;
     this.darkvisionRange = data.darkvisionRange ?? 0;
     this.speciesDamageResistances = data.speciesDamageResistances ? [...data.speciesDamageResistances] : [];
+    this.speciesSaveAdvantages = data.speciesSaveAdvantages ?? [];
     if (data.resourcePools) {
       this.resourcePools = [...data.resourcePools];
     } else if (this.classId) {
@@ -193,6 +201,10 @@ export class Character extends Creature {
 
   getSpeciesDamageResistances(): readonly string[] {
     return [...this.speciesDamageResistances];
+  }
+
+  getSpeciesSaveAdvantages(): readonly SpeciesSaveAdvantage[] {
+    return this.speciesSaveAdvantages;
   }
 
   /**
@@ -356,6 +368,7 @@ export class Character extends Creature {
       featIds: this.featIds,
       darkvisionRange: this.darkvisionRange,
       speciesDamageResistances: this.speciesDamageResistances,
+      speciesSaveAdvantages: this.speciesSaveAdvantages,
     };
   }
 }

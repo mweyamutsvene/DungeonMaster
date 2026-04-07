@@ -62,7 +62,7 @@ export const Wizard: CharacterClassDefinition = {
   },
   features: {
     "spellcasting": 1,
-    "arcane-recovery": 1,
+    "arcane-recovery": 2,
   },
   resourcesAtLevel: (level) => [createArcaneRecoveryState(level).pool],
   resourcePoolFactory: (level) => [createArcaneRecoveryState(level).pool],
@@ -94,10 +94,11 @@ const SHIELD_REACTION: AttackReactionDef = {
     // Check hasShieldPrepared flag (set by buildCombatResources)
     if (input.resources.hasShieldPrepared !== true) return null;
 
-    // Check level 1 spell slot availability
+    // Check level 1+ spell slot or Pact Magic availability
     const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const slotPool = pools.find((p: any) => p.name === "spellSlot_1");
-    if (!slotPool || slotPool.current <= 0) return null;
+    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
+    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    if (!hasSpellSlot && !hasPactSlot) return null;
 
     const newAC = input.targetAC + 5;
     return {
@@ -107,6 +108,7 @@ const SHIELD_REACTION: AttackReactionDef = {
         attackRoll: input.attackRoll,
         currentAC: input.targetAC,
         newAC,
+        slotToSpend: hasSpellSlot ? "spellSlot_1" : "pactMagic",
       },
     };
   },
@@ -132,14 +134,27 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
     // Must be within 60 feet
     if (input.distance > 60) return null;
 
-    // Check level 3+ spell slot availability
+    // Check level 3+ spell slot or Pact Magic availability
     const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
     let bestSlotLevel = 0;
+    let slotToSpend: string | undefined;
     for (const p of pools) {
       const match = typeof (p as any).name === "string" ? (p as any).name.match(/^spellSlot_(\d+)$/) : null;
       if (match && (p as any).current > 0) {
         const slotLevel = parseInt(match[1], 10);
-        if (slotLevel >= 3 && slotLevel > bestSlotLevel) bestSlotLevel = slotLevel;
+        if (slotLevel >= 3 && slotLevel > bestSlotLevel) {
+          bestSlotLevel = slotLevel;
+          slotToSpend = `spellSlot_${slotLevel}`;
+        }
+      }
+    }
+    // Warlock Pact Magic fallback: use pact slot if no standard slot >= 3 qualifies
+    if (bestSlotLevel === 0) {
+      const pactSlotLevel = typeof input.resources.pactSlotLevel === "number" ? input.resources.pactSlotLevel : undefined;
+      const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+      if (hasPactSlot && pactSlotLevel !== undefined && pactSlotLevel >= 3) {
+        bestSlotLevel = pactSlotLevel;
+        slotToSpend = "pactMagic";
       }
     }
     if (bestSlotLevel === 0) return null;
@@ -158,6 +173,7 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
         counterspellerLevel: input.level,
         spellSaveDC,
         bestSlotLevel,
+        slotToSpend,
         intMod,
         profBonus,
       },
@@ -190,10 +206,11 @@ const ABSORB_ELEMENTS_REACTION: DamageReactionDef = {
     // Must be an eligible elemental damage type
     if (!ABSORB_ELEMENTS_TYPES.has(input.damageType.toLowerCase())) return null;
 
-    // Check level 1+ spell slot availability
+    // Check level 1+ spell slot or Pact Magic availability
     const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const slotPool = pools.find((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
-    if (!slotPool) return null;
+    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
+    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    if (!hasSpellSlot && !hasPactSlot) return null;
 
     return {
       reactionType: "absorb_elements",
@@ -202,7 +219,7 @@ const ABSORB_ELEMENTS_REACTION: DamageReactionDef = {
         damageType: input.damageType,
         damageAmount: input.damageAmount,
         healBack: Math.floor(input.damageAmount / 2),
-        slotToSpend: "spellSlot_1",
+        slotToSpend: hasSpellSlot ? "spellSlot_1" : "pactMagic",
       },
     };
   },

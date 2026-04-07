@@ -14,6 +14,10 @@ export const RECKLESS_ATTACK = "reckless-attack";
 export const DANGER_SENSE = "danger-sense";
 export const FERAL_INSTINCT = "feral-instinct";
 export const BRUTAL_STRIKE = "brutal-strike";
+export const RELENTLESS_RAGE = "relentless-rage";
+export const PERSISTENT_RAGE = "persistent-rage";
+export const INDOMITABLE_MIGHT = "indomitable-might";
+export const PRIMAL_CHAMPION = "primal-champion";
 // Path of the Berserker subclass
 export const FRENZY = "frenzy";
 export const MINDLESS_RAGE = "mindless-rage";

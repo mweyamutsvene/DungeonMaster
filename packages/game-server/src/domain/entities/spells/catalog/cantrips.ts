@@ -60,6 +60,7 @@ export const SACRED_FLAME = {
   damage: { diceCount: 1, diceSides: 8, modifier: 0 },
   damageType: 'radiant',
   halfDamageOnSave: false,
+  ignoresCover: true,
   school: 'evocation',
   castingTime: 'action',
   range: 60,

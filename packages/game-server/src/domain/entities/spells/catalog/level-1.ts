@@ -320,7 +320,7 @@ export const THUNDEROUS_WARD = {
   ],
   school: 'abjuration',
   castingTime: 'action',
-  range: 'touch',
+  range: 30,
   components: { v: true, s: true },
   classLists: ['Cleric'],
   description: 'Wraps target in thunderous energy. If target moves voluntarily, it takes 2d8 thunder damage.',

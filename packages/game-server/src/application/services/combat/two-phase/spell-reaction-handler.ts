@@ -269,9 +269,10 @@ export class SpellReactionHandler {
 
       // D&D 5e 2024 Counterspell mechanic:
       // Determine the level at which Counterspell is being cast from the slot spent
+      // For Pact Magic, use bestSlotLevel from detection context (pact slot level)
       const counterspellLevel = slotToSpend.startsWith("spellSlot_")
         ? parseInt(slotToSpend.replace("spellSlot_", ""), 10) || 3
-        : 3;
+        : typeof opp.context.bestSlotLevel === "number" ? opp.context.bestSlotLevel : 3;
 
       let success: boolean;
       let abilityCheckDC: number | undefined;

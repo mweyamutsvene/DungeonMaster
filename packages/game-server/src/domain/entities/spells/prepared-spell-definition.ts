@@ -95,6 +95,10 @@ export interface PreparedSpellDefinition {
   readonly upcastScaling?: UpcastScaling;
   /** Area of effect for multi-target spells (Burning Hands, Fireball, etc.) */
   readonly area?: AreaOfEffect;
+  /** Spell range: number (feet), 'self', or 'touch'. Used for range validation before casting. */
+  readonly range?: number | 'self' | 'touch';
+  /** When true, the target gains no benefit from cover for saving throws against this spell (e.g. Sacred Flame). */
+  readonly ignoresCover?: boolean;
   /** On failed save, push the target this many feet away from the caster (e.g. Thunderwave 10ft). */
   readonly pushOnFailFeet?: number;
   /** Turn-end save: target repeats saving throw at end of each of its turns to end an applied condition. */
