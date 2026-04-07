@@ -116,7 +116,7 @@ export const BARBARIAN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   actionMappings: [
     {
       keyword: "rage",
-      normalizedPatterns: [/^rage$|^userage$|^enterrage$/],
+      normalizedPatterns: [/rage/],
       abilityId: "class:barbarian:rage",
       category: "bonusAction",
     },
@@ -162,6 +162,7 @@ export const Barbarian: CharacterClassDefinition = {
   hitDie: 12,
   proficiencies: {
     savingThrows: ["strength", "constitution"],
+    armor: ["light", "medium", "shield"],
   },
   features: {
     "rage": 1,

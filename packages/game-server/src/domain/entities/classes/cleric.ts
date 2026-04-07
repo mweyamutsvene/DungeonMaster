@@ -66,6 +66,7 @@ export const Cleric: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["wisdom", "charisma"],
+    armor: ["light", "medium", "shield"],
   },
   features: {
     "spellcasting": 1,

@@ -8,6 +8,7 @@
 import { findCombatantByName } from '../combat-text-parser.js';
 import { createEffect } from '../../../../../domain/entities/combat/effects.js';
 import { addActiveEffectsToResources } from '../../helpers/resource-utils.js';
+import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
@@ -28,6 +29,7 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       castInfo,
       spellMatch,
       isConcentration,
+      sheet,
       actor,
       roster,
       encounter,
@@ -103,13 +105,19 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
           return c?.characterId ?? c?.monsterId ?? c?.npcId ?? targetCId;
         })();
 
+        // Resolve dynamic value sources (e.g., Heroism's temp HP = caster's spellcasting modifier)
+        let resolvedValue = effDef.value;
+        if (effDef.valueSource === 'spellcastingModifier') {
+          resolvedValue = Math.max(1, getSpellcastingModifier(sheet));
+        }
+
         const effect = createEffect(
           nanoid(),
           effDef.type,
           effDef.target,
           isConcentration ? "concentration" : effDef.duration,
           {
-            value: effDef.value,
+            value: resolvedValue,
             diceValue: effDef.diceValue
               ? { count: effDef.diceValue.count, sides: effDef.diceValue.sides }
               : undefined,

@@ -96,6 +96,23 @@ export const OpenHandSubclass: SubclassDefinition = {
     "open-hand-technique": 3,
     "wholeness-of-body": 6,
   },
+  combatTextProfile: {
+    classId: "monk",
+    actionMappings: [],
+    attackEnhancements: [
+      {
+        keyword: "open-hand-technique",
+        displayName: "Open Hand Technique",
+        patterns: [/\b(addle|push|topple)\b/],
+        minLevel: 3,
+        requiresSubclass: "open-hand",
+        requiresMelee: true,
+        trigger: "onHit",
+        choiceOptions: ["addle", "push", "topple"],
+        requiresBonusAction: "flurry-of-blows",
+      },
+    ],
+  },
 };
 
 export const Monk: CharacterClassDefinition = {
@@ -104,6 +121,7 @@ export const Monk: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["strength", "dexterity"],
+    armor: [],
   },
   features: {
     "martial-arts": 1,
@@ -216,17 +234,6 @@ export const MONK_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       turnTrackingKey: "stunningStrikeUsedThisTurn",
       requiresMelee: true,
       trigger: "onHit",
-    },
-    {
-      keyword: "open-hand-technique",
-      displayName: "Open Hand Technique",
-      patterns: [/\b(addle|push|topple)\b/],
-      minLevel: 3,
-      requiresSubclass: "open-hand",
-      requiresMelee: true,
-      trigger: "onHit",
-      choiceOptions: ["addle", "push", "topple"],
-      requiresBonusAction: "flurry-of-blows",
     },
   ],
   attackReactions: [DEFLECT_ATTACKS_REACTION],

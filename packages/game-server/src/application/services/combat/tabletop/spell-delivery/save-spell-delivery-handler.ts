@@ -164,6 +164,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
         conditions: spellMatch.conditions?.onFailure
           ? { add: spellMatch.conditions.onFailure }
           : undefined,
+        movement: spellMatch.pushOnFailFeet
+          ? { push: spellMatch.pushOnFailFeet }
+          : undefined,
       },
       context: coverBonus > 0 ? { coverBonus } : undefined,
     });
@@ -531,6 +534,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
           summary: 'Save failed',
           conditions: spellMatch.conditions?.onFailure
             ? { add: spellMatch.conditions.onFailure }
+            : undefined,
+          movement: spellMatch.pushOnFailFeet
+            ? { push: spellMatch.pushOnFailFeet }
             : undefined,
         },
         context: coverBonus > 0 ? { coverBonus } : undefined,

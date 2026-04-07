@@ -379,33 +379,35 @@ export function matchAttackEnhancements(
   triggerFilter: "onDeclare" | "onHit" | "any" = "any",
   subclass?: string,
 ): string[] {
-  const profile = profiles.find((p) => p.classId === classId.toLowerCase());
-  if (!profile) return [];
+  const matchingProfiles = profiles.filter((p) => p.classId === classId.toLowerCase());
+  if (matchingProfiles.length === 0) return [];
 
   const normalized = text.trim().toLowerCase();
   const results: string[] = [];
 
-  for (const enhancement of profile.attackEnhancements) {
-    const trigger = enhancement.trigger ?? "onDeclare";
-    // Trigger filter
-    if (triggerFilter !== "any" && trigger !== triggerFilter) continue;
-    // Level gate
-    if (level < enhancement.minLevel) continue;
-    // Subclass gate
-    if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
-    // Melee requirement
-    if (enhancement.requiresMelee && attackKind !== "melee") continue;
-    // Text pattern match
-    if (!enhancement.patterns.some((p) => p.test(normalized))) continue;
-    // Once-per-turn check
-    if (enhancement.turnTrackingKey && turnFlags[enhancement.turnTrackingKey] === true) continue;
-    // Resource availability check
-    if (enhancement.resourceCost) {
-      const pool = resourcePools.find((p) => p.name === enhancement.resourceCost!.pool);
-      if (!pool || pool.current < enhancement.resourceCost.amount) continue;
-    }
+  for (const profile of matchingProfiles) {
+    for (const enhancement of profile.attackEnhancements) {
+      const trigger = enhancement.trigger ?? "onDeclare";
+      // Trigger filter
+      if (triggerFilter !== "any" && trigger !== triggerFilter) continue;
+      // Level gate
+      if (level < enhancement.minLevel) continue;
+      // Subclass gate
+      if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
+      // Melee requirement
+      if (enhancement.requiresMelee && attackKind !== "melee") continue;
+      // Text pattern match
+      if (!enhancement.patterns.some((p) => p.test(normalized))) continue;
+      // Once-per-turn check
+      if (enhancement.turnTrackingKey && turnFlags[enhancement.turnTrackingKey] === true) continue;
+      // Resource availability check
+      if (enhancement.resourceCost) {
+        const pool = resourcePools.find((p) => p.name === enhancement.resourceCost!.pool);
+        if (!pool || pool.current < enhancement.resourceCost.amount) continue;
+      }
 
-    results.push(enhancement.keyword);
+      results.push(enhancement.keyword);
+    }
   }
 
   return results;
@@ -437,36 +439,38 @@ export function getEligibleOnHitEnhancements(
   bonusAction?: string,
   subclass?: string,
 ): EligibleOnHitEnhancement[] {
-  const profile = profiles.find((p) => p.classId === classId.toLowerCase());
-  if (!profile) return [];
+  const matchingProfiles = profiles.filter((p) => p.classId === classId.toLowerCase());
+  if (matchingProfiles.length === 0) return [];
 
   const results: EligibleOnHitEnhancement[] = [];
 
-  for (const enhancement of profile.attackEnhancements) {
-    const trigger = enhancement.trigger ?? "onDeclare";
-    if (trigger !== "onHit") continue;
-    // Level gate
-    if (level < enhancement.minLevel) continue;
-    // Subclass gate
-    if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
-    // Melee requirement
-    if (enhancement.requiresMelee && attackKind !== "melee") continue;
-    // Bonus action gate (e.g. OHT only on flurry hits)
-    if (enhancement.requiresBonusAction && bonusAction !== enhancement.requiresBonusAction) continue;
-    // Once-per-turn check
-    if (enhancement.turnTrackingKey && turnFlags[enhancement.turnTrackingKey] === true) continue;
-    // Resource availability check
-    if (enhancement.resourceCost) {
-      const pool = resourcePools.find((p) => p.name === enhancement.resourceCost!.pool);
-      if (!pool || pool.current < enhancement.resourceCost.amount) continue;
-    }
+  for (const profile of matchingProfiles) {
+    for (const enhancement of profile.attackEnhancements) {
+      const trigger = enhancement.trigger ?? "onDeclare";
+      if (trigger !== "onHit") continue;
+      // Level gate
+      if (level < enhancement.minLevel) continue;
+      // Subclass gate
+      if (enhancement.requiresSubclass && normalizeId(enhancement.requiresSubclass) !== normalizeId(subclass ?? "")) continue;
+      // Melee requirement
+      if (enhancement.requiresMelee && attackKind !== "melee") continue;
+      // Bonus action gate (e.g. OHT only on flurry hits)
+      if (enhancement.requiresBonusAction && bonusAction !== enhancement.requiresBonusAction) continue;
+      // Once-per-turn check
+      if (enhancement.turnTrackingKey && turnFlags[enhancement.turnTrackingKey] === true) continue;
+      // Resource availability check
+      if (enhancement.resourceCost) {
+        const pool = resourcePools.find((p) => p.name === enhancement.resourceCost!.pool);
+        if (!pool || pool.current < enhancement.resourceCost.amount) continue;
+      }
 
-    results.push({
-      keyword: enhancement.keyword,
-      displayName: enhancement.displayName ?? enhancement.keyword,
-      ...(enhancement.resourceCost ? { resourceCost: enhancement.resourceCost } : {}),
-      ...(enhancement.choiceOptions ? { choiceOptions: enhancement.choiceOptions } : {}),
-    });
+      results.push({
+        keyword: enhancement.keyword,
+        displayName: enhancement.displayName ?? enhancement.keyword,
+        ...(enhancement.resourceCost ? { resourceCost: enhancement.resourceCost } : {}),
+        ...(enhancement.choiceOptions ? { choiceOptions: enhancement.choiceOptions } : {}),
+      });
+    }
   }
 
   return results;

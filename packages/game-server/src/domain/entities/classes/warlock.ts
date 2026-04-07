@@ -61,8 +61,10 @@ export const Warlock: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["wisdom", "charisma"],
+    armor: ["light"],
   },
   features: {
+    "spellcasting": 1,
     "pact-magic": 1,
     [ELDRITCH_INVOCATIONS]: 2,
     [PACT_BOON]: 3,

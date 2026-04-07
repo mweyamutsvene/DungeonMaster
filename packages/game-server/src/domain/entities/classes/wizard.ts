@@ -58,6 +58,7 @@ export const Wizard: CharacterClassDefinition = {
   hitDie: 6,
   proficiencies: {
     savingThrows: ["intelligence", "wisdom"],
+    armor: [],
   },
   features: {
     "spellcasting": 1,

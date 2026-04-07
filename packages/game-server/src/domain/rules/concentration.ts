@@ -2,6 +2,36 @@ import type { DiceRoller } from "./dice-roller.js";
 import { savingThrow } from "./ability-checks.js";
 import type { D20TestResult, RollMode } from "./advantage.js";
 
+/**
+ * D&D 5e 2024: Conditions that automatically end concentration.
+ * "Your Concentration ends if you have the Incapacitated condition or you die."
+ * Incapacitated is also implied by: Paralyzed, Petrified, Stunned, Unconscious.
+ */
+const CONCENTRATION_BREAKING_CONDITIONS = new Set([
+  "incapacitated",
+  "paralyzed",
+  "petrified",
+  "stunned",
+  "unconscious",
+]);
+
+/**
+ * Check if a condition should automatically end concentration.
+ * D&D 5e 2024: Incapacitated (and conditions that include it) ends concentration.
+ */
+export function isConcentrationBreakingCondition(condition: string): boolean {
+  return CONCENTRATION_BREAKING_CONDITIONS.has(condition.toLowerCase());
+}
+
+/**
+ * Check if dropping to 0 HP should end concentration.
+ * D&D 5e 2024: "Your Concentration ends if ... you die."
+ * At 0 HP a creature is dying/dead — concentration ends.
+ */
+export function shouldConcentrationEndFromHP(currentHP: number): boolean {
+  return currentHP <= 0;
+}
+
 export interface ConcentrationState {
   activeSpellId: string | null;
 }

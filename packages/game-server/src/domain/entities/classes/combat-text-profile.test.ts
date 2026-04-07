@@ -5,12 +5,13 @@ import {
   getEligibleOnHitEnhancements,
   type ClassCombatTextProfile,
 } from "./combat-text-profile.js";
-import { MONK_COMBAT_TEXT_PROFILE } from "./monk.js";
+import { MONK_COMBAT_TEXT_PROFILE, OpenHandSubclass } from "./monk.js";
 import { FIGHTER_COMBAT_TEXT_PROFILE } from "./fighter.js";
 
 const ALL_PROFILES: readonly ClassCombatTextProfile[] = [
   MONK_COMBAT_TEXT_PROFILE,
   FIGHTER_COMBAT_TEXT_PROFILE,
+  ...(OpenHandSubclass.combatTextProfile ? [OpenHandSubclass.combatTextProfile] : []),
 ];
 
 describe("tryMatchClassAction", () => {

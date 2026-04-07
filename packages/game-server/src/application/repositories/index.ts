@@ -6,3 +6,4 @@ export type { ICombatRepository } from "./combat-repository.js";
 export type { IEventRepository, GameEventInput, GameEventType } from "./event-repository.js";
 export type { ISpellRepository } from "./spell-repository.js";
 export type { IItemDefinitionRepository, ItemDefinitionUpsertInput } from "./item-definition-repository.js";
+export type { PendingActionRepository } from "./pending-action-repository.js";

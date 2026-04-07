@@ -21,6 +21,7 @@ export const Ranger: CharacterClassDefinition = {
   hitDie: 10,
   proficiencies: {
     savingThrows: ["strength", "dexterity"],
+    armor: ["light", "medium", "shield"],
   },
   features: {
     "weapon-mastery": 1,

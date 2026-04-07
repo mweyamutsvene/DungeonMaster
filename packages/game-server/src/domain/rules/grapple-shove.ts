@@ -194,7 +194,11 @@ function resolveUnarmedStrike(
   const attackOutcome = rollD20(diceRoller, attackMode);
   const attackRoll = attackOutcome.chosen;
   const attackTotal = attackRoll + attackerStrMod + attackerProfBonus + attackPenalty;
-  const hit = attackTotal >= targetAC;
+
+  // D&D 5e 2024: Natural 1 always misses, natural 20 always hits
+  const naturalMiss = attackRoll === 1;
+  const naturalHit = attackRoll === 20;
+  const hit = !naturalMiss && (naturalHit || attackTotal >= targetAC);
 
   if (!hit) {
     return {

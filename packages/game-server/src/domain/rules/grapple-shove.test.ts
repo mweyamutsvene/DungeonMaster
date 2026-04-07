@@ -280,4 +280,51 @@ describe("Grapple and Shove (2024 rules)", () => {
       expect(isTargetTooLarge("Large", "Tiny")).toBe(false);
     });
   });
+
+  describe("natural 1 / natural 20 on Unarmed Strike", () => {
+    it("natural 1 always misses grapple even with high bonus", () => {
+      // Attacker: STR mod +5, prof +3 → attack bonus +8
+      // Target AC 5 — d20(1) + 8 = 9, but nat 1 = auto-miss
+      const dice = new FixedDiceRoller(1);
+      const result = grappleTarget(5, 3, 5, 0, 0, false, true, dice);
+
+      expect(result.success).toBe(false);
+      expect(result.hit).toBe(false);
+      expect(result.attackRoll).toBe(1);
+      expect(result.reason).toBe("Unarmed Strike missed");
+    });
+
+    it("natural 1 always misses shove even with high bonus", () => {
+      const dice = new FixedDiceRoller(1);
+      const result = shoveTarget(5, 3, 5, 0, 0, false, dice);
+
+      expect(result.success).toBe(false);
+      expect(result.hit).toBe(false);
+      expect(result.attackRoll).toBe(1);
+      expect(result.reason).toBe("Unarmed Strike missed");
+    });
+
+    it("natural 20 always hits grapple even against high AC", () => {
+      // Attacker: STR mod +0, prof +2 → attack bonus +2
+      // Target AC 30 — d20(20) + 2 = 22, but nat 20 = auto-hit
+      // Target save: STR mod +0, rolls d20(20) + 0 = 20 → beats DC 10 → save succeeds → grapple fails
+      const dice = new FixedDiceRoller([20, 20]);
+      const result = grappleTarget(0, 2, 30, 0, 0, false, true, dice);
+
+      // Nat 20 hits, but target also nats 20 on save → grapple fails
+      expect(result.hit).toBe(true);
+      expect(result.attackRoll).toBe(20);
+    });
+
+    it("natural 20 always hits shove even against high AC", () => {
+      // Target AC 30, attack total = 22, but nat 20 = auto-hit
+      // Target save fails with low roll
+      const dice = new FixedDiceRoller([20, 2]);
+      const result = shoveTarget(0, 2, 30, 0, 0, false, dice);
+
+      expect(result.hit).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.attackRoll).toBe(20);
+    });
+  });
 });

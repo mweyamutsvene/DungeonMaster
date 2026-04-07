@@ -60,6 +60,8 @@ export interface AttackResult {
   critical: boolean;
   /** Whether a Lucky feat reroll was used on the attack roll. */
   luckyUsed: boolean;
+  /** Whether Savage Attacker was used on this attack (once per turn). */
+  savageAttackerUsed: boolean;
   attack: AttackRoll;
   damage: {
     applied: number;
@@ -79,6 +81,11 @@ export interface AttackResolveOptions {
   attackerIsGrapplingTarget?: boolean;
   /** Whether terrain elevation grants advantage for this attack. */
   elevationAdvantage?: boolean;
+  /**
+   * D&D 5e 2024: Savage Attacker can only be used once per turn.
+   * Set to true if Savage Attacker has already been used this turn.
+   */
+  savageAttackerUsedThisTurn?: boolean;
 }
 
 /**
@@ -183,9 +190,9 @@ export function resolveAttack(
   );
 
   // Savage Attacker: roll weapon damage dice twice, use higher (once per turn).
-  // NOTE: The once-per-turn limitation is not enforced at this level; tracking
-  // should happen in the combat service layer. (TODO)
-  if (hit && featMods.savageAttackerEnabled) {
+  // D&D 5e 2024: "once per turn" — skip if already used this turn.
+  let savageAttackerUsed = false;
+  if (hit && featMods.savageAttackerEnabled && !options?.savageAttackerUsedThisTurn) {
     const secondRoll = diceRoller.rollDie(
       spec.damage.diceSides,
       damageDiceCount,
@@ -194,6 +201,7 @@ export function resolveAttack(
     if (secondRoll.total > damageRoll.total) {
       damageRoll = secondRoll;
     }
+    savageAttackerUsed = true;
   }
 
   // Great Weapon Fighting: treat any 1-2 on weapon damage dice as 3.
@@ -234,6 +242,7 @@ export function resolveAttack(
     hit,
     critical,
     luckyUsed,
+    savageAttackerUsed,
     attack: { d20, total },
     damage: {
       applied,

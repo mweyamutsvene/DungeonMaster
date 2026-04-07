@@ -136,6 +136,7 @@ export const Paladin: CharacterClassDefinition = {
   hitDie: 10,
   proficiencies: {
     savingThrows: ["wisdom", "charisma"],
+    armor: ["light", "medium", "heavy", "shield"],
   },
   features: {
     "lay-on-hands": 1,

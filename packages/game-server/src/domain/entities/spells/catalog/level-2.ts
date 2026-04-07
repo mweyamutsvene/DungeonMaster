@@ -167,7 +167,7 @@ export const SPIKE_GROWTH = {
 export const SPIRITUAL_WEAPON = {
   name: 'Spiritual Weapon',
   level: 2,
-  concentration: true,
+  // D&D 5e 2024: Spiritual Weapon does NOT require concentration
   isBonusAction: true,
   attackType: 'melee_spell',
   damage: { diceCount: 1, diceSides: 8 },
@@ -178,6 +178,7 @@ export const SPIRITUAL_WEAPON = {
   range: 60,
   components: { v: true, s: true },
   classLists: ['Cleric'],
+  // TODO: Subsequent turns allow bonus action to move weapon 20ft + repeat melee spell attack
   description: 'A floating spectral weapon that attacks for 1d8 + spellcasting modifier force damage. Move and repeat as bonus action.',
 } as const satisfies CanonicalSpell;
 

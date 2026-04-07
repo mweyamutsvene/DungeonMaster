@@ -65,6 +65,7 @@ export const Rogue: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["dexterity", "intelligence"],
+    armor: ["light"],
   },
   features: {
     "sneak-attack": 1,

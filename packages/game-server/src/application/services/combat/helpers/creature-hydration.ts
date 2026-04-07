@@ -10,6 +10,7 @@ import { Monster, type MonsterData } from "../../../../domain/entities/creatures
 import { NPC, type NPCData } from "../../../../domain/entities/creatures/npc.js";
 import { AbilityScores, type AbilityScoresData } from "../../../../domain/entities/core/ability-scores.js";
 import type { ResourcePool } from "../../../../domain/entities/combat/resource-pool.js";
+import { getArmorTrainingForClass } from "../../../../domain/entities/classes/registry.js";
 import { getSpeciesTraits } from "../../../../domain/entities/creatures/species-registry.js";
 import type { 
   SessionCharacterRecord, 
@@ -221,6 +222,9 @@ export function hydrateCharacter(
   // Extract equipped armor/shield so getAC() can detect when armor is worn
   const equipment = extractEquipment(sheet);
 
+  // Derive armor training from class proficiencies (e.g., Wizard → no heavy armor)
+  const armorTraining = classId ? getArmorTrainingForClass(classId) : undefined;
+
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
     name: record.name,
@@ -242,6 +246,7 @@ export function hydrateCharacter(
     darkvisionRange: readNumber(sheet, 'darkvisionRange') ?? readNumber(sheet, 'darkvision') ?? speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
     equipment,
+    armorTraining,
   };
 
   const character = new Character(data);

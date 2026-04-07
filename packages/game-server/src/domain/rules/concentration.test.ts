@@ -7,6 +7,8 @@ import {
   createConcentrationState,
   endConcentration,
   isConcentrating,
+  isConcentrationBreakingCondition,
+  shouldConcentrationEndFromHP,
   startConcentration,
 } from "./concentration.js";
 
@@ -60,5 +62,54 @@ describe("concentration", () => {
     const diceAdv = new FixedDiceRoller(8);
     const advResult = concentrationCheckOnDamage(diceAdv, 7, 2, "advantage");
     expect(advResult.maintained).toBe(true); // 8 + 2 = 10 ≥ DC 10
+  });
+
+  describe("isConcentrationBreakingCondition", () => {
+    it("returns true for incapacitated", () => {
+      expect(isConcentrationBreakingCondition("incapacitated")).toBe(true);
+    });
+
+    it("returns true for paralyzed (implies incapacitated)", () => {
+      expect(isConcentrationBreakingCondition("paralyzed")).toBe(true);
+    });
+
+    it("returns true for petrified", () => {
+      expect(isConcentrationBreakingCondition("petrified")).toBe(true);
+    });
+
+    it("returns true for stunned", () => {
+      expect(isConcentrationBreakingCondition("stunned")).toBe(true);
+    });
+
+    it("returns true for unconscious", () => {
+      expect(isConcentrationBreakingCondition("unconscious")).toBe(true);
+    });
+
+    it("is case-insensitive", () => {
+      expect(isConcentrationBreakingCondition("Stunned")).toBe(true);
+      expect(isConcentrationBreakingCondition("INCAPACITATED")).toBe(true);
+    });
+
+    it("returns false for non-breaking conditions", () => {
+      expect(isConcentrationBreakingCondition("prone")).toBe(false);
+      expect(isConcentrationBreakingCondition("frightened")).toBe(false);
+      expect(isConcentrationBreakingCondition("grappled")).toBe(false);
+      expect(isConcentrationBreakingCondition("poisoned")).toBe(false);
+    });
+  });
+
+  describe("shouldConcentrationEndFromHP", () => {
+    it("returns true when HP is 0", () => {
+      expect(shouldConcentrationEndFromHP(0)).toBe(true);
+    });
+
+    it("returns true when HP is negative (overkill)", () => {
+      expect(shouldConcentrationEndFromHP(-5)).toBe(true);
+    });
+
+    it("returns false when HP is positive", () => {
+      expect(shouldConcentrationEndFromHP(1)).toBe(false);
+      expect(shouldConcentrationEndFromHP(50)).toBe(false);
+    });
   });
 });

@@ -48,6 +48,7 @@ export const Druid: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["intelligence", "wisdom"],
+    armor: ["light", "shield"],
   },
   features: {
     "spellcasting": 1,

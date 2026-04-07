@@ -12,6 +12,7 @@ import { createZone } from '../../../../../domain/entities/combat/zones.js';
 import type { ZoneEffect } from '../../../../../domain/entities/combat/zones.js';
 import { addZone } from '../../../../../domain/rules/combat-map.js';
 import { getPosition } from '../../helpers/resource-utils.js';
+import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
 import type { CombatMap } from '../../../../../domain/rules/combat-map.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
@@ -34,6 +35,7 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
       castInfo,
       spellMatch,
       isConcentration,
+      sheet,
       roster,
       encounter,
       combatants,
@@ -82,13 +84,16 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
     }
 
     // Build ZoneEffect array from spell declaration
+    // Compute caster's spell save DC for zone effects that require saves
+    const casterSpellSaveDC = computeSpellSaveDC(sheet);
+
     const zoneEffects: ZoneEffect[] = zoneDef.effects.map((eff) => {
       const ze: ZoneEffect = {
         trigger: eff.trigger,
         damage: eff.damage,
         damageType: eff.damageType,
         saveAbility: eff.saveAbility as any,
-        saveDC: eff.saveDC,
+        saveDC: eff.saveDC ?? (eff.saveAbility ? casterSpellSaveDC : undefined),
         halfDamageOnSave: eff.halfDamageOnSave,
         conditions: eff.conditions,
         activeEffect: eff.activeEffect

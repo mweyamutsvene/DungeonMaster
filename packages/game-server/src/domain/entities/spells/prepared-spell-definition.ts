@@ -32,6 +32,8 @@ export interface SpellEffectDeclaration {
   readonly type: EffectType;
   readonly target: EffectTarget;
   readonly value?: number;
+  /** When set, the delivery handler resolves `value` dynamically at cast time instead of using the literal. */
+  readonly valueSource?: 'spellcastingModifier';
   readonly diceValue?: { count: number; sides: number };
   readonly damageType?: string;
   readonly duration: EffectDuration;
@@ -93,6 +95,8 @@ export interface PreparedSpellDefinition {
   readonly upcastScaling?: UpcastScaling;
   /** Area of effect for multi-target spells (Burning Hands, Fireball, etc.) */
   readonly area?: AreaOfEffect;
+  /** On failed save, push the target this many feet away from the caster (e.g. Thunderwave 10ft). */
+  readonly pushOnFailFeet?: number;
   /** Turn-end save: target repeats saving throw at end of each of its turns to end an applied condition. */
   readonly turnEndSave?: {
     readonly ability: string;

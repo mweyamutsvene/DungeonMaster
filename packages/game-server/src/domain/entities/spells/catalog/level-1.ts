@@ -103,6 +103,14 @@ export const GUIDING_BOLT = {
   attackType: 'ranged_spell',
   damage: { diceCount: 4, diceSides: 6 },
   damageType: 'radiant',
+  effects: [
+    {
+      type: 'advantage' as const,
+      target: 'next_attack' as const,
+      duration: 'until_triggered' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
   upcastScaling: { additionalDice: { diceCount: 1, diceSides: 6 } },
   school: 'evocation',
   castingTime: 'action',
@@ -150,7 +158,8 @@ export const HEROISM = {
     {
       type: 'recurring_temp_hp' as const,
       target: 'hit_points' as const,
-      value: 0, // Placeholder — actual value is caster's spellcasting ability modifier
+      value: 0, // Placeholder — resolved from caster's spellcasting ability modifier at cast time
+      valueSource: 'spellcastingModifier' as const,
       duration: 'concentration' as const,
       triggerAt: 'start_of_turn' as const,
       appliesTo: 'self' as const,
@@ -284,6 +293,7 @@ export const THUNDERWAVE = {
   damage: { diceCount: 2, diceSides: 8 },
   damageType: 'thunder',
   halfDamageOnSave: true,
+  pushOnFailFeet: 10,
   area: { type: 'cube' as const, size: 15 },
   upcastScaling: { additionalDice: { diceCount: 1, diceSides: 8 } },
   school: 'evocation',

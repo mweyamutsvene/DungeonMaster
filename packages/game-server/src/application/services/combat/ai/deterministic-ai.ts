@@ -7,9 +7,11 @@
  *
  * Decision priority per step:
  * 1. Stand up from Prone (move to current position)
+ * 1b. Triage — heal dying allies (0 HP with death saves) before attacking
  * 2. Evaluate and select a target via scoreTargets()
  * 3. Move to reach target (melee) or maintain range (ranged)
- * 4. Attack with best available attack (repeat for Extra Attacks)
+ * 3b. Disengage before retreat if low HP and enemies adjacent
+ * 4. Attack with best available attack (repeat for Extra Attacks, re-evaluate targets)
  * 5. Use available bonus actions (Flurry of Blows, Second Wind at low HP, etc.)
  * 6. End turn
  *
@@ -61,6 +63,112 @@ function pickBestAttack(
     }
   }
   return best?.name;
+}
+
+/**
+ * Check if any living enemy is within melee reach (5ft) of the combatant.
+ */
+function hasAdjacentEnemy(
+  combatantPos: { x: number; y: number } | undefined,
+  enemies: AiCombatContext["enemies"],
+): boolean {
+  if (!combatantPos) return false;
+  return enemies.some(
+    e => e.hp.current > 0 && e.distanceFeet !== undefined && e.distanceFeet <= 5,
+  );
+}
+
+/**
+ * Check if the creature has a bonus-action Disengage ability (Cunning Action or Nimble Escape).
+ * Returns the bonus action identifier string, or undefined.
+ */
+function hasBonusDisengage(combatant: AiCombatContext["combatant"]): string | undefined {
+  const classAbilities = combatant.classAbilities ?? [];
+  // Rogue: Cunning Action
+  if (classAbilities.some(a => a.name.toLowerCase().includes("cunning action"))) {
+    return "cunningAction:disengage";
+  }
+  // Monster: Nimble Escape (may appear in bonusActions or traits)
+  const checkName = (item: unknown): boolean => {
+    if (!item || typeof item !== "object") return false;
+    const name = (item as Record<string, unknown>).name;
+    return typeof name === "string" && name.toLowerCase().includes("nimble escape");
+  };
+  if ((combatant.bonusActions ?? []).some(checkName) || (combatant.traits ?? []).some(checkName)) {
+    return "nimble_escape_disengage";
+  }
+  return undefined;
+}
+
+/**
+ * Find the most critical dying ally (0 HP, death saves in progress).
+ * Prioritizes allies with more death save failures.
+ */
+function findDyingAlly(allies: AiCombatContext["allies"]): AiCombatContext["allies"][number] | undefined {
+  return allies
+    .filter(a => a.hp.current === 0 && a.deathSaves &&
+      a.deathSaves.failures < 3 && a.deathSaves.successes < 3)
+    .sort((a, b) => (b.deathSaves?.failures ?? 0) - (a.deathSaves?.failures ?? 0))[0];
+}
+
+/**
+ * Pick a healing action to save a dying ally (0 HP with active death saves).
+ * Prefers bonus-action heals (Healing Word) to leave the main action free.
+ */
+function pickHealingForDyingAlly(
+  combatant: AiCombatContext["combatant"],
+  dyingAlly: AiCombatContext["allies"][number],
+  combatantName: string,
+): AiDecision | undefined {
+  const resourcePools = combatant.resourcePools ?? [];
+  const classAbilities = combatant.classAbilities ?? [];
+
+  // Check for healing spells
+  const rawSpells = combatant.spells as unknown[] | undefined;
+  if (rawSpells && rawSpells.length > 0) {
+    const spells = parseSpells(rawSpells);
+    const healingSpells = spells
+      .filter(s => s.healing && hasAvailableSlot(resourcePools, s.level))
+      .sort((a, b) => {
+        // Prefer bonus-action spells (Healing Word) for efficiency
+        if (a.isBonusAction && !b.isBonusAction) return -1;
+        if (!a.isBonusAction && b.isBonusAction) return 1;
+        return a.level - b.level; // Prefer lower level slots
+      });
+
+    if (healingSpells.length > 0) {
+      const spell = healingSpells[0]!;
+      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+      return {
+        action: "castSpell",
+        spellName: spell.name,
+        spellLevel: slotLevel,
+        target: dyingAlly.name,
+        endTurn: !spell.isBonusAction,
+        intentNarration: `${combatantName} casts ${spell.name} on ${dyingAlly.name} to save them!`,
+      };
+    }
+  }
+
+  // Check for Lay on Hands
+  const hasLayOnHands = classAbilities.some(a => a.name.toLowerCase().includes("lay on hands"));
+  if (hasLayOnHands) {
+    const pool = resourcePools.find(p => {
+      const name = p.name.toLowerCase();
+      return name === "layonhands" || name.includes("lay on hands") || name === "lay_on_hands";
+    });
+    if (pool && pool.current > 0) {
+      return {
+        action: "useFeature",
+        featureId: "layOnHands",
+        target: dyingAlly.name,
+        endTurn: false,
+        intentNarration: `${combatantName} uses Lay on Hands on ${dyingAlly.name} to stabilize them!`,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -441,6 +549,21 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       };
     }
 
+    // Check what we've already done this turn (hoisted for early steps)
+    const hasMoved = turnResults.some(r => (r.action === "move" || r.action === "moveToward" || r.action === "moveAwayFrom") && r.ok);
+    const actionSpent = economy?.actionSpent ?? false;
+    const movementSpent = economy?.movementSpent ?? false;
+    const bonusActionSpent = economy?.bonusActionSpent ?? false;
+
+    // Step 1b: Triage — prioritize healing dying allies over attacking
+    if (!actionSpent) {
+      const dyingAlly = findDyingAlly(ctx.allies);
+      if (dyingAlly) {
+        const healAction = pickHealingForDyingAlly(combatant, dyingAlly, input.combatantName);
+        if (healAction) return healAction;
+      }
+    }
+
     // Step 2: Score and select target
     const scoredTargets = scoreTargets(combatant.position, livingEnemies);
     if (scoredTargets.length === 0) {
@@ -457,12 +580,6 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     // Determine what attacks we have
     const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number; kind?: string; type?: string; reach?: number }>;
     const attackName = pickBestAttack(attacks);
-
-    // Check what we've already done this turn
-    const hasMoved = turnResults.some(r => (r.action === "move" || r.action === "moveToward" || r.action === "moveAwayFrom") && r.ok);
-    const actionSpent = economy?.actionSpent ?? false;
-    const movementSpent = economy?.movementSpent ?? false;
-    const bonusActionSpent = economy?.bonusActionSpent ?? false;
 
     // Determine effective melee reach (default 5ft)
     const meleeReach = 5;
@@ -503,6 +620,37 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
             desiredRange: meleeReach,
             endTurn: false,
             intentNarration: `${input.combatantName} moves toward ${primaryTarget.name}.`,
+          };
+        }
+      }
+    }
+
+    // Step 3b: Disengage-before-retreat — if low HP and enemies adjacent,
+    // use Disengage (action or bonus) before retreating to avoid opportunity attacks.
+    const hpPercent = combatant.hp.percentage;
+    if (hpPercent < 25 && livingEnemies.length > 1 && hasAdjacentEnemy(combatant.position, livingEnemies)) {
+      const alreadyDisengaged = turnResults.some(r =>
+        r.ok && (r.action === "disengage" || (r.data && typeof r.data === "object" && "bonusAction" in r.data)),
+      );
+      if (!alreadyDisengaged) {
+        // Priority 1: Bonus-action disengage (Cunning Action / Nimble Escape) — preserves main action
+        if (!bonusActionSpent) {
+          const bonusDisengage = hasBonusDisengage(combatant);
+          if (bonusDisengage) {
+            return {
+              action: "endTurn",
+              bonusAction: bonusDisengage,
+              endTurn: false,
+              intentNarration: `${input.combatantName} disengages to retreat safely!`,
+            };
+          }
+        }
+        // Priority 2: Main-action Disengage if action not yet spent
+        if (!actionSpent) {
+          return {
+            action: "disengage",
+            endTurn: false,
+            intentNarration: `${input.combatantName} disengages to avoid opportunity attacks!`,
           };
         }
       }
@@ -552,9 +700,22 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const hasAttacksRemaining = attacksMade < attacksPerAction;
 
     if (!actionSpent && attackName && hasAttacksRemaining) {
-      // Pick the closest target in reach if primary is too far
+      // AI-M8: Re-evaluate targets between Extra Attack swings.
+      // If the previous attack killed the target, re-score to pick the next best.
       let attackTarget = primaryTarget;
-      if (primaryTarget.distanceFeet !== Infinity && primaryTarget.distanceFeet > meleeReach && !ranged) {
+
+      // Check if the current primary target was killed by a previous attack this turn
+      const lastAttack = [...turnResults].reverse().find(r => r.action === "attack" && r.ok);
+      if (lastAttack && lastAttack.data?.target === primaryTarget.name && lastAttack.data?.hit) {
+        // Previous attack hit our primary target — it may be dead now.
+        // Re-score from living enemies (already filtered hp > 0) and pick next best.
+        const alternateTarget = scoredTargets.find(t => t.name !== primaryTarget.name);
+        if (alternateTarget) {
+          attackTarget = alternateTarget;
+        }
+      }
+
+      if (attackTarget.distanceFeet !== Infinity && attackTarget.distanceFeet > meleeReach && !ranged) {
         // Find closest target in melee reach
         const inReach = scoredTargets.find(t => t.distanceFeet <= meleeReach);
         if (inReach) {
@@ -579,11 +740,28 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
 
     // Step 8: If action is spent but we haven't moved, consider retreating at low HP
     if (actionSpent && !movementSpent) {
-      const hpPercent = combatant.hp.percentage;
       if (hpPercent < 25 && livingEnemies.length > 1) {
         // Retreat when low HP and outnumbered
         const nearestEnemy = scoredTargets[0];
         if (nearestEnemy) {
+          // If adjacent enemies and bonus-action disengage is available, use it to retreat safely
+          if (!bonusActionSpent && hasAdjacentEnemy(combatant.position, livingEnemies)) {
+            const bonusDisengage = hasBonusDisengage(combatant);
+            if (bonusDisengage) {
+              // Use endTurn + bonus disengage first; next iteration will moveAwayFrom safely
+              const alreadyDisengaged = turnResults.some(r =>
+                r.ok && (r.action === "disengage" || (r.data && typeof r.data === "object" && "bonusAction" in r.data)),
+              );
+              if (!alreadyDisengaged) {
+                return {
+                  action: "endTurn",
+                  bonusAction: bonusDisengage,
+                  endTurn: false,
+                  intentNarration: `${input.combatantName} disengages to retreat safely!`,
+                };
+              }
+            }
+          }
           return {
             action: "moveAwayFrom",
             target: nearestEnemy.name,

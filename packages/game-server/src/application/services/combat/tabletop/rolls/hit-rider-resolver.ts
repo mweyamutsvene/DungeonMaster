@@ -85,8 +85,8 @@ export class HitRiderResolver {
 
     // Get raw on-hit enhancement defs for the actor's class
     const profiles = getAllCombatTextProfiles();
-    const classProfile = profiles.find((p) => p.classId === actorClassName.toLowerCase());
-    const onHitDefs = (classProfile?.attackEnhancements ?? []).filter((e) => (e.trigger ?? "onDeclare") === "onHit");
+    const matchingProfiles = profiles.filter((p) => p.classId === actorClassName.toLowerCase());
+    const onHitDefs = matchingProfiles.flatMap((p) => (p.attackEnhancements ?? []).filter((e) => (e.trigger ?? "onDeclare") === "onHit"));
 
     // Filter to eligible defs
     const actorSubclass = (actorChar.sheet as any)?.subclass ?? "";

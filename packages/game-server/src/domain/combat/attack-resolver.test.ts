@@ -668,6 +668,99 @@ describe("resolveAttack", () => {
     expect(result.hit).toBe(false);
     // Only one rollDie call (the initial damage roll), no second Savage Attacker roll
     expect(rollDieCallCount).toBe(1);
+    expect(result.savageAttackerUsed).toBe(false);
+  });
+
+  it("Savage Attacker returns savageAttackerUsed=true on first use", () => {
+    const dice: DiceRoller = {
+      d20(modifier = 0) {
+        return { total: 15 + modifier, rolls: [15] };
+      },
+      rollDie(_sides: number, count = 1, modifier = 0) {
+        const rolls = Array.from({ length: count }, () => 5);
+        return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+      },
+    };
+
+    const attacker = new Character({
+      id: "sa-track",
+      name: "SavageTracker",
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_savage-attacker"],
+    });
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 2 },
+    });
+
+    expect(result.hit).toBe(true);
+    expect(result.savageAttackerUsed).toBe(true);
+  });
+
+  it("Savage Attacker does not trigger when savageAttackerUsedThisTurn is set", () => {
+    let rollDieCallCount = 0;
+    const dice: DiceRoller = {
+      d20(modifier = 0) {
+        return { total: 15 + modifier, rolls: [15] };
+      },
+      rollDie(_sides: number, count = 1, modifier = 0) {
+        rollDieCallCount++;
+        const rolls = Array.from({ length: count }, () => 4);
+        return { total: rolls.reduce((s, r) => s + r, 0) + modifier, rolls };
+      },
+    };
+
+    const attacker = new Character({
+      id: "sa-used",
+      name: "SavageUsed",
+      maxHP: 20,
+      currentHP: 20,
+      armorClass: 10,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+      }),
+      level: 1,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      featIds: ["feat_savage-attacker"],
+    });
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 2 },
+    }, { savageAttackerUsedThisTurn: true });
+
+    expect(result.hit).toBe(true);
+    // Only one rollDie call — Savage Attacker did NOT trigger second roll
+    expect(rollDieCallCount).toBe(1);
+    expect(result.savageAttackerUsed).toBe(false);
   });
 });
 

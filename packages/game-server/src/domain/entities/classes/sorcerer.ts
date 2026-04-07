@@ -42,6 +42,7 @@ export const Sorcerer: CharacterClassDefinition = {
   hitDie: 6,
   proficiencies: {
     savingThrows: ["constitution", "charisma"],
+    armor: [],
   },
   features: {
     "spellcasting": 1,

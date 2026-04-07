@@ -113,6 +113,7 @@ export const Fighter: CharacterClassDefinition = {
   hitDie: 10,
   proficiencies: {
     savingThrows: ["strength", "constitution"],
+    armor: ["light", "medium", "heavy", "shield"],
   },
   features: {
     "fighting-style": 1,

@@ -76,6 +76,7 @@ export const Bard: CharacterClassDefinition = {
   hitDie: 8,
   proficiencies: {
     savingThrows: ["dexterity", "charisma"],
+    armor: ["light"],
   },
   features: {
     "spellcasting": 1,

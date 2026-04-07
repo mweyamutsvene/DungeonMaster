@@ -42,8 +42,29 @@ function classDefs(): Record<CharacterClassId, CharacterClassDefinition> {
   return _classDefs;
 }
 
+import type { ArmorTraining } from "../items/equipped-items.js";
+
 export function getClassDefinition(classId: CharacterClassId): CharacterClassDefinition {
   return classDefs()[classId];
+}
+
+/**
+ * Derive ArmorTraining flags from a class's armor proficiency list.
+ * Returns full training (all true) for unknown class IDs to preserve backward compatibility.
+ */
+export function getArmorTrainingForClass(classId: string): ArmorTraining {
+  const normalized = classId.toLowerCase();
+  if (!isCharacterClassId(normalized)) {
+    return { light: true, medium: true, heavy: true, shield: true };
+  }
+  const def = classDefs()[normalized];
+  const armorList = def.proficiencies.armor ?? [];
+  return {
+    light: armorList.includes("light"),
+    medium: armorList.includes("medium"),
+    heavy: armorList.includes("heavy"),
+    shield: armorList.includes("shield"),
+  };
 }
 
 // ----- Subclass normalization -----

@@ -176,6 +176,21 @@ export class MemoryCombatRepository implements ICombatRepository {
   private readonly pendingActionsByEncounter = new Map<string, JsonValue>();
   private readonly battlePlansByEncounter = new Map<string, Record<string, JsonValue>>();
 
+  /** Optional entity repos for resolving character/monster/npc relations in listCombatants. */
+  private characterRepo?: MemoryCharacterRepository;
+  private monsterRepo?: MemoryMonsterRepository;
+  private npcRepo?: MemoryNPCRepository;
+
+  /**
+   * Link entity repos so listCombatants can include relation data (faction, aiControlled).
+   * Mirrors Prisma's include behavior. Standalone tests that don't need relations can skip this.
+   */
+  linkEntityRepos(chars: MemoryCharacterRepository, monsters: MemoryMonsterRepository, npcs: MemoryNPCRepository): void {
+    this.characterRepo = chars;
+    this.monsterRepo = monsters;
+    this.npcRepo = npcs;
+  }
+
   async createEncounter(
     sessionId: string,
     input: { id: string; status: string; round: number; turn: number; mapData?: JsonValue; surprise?: JsonValue },
@@ -222,7 +237,7 @@ export class MemoryCombatRepository implements ICombatRepository {
 
   async listCombatants(encounterId: string): Promise<CombatantStateRecord[]> {
     const list = this.combatantsByEncounter.get(encounterId) ?? [];
-    return [...list].sort((a, b) => {
+    const sorted = [...list].sort((a, b) => {
       const ai = a.initiative ?? -Infinity;
       const bi = b.initiative ?? -Infinity;
       if (bi !== ai) return bi - ai;
@@ -231,6 +246,34 @@ export class MemoryCombatRepository implements ICombatRepository {
       if (ac !== bc) return ac - bc;
       return a.id.localeCompare(b.id);
     });
+
+    // Resolve relations if entity repos are linked (mirrors Prisma include)
+    if (this.characterRepo || this.monsterRepo || this.npcRepo) {
+      const results: CombatantStateRecord[] = [];
+      for (const rec of sorted) {
+        let character: CombatantStateRecord["character"];
+        let monster: CombatantStateRecord["monster"];
+        let npc: CombatantStateRecord["npc"];
+
+        if (rec.characterId && this.characterRepo) {
+          const ch = await this.characterRepo.getById(rec.characterId);
+          if (ch) character = { faction: ch.faction, aiControlled: ch.aiControlled };
+        }
+        if (rec.monsterId && this.monsterRepo) {
+          const m = await this.monsterRepo.getById(rec.monsterId);
+          if (m) monster = { faction: m.faction, aiControlled: m.aiControlled };
+        }
+        if (rec.npcId && this.npcRepo) {
+          const n = await this.npcRepo.getById(rec.npcId);
+          if (n) npc = { faction: n.faction, aiControlled: n.aiControlled };
+        }
+
+        results.push({ ...rec, character, monster, npc });
+      }
+      return results;
+    }
+
+    return sorted;
   }
 
   async updateCombatantState(
@@ -646,12 +689,18 @@ export interface InMemoryRepos {
 }
 
 export function createInMemoryRepos(): InMemoryRepos {
+  const charactersRepo = new MemoryCharacterRepository();
+  const monstersRepo = new MemoryMonsterRepository();
+  const npcsRepo = new MemoryNPCRepository();
+  const combatRepo = new MemoryCombatRepository();
+  combatRepo.linkEntityRepos(charactersRepo, monstersRepo, npcsRepo);
+
   return {
     sessionsRepo: new MemoryGameSessionRepository(),
-    charactersRepo: new MemoryCharacterRepository(),
-    monstersRepo: new MemoryMonsterRepository(),
-    npcsRepo: new MemoryNPCRepository(),
-    combatRepo: new MemoryCombatRepository(),
+    charactersRepo,
+    monstersRepo,
+    npcsRepo,
+    combatRepo,
     eventsRepo: new MemoryEventRepository(),
     spellsRepo: new MemorySpellRepository(),
     itemDefinitionsRepo: new MemoryItemDefinitionRepository(),

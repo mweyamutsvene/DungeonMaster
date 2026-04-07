@@ -24,7 +24,7 @@ export class LayOnHandsExecutor implements AbilityExecutor {
   }
 
   async execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult> {
-    const { actor, params } = context;
+    const { actor, params, combat, target } = context;
 
     const sheetErr = requireSheet(params); if (sheetErr) return sheetErr;
     const featureErr = requireClassFeature(params, LAY_ON_HANDS, "Lay on Hands (requires Paladin class)"); if (featureErr) return featureErr;
@@ -51,15 +51,39 @@ export class LayOnHandsExecutor implements AbilityExecutor {
         };
       }
 
+      // Determine healing target: ally (via params.targetEntityId + context.target) or self
+      const targetEntityId = params?.targetEntityId as string | undefined;
+      const healTarget = (targetEntityId && target) ? target : actor;
+      const isSelf = healTarget === actor;
+
+      // Validate touch range (5 feet) when targeting an ally
+      if (!isSelf) {
+        const actorPos = combat.getPosition(actor.getId());
+        const targetPos = combat.getPosition(healTarget.getId());
+        if (actorPos && targetPos) {
+          const dx = Math.abs(actorPos.x - targetPos.x);
+          const dy = Math.abs(actorPos.y - targetPos.y);
+          // D&D 5e touch range = 5 feet = 1 grid cell (Chebyshev distance)
+          if (dx > 1 || dy > 1) {
+            return {
+              success: false,
+              summary: "Target is out of touch range (must be within 5 feet)",
+              error: "OUT_OF_RANGE",
+            };
+          }
+        }
+      }
+
       // Calculate healing: heal max possible, capped by missing HP and pool remaining
-      const currentHP = actor.getCurrentHP();
-      const maxHP = actor.getMaxHP();
+      const currentHP = healTarget.getCurrentHP();
+      const maxHP = healTarget.getMaxHP();
       const missingHP = maxHP - currentHP;
 
       if (missingHP <= 0) {
+        const who = isSelf ? "Already" : `${healTarget.getName()} is already`;
         return {
           success: false,
-          summary: "Already at full HP — no healing needed",
+          summary: `${who} at full HP — no healing needed`,
           error: "FULL_HP",
         };
       }
@@ -80,14 +104,16 @@ export class LayOnHandsExecutor implements AbilityExecutor {
 
       const healAmount = Math.min(missingHP, poolRemaining);
       const newHP = currentHP + healAmount;
+      const targetLabel = isSelf ? "" : ` on ${healTarget.getName()}`;
 
       return {
         success: true,
-        summary: `Lays on Hands! Restores ${healAmount} HP. (${poolRemaining - healAmount} HP remaining in pool)`,
+        summary: `Lays on Hands${targetLabel}! Restores ${healAmount} HP. (${poolRemaining - healAmount} HP remaining in pool)`,
         data: {
           abilityName: "Lay on Hands",
           hpUpdate: { hpCurrent: newHP },
           spendResource: { poolName: "layOnHands", amount: healAmount },
+          ...(isSelf ? {} : { targetEntityId: healTarget.getId() }),
         },
       };
     } catch (err: any) {
