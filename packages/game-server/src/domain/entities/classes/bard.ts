@@ -2,6 +2,7 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { JACK_OF_ALL_TRADES, FONT_OF_INSPIRATION, COUNTERCHARM } from "./feature-keys.js";
 
 export type BardicInspirationDie = 6 | 8 | 10 | 12;
 
@@ -79,9 +80,9 @@ export const Bard: CharacterClassDefinition = {
   features: {
     "spellcasting": 1,
     "bardic-inspiration": 1,
-    "jack-of-all-trades": 2,
-    "font-of-inspiration": 5,
-    "countercharm": 6,
+    [JACK_OF_ALL_TRADES]: 2,
+    [FONT_OF_INSPIRATION]: 5,
+    [COUNTERCHARM]: 6,
   },
   resourcesAtLevel: (level, abilityModifiers) => {
     const chaMod = abilityModifiers?.charisma ?? 0;

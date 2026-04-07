@@ -16,6 +16,8 @@ export const FERAL_INSTINCT = "feral-instinct";
 export const BRUTAL_STRIKE = "brutal-strike";
 // Path of the Berserker subclass
 export const FRENZY = "frenzy";
+export const MINDLESS_RAGE = "mindless-rage";
+export const INTIMIDATING_PRESENCE = "intimidating-presence";
 
 // ── Fighter ─────────────────────────────────────────────────
 export const ACTION_SURGE = "action-surge";
@@ -25,6 +27,8 @@ export const TWO_EXTRA_ATTACKS = "two-extra-attacks";
 export const THREE_EXTRA_ATTACKS = "three-extra-attacks";
 // Champion subclass
 export const IMPROVED_CRITICAL = "improved-critical";
+export const REMARKABLE_ATHLETE = "remarkable-athlete";
+export const ADDITIONAL_FIGHTING_STYLE = "additional-fighting-style";
 export const SUPERIOR_CRITICAL = "superior-critical";
 
 // ── Monk ────────────────────────────────────────────────────
@@ -45,6 +49,8 @@ export const UNCANNY_DODGE = "uncanny-dodge";
 export const EVASION = "evasion";
 // Thief subclass
 export const FAST_HANDS = "fast-hands";
+export const SECOND_STORY_WORK = "second-story-work";
+export const SUPREME_SNEAK = "supreme-sneak";
 
 // ── Paladin ─────────────────────────────────────────────────
 export const DIVINE_SMITE = "divine-smite";
@@ -54,6 +60,9 @@ export const AURA_OF_PROTECTION = "aura-of-protection";
 // ── Cleric / Paladin (shared) ───────────────────────────────
 export const CHANNEL_DIVINITY = "channel-divinity";
 export const TURN_UNDEAD = "turn-undead";
+
+// ── Ranger ──────────────────────────────────────────────────
+export const FAVORED_ENEMY = "favored-enemy";
 
 // ── Cross-class (martial) ───────────────────────────────────
 export const EXTRA_ATTACK = "extra-attack";
@@ -68,6 +77,13 @@ export const PACT_MAGIC = "pact-magic";
 
 // ── Bard ────────────────────────────────────────────────────
 export const BARDIC_INSPIRATION = "bardic-inspiration";
+export const JACK_OF_ALL_TRADES = "jack-of-all-trades";
+export const FONT_OF_INSPIRATION = "font-of-inspiration";
+export const COUNTERCHARM = "countercharm";
+
+// ── Warlock ─────────────────────────────────────────────────
+export const ELDRITCH_INVOCATIONS = "eldritch-invocations";
+export const PACT_BOON = "pact-boon";
 
 // ── Druid ───────────────────────────────────────────────────
 export const WILD_SHAPE = "wild-shape";

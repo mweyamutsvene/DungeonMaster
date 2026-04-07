@@ -81,7 +81,7 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
         }
       }
     }
-    resourcePools = [...(classDef.resourcesAtLevel?.(level, abilityModifiers) ?? [])];
+    resourcePools = [...(classDef.resourcesAtLevel?.(level, abilityModifiers, sheet?.subclass) ?? [])];
   }
 
   // 2. Merge any existing sheet-level resource pools that aren't already present

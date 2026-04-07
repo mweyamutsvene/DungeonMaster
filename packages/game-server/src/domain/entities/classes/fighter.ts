@@ -2,6 +2,7 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { REMARKABLE_ATHLETE, ADDITIONAL_FIGHTING_STYLE } from "./feature-keys.js";
 
 export interface ActionSurgeState {
   pool: ResourcePool;
@@ -100,8 +101,8 @@ export const ChampionSubclass: SubclassDefinition = {
   classId: "fighter",
   features: {
     "improved-critical": 3,
-    "remarkable-athlete": 3,
-    "additional-fighting-style": 7,
+    [REMARKABLE_ATHLETE]: 3,
+    [ADDITIONAL_FIGHTING_STYLE]: 7,
     "superior-critical": 15,
   },
 };

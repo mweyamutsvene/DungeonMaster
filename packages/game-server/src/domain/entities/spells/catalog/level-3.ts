@@ -24,6 +24,15 @@ export const COUNTERSPELL = {
 export const DISPEL_MAGIC = {
   name: 'Dispel Magic',
   level: 3,
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'custom' as const,
+      value: 3, // Auto-dispels spells of this level or lower; higher requires ability check DC 10 + spell level
+      duration: 'instant' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
   school: 'abjuration',
   castingTime: 'action',
   range: 120,

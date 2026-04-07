@@ -2,6 +2,7 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { MINDLESS_RAGE, INTIMIDATING_PRESENCE } from "./feature-keys.js";
 
 export interface RageState {
   pool: ResourcePool;
@@ -150,8 +151,8 @@ export const BerserkerSubclass: SubclassDefinition = {
   classId: "barbarian",
   features: {
     "frenzy": 3,
-    "mindless-rage": 6,
-    "intimidating-presence": 10,
+    [MINDLESS_RAGE]: 6,
+    [INTIMIDATING_PRESENCE]: 10,
   },
 };
 

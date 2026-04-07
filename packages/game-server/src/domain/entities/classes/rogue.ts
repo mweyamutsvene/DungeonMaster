@@ -1,7 +1,7 @@
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
 import { isFinesse } from "../items/weapon-properties.js";
-import { UNCANNY_DODGE } from "./feature-keys.js";
+import { UNCANNY_DODGE, SECOND_STORY_WORK, SUPREME_SNEAK } from "./feature-keys.js";
 import { classHasFeature } from "./registry.js";
 
 export function sneakAttackDiceForLevel(level: number): number {
@@ -54,8 +54,8 @@ export const ThiefSubclass: SubclassDefinition = {
   classId: "rogue",
   features: {
     "fast-hands": 3,
-    "second-story-work": 3,
-    "supreme-sneak": 9,
+    [SECOND_STORY_WORK]: 3,
+    [SUPREME_SNEAK]: 9,
   },
 };
 

@@ -93,8 +93,8 @@ describe("getMonkResourcePools", () => {
     expect(um?.current).toBe(1);
   });
 
-  it("level 6 has ki, uncanny_metabolism, and wholeness_of_body", () => {
-    const pools = getMonkResourcePools(6, 3);
+  it("level 6 has ki, uncanny_metabolism, and wholeness_of_body (Open Hand)", () => {
+    const pools = getMonkResourcePools(6, 3, "open-hand");
     const names = pools.map(p => p.name);
     expect(names).toContain("ki");
     expect(names).toContain("uncanny_metabolism");
@@ -102,6 +102,11 @@ describe("getMonkResourcePools", () => {
     const wb = pools.find(p => p.name === "wholeness_of_body");
     expect(wb?.max).toBe(3);
     expect(wb?.current).toBe(3);
+  });
+
+  it("level 6 without Open Hand subclass has no wholeness_of_body", () => {
+    const pools = getMonkResourcePools(6, 3);
+    expect(pools.map(p => p.name)).not.toContain("wholeness_of_body");
   });
 
   it("level 5 has no wholeness_of_body yet", () => {

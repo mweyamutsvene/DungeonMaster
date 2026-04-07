@@ -43,6 +43,21 @@ export function requireResources(
 // ─── Class info extraction ────────────────────────────────────────────────────
 
 /**
+ * Extract subclass ID from executor params.
+ * Normalizes to lowercase-with-dashes (e.g., "Open Hand" → "open-hand").
+ */
+export function extractSubclassId(params: Record<string, unknown> | undefined): string | undefined {
+  const sheet = params?.sheet as Record<string, unknown> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actorRef = params?.actor as any;
+  const raw =
+    (params?.subclass as string | undefined) ??
+    (sheet?.subclass as string | undefined) ??
+    (typeof actorRef?.getSubclass === "function" ? (actorRef.getSubclass() as string) : undefined);
+  return raw ? raw.toLowerCase().replace(/\s+/g, "-") : undefined;
+}
+
+/**
  * Extract level and className from executor params.
  *
  * Lookup precedence (first wins):
@@ -85,7 +100,8 @@ export function requireClassFeature(
   displayName: string,
 ): AbilityExecutionResult | null {
   const { level, className } = extractClassInfo(params);
-  return classHasFeature(className, featureKey, level)
+  const subclassId = extractSubclassId(params);
+  return classHasFeature(className, featureKey, level, subclassId)
     ? null
     : {
         success: false,

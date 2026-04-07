@@ -5,6 +5,7 @@ import type {
   ClassCombatTextProfile,
   DamageReactionDef, DamageReactionInput, DetectedDamageReaction,
 } from "./combat-text-profile.js";
+import { ELDRITCH_INVOCATIONS, PACT_BOON } from "./feature-keys.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { computeSpellSaveDC } from "../../rules/spell-casting.js";
 
@@ -63,8 +64,8 @@ export const Warlock: CharacterClassDefinition = {
   },
   features: {
     "pact-magic": 1,
-    "eldritch-invocations": 2,
-    "pact-boon": 3,
+    [ELDRITCH_INVOCATIONS]: 2,
+    [PACT_BOON]: 3,
   },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [];

@@ -1,5 +1,19 @@
+import type { ResourcePool } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { FAVORED_ENEMY } from "./feature-keys.js";
+import { getSpellSlots } from "../spells/spell-progression.js";
+
+/**
+ * Build Ranger spell slot resource pools for a given level.
+ * Rangers are half-casters, gaining spell slots starting at level 2.
+ */
+function getRangerSpellSlotPools(level: number): ResourcePool[] {
+  const slots = getSpellSlots("ranger", level);
+  return Object.entries(slots)
+    .filter(([, count]) => count > 0)
+    .map(([slotLevel, count]) => ({ name: `spellSlot_${slotLevel}`, current: count, max: count }));
+}
 
 export const Ranger: CharacterClassDefinition = {
   id: "ranger",
@@ -10,11 +24,14 @@ export const Ranger: CharacterClassDefinition = {
   },
   features: {
     "weapon-mastery": 1,
-    "favored-enemy": 1,
+    [FAVORED_ENEMY]: 1,
     "fighting-style": 2,
     "spellcasting": 2,
     "extra-attack": 5,
   },
+  resourcesAtLevel: (level) => getRangerSpellSlotPools(level),
+  resourcePoolFactory: (level) => getRangerSpellSlotPools(level),
+  restRefreshPolicy: [],  // Spell slots refreshed generically in rest.ts via spellSlot_* prefix
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [];
     caps.push({ name: "Favored Enemy", economy: "free", effect: "Advantage on tracking and knowledge about favored enemies" });

@@ -111,7 +111,7 @@ export interface CharacterClassDefinition {
    * for classes whose resource pools depend on ability scores (e.g. Monk's
    * Wholeness of Body uses = WIS modifier). Matches `resourcePoolFactory` convention.
    */
-  resourcesAtLevel?: (level: number, abilityModifiers?: Record<string, number>) => readonly ResourcePool[];
+  resourcesAtLevel?: (level: number, abilityModifiers?: Record<string, number>, subclassId?: string) => readonly ResourcePool[];
 
   /**
    * Factory that builds the default resource pools for character initialization and leveling.
@@ -119,7 +119,7 @@ export interface CharacterClassDefinition {
    * Currently only `charisma` is used (by Bard's bardic inspiration).
    * Optional — classes without resources omit this field.
    */
-  resourcePoolFactory?: (level: number, abilityModifiers?: Record<string, number>) => readonly ResourcePool[];
+  resourcePoolFactory?: (level: number, abilityModifiers?: Record<string, number>, subclassId?: string) => readonly ResourcePool[];
 
   /**
    * Declares how each class resource pool refreshes on short/long rest.

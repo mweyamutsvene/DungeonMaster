@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
 import type {
   ClassCombatTextProfile,
   AttackReactionDef, AttackReactionInput, DetectedAttackReaction,
@@ -68,6 +68,13 @@ export const Wizard: CharacterClassDefinition = {
   restRefreshPolicy: [
     { poolKey: "arcaneRecovery", refreshOn: "long", computeMax: (level) => arcaneRecoveryUsesForLevel(level) },
   ],
+  capabilitiesForLevel: (level): readonly ClassCapability[] => {
+    const caps: ClassCapability[] = [
+      { name: "Spellcasting", economy: "action", effect: "Cast wizard spells using INT" },
+      { name: "Arcane Recovery", economy: "free", cost: "1 use/long rest", effect: `Recover spell slots totaling up to ${arcaneRecoveryMaxRecoveredSlotLevels(level)} levels`, abilityId: "class:wizard:arcane-recovery", resourceCost: { pool: "arcaneRecovery", amount: 1 } },
+    ];
+    return caps;
+  },
 };
 
 // ----- Attack Reaction: Shield Spell -----

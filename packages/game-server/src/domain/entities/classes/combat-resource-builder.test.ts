@@ -31,9 +31,14 @@ describe("Monk resource pool helpers", () => {
     expect(pools.find(p => p.name === "wholeness_of_body")).toBeUndefined();
   });
 
-  it("getMonkResourcePools includes wholeness_of_body at level 6+", () => {
-    const pools = getMonkResourcePools(6, 2); // WIS mod 2
+  it("getMonkResourcePools includes wholeness_of_body at level 6+ (Open Hand)", () => {
+    const pools = getMonkResourcePools(6, 2, "open-hand"); // WIS mod 2
     expect(pools.find(p => p.name === "wholeness_of_body")).toEqual({ name: "wholeness_of_body", current: 2, max: 2 });
+  });
+
+  it("getMonkResourcePools excludes wholeness_of_body without Open Hand subclass", () => {
+    const pools = getMonkResourcePools(6, 2);
+    expect(pools.find(p => p.name === "wholeness_of_body")).toBeUndefined();
   });
 
   it("getMonkResourcePools returns empty for level 1", () => {
@@ -68,14 +73,24 @@ describe("buildCombatResources", () => {
     expect(result.resourcePools.find(p => p.name === "uncanny_metabolism")).toEqual({ name: "uncanny_metabolism", current: 1, max: 1 });
   });
 
-  it("builds Monk resources with wholeness_of_body at level 6", () => {
+  it("builds Monk resources with wholeness_of_body at level 6 (Open Hand)", () => {
+    const result = buildCombatResources({
+      className: "Monk",
+      level: 6,
+      sheet: { abilityScores: { wisdom: 16, dexterity: 16 }, subclass: "open-hand" } as any,
+    });
+
+    expect(result.resourcePools.find(p => p.name === "wholeness_of_body")).toEqual({ name: "wholeness_of_body", current: 3, max: 3 });
+  });
+
+  it("Monk level 6 without Open Hand subclass has no wholeness_of_body", () => {
     const result = buildCombatResources({
       className: "Monk",
       level: 6,
       sheet: { abilityScores: { wisdom: 16, dexterity: 16 } } as any,
     });
 
-    expect(result.resourcePools.find(p => p.name === "wholeness_of_body")).toEqual({ name: "wholeness_of_body", current: 3, max: 3 });
+    expect(result.resourcePools.find(p => p.name === "wholeness_of_body")).toBeUndefined();
   });
 
   it("builds spell slot pools from sheet", () => {

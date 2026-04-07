@@ -62,8 +62,10 @@ export function uncannyMetabolismUsesForLevel(level: number): number {
 /**
  * Build all Monk resource pools for a given level.
  * Optional wisdomModifier is needed for Wholeness of Body.
+ * Optional subclassId gates Wholeness of Body to Way of the Open Hand.
  */
-export function getMonkResourcePools(level: number, wisdomModifier = 0): ResourcePool[] {
+export function getMonkResourcePools(level: number, wisdomModifier = 0, subclassId?: string): ResourcePool[] {
+  const normalizedSubclass = subclassId?.toLowerCase().replace(/\s+/g, "-");
   const pools: ResourcePool[] = [];
 
   // Ki / Focus Points (level 2+)
@@ -74,9 +76,11 @@ export function getMonkResourcePools(level: number, wisdomModifier = 0): Resourc
   const umUses = uncannyMetabolismUsesForLevel(level);
   if (umUses > 0) pools.push({ name: "uncanny_metabolism", current: umUses, max: umUses });
 
-  // Wholeness of Body (level 6+, Open Hand subclass — uses = WIS mod, min 1)
-  const wbUses = wholenessOfBodyUsesForLevel(level, wisdomModifier);
-  if (wbUses > 0) pools.push({ name: "wholeness_of_body", current: wbUses, max: wbUses });
+  // Wholeness of Body (level 6+, Open Hand subclass only — uses = WIS mod, min 1)
+  if (normalizedSubclass === "open-hand") {
+    const wbUses = wholenessOfBodyUsesForLevel(level, wisdomModifier);
+    if (wbUses > 0) pools.push({ name: "wholeness_of_body", current: wbUses, max: wbUses });
+  }
 
   return pools;
 }
@@ -90,6 +94,7 @@ export const OpenHandSubclass: SubclassDefinition = {
   classId: "monk",
   features: {
     "open-hand-technique": 3,
+    "wholeness-of-body": 6,
   },
 };
 
@@ -110,12 +115,11 @@ export const Monk: CharacterClassDefinition = {
     "deflect-attacks": 3,
     "stunning-strike": 5,
     "extra-attack": 5,
-    "wholeness-of-body": 6,
     "evasion": 7,
   },
-  resourcesAtLevel: (level, abilityModifiers) => {
+  resourcesAtLevel: (level, abilityModifiers, subclassId) => {
     const wisdomModifier = abilityModifiers?.wisdom ?? 0;
-    return getMonkResourcePools(level, wisdomModifier);
+    return getMonkResourcePools(level, wisdomModifier, subclassId);
   },
   // resourcePoolFactory intentionally returns only ki — matching the character-sheet default.
   // Combat initialization uses getMonkResourcePools() directly for all monk pools.
@@ -143,7 +147,7 @@ export const Monk: CharacterClassDefinition = {
       caps.push({ name: "Stunning Strike", economy: "free", cost: "1 ki", requires: "Hit with a melee attack", effect: "Target must CON save or be Stunned", abilityId: "class:monk:stunning-strike", resourceCost: { pool: "ki", amount: 1 } });
     }
     if (level >= 6) {
-      caps.push({ name: "Wholeness of Body", economy: "bonusAction", requires: "On your turn", effect: "Regain HP equal to Martial Arts die + WIS mod", abilityId: "class:monk:wholeness-of-body" });
+      caps.push({ name: "Wholeness of Body", economy: "bonusAction", requires: "On your turn", effect: "Regain HP equal to Martial Arts die + WIS mod", abilityId: "class:monk:wholeness-of-body", requiresSubclass: "open-hand" });
     }
     return caps;
   },

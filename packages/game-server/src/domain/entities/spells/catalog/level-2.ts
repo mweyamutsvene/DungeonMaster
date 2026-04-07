@@ -57,6 +57,15 @@ export const MISTY_STEP = {
   name: 'Misty Step',
   level: 2,
   isBonusAction: true,
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'custom' as const,
+      value: 30, // Teleport distance in feet
+      duration: 'instant' as const,
+      appliesTo: 'self' as const,
+    },
+  ],
   school: 'conjuration',
   castingTime: 'bonus_action',
   range: 'self',

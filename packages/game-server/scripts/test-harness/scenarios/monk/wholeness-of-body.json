@@ -15,6 +15,7 @@
           "wisdom": 16,
           "charisma": 8
         },
+        "subclass": "Open Hand",
         "maxHp": 45,
         "currentHp": 45,
         "armorClass": 16,

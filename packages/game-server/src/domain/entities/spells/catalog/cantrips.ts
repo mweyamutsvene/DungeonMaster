@@ -115,6 +115,21 @@ export const BOOMING_BLADE = {
   name: 'Booming Blade',
   level: 0,
   attackType: 'melee_spell',
+  damage: { diceCount: 0, diceSides: 8 },
+  damageType: 'thunder',
+  // On-hit thunder damage: 0 at level 1, scales via cantrip rules (+1d8 at 5/11/17).
+  // Movement rider below is a separate effect that triggers if the target willingly moves.
+  effects: [
+    {
+      type: 'ongoing_damage' as const,
+      target: 'hit_points' as const,
+      diceValue: { count: 1, sides: 8 },
+      damageType: 'thunder',
+      duration: 'until_start_of_next_turn' as const,
+      triggerAt: 'on_voluntary_move' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
   school: 'evocation',
   castingTime: 'action',
   range: 'self',

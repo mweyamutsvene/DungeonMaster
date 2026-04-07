@@ -210,6 +210,16 @@ export const LONGSTRIDER = {
 export const MAGE_ARMOR = {
   name: 'Mage Armor',
   level: 1,
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'armor_class' as const,
+      value: 13, // Base AC override: 13 + DEX modifier (not a bonus — replaces base AC calculation)
+      duration: 'rounds' as const,
+      roundsRemaining: 4800, // ~8 hours at 6-second rounds
+      appliesTo: 'target' as const,
+    },
+  ],
   school: 'abjuration',
   castingTime: 'action',
   range: 'touch',
