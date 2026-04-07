@@ -7,31 +7,31 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 ## TIER 1 — CRITICAL (Runtime Failures / Incorrect Rules)
 
 ### Spell System
-- [ ] **SS-C1: Hold Person / Cause Fear — no end-of-turn saving throw repeat.** Targets stay Paralyzed/Frightened until concentration drops. D&D 5e 2024 requires repeating the save each turn. Needs a `turnEndSaveRepeat` field on spell catalog + turn-end processing step in `CombatService.processActiveEffectsAtTurnEvent()`.
+- [x] **SS-C1: Hold Person / Cause Fear — no end-of-turn saving throw repeat.** Targets stay Paralyzed/Frightened until concentration drops. D&D 5e 2024 requires repeating the save each turn. Needs a `turnEndSaveRepeat` field on spell catalog + turn-end processing step in `CombatService.processActiveEffectsAtTurnEvent()`.
   - Files: `domain/entities/spells/catalog/level-1.ts`, `domain/entities/spells/catalog/level-2.ts`, `application/services/combat/combat-service.ts`
   - Rule: PHB 2024 Hold Person, Cause Fear
 
-- [ ] **SS-C2: Inflict Wounds misclassified as CON save spell.** D&D 5e 2024 Inflict Wounds is a melee spell attack (`attackType: 'melee_spell'`), not a saving throw.
+- [x] **SS-C2: Inflict Wounds misclassified as CON save spell.** D&D 5e 2024 Inflict Wounds is a melee spell attack (`attackType: 'melee_spell'`), not a saving throw.
   - Files: `domain/entities/spells/catalog/level-1.ts`
   - Rule: PHB 2024 Inflict Wounds
 
 ### Class Abilities
-- [ ] **CA-C1: 6 text profile action mappings point to non-existent executors (RUNTIME ERROR).** Warlock (eldritch-blast), Bard (bardic-inspiration), Druid (wild-shape), Ranger (hunters-mark), Sorcerer (quickened-spell, twinned-spell). Text matching → `AbilityRegistry.execute()` → `UNREGISTERED_ABILITY` error. Fix: create stub executors or remove mappings.
+- [x] **CA-C1: 6 text profile action mappings point to non-existent executors (RUNTIME ERROR).** Warlock (eldritch-blast), Bard (bardic-inspiration), Druid (wild-shape), Ranger (hunters-mark), Sorcerer (quickened-spell, twinned-spell). Text matching → `AbilityRegistry.execute()` → `UNREGISTERED_ABILITY` error. Fix: create stub executors or remove mappings.
   - Files: `warlock.ts`, `bard.ts`, `druid.ts`, `ranger.ts`, `sorcerer.ts`, `infrastructure/api/app.ts`
 
-- [ ] **CA-C2: Berserker Frenzy — subclass feature defined + feature key exists but NO executor, NO text mapping, NO capability entry.** Core subclass combat feature (bonus action extra attack while raging) is fully gated but completely unwired.
+- [x] **CA-C2: Berserker Frenzy — subclass feature defined + feature key exists but NO executor, NO text mapping, NO capability entry.** Core subclass combat feature (bonus action extra attack while raging) is fully gated but completely unwired.
   - Files: `domain/entities/classes/barbarian.ts`, `feature-keys.ts`, `abilities/executors/`
   - Rule: PHB 2024 Path of the Berserker level 3
 
 ### AI Behavior
-- [ ] **AI-C1: AI spell delivery cannot create zone spells.** `AiSpellDelivery` handles attack-roll, healing, save-based, buff/debuff but has zero zone-placement code. Spirit Guardians, Spike Growth, Cloud of Daggers, Wall of Fire are silently no-ops when cast by AI.
+- [x] **AI-C1: AI spell delivery cannot create zone spells.** `AiSpellDelivery` handles attack-roll, healing, save-based, buff/debuff but has zero zone-placement code. Spirit Guardians, Spike Growth, Cloud of Daggers, Wall of Fire are silently no-ops when cast by AI.
   - Files: `application/services/combat/ai/handlers/ai-spell-delivery.ts`
 
-- [ ] **AI-C2: Deterministic AI never generates `useFeature` decisions.** The handler exists, types support it, but `DeterministicAiDecisionMaker` has no code path for it. Class features like Turn Undead, Lay on Hands (main action) are LLM-only and unavailable in mock/no-LLM play.
+- [x] **AI-C2: Deterministic AI never generates `useFeature` decisions.** The handler exists, types support it, but `DeterministicAiDecisionMaker` has no code path for it. Class features like Turn Undead, Lay on Hands (main action) are LLM-only and unavailable in mock/no-LLM play.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 ### Entity Management
-- [ ] **EM-C1: `findActiveEncounter` Prisma vs Memory behavioral divergence.** Prisma falls back to `encounters[0]` if no "Active" encounter (returns completed/cancelled). Memory returns `null` strictly. Tests pass but production could return wrong encounter.
+- [x] **EM-C1: `findActiveEncounter` Prisma vs Memory behavioral divergence.** Prisma falls back to `encounters[0]` if no "Active" encounter (returns completed/cancelled). Memory returns `null` strictly. Tests pass but production could return wrong encounter.
   - Files: `infrastructure/db/combat-repository.ts`, `infrastructure/testing/memory-repos.ts`
 
 ---
@@ -39,40 +39,40 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 ## TIER 2 — HIGH (Significant Feature Gaps)
 
 ### Combat Rules
-- [ ] **CR-H1: Missing unit tests for `weapon-mastery.ts`.** 8 mastery types, 34 weapon mappings, eligibility logic — zero unit tests.
+- [x] **CR-H1: Missing unit tests for `weapon-mastery.ts`.** 8 mastery types, 34 weapon mappings, eligibility logic — zero unit tests.
   - Files: New test file needed for `domain/rules/weapon-mastery.ts`
 
-- [ ] **CR-H2: Missing unit tests for `feat-modifiers.ts`.** 18+ feat flags, GWF/Dueling application — no dedicated test file.
+- [x] **CR-H2: Missing unit tests for `feat-modifiers.ts`.** (already done) 18+ feat flags, GWF/Dueling application — no dedicated test file.
   - Files: New test file needed for `domain/rules/feat-modifiers.ts`
 
-- [ ] **CR-H3: Missing unit tests for `damage-defenses.ts`.** Immunity/resistance/vulnerability interactions untested.
+- [x] **CR-H3: Missing unit tests for `damage-defenses.ts`.** Immunity/resistance/vulnerability interactions untested.
   - Files: New test file needed for `domain/rules/damage-defenses.ts`
 
 ### Class Abilities
-- [ ] **CA-H1: Barbarian Brutal Strike — domain functions exist but not wired to combat.** `canUseBrutalStrike()`, `getBrutalStrikeBonusDice()` are complete and tested. Missing: `AttackEnhancementDef` in `BARBARIAN_COMBAT_TEXT_PROFILE`, executor, text mapping.
+- [x] **CA-H1: Barbarian Brutal Strike — domain functions exist but not wired to combat.** (already done) `canUseBrutalStrike()`, `getBrutalStrikeBonusDice()` are complete and tested. Missing: `AttackEnhancementDef` in `BARBARIAN_COMBAT_TEXT_PROFILE`, executor, text mapping.
   - Files: `domain/entities/classes/barbarian.ts`, profile + executor needed
   - Rule: PHB 2024 Barbarian level 9
 
-- [ ] **CA-H2: Rogue Cunning Action Hide returns `NOT_IMPLEMENTED`.** Dash and Disengage work. Hide is critical for Sneak Attack eligibility via Hidden condition.
+- [x] **CA-H2: Rogue Cunning Action Hide returns `NOT_IMPLEMENTED`.** (already done) Dash and Disengage work. Hide is critical for Sneak Attack eligibility via Hidden condition.
   - Files: `abilities/executors/rogue/cunning-action-executor.ts`
 
-- [ ] **CA-H3: Wizard has NO `capabilitiesForLevel()`.** Only implemented spellcasting class without it. AI/tactical view shows no wizard-specific abilities.
+- [x] **CA-H3: Wizard has NO `capabilitiesForLevel()`.** Only implemented spellcasting class without it. AI/tactical view shows no wizard-specific abilities.
   - Files: `domain/entities/classes/wizard.ts`
 
-- [ ] **CA-H4: Wholeness of Body pool + capability shown for ALL monks, not just Open Hand subclass.** Phantom resource pool in tactical display; AI may waste actions on non-Open-Hand monks.
+- [x] **CA-H4: Wholeness of Body pool + capability shown for ALL monks, not just Open Hand subclass.** Phantom resource pool in tactical display; AI may waste actions on non-Open-Hand monks.
   - Files: `domain/entities/classes/monk.ts`
 
-- [ ] **CA-H5: Ranger has no resource pools, no `restRefreshPolicy`.** Missing when subclasses are added.
+- [x] **CA-H5: Ranger has no resource pools, no `restRefreshPolicy`.** Missing when subclasses are added.
   - Files: `domain/entities/classes/ranger.ts`
 
-- [ ] **CA-H6: 12+ feature strings in class definitions not in `feature-keys.ts`.** No compile-time safety; typos are silent bugs. Includes: `jack-of-all-trades`, `font-of-inspiration`, `countercharm`, `eldritch-invocations`, `pact-boon`, `favored-enemy`, `remarkable-athlete`, `additional-fighting-style`, `second-story-work`, `supreme-sneak`, `mindless-rage`, `intimidating-presence`.
+- [x] **CA-H6: 12+ feature strings in class definitions not in `feature-keys.ts`.** No compile-time safety; typos are silent bugs. Includes: `jack-of-all-trades`, `font-of-inspiration`, `countercharm`, `eldritch-invocations`, `pact-boon`, `favored-enemy`, `remarkable-athlete`, `additional-fighting-style`, `second-story-work`, `supreme-sneak`, `mindless-rage`, `intimidating-presence`.
   - Files: `domain/entities/classes/feature-keys.ts`, various class files
 
 ### Spell System
-- [ ] **SS-H1: 5 catalog spells have metadata but ZERO mechanical fields.** Misty Step (no teleportation), Dispel Magic (no effect removal), Absorb Elements (no resistance/damage boost), Mage Armor (no AC change), Booming Blade (no melee effect). They silently do nothing when cast.
+- [x] **SS-H1: 5 catalog spells have metadata but ZERO mechanical fields.** Misty Step (no teleportation), Dispel Magic (no effect removal), Absorb Elements (no resistance/damage boost), Mage Armor (no AC change), Booming Blade (no melee effect). They silently do nothing when cast.
   - Files: `domain/entities/spells/catalog/level-1.ts`, `level-2.ts`, `level-3.ts`
 
-- [ ] **SS-H2: Missing E2E test scenarios for healing spells, zone spells, buff spells, repeat-save spells.** Only attack/damage/counterspell/concentration scenarios exist.
+- [x] **SS-H2: Missing E2E test scenarios for healing spells, zone spells, buff spells, repeat-save spells.** Only attack/damage/counterspell/concentration scenarios exist.
   - Files: `scripts/test-harness/scenarios/wizard/` (new scenarios needed)
 
 ---
