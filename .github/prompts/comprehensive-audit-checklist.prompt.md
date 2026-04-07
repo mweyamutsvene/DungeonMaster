@@ -279,7 +279,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-L5: Protection fighting style — flag only, no domain function.**
 - [ ] **CR-L6: Two-Weapon Fighting base mechanic lives only in application layer executor, not domain.**
 - [ ] **CR-L7: `isOnMap()` uses `<=` instead of `<` — potential off-by-one.**
-- [ ] **CR-L8: No `index.ts` barrel for `domain/combat/`.**
+- [x] **CR-L8: No `index.ts` barrel for `domain/combat/`.**
 - [ ] **CR-L9: Mutable action economy objects inconsistent with immutable patterns elsewhere.**
 
 ### Combat Orchestration
@@ -293,9 +293,9 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CO-L8: Pervasive `as any` casts on resources throughout codebase.**
 
 ### Spell System
-- [ ] **SS-L1: Toll the Dead should deal d12 vs d8 on damaged target.**
-- [ ] **SS-L2: Ray of Frost should reduce target speed by 10ft.**
-- [ ] **SS-L3: Chill Touch should prevent HP regeneration.**
+- [x] **SS-L1: Toll the Dead should deal d12 vs d8 on damaged target.**
+- [x] **SS-L2: Ray of Frost should reduce target speed by 10ft.**
+- [x] **SS-L3: Chill Touch should prevent HP regeneration.**
 - [ ] **SS-L4: Duplicate upcast validation in handler + slot manager.**
 - [ ] **SS-L5: `any` types in SpellCastingContext (6 fields).**
 - [ ] **SS-L6: Magic Missile hardcoded inline instead of catalog-driven.**
@@ -307,7 +307,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **AI-L3: OpenAI provider is a stub (throws on construction).**
 - [ ] **AI-L4: LLM retry increases temperature (counterproductive for JSON).**
 - [ ] **AI-L5: Duplicate `buildActorRef()` methods in orchestrator and executor.**
-- [ ] **AI-L6: `console.log` in CastSpellHandler — should use `aiLog`.**
+- [x] **AI-L6: `console.log` in CastSpellHandler — should use `aiLog`.** (already clean)
 - [ ] **AI-L7: AiSpellDelivery resolveTargets uses faction heuristic instead of FactionService.**
 
 ### Entity Management
@@ -319,10 +319,10 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **EM-L6: Dragonborn ancestry resistance never resolved from sheet.**
 
 ### Class Abilities
-- [ ] **CA-L1: Fighter Extra Attack upgrade display missing in `capabilitiesForLevel` at levels 11/20.**
+- [x] **CA-L1: Fighter Extra Attack upgrade display missing in `capabilitiesForLevel` at levels 11/20.**
 - [ ] **CA-L2: Paladin Lay on Hands `resourceCost: 5` misleads AI (should be variable).**
 - [ ] **CA-L3: Monk `step-of-the-wind-dash` ability ID orphaned from features map.**
-- [ ] **CA-L4: Warlock missing higher-level features in map (9+).**
+- [x] **CA-L4: Warlock missing higher-level features in map (9+).**
 - [ ] **CA-L5: NimbleEscapeExecutor TODO: creature-type validation.**
 
 ---
