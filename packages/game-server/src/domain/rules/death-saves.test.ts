@@ -150,31 +150,60 @@ describe('Death Saves', () => {
   });
 
   describe('attemptStabilize', () => {
-    it('should succeed on check total of exactly 10 (meets DC)', () => {
-      const result = attemptStabilize(10);
+    // Helper: mock DiceRoller that returns a fixed d20 result
+    function mockRoller(d20Result: number) {
+      return {
+        d20: (mod = 0) => ({ total: d20Result + mod, rolls: [d20Result] }),
+        rollDie: (_sides: number, _count = 1, mod = 0) => ({
+          total: d20Result + mod,
+          rolls: [d20Result],
+        }),
+      };
+    }
+
+    it('should succeed when Medicine check total meets DC 10 exactly', () => {
+      // WIS mod=0, prof=0, roll=10 → total=10
+      const result = attemptStabilize(0, 0, mockRoller(10));
       expect(result.success).toBe(true);
-      expect(result.checkTotal).toBe(10);
+      expect(result.roll).toBe(10);
       expect(result.dc).toBe(10);
     });
 
-    it('should fail on check total of 9 (below DC)', () => {
-      const result = attemptStabilize(9);
+    it('should fail when Medicine check total is below DC 10', () => {
+      // WIS mod=0, prof=0, roll=9 → total=9
+      const result = attemptStabilize(0, 0, mockRoller(9));
       expect(result.success).toBe(false);
-      expect(result.checkTotal).toBe(9);
+      expect(result.roll).toBe(9);
       expect(result.dc).toBe(10);
     });
 
-    it('should succeed on high check total', () => {
-      const result = attemptStabilize(20);
+    it('should add WIS modifier and proficiency bonus to the roll', () => {
+      // WIS mod=3, prof=2, roll=8 → total=13 (success)
+      const result = attemptStabilize(3, 2, mockRoller(8));
       expect(result.success).toBe(true);
-      expect(result.checkTotal).toBe(20);
+      expect(result.roll).toBe(13);
       expect(result.dc).toBe(10);
     });
 
     it('should always have DC 10', () => {
-      expect(attemptStabilize(1).dc).toBe(10);
-      expect(attemptStabilize(15).dc).toBe(10);
-      expect(attemptStabilize(25).dc).toBe(10);
+      expect(attemptStabilize(0, 0, mockRoller(1)).dc).toBe(10);
+      expect(attemptStabilize(0, 0, mockRoller(15)).dc).toBe(10);
+      expect(attemptStabilize(5, 3, mockRoller(10)).dc).toBe(10);
+    });
+
+    // RULES-L4: tests with a competent healer (WIS mod=2, prof=2)
+    it('should succeed when healer has WIS mod=2 and prof=2 and rolls 10 (total 14)', () => {
+      // 10 + 2 + 2 = 14 >= DC 10
+      const result = attemptStabilize(2, 2, mockRoller(10));
+      expect(result.success).toBe(true);
+      expect(result.roll).toBe(14);
+    });
+
+    it('should fail when healer has WIS mod=2 and prof=2 but rolls only 5 (total 9)', () => {
+      // 5 + 2 + 2 = 9 < DC 10
+      const result = attemptStabilize(2, 2, mockRoller(5));
+      expect(result.success).toBe(false);
+      expect(result.roll).toBe(9);
     });
   });
 });

@@ -4,12 +4,21 @@ import type { LlmChatInput, LlmProvider } from "./types.js";
  * Placeholder for future OpenAI support.
  *
  * Layer: Infrastructure (LLM transport).
- * Notes: Throws at construction time — use DM_LLM_PROVIDER=ollama or github-models instead.
+ * Notes: Throws at construction time with an actionable error message.
+ *        Set OPENAI_API_KEY if you have an API key, or use a different provider.
  */
 export class OpenAiProvider implements LlmProvider {
   constructor() {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(
+        "OpenAI provider requires OPENAI_API_KEY environment variable. " +
+        "Set it or use DM_LLM_PROVIDER=ollama (with DM_OLLAMA_MODEL) or " +
+        "DM_LLM_PROVIDER=github-models (with DM_GITHUB_MODELS_MODEL + GITHUB_TOKEN) instead.",
+      );
+    }
     throw new Error(
-      "OpenAI provider is not yet implemented. Set DM_LLM_PROVIDER=ollama (with DM_OLLAMA_MODEL) or DM_LLM_PROVIDER=github-models (with DM_GITHUB_MODELS_MODEL + GITHUB_TOKEN) instead.",
+      "OpenAI provider is not yet implemented. Contributions welcome. " +
+      "Use DM_LLM_PROVIDER=ollama or DM_LLM_PROVIDER=github-models instead.",
     );
   }
 

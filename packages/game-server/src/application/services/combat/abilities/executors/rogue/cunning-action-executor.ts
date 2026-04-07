@@ -102,20 +102,31 @@ export class CunningActionExecutor implements AbilityExecutor {
     if (!services.hide) {
       return {
         success: false,
-        summary: 'Hide action not yet implemented',
-        error: 'NOT_IMPLEMENTED',
+        summary: 'Hide service not available',
+        error: 'MISSING_SERVICE',
       };
     }
 
-    await services.hide({
+    const hideResult = await services.hide({
       encounterId: context.encounterId,
       actor: actorRef,
     });
 
+    const stealthRoll: number | undefined = hideResult?.result?.stealthRoll;
+    const hideSucceeded: boolean = hideResult?.result?.success ?? false;
+    const summary = hideSucceeded
+      ? `Hides successfully! Stealth roll: ${stealthRoll ?? '?'} — now Hidden (bonus action via Cunning Action)`
+      : `Hide attempt failed — Stealth roll: ${stealthRoll ?? '?'}, spotted by an observer (bonus action consumed)`;
+
     return {
-      success: true,
-      summary: 'Hid (bonus action via Cunning Action)',
-      data: { choice: 'hide', abilityName: 'Cunning Action' },
+      success: true, // Bonus action was consumed regardless of hide outcome
+      summary,
+      data: {
+        choice: 'hide',
+        abilityName: 'Cunning Action',
+        stealthRoll,
+        hideSucceeded,
+      },
     };
   }
 }

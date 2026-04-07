@@ -10,6 +10,7 @@ import {
   type AttackKind,
   type WeaponContext,
 } from "../rules/feat-modifiers.js";
+import { canUseLucky } from "../rules/lucky.js";
 import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
 import { hasProperty } from "../entities/items/weapon-properties.js";
 import { getAdjustedMode } from "../rules/ability-checks.js";
@@ -58,6 +59,8 @@ export interface AttackRoll {
 export interface AttackResult {
   hit: boolean;
   critical: boolean;
+  /** Whether a Lucky feat reroll was used on the attack roll. */
+  luckyUsed: boolean;
   attack: AttackRoll;
   damage: {
     applied: number;
@@ -132,8 +135,8 @@ export function resolveAttack(
   const mode = getAdjustedMode(attacker, attackAbility, baseMode);
 
   const outcome = rollD20(diceRoller, mode);
-  const d20 = outcome.chosen;
-  const naturalMiss = d20 === 1;
+  let d20 = outcome.chosen;
+  let naturalMiss = d20 === 1;
   let critical = d20 === 20;
 
   // Champion Fighter: expanded critical range (Improved Critical 19+, Superior Critical 18+)
@@ -157,12 +160,36 @@ export function resolveAttack(
     attackBonus += featMods.rangedAttackBonus;
   }
 
-  const total = d20 + attackBonus;
-  const hit = !naturalMiss && (critical || total >= target.getAC());
+  let total = d20 + attackBonus;
+  let hit = !naturalMiss && (critical || total >= target.getAC());
 
   // D&D 5e 2024: Paralyzed/Unconscious auto-crit on melee within 5ft
   if (hit && !critical && isAutoCriticalHit(target, spec.kind, options?.attackerDistance)) {
     critical = true;
+  }
+
+  // Lucky feat: on a miss, auto-reroll the d20 and use result if it would hit.
+  // Auto-use policy (structural foundation): always reroll on a miss; keep lucky
+  // roll only when it results in a hit. Application layer tracks remaining points.
+  let luckyUsed = false;
+  if (!hit && featMods.luckyEnabled && canUseLucky(featMods.luckPoints ?? 0)) {
+    const luckyRoll = diceRoller.rollDie(20);
+    const luckyD20 = luckyRoll.total;
+    const luckyTotal = luckyD20 + attackBonus;
+    const luckyCritical = luckyD20 === 20;
+    const luckyHit = luckyD20 !== 1 && (luckyCritical || luckyTotal >= target.getAC());
+    if (luckyHit) {
+      d20 = luckyD20;
+      naturalMiss = false;
+      critical = luckyCritical;
+      total = luckyTotal;
+      hit = true;
+      luckyUsed = true;
+      // Re-check paralyzed/unconscious auto-crit for the lucky hit
+      if (!critical && isAutoCriticalHit(target, spec.kind, options?.attackerDistance)) {
+        critical = true;
+      }
+    }
   }
 
   const damageDiceCount = critical ? spec.damage.diceCount * 2 : spec.damage.diceCount;
@@ -223,6 +250,7 @@ export function resolveAttack(
   return {
     hit,
     critical,
+    luckyUsed,
     attack: { d20, total },
     damage: {
       applied,

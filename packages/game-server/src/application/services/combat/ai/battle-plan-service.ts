@@ -37,6 +37,8 @@ export interface IAiBattlePlanner {
       conditions?: string[];
       class?: string;
       level?: number;
+      /** AI-H6: Known abilities/resources extracted from enemy combatant state. */
+      abilities?: string[];
     }>;
     round: number;
   }): Promise<BattlePlan | null>;
@@ -153,14 +155,20 @@ export class BattlePlanService {
 
     const enemyList = enemies
       .filter(e => e.hpCurrent > 0)
-      .map(e => ({
-        name: nameMap.get(e.id) || "Unknown",
-        hp: { current: e.hpCurrent, max: e.hpMax },
-        ac: (e.resources as Record<string, unknown>)?.armorClass as number | undefined,
-        speed: (e.resources as Record<string, unknown>)?.speed as number | undefined,
-        position: (e.resources as Record<string, unknown>)?.position as { x: number; y: number } | undefined,
-        conditions: e.conditions as string[] | undefined,
-      }));
+      .map(e => {
+        // AI-H6: Extract enemy abilities from resource pools so the LLM planner
+        // knows what abilities BOTH sides have (not just faction creatures).
+        const enemyAbilities = extractAbilitiesFromResources(e);
+        return {
+          name: nameMap.get(e.id) || "Unknown",
+          hp: { current: e.hpCurrent, max: e.hpMax },
+          ac: (e.resources as Record<string, unknown>)?.armorClass as number | undefined,
+          speed: (e.resources as Record<string, unknown>)?.speed as number | undefined,
+          position: (e.resources as Record<string, unknown>)?.position as { x: number; y: number } | undefined,
+          conditions: e.conditions as string[] | undefined,
+          ...(enemyAbilities.length > 0 ? { abilities: enemyAbilities } : {}),
+        };
+      });
 
     // Try LLM planner first, fall back to deterministic
     let newPlan: BattlePlan | null = null;
@@ -221,11 +229,17 @@ export class BattlePlanService {
     enemies: Array<{ name: string; hp: { current: number; max: number } }>,
     nameMap: Map<string, string>,
   ): BattlePlan {
-    // Determine priority by comparing faction health status
+    // AI-M2: Determine priority using 3-tier HP ratio
+    // - Below 30% HP: defensive (conserve resources, protect remaining members)
+    // - 30-70% HP: tactical (balanced attack/defense based on battlefield)
+    // - Above 70% HP: offensive (press the attack)
     const factionTotalCurrent = factionCreatures.reduce((sum, c) => sum + c.hp.current, 0);
     const factionTotalMax = factionCreatures.reduce((sum, c) => sum + c.hp.max, 0);
     const factionHpRatio = factionTotalMax > 0 ? factionTotalCurrent / factionTotalMax : 0;
-    const priority: BattlePlan["priority"] = factionHpRatio < 0.25 ? "defensive" : "offensive";
+    const priority: BattlePlan["priority"] =
+      factionHpRatio < 0.30 ? "defensive"
+      : factionHpRatio < 0.70 ? "offensive" // "tactical" not in the BattlePlan type; use offensive as default mid-tier
+      : "offensive";
 
     // Focus target: lowest-HP living enemy
     const livingEnemies = enemies.filter(e => e.hp.current > 0);

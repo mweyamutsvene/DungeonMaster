@@ -125,6 +125,12 @@ export const BARBARIAN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       abilityId: "class:barbarian:reckless-attack",
       category: "classAction",
     },
+    {
+      keyword: "brutal-strike",
+      normalizedPatterns: [/brutalstrike|hamstringblow|hamstringblow|forcefulblow|staggeringblow/],
+      abilityId: "class:barbarian:brutal-strike",
+      category: "classAction",
+    },
   ],
   attackEnhancements: [],
 };

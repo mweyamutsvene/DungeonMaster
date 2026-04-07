@@ -1,0 +1,158 @@
+{
+  "name": "Rogue Cunning Action: Attack then Hide as Bonus Action",
+  "description": "Tests Cunning Action (Rogue 2+): attack with main action, then Hide as a bonus action on the same turn. [1] Rogue shoots Goblin (main action — no advantage, no ally → no sneak attack). [2] Uses Cunning Action to Hide as bonus action (stealth 10 vs goblin passive perception 9 → always succeeds). [3] Goblin attacks the hidden Rogue on its turn (with disadvantage). [4] Being attacked does NOT remove the Hidden condition (5e 2024 rule: stealth breaks on YOUR attack, not incoming attack). [5] Round 2: Rogue attacks from Hidden (advantage → Sneak Attack 3d6 eligible). [6] After attacking, Hidden condition is removed.",
+  "setup": {
+    "character": {
+      "name": "Shadow Striker",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": { "stealth": 10 },
+        "attacks": [
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing"
+          }
+        ],
+        "features": [
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as bonus action" },
+          { "name": "Sneak Attack", "description": "3d6 extra damage with advantage or ally adjacent to target" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Low passive perception (9) ensures stealth (min 1+10=11) always beats it. 30 HP to survive two hits for full scenario verification.",
+        "name": "Goblin",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 12,
+          "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I nock an arrow and prepare to strike" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Initiative: 18 + 4 (DEX mod) = 22. Rogue goes first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Main action: shoot the Goblin. No advantage and no ally adjacent → no Sneak Attack. Just 1d6+4 damage.",
+      "type": "action",
+      "input": { "text": "shoot the Goblin with my shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Attack roll: 10 + 7 = 17 vs AC 12 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "Damage: 3 (1d6 weapon die) + 4 (DEX mod) = 7. Goblin HP: 30 → 23."
+    },
+    {
+      "comment": "Bonus action: Cunning Action → Hide. Stealth bonus 10 vs goblin passive perception 9 → always succeeds (min roll 1+10=11 > 9). Rogue ducks behind cover.",
+      "type": "action",
+      "input": { "text": "hide" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "Hide" }
+    },
+    {
+      "type": "assertState",
+      "comment": "After Cunning Action Hide, Rogue has the Hidden condition.",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Hidden"] }
+      }
+    },
+    { "type": "endTurn" },
+    {
+      "comment": "Goblin AI acts: moves toward Rogue (if needed) and attacks with DISADVANTAGE (Rogue is Hidden). Being attacked does NOT break Hidden — stealth only breaks when YOU attack.",
+      "type": "waitForTurn",
+      "timeout": 5000
+    },
+    {
+      "type": "assertState",
+      "comment": "After Goblin's attack on the hidden Rogue, Hidden condition MUST persist — incoming attacks do not reveal the Rogue's position in 5e 2024.",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Hidden"] }
+      }
+    },
+    {
+      "comment": "Round 2: Attack from Hidden → Rogue has Advantage (attacking from hidden). Advantage → Sneak Attack (3d6) is eligible even without an adjacent ally.",
+      "type": "action",
+      "input": { "text": "shoot the Goblin with my shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit. Attacking from Hidden gives Advantage.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "Damage roll: player submits sum of weapon die (1d6) + Sneak Attack dice (3d6) = 4d6 total. Total dice: 7. Server adds +4 modifier → 7+4=11 damage. Goblin HP: 23 → 12."
+    },
+    {
+      "type": "assertState",
+      "comment": "After attacking, Hidden condition MUST be removed. Attacking reveals the Rogue's position per 5e 2024 stealth rules.",
+      "expect": {
+        "characterConditions": { "doesNotHaveConditions": ["Hidden"] }
+      }
+    }
+  ]
+}

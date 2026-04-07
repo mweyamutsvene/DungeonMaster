@@ -5,7 +5,7 @@
  */
 
 // Barbarian abilities
-export { RageExecutor, RecklessAttackExecutor } from "./barbarian/index.js";
+export { RageExecutor, RecklessAttackExecutor, BrutalStrikeExecutor } from "./barbarian/index.js";
 
 // Cleric abilities
 export { TurnUndeadExecutor } from "./cleric/index.js";

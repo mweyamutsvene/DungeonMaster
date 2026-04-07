@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeAuraSaveBonus,
   getAuraOfProtectionRange,
+  getPaladinAuraBonus,
   paladinChannelDivinityUsesForLevel,
   createChannelDivinityState,
   createLayOnHandsState,
@@ -103,5 +104,29 @@ describe("Aura of Protection", () => {
     it("returns 1 for CHA modifier of 1", () => {
       expect(computeAuraSaveBonus(1)).toBe(1);
     });
+  });
+});
+
+// CLASS-M1: getPaladinAuraBonus — combined level gate + CHA modifier
+describe("getPaladinAuraBonus", () => {
+  it("returns CHA modifier when Paladin is level 6+", () => {
+    expect(getPaladinAuraBonus({ charismaModifier: 4, level: 6 })).toBe(4);
+  });
+
+  it("returns 0 when Paladin is below level 6 (aura not active)", () => {
+    expect(getPaladinAuraBonus({ charismaModifier: 4, level: 5 })).toBe(0);
+    expect(getPaladinAuraBonus({ charismaModifier: 4, level: 1 })).toBe(0);
+  });
+
+  it("returns minimum 1 for negative CHA modifier when level 6+", () => {
+    // Math.max(1, -1) = 1
+    expect(getPaladinAuraBonus({ charismaModifier: -1, level: 6 })).toBe(1);
+    expect(getPaladinAuraBonus({ charismaModifier: 0, level: 6 })).toBe(1);
+  });
+
+  it("scales correctly across levels", () => {
+    expect(getPaladinAuraBonus({ charismaModifier: 3, level: 6 })).toBe(3);
+    expect(getPaladinAuraBonus({ charismaModifier: 3, level: 18 })).toBe(3);
+    expect(getPaladinAuraBonus({ charismaModifier: 3, level: 20 })).toBe(3);
   });
 });

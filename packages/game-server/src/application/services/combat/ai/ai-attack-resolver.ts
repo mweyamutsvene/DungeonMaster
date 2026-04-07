@@ -148,6 +148,9 @@ export class AiAttackResolver {
     const distanceFt = aiPos && tgtPos ? calculateDistance(aiPos, tgtPos) : undefined;
 
     // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when flanking
+    // PERF: AI-L2 — encounter and combatants are loaded here per-attack even though
+    // the outer turn orchestrator already has them. To fix: add optional encounter/allCombatants
+    // params to AiAttackParams and pass them down from AiTurnOrchestrator.executeAiTurn().
     if (attackKind === "melee" && aiPos && tgtPos) {
       const encounter = await combat.getEncounterById(encounterId);
       const mapData = encounter?.mapData as unknown as CombatMap | undefined;

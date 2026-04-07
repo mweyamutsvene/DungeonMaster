@@ -22,6 +22,9 @@ export type TerrainType =
   | "cover-half"       // Provides half cover (+2 AC)
   | "cover-three-quarters"  // Provides 3/4 cover (+5 AC)
   | "cover-full"       // Total cover (can't be targeted)
+  // TODO: RULES-L3 — elevated terrain should grant advantage on attacks vs lower targets;
+  //   pit terrain triggers DC 15 DEX save on entry, 1d6/10ft fall damage.
+  //   See .github/prompts/plan-terrain-mechanics.prompt.md
   | "elevated"         // Higher ground (advantage on attacks)
   | "pit"              // Lower ground or hole
   | "hazard";          // Generic dangerous area

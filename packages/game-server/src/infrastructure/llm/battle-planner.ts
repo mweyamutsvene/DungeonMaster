@@ -41,6 +41,8 @@ export class LlmBattlePlanner implements IAiBattlePlanner {
       conditions?: string[];
       class?: string;
       level?: number;
+      /** AI-H6: Known abilities/resources of this enemy. */
+      abilities?: string[];
     }>;
     round: number;
   }): Promise<BattlePlan | null> {
@@ -109,6 +111,7 @@ Guidelines:
       conditions?: string[];
       class?: string;
       level?: number;
+      abilities?: string[];
     }>;
     round: number;
   }): string {
@@ -135,6 +138,10 @@ Guidelines:
       if (e.position) parts.push(`, at (${e.position.x},${e.position.y})`);
       if (e.conditions && e.conditions.length > 0) parts.push(`, conditions: ${e.conditions.join(", ")}`);
       parts.push(")");
+      // AI-H6: Show enemy abilities so the LLM planner can account for both sides' capabilities
+      if (e.abilities && e.abilities.length > 0) {
+        parts.push(`\n  Abilities: ${e.abilities.join(", ")}`);
+      }
       msg += `- ${parts.join("")}\n`;
     }
 

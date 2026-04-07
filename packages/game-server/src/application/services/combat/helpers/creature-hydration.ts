@@ -239,7 +239,7 @@ export function hydrateCharacter(
     resourcePools,
     featIds,
     fightingStyle,
-    darkvisionRange: readNumber(sheet, 'darkvisionRange') ?? speciesTraits?.darkvisionRange ?? 0,
+    darkvisionRange: readNumber(sheet, 'darkvisionRange') ?? readNumber(sheet, 'darkvision') ?? speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
     equipment,
   };

@@ -22,6 +22,7 @@ import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/r
 import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects } from "../../helpers/resource-utils.js";
 import {
   applyForcedMovement,
+  calculateDistance,
   directionFromTo,
   type ForcedMovementDirection,
 } from "../../../../../domain/rules/movement.js";
@@ -41,7 +42,8 @@ import {
 } from "../../../../../domain/entities/combat/effects.js";
 import type { SavingThrowPendingAction, SaveOutcome, SavingThrowAutoResult } from "../tabletop-types.js";
 import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
-import { EVASION } from "../../../../../domain/entities/classes/feature-keys.js";
+import { AURA_OF_PROTECTION, EVASION } from "../../../../../domain/entities/classes/feature-keys.js";
+import { computeAuraSaveBonus, getAuraOfProtectionRange } from "../../../../../domain/entities/classes/paladin.js";
 
 /**
  * Parameters for creating a saving throw pending action.
@@ -190,6 +192,72 @@ export class SavingThrowResolver {
       totalModifier += coverBonusApplied;
       if (this.debugLogsEnabled) {
         console.log(`[SavingThrowResolver] Cover bonus +${coverBonusApplied} on DEX save`);
+      }
+    }
+
+    // ── Paladin Aura of Protection (level 6+) ──
+    // All allies within 10 ft (30 ft at level 18) add the Paladin's CHA modifier (min +1) to saves.
+    {
+      const targetFaction = characters.find((c: any) => c.id === action.actorId)?.faction;
+      let bestAuraBonus = 0;
+
+      for (const combatant of combatantsForEffects) {
+        if (!combatant.characterId) continue; // Only Characters can be paladins with this aura
+        const paladinChar = characters.find((c: any) => c.id === combatant.characterId);
+        if (!paladinChar) continue;
+        if (combatant.characterId === action.actorId) continue; // Don't self-stack (handled by aura applying to self too, but redundant)
+
+        // Must be same faction as the target
+        if (targetFaction !== undefined && (paladinChar.faction ?? "party") !== targetFaction) continue;
+
+        // Must be a paladin with Aura of Protection at level 6+
+        const paladinClass = ((paladinChar.className ?? (paladinChar.sheet as any)?.className ?? "")).toLowerCase();
+        const paladinLevel: number = paladinChar.level ?? (paladinChar.sheet as any)?.level ?? 1;
+        if (!classHasFeature(paladinClass, AURA_OF_PROTECTION, paladinLevel)) continue;
+
+        // Check range (if positions available)
+        const auraRange = getAuraOfProtectionRange(paladinLevel);
+        const paladinCombatantPos = getPosition(normalizeResources(combatant.resources ?? {}));
+        const targetCombatantPos = targetCombatantForEffects
+          ? getPosition(normalizeResources(targetCombatantForEffects.resources ?? {}))
+          : undefined;
+
+        if (paladinCombatantPos && targetCombatantPos) {
+          const dist = calculateDistance(paladinCombatantPos, targetCombatantPos);
+          if (dist > auraRange) continue;
+        }
+        // If positions not available: encounter-wide fallback (aura applies)
+
+        // Get paladin's CHA modifier
+        const paladinSheet = (paladinChar.sheet ?? {}) as Record<string, unknown>;
+        const paladinAbilityScores = (paladinSheet.abilityScores ?? {}) as Record<string, number>;
+        const paladinCha = paladinAbilityScores.charisma ?? 10;
+        const paladinChaMod = getAbilityModifier(paladinCha);
+        const auraBonus = computeAuraSaveBonus(paladinChaMod);
+
+        if (auraBonus > bestAuraBonus) bestAuraBonus = auraBonus;
+      }
+
+      // Also check if the target itself is a paladin (aura applies to self)
+      const selfChar = characters.find((c: any) => c.id === action.actorId);
+      if (selfChar) {
+        const selfClass = ((selfChar.className ?? (selfChar.sheet as any)?.className ?? "")).toLowerCase();
+        const selfLevel: number = selfChar.level ?? (selfChar.sheet as any)?.level ?? 1;
+        if (classHasFeature(selfClass, AURA_OF_PROTECTION, selfLevel)) {
+          const selfSheet = (selfChar.sheet ?? {}) as Record<string, unknown>;
+          const selfAbilityScores = (selfSheet.abilityScores ?? {}) as Record<string, number>;
+          const selfCha = selfAbilityScores.charisma ?? 10;
+          const selfChaMod = getAbilityModifier(selfCha);
+          const selfAuraBonus = computeAuraSaveBonus(selfChaMod);
+          if (selfAuraBonus > bestAuraBonus) bestAuraBonus = selfAuraBonus;
+        }
+      }
+
+      if (bestAuraBonus > 0) {
+        totalModifier += bestAuraBonus;
+        if (this.debugLogsEnabled) {
+          console.log(`[SavingThrowResolver] Paladin Aura of Protection +${bestAuraBonus} on saving throw`);
+        }
       }
     }
 

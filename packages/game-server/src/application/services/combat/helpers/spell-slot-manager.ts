@@ -151,8 +151,12 @@ export async function prepareSpellCast(
   const poolName = `spellSlot_${effectiveLevel}`;
   const resources = actorCombatant.resources;
 
-  // Try standard spell slot first, then fall back to Pact Magic
+  // Try standard spell slot first, then fall back to Pact Magic, then legacy spellSlots object format.
+  // NOTE: prepareSpellCast is creature-type agnostic — it works for Characters, Monsters, and NPCs
+  // as long as they have spellSlot_N resource pools or a legacy spellSlots object in resources.
   let slotPoolName: string;
+  let legacySlotDeduction: (() => JsonValue) | null = null;
+
   if (hasResourceAvailable(resources, poolName, 1)) {
     slotPoolName = poolName;
   } else {
@@ -171,11 +175,42 @@ export async function prepareSpellCast(
       log?.(`[SpellSlotManager] No standard level ${effectiveLevel} slot; using Pact Magic slot`);
       slotPoolName = "pactMagic";
     } else {
-      throw new ValidationError(`No level ${effectiveLevel} spell slots remaining`);
+      // AI-H1: Generic fallback — check for legacy spellSlots object format
+      // { spellSlots: { "3": 2, "4": 1 } } used by some monster/NPC resources.
+      // This ensures monsters with legacy spell slot tracking also have slots deducted.
+      const normalizedRaw = normalizeResources(resources);
+      const legacySlots = normalizedRaw.spellSlots;
+      if (typeof legacySlots === "object" && legacySlots !== null && !Array.isArray(legacySlots)) {
+        const slotMap = legacySlots as Record<string, unknown>;
+        const levelKey = String(effectiveLevel);
+        const slotsAtLevel = typeof slotMap[levelKey] === "number" ? (slotMap[levelKey] as number) : 0;
+        if (slotsAtLevel > 0) {
+          log?.(`[SpellSlotManager] Using legacy spellSlots object format for level ${effectiveLevel} slot`);
+          // Capture deduction as a closure to apply after concentration handling
+          legacySlotDeduction = () => {
+            const currentNorm = normalizeResources(resources);
+            const currentLegacy = (currentNorm.spellSlots as Record<string, unknown>) ?? {};
+            const updated = { ...currentLegacy, [levelKey]: Math.max(0, (slotsAtLevel) - 1) };
+            return { ...currentNorm, spellSlots: updated } as JsonValue;
+          };
+          // Use a sentinel pool name — we'll handle this via legacySlotDeduction
+          slotPoolName = `__legacy_${levelKey}`;
+        } else {
+          throw new ValidationError(`No level ${effectiveLevel} spell slots remaining`);
+        }
+      } else {
+        throw new ValidationError(`No level ${effectiveLevel} spell slots remaining`);
+      }
     }
   }
 
-  let updatedResources: JsonValue = spendResourceFromPool(resources, slotPoolName, 1);
+  let updatedResources: JsonValue;
+  if (legacySlotDeduction) {
+    // Apply legacy spellSlots object deduction directly
+    updatedResources = legacySlotDeduction();
+  } else {
+    updatedResources = spendResourceFromPool(resources, slotPoolName, 1);
+  }
 
   // ── Concentration management ──────────────────────────────────────
   if (isConcentration) {

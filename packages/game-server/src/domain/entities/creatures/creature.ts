@@ -384,3 +384,9 @@ export function proficiencyBonusFromCR(cr: number): number {
   if (cr <= 28) return 8;
   return 9;
 }
+
+/**
+ * Alias for {@link proficiencyBonusFromCR}.
+ * Canonical name for the shared CR-based proficiency helper.
+ */
+export const getCRProficiencyBonus = proficiencyBonusFromCR;

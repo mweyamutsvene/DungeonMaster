@@ -3,9 +3,13 @@
  * When a character drops to 0 HP, they make death saves each turn
  */
 
+import type { DiceRoller } from "./dice-roller.js";
+
 export interface DeathSaves {
   successes: number; // 0-3
   failures: number;  // 0-3
+  /** Set to true when the creature is stabilized (Medicine check or 3 death save successes). */
+  stable?: boolean;
 }
 
 export type DeathSaveResult = 
@@ -136,19 +140,28 @@ export function takeDamageWhileUnconscious(
 
 export interface StabilizeCheckResult {
   success: boolean;
-  checkTotal: number;
+  /** Total of the Medicine check roll (1d20 + WIS modifier + proficiency bonus). */
+  roll: number;
   dc: number;
 }
 
 /**
- * Evaluate a Medicine check to stabilize a dying creature.
- * DC 10 Wisdom (Medicine) check.
+ * Make a DC 10 Wisdom (Medicine) check to stabilize a dying creature.
+ * Rolls 1d20 + WIS modifier + proficiency bonus.
+ * On success the dying creature becomes Stable (stops making death saves, stays at 0 HP).
+ * @returns result with roll total and whether the check succeeded.
  */
-export function attemptStabilize(medicineCheckTotal: number): StabilizeCheckResult {
+export function attemptStabilize(
+  healerWisMod: number,
+  healerProfBonus: number,
+  diceRoller: DiceRoller,
+): StabilizeCheckResult {
   const dc = 10;
+  const rolled = diceRoller.rollDie(20);
+  const checkTotal = rolled.total + healerWisMod + healerProfBonus;
   return {
-    success: medicineCheckTotal >= dc,
-    checkTotal: medicineCheckTotal,
+    success: checkTotal >= dc,
+    roll: checkTotal,
     dc,
   };
 }

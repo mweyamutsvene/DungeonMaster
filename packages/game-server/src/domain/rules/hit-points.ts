@@ -12,6 +12,11 @@ export interface HitPointOptions {
    */
   method?: "average" | "roll";
   diceRoller?: DiceRoller;
+
+  /**
+   * Tough feat: adds +2 max HP per character level.
+   */
+  toughEnabled?: boolean;
 }
 
 function averageDieGain(hitDie: HitDie): number {
@@ -54,13 +59,16 @@ export function maxHitPoints(options: HitPointOptions): number {
     total += clampHpGain(gain);
   }
 
+  // Tough feat: +2 max HP per character level
+  if (options.toughEnabled) {
+    total += computeToughBonusHP(level);
+  }
+
   return total;
 }
 
 /**
  * Tough feat: +2 max HP per character level.
- * TODO: Apply this bonus in creature hydration (creature-hydration.ts) or during
- * character creation/level-up when maxHp is set on the character sheet.
  * @param level - Character level (1-20)
  * @returns The bonus HP granted by the Tough feat
  */

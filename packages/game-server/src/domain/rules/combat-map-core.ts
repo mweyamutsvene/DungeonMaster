@@ -61,6 +61,14 @@ export function getCellAt(map: CombatMap, position: Position): MapCell | null {
 
 /**
  * Set terrain type for a cell.
+ *
+ * TODO: RULES-L3 — elevated/pit terrain require additional mechanics:
+ * - elevated: creatures on elevated terrain get advantage on attacks vs ground-level targets.
+ *   Needs `terrainElevation: number` field on MapCell (feet above ground level).
+ * - pit: entering a pit cell (or being pushed in) requires DC 15 DEX save;
+ *   on failure the creature falls and takes 1d6 per 10ft of depth.
+ *   Needs `terrainDepth: number` field on MapCell.
+ * See .github/prompts/plan-terrain-mechanics.prompt.md
  */
 export function setTerrainAt(
   map: CombatMap,

@@ -1,4 +1,5 @@
 import type { DiceRoll } from "./dice-roller.js";
+import { LUCKY_POINTS_MAX } from "./lucky.js";
 
 export type AttackKind = "melee" | "ranged";
 
@@ -93,6 +94,12 @@ export interface FeatModifiers {
    * Lucky: 3 luck points per long rest — reroll any d20 on attack/check/save.
    */
   luckyEnabled: boolean;
+  /**
+   * Current available luck points. Starts at 3 (LUCKY_POINTS_MAX) when the feat
+   * is equipped. Decrements when a reroll is used; restored to 3 on a long rest.
+   * The application layer tracks the runtime count; domain code reads this value.
+   */
+  luckPoints?: number;
 
   /**
    * War Caster: advantage on CON saves to maintain concentration.
@@ -132,6 +139,7 @@ export function computeFeatModifiers(featIds: readonly string[]): FeatModifiers 
     resilientEnabled: set.has(FEAT_RESILIENT),
     toughEnabled: set.has(FEAT_TOUGH),
     luckyEnabled: set.has(FEAT_LUCKY),
+    luckPoints: set.has(FEAT_LUCKY) ? LUCKY_POINTS_MAX : undefined,
     warCasterEnabled: set.has(FEAT_WAR_CASTER),
     sentinelEnabled: set.has(FEAT_SENTINEL),
   };

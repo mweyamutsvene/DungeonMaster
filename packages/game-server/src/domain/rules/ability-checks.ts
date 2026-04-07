@@ -23,6 +23,12 @@ export function getProficiencyBonus(level: number): number {
   return Math.floor((level - 1) / 4) + 2;
 }
 
+/**
+ * Jack of All Trades (Bard): add half proficiency bonus to any ability check
+ * that doesn't already use proficiency.
+ */
+export const JACK_OF_ALL_TRADES_MULTIPLIER = 0.5;
+
 export interface AbilityCheckOptions {
   dc: number;
   abilityModifier: number;
@@ -30,6 +36,12 @@ export interface AbilityCheckOptions {
   proficient?: boolean;
   expertise?: boolean;
   halfProficiency?: boolean;
+  /**
+   * Precise proficiency multiplier — overrides `proficient`/`halfProficiency` when set.
+   * 0 = none, 0.5 = half (Jack of All Trades), 1 = full, 2 = expertise.
+   * Result is Math.floor(proficiencyBonus * proficiencyMultiplier).
+   */
+  proficiencyMultiplier?: number;
   mode?: RollMode;
 }
 
@@ -47,9 +59,11 @@ export function abilityCheck(
     throw new Error("Proficiency bonus must be an integer >= 0");
   }
 
-  const effectiveBonus = proficient
-    ? (options.expertise ? proficiencyBonus * 2 : proficiencyBonus)
-    : (options.halfProficiency ? Math.floor(proficiencyBonus / 2) : 0);
+  const effectiveBonus = options.proficiencyMultiplier !== undefined
+    ? Math.floor(proficiencyBonus * options.proficiencyMultiplier)
+    : proficient
+      ? (options.expertise ? proficiencyBonus * 2 : proficiencyBonus)
+      : (options.halfProficiency ? Math.floor(proficiencyBonus / 2) : 0);
   const modifier = options.abilityModifier + effectiveBonus;
   return d20Test(diceRoller, options.dc, modifier, options.mode ?? "normal");
 }
@@ -62,6 +76,11 @@ export interface SkillCheckOptions {
   proficient?: boolean;
   expertise?: boolean;
   halfProficiency?: boolean;
+  /**
+   * Precise proficiency multiplier — takes precedence over `proficient`/`halfProficiency`.
+   * Use `JACK_OF_ALL_TRADES_MULTIPLIER` (0.5) for Bard's Jack of All Trades.
+   */
+  proficiencyMultiplier?: number;
   mode?: RollMode;
 }
 
@@ -83,6 +102,7 @@ export function skillCheck(
     proficient: options.proficient,
     expertise: options.expertise,
     halfProficiency: options.halfProficiency,
+    proficiencyMultiplier: options.proficiencyMultiplier,
     mode: options.mode,
   });
 }

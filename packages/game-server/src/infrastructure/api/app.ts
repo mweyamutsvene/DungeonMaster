@@ -27,6 +27,7 @@ import {
   WholenessOfBodyExecutor,
   RageExecutor,
   RecklessAttackExecutor,
+  BrutalStrikeExecutor,
   LayOnHandsExecutor,
   TurnUndeadExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
@@ -247,6 +248,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new WholenessOfBodyExecutor());
   abilityRegistry.register(new RageExecutor());
   abilityRegistry.register(new RecklessAttackExecutor());
+  abilityRegistry.register(new BrutalStrikeExecutor());
   abilityRegistry.register(new LayOnHandsExecutor());
   abilityRegistry.register(new TurnUndeadExecutor());
   

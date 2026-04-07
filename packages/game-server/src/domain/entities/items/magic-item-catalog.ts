@@ -6,7 +6,9 @@
  *
  * More items can be added here. The Prisma ItemDefinition table exists in the
  * schema but has no read/write path — all items are currently served from this
- * static in-memory catalog. TODO: Wire up ItemDefinition for custom-item persistence.
+ * static in-memory catalog.
+ * TODO: ENT-M8 — If custom/runtime item definitions are needed, wire them through
+ * the ItemDefinition Prisma table. Plan: .github/prompts/plan-custom-item-catalog.prompt.md
  */
 
 import type { MagicItemDefinition } from "./magic-item.js";

@@ -39,6 +39,21 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
     const effectDeclarations = spellMatch.effects ?? [];
     const appliedTo: string[] = [];
 
+    // Guard: canHandle() ensures effects.length > 0, but warn defensively if somehow bypassed.
+    if (effectDeclarations.length === 0) {
+      console.warn(
+        `[WARN] Spell '${castInfo.spellName}' has no effects defined — no mechanical changes applied. Check the spell catalog definition.`,
+      );
+      await deps.actions.castSpell(sessionId, { encounterId, actor, spellName: castInfo.spellName });
+      return {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE",
+        action: "CastSpell",
+        message: `[WARN] Spell '${castInfo.spellName}' has no effects defined — no mechanical changes applied. Check the spell catalog definition.`,
+      };
+    }
+
     for (const effDef of effectDeclarations) {
       // Resolve target combatants
       const targetCombatantIds: string[] = [];

@@ -1,7 +1,9 @@
 import type { ResourcePool } from "../entities/combat/resource-pool.js";
 import type { CharacterClassId, HitDie } from "../entities/classes/class-definition.js";
 import type { DiceRoller } from "./dice-roller.js";
+import type { FeatModifiers } from "./feat-modifiers.js";
 import { getClassDefinition } from "../entities/classes/registry.js";
+import { LUCKY_POINTS_MAX } from "./lucky.js";
 
 export type RestType = "short" | "long";
 
@@ -146,7 +148,7 @@ export function recoverHitDice(hitDiceRemaining: number, totalHitDice: number): 
 // Rest Interruption
 // ---------------------------------------------------------------------------
 
-export type RestInterruptionReason = "combat" | "damage";
+export type RestInterruptionReason = "combat" | "damage" | "spellcast";
 
 export interface RestInterruptionResult {
   interrupted: boolean;
@@ -158,10 +160,11 @@ export interface RestInterruptionResult {
  * that occurred since the rest began.
  *
  * - Short rest: interrupted by combat (`CombatStarted`)
- * - Long rest: interrupted by combat (`CombatStarted`) OR taking damage (`DamageApplied`)
+ * - Long rest: interrupted by combat (`CombatStarted`), taking damage (`DamageApplied`),
+ *   or casting a non-cantrip spell (`SpellCastDuringRest`)
  *
- * Note: Spell casting during a long rest also technically interrupts it per RAW,
- * but we don't emit a queryable spell-cast event for this purpose yet.
+ * Application layer is responsible for emitting a `SpellCastDuringRest` event when
+ * a spell of level >= 1 is cast during the long rest hour.
  */
 export function detectRestInterruption(
   restType: RestType,
@@ -174,6 +177,29 @@ export function detectRestInterruption(
     if (event.type === "DamageApplied" && restType === "long") {
       return { interrupted: true, reason: "damage" };
     }
+    // SpellCastDuringRest: emitted by the application layer when a non-cantrip
+    // (level >= 1) spell is cast during a long rest. RAW (2024): casting a spell
+    // during a long rest hour interrupts it; cantrips are permitted.
+    if (event.type === "SpellCastDuringRest" && restType === "long") {
+      return { interrupted: true, reason: "spellcast" };
+    }
   }
   return { interrupted: false };
+}
+
+// ---------------------------------------------------------------------------
+// Feat resource restoration
+// ---------------------------------------------------------------------------
+
+/**
+ * Restore Lucky feat points on a long rest.
+ * Lucky grants 3 luck points per long rest; this resets the count to max.
+ * @returns Updated FeatModifiers with luckPoints reset to max (3), or
+ *          the original modifiers unchanged if not a long rest or Lucky not present.
+ */
+export function restoreFeatLuckPoints(featModifiers: FeatModifiers, rest: RestType): FeatModifiers {
+  if (rest !== "long" || !featModifiers.luckyEnabled) {
+    return featModifiers;
+  }
+  return { ...featModifiers, luckPoints: LUCKY_POINTS_MAX };
 }

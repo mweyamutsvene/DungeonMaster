@@ -456,6 +456,9 @@ export class ActionService {
     }
 
     // ── Opportunity Attack Detection (Programmatic Path) ──
+    // TODO: ORCH-M3 — This OA detection duplicates TwoPhaseActionService.checkOpportunityAttack().
+    // Both paths can drift. Consolidate: programmatic move path should call TwoPhaseActionService directly.
+    // See .github/prompts/plan-oa-path-consolidation.prompt.md
     // This is the PROGRAMMATIC OA path used by ActionService.move() for AI/server-driven movement.
     // It detects AND resolves OAs immediately in a single pass (no player interaction).
     //

@@ -17,7 +17,9 @@ export class CastSpellHandler implements AiActionHandler {
 
   async execute(ctx: AiActionHandlerContext, deps: AiActionHandlerDeps): Promise<AiHandlerResult> {
     const { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef } = ctx;
-    const { actionService, twoPhaseActions, combat, characters, aiLog: _aiLog, executeBonusAction } = deps;
+    const { actionService, twoPhaseActions, combat, characters, aiLog, executeBonusAction } = deps;
+
+    const _aiLog = aiLog; // alias for clarity
 
     if (!actorRef) {
       return {
@@ -90,14 +92,14 @@ export class CastSpellHandler implements AiActionHandler {
       spellLevel,
     });
 
-    console.log("[CastSpellHandler] initiateSpellCast result:", {
+    _aiLog(`[CastSpellHandler] initiateSpellCast result: ${JSON.stringify({
       status: initiateResult.status,
       pendingActionId: initiateResult.pendingActionId,
       counterspellOpportunities: initiateResult.counterspellOpportunities.length,
-    });
+    })}`);
 
     if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
-      console.log("[CastSpellHandler] Spell cast awaiting Counterspell reaction from player");
+      _aiLog(`[CastSpellHandler] Spell cast awaiting Counterspell reaction from player`);
 
       // Spend slot for ALL caster types (Character, Monster, NPC) — slot is consumed
       // even when counterspelled (D&D 5e 2024: slot is expended on casting, not on effect).
@@ -188,7 +190,7 @@ export class CastSpellHandler implements AiActionHandler {
           deliverySummary = result.summary;
         }
       } catch (err) {
-        console.error("[CastSpellHandler] Spell delivery error (non-fatal):", err);
+        _aiLog(`[CastSpellHandler] Spell delivery error (non-fatal): ${String(err)}`);
       }
     }
 

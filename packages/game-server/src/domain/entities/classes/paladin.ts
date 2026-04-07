@@ -93,6 +93,15 @@ export function computeAuraSaveBonus(charismaModifier: number): number {
 }
 
 /**
+ * Returns the Aura of Protection saving throw bonus for a Paladin.
+ * D&D 5e 2024: equals CHA modifier (minimum 1) when Paladin is level 6+, else 0.
+ */
+export function getPaladinAuraBonus(paladin: { charismaModifier: number; level: number }): number {
+  if (paladin.level < 6) return 0;
+  return Math.max(1, paladin.charismaModifier);
+}
+
+/**
  * Paladin combat text profile.
  * - Divine Smite: hit-rider enhancement that adds radiant bonus dice on melee hit (costs spell slot + bonus action)
  * - Lay on Hands: bonus action healing from HP pool

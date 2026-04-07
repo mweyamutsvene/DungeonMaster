@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FixedDiceRoller } from "./dice-roller.js";
-import { abilityCheck, abilityCheckForCreature, skillCheck } from "./ability-checks.js";
+import { abilityCheck, abilityCheckForCreature, skillCheck, JACK_OF_ALL_TRADES_MULTIPLIER } from "./ability-checks.js";
 import { AbilityScores } from "../entities/core/ability-scores.js";
 import { Character } from "../entities/creatures/character.js";
 
@@ -164,5 +164,66 @@ describe("ability-checks", () => {
 
     expect(r.mode).toBe("disadvantage");
     expect(r.rolls).toHaveLength(2);
+  });
+});
+
+// RULES-L9: proficiencyMultiplier (Jack of All Trades and expertise)
+describe("proficiencyMultiplier override", () => {
+  it("0.5 multiplier (Jack of All Trades) applies floor(profBonus * 0.5)", () => {
+    const dice = new FixedDiceRoller(10);
+    // profBonus=4, multiplier=0.5 → floor(4*0.5)=2 bonus; total = 10 + 2 + 2 = 14
+    const r = abilityCheck(dice, {
+      dc: 14,
+      abilityModifier: 2,
+      proficiencyBonus: 4,
+      proficiencyMultiplier: JACK_OF_ALL_TRADES_MULTIPLIER,
+    });
+    // 10 + 2 + floor(4 * 0.5) = 10 + 2 + 2 = 14
+    expect(r.total).toBe(14);
+    expect(r.success).toBe(true);
+  });
+
+  it("2x multiplier (expertise) applies profBonus * 2", () => {
+    const dice = new FixedDiceRoller(10);
+    // profBonus=4, multiplier=2 → floor(4*2)=8 bonus; total = 10 + 2 + 8 = 20
+    const r = abilityCheck(dice, {
+      dc: 20,
+      abilityModifier: 2,
+      proficiencyBonus: 4,
+      proficiencyMultiplier: 2,
+    });
+    // 10 + 2 + floor(4 * 2) = 10 + 2 + 8 = 20
+    expect(r.total).toBe(20);
+    expect(r.success).toBe(true);
+  });
+
+  it("JACK_OF_ALL_TRADES_MULTIPLIER constant is 0.5", () => {
+    expect(JACK_OF_ALL_TRADES_MULTIPLIER).toBe(0.5);
+  });
+
+  it("backward compat: proficient: true without multiplier still grants full proficiency", () => {
+    const dice = new FixedDiceRoller(10);
+    // profBonus=4, proficient=true, no multiplier → full 4 bonus; total = 10 + 0 + 4 = 14
+    const r = abilityCheck(dice, {
+      dc: 14,
+      abilityModifier: 0,
+      proficiencyBonus: 4,
+      proficient: true,
+    });
+    expect(r.total).toBe(14);
+    expect(r.success).toBe(true);
+  });
+
+  it("proficiencyMultiplier: 0 yields no proficiency bonus", () => {
+    const dice = new FixedDiceRoller(10);
+    // profBonus=4, multiplier=0 → floor(4*0)=0; total = 10 + 2 = 12
+    const r = abilityCheck(dice, {
+      dc: 15,
+      abilityModifier: 2,
+      proficiencyBonus: 4,
+      proficiencyMultiplier: 0,
+    });
+    expect(r.total).toBe(12);
+    expect(r.success).toBe(false);
   });
 });

@@ -63,8 +63,9 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     // Pre-filter useObject: only available when creature has potions AND HP is low (<50%)
     const useObjectAvailable = input.context.hasPotions && input.context.combatant.hp.percentage < 50;
 
-    // Pre-filter castSpell: only available when creature has spells
-    const hasSpells = (input.context.combatant.spells?.length ?? 0) > 0;
+    // Pre-filter castSpell: only available when creature has spells (stat block) or prepared spells
+    const hasSpells = (input.context.combatant.spells?.length ?? 0) > 0
+      || (input.context.combatant.preparedSpells?.length ?? 0) > 0;
 
     // Strip battlefield from the JSON snapshot — it's already rendered as a formatted top-level section
     const { battlefield: _bf, ...contextWithoutBattlefield } = input.context;
@@ -112,9 +113,11 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
           },
         ];
 
+        const { seed: _retrySeed, ...optionsWithoutSeed } = options;
         const retryOptions = {
-          ...options,
-          temperature: Math.min((options.temperature ?? 0.7) + 0.15, 1.0),
+          ...optionsWithoutSeed,
+          temperature: Math.min((options.temperature ?? 0.7) + 0.2, 1.0),
+          // No seed: each retry gets a fresh random result instead of the same deterministic one
         };
         const retryRaw = await this.llm.chat({ messages: retryMessages, options: retryOptions });
         this.aiLog('[LlmAiDecisionMaker] Got LLM retry response:', retryRaw.substring(0, 200));

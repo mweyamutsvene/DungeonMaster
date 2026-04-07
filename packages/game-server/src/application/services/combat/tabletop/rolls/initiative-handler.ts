@@ -202,14 +202,7 @@ export class InitiativeHandler {
 
       const charResources = buildCombatantResources(charClassName, charLevel, sheet);
 
-      combatants.push({
-        combatantType: "Character" as const,
-        characterId: actorId,
-        initiative: finalInitiative,
-        hpCurrent: sheet?.currentHp ?? sheet?.maxHp ?? 10,
-        hpMax: sheet?.maxHp ?? 10,
-        resources: Object.keys(charResources).length > 0 ? charResources : undefined,
-      });
+      combatants.push(this.buildCombatantEntry("Character", actorId, finalInitiative, sheet?.currentHp ?? sheet?.maxHp ?? 10, sheet?.maxHp ?? 10, charResources));
     }
 
     // Add remaining session characters (multi-PC support)
@@ -245,14 +238,7 @@ export class InitiativeHandler {
 
       const otherResources = buildCombatantResources(otherClassName, otherLevel, otherSheet);
 
-      combatants.push({
-        combatantType: "Character" as const,
-        characterId: otherChar.id,
-        initiative: otherInitiative,
-        hpCurrent: otherSheet?.currentHp ?? otherSheet?.maxHp ?? 10,
-        hpMax: otherSheet?.maxHp ?? 10,
-        resources: Object.keys(otherResources).length > 0 ? otherResources : undefined,
-      });
+      combatants.push(this.buildCombatantEntry("Character", otherChar.id, otherInitiative, otherSheet?.currentHp ?? otherSheet?.maxHp ?? 10, otherSheet?.maxHp ?? 10, otherResources));
 
       if (this.debugLogsEnabled) console.log(`[InitiativeHandler] Multi-PC: Added "${otherChar.name}" with initiative ${otherInitiative} (roll=${otherRoll}, dex=${otherDexMod}, alert=${otherAlertBonus})`);
     }
@@ -279,14 +265,7 @@ export class InitiativeHandler {
 
         const monsterResources = buildCombatantResources(monsterClassName, monsterLevel, statBlock);
 
-        combatants.push({
-          combatantType: "Monster" as const,
-          monsterId: targetId,
-          initiative: monsterInitiative,
-          hpCurrent: statBlock.hp ?? statBlock.maxHp ?? 10,
-          hpMax: statBlock.maxHp ?? statBlock.hp ?? 10,
-          resources: Object.keys(monsterResources).length > 0 ? monsterResources : undefined,
-        });
+        combatants.push(this.buildCombatantEntry("Monster", targetId, monsterInitiative, statBlock.hp ?? statBlock.maxHp ?? 10, statBlock.maxHp ?? statBlock.hp ?? 10, monsterResources));
       }
     }
 
@@ -312,14 +291,7 @@ export class InitiativeHandler {
 
       const npcResources = buildCombatantResources(npcClassName, npcLevel, statBlock);
 
-      combatants.push({
-        combatantType: "NPC" as const,
-        npcId: npc.id,
-        initiative: npcInitiative,
-        hpCurrent: statBlock?.hp ?? statBlock?.maxHp ?? 10,
-        hpMax: statBlock?.maxHp ?? statBlock?.hp ?? 10,
-        resources: Object.keys(npcResources).length > 0 ? npcResources : undefined,
-      });
+      combatants.push(this.buildCombatantEntry("NPC", npc.id, npcInitiative, statBlock?.hp ?? statBlock?.maxHp ?? 10, statBlock?.maxHp ?? statBlock?.hp ?? 10, npcResources));
     }
 
     // Check for existing combatants
@@ -489,6 +461,31 @@ export class InitiativeHandler {
       message: `Combat started! ${currentTurn?.actorName}'s turn (Initiative: ${currentTurn?.initiative}).`,
       narration,
       uncannyMetabolism: uncannyMetabolismResult,
+    };
+  }
+
+  /**
+   * Build a combatant entry for the initial combatants array.
+   * Handles the repeated id-field selection and resources guard pattern.
+   */
+  private buildCombatantEntry(
+    combatantType: "Character" | "Monster" | "NPC",
+    entityId: string,
+    initiative: number,
+    hpCurrent: number,
+    hpMax: number,
+    resources: Record<string, unknown>,
+  ): any {
+    const idField = combatantType === "Character" ? "characterId"
+      : combatantType === "Monster" ? "monsterId"
+      : "npcId";
+    return {
+      combatantType,
+      [idField]: entityId,
+      initiative,
+      hpCurrent,
+      hpMax,
+      resources: Object.keys(resources).length > 0 ? resources : undefined,
     };
   }
 

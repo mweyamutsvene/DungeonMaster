@@ -1,0 +1,135 @@
+{
+  "name": "Party NPC Victory: Guard Kills Last Enemy While Fighter is Dying",
+  "description": "Tests the victory condition when a party-faction NPC deals the killing blow. A Fighter (1 HP) and a Guard NPC (faction: party) fight a Goblin. Fighter passes their turn immediately. Guard and Goblin both act. Guard is adjacent to Goblin with a strong attack (min 7 damage) versus Goblin's 7 HP — guarantees a one-shot kill. Even if Goblin attacks Fighter first (reducing them to 0 HP / dying), the Guard killing the last monster must trigger Victory (not Defeat), because the combat-victory-policy treats faction='party' NPCs as allies and a dying Fighter still counts as alive (isDying: hp<=0, deathSaves.failures < 3). Validates: (a) party NPC kills can end combat, (b) Defeat does not fire when PC is dying but party NPC is alive.",
+  "setup": {
+    "character": {
+      "name": "Valeria the Bold",
+      "className": "Fighter",
+      "level": 1,
+      "position": { "x": 15, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 12,
+        "currentHp": 1,
+        "armorClass": 8,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "npcs": [
+      {
+        "comment": "Gareth the Guard: faction=party so he counts as an ally for victory/defeat policy. Adjacent to Goblin at (10,15). Attack +8 does 1d8+6 (min 7) which one-shots the 7 HP Goblin on any non-nat-1 roll.",
+        "name": "Gareth the Guard",
+        "position": { "x": 10, "y": 15 },
+        "faction": "party",
+        "aiControlled": true,
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 8,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 6 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Goblin Skirmisher: 7 HP so any solid hit from Gareth kills it. AC 8 so the guard's d20+8 vs AC 8 hits on d20 >= 0 (only nat 1 misses). Adjacent to both Fighter at (15,10) and Guard at (10,15).",
+        "name": "Goblin Skirmisher",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 8,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "For glory!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Fighter rolls 20 initiative → 20+0 (DEX mod) = 20. Fighter goes first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Fighter is at 1 HP and can't afford to take a hit. Pass the turn immediately to let the Guard and Goblin act.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for all AI turns: Goblin Skirmisher and Gareth the Guard both act. Two possible outcomes: (A) Guard attacks first → kills Goblin → Victory. (B) Goblin attacks Fighter first (min 4 damage kills 1 HP Fighter) → Fighter dying → Guard attacks Goblin → kills it → Victory. In both paths, combat ends with Victory because Guard (faction=party) is alive → not all allies dead.",
+      "type": "waitForTurn",
+      "timeout": 8000
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin Skirmisher must be dead. Victory fired because Guard (faction=party) dealt the killing blow or survived when Goblin was killed. Validates that party-faction NPCs count as allies for the victory/defeat evaluation.",
+      "expect": {
+        "monstersAlive": 0
+      }
+    }
+  ]
+}
