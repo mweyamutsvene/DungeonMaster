@@ -7,38 +7,6 @@
 
 import type { CharacterItemInstance, MagicItemDefinition } from "./magic-item.js";
 
-// ─── Legacy type (kept for backward compatibility with thrown/ammo tracking) ──
-
-/**
- * A tracked item in a combatant's inventory (stored in resources.inventory).
- * Used for consumable/quantity-tracked items like thrown weapons and ammunition.
- *
- * @deprecated Use {@link CharacterItemInstance} from `./magic-item.js` instead.
- * This interface is unused — no files import it. Retained only as documentation
- * of the old thrown-weapon/ammo shape. Will be removed in a future cleanup.
- */
-export interface InventoryItem {
-  /** Item name (matches weapon/attack name) */
-  name: string;
-  /** How many of this item the combatant has */
-  quantity: number;
-  /**
-   * Weapon stats — stored so that when qty > 0, the weapon can appear in attacks[].
-   * Same shape as character sheet attacks[].
-   */
-  weaponStats?: {
-    name: string;
-    kind: "melee" | "ranged";
-    range?: string;
-    attackBonus: number;
-    damage: { diceCount: number; diceSides: number; modifier: number };
-    versatileDamage?: { diceSides: number };
-    damageType?: string;
-    properties?: string[];
-    mastery?: string;
-  };
-}
-
 // ─── Inventory helpers (operate on CharacterItemInstance[]) ──────────────
 
 /** Maximum number of attuned items per D&D 5e 2024 rules. */

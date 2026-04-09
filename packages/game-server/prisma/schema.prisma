@@ -245,11 +245,17 @@ model GameEvent {
   /// Structured payload for replay + narration
   payload Json
 
+  /// Optional combat context for efficient querying of combat events
+  encounterId String?
+  round       Int?
+  turnNumber  Int?
+
   createdAt DateTime @default(now())
 
   session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
+  @@index([encounterId, round])
 }
 
 /// In-flight reaction resolution: opportunity attacks, Shield, Counterspell, etc.

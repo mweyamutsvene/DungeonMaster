@@ -59,9 +59,9 @@ export class PrismaCombatRepository implements ICombatRepository {
       where: { id },
       data: {
         ...patch,
-        mapData: patch.mapData === undefined ? undefined : (patch.mapData as any),
-        surprise: patch.surprise === undefined ? undefined : (patch.surprise as any),
-        battlePlans: patch.battlePlans === undefined ? undefined : (patch.battlePlans as any),
+        mapData: patch.mapData === undefined ? undefined : (patch.mapData as Prisma.InputJsonValue),
+        surprise: patch.surprise === undefined ? undefined : (patch.surprise as Prisma.InputJsonValue),
+        battlePlans: patch.battlePlans === undefined ? undefined : (patch.battlePlans as Prisma.InputJsonValue),
       },
     });
 
@@ -227,7 +227,7 @@ export class PrismaCombatRepository implements ICombatRepository {
     const updated = { ...existing, [faction]: plan };
     await this.prisma.combatEncounter.update({
       where: { id: encounterId },
-      data: { battlePlans: updated as any },
+      data: { battlePlans: updated as Prisma.InputJsonValue },
     });
   }
 }

@@ -36,4 +36,14 @@ export class GameSessionService {
     if (!session) throw new NotFoundError(`Session not found: ${id}`);
     return session;
   }
+
+  async deleteSession(id: string): Promise<void> {
+    // Verify session exists before deleting
+    await this.getSessionOrThrow(id);
+    await this.sessions.delete(id);
+  }
+
+  async listSessions(input?: { limit?: number; offset?: number }): Promise<{ items: GameSessionRecord[]; total: number }> {
+    return this.sessions.listAll(input);
+  }
 }

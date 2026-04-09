@@ -87,6 +87,9 @@ export type GameEventRecord = {
   sessionId: string;
   type: string;
   payload: JsonValue;
+  encounterId?: string | null;
+  round?: number | null;
+  turnNumber?: number | null;
   createdAt: Date;
 };
 

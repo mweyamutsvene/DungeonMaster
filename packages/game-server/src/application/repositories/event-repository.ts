@@ -351,10 +351,16 @@ export interface IEventRepository {
   append(
     sessionId: string,
     input: { id: string } & GameEventInput,
+    combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord>;
 
   listBySession(
     sessionId: string,
     input?: { limit?: number; since?: Date },
+  ): Promise<GameEventRecord[]>;
+
+  listByEncounter?(
+    encounterId: string,
+    input?: { limit?: number; round?: number },
   ): Promise<GameEventRecord[]>;
 }

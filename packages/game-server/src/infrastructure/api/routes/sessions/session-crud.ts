@@ -1,11 +1,13 @@
 /**
  * Session CRUD Routes
  *
- * Handles session creation and retrieval.
+ * Handles session creation, retrieval, listing, and deletion.
  *
  * Endpoints:
  * - POST /sessions - Create a new game session
+ * - GET /sessions - List sessions with pagination
  * - GET /sessions/:id - Get session with characters, monsters, NPCs
+ * - DELETE /sessions/:id - Delete a session and all related data
  */
 
 import type { FastifyInstance } from "fastify";
@@ -49,6 +51,21 @@ export function registerSessionCrudRoutes(app: FastifyInstance, deps: SessionRou
   });
 
   /**
+   * GET /sessions
+   * List all sessions with optional pagination.
+   * Query params: limit (default 50), offset (default 0)
+   */
+  app.get<{ Querystring: { limit?: string; offset?: string } }>("/sessions", async (req) => {
+    const limit = Math.min(Math.max(parseInt(req.query.limit ?? "50", 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset ?? "0", 10) || 0, 0);
+    const result = await deps.sessions.listSessions({ limit, offset });
+    return {
+      sessions: result.items,
+      pagination: { limit, offset, total: result.total },
+    };
+  });
+
+  /**
    * GET /sessions/:id
    * Retrieve a session with its characters, monsters, and NPCs.
    */
@@ -64,5 +81,15 @@ export function registerSessionCrudRoutes(app: FastifyInstance, deps: SessionRou
       characters,
       monsters,
     };
+  });
+
+  /**
+   * DELETE /sessions/:id
+   * Delete a session and all related data (characters, encounters, events, etc.).
+   * Prisma cascade rules handle child record deletion.
+   */
+  app.delete<{ Params: { id: string } }>("/sessions/:id", async (req, reply) => {
+    await deps.sessions.deleteSession(req.params.id);
+    return reply.code(204).send();
   });
 }

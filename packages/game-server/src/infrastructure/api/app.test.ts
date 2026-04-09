@@ -49,6 +49,17 @@ class MemoryGameSessionRepository implements IGameSessionRepository {
   async getById(id: string): Promise<GameSessionRecord | null> {
     return this.sessions.get(id) ?? null;
   }
+
+  async delete(id: string): Promise<void> {
+    this.sessions.delete(id);
+  }
+
+  async listAll(input?: { limit?: number; offset?: number }): Promise<{ items: GameSessionRecord[]; total: number }> {
+    const all = [...this.sessions.values()];
+    const limit = input?.limit ?? 50;
+    const offset = input?.offset ?? 0;
+    return { items: all.slice(offset, offset + limit), total: all.length };
+  }
 }
 
 class MemoryCharacterRepository implements ICharacterRepository {
@@ -305,6 +316,7 @@ class MemoryEventRepository implements IEventRepository {
   async append(
     sessionId: string,
     input: { id: string; type: string; payload: JsonValue },
+    _combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord> {
     const created: GameEventRecord = {
       id: input.id,

@@ -14,6 +14,7 @@ export class PrismaEventRepository implements IEventRepository {
   async append(
     sessionId: string,
     input: { id: string } & GameEventInput,
+    combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord> {
     const created = await this.prisma.gameEvent.create({
       data: {
@@ -21,6 +22,11 @@ export class PrismaEventRepository implements IEventRepository {
         sessionId,
         type: input.type,
         payload: input.payload as Prisma.InputJsonValue,
+        ...(combatContext ? {
+          encounterId: combatContext.encounterId,
+          round: combatContext.round,
+          turnNumber: combatContext.turnNumber,
+        } : {}),
       },
     });
 
@@ -50,6 +56,21 @@ export class PrismaEventRepository implements IEventRepository {
       where: {
         sessionId,
         createdAt: { gt: input.since },
+      },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+    });
+  }
+
+  async listByEncounter(
+    encounterId: string,
+    input?: { limit?: number; round?: number },
+  ): Promise<GameEventRecord[]> {
+    const limit = input?.limit ?? 200;
+    return this.prisma.gameEvent.findMany({
+      where: {
+        encounterId,
+        ...(input?.round !== undefined ? { round: input.round } : {}),
       },
       orderBy: { createdAt: "asc" },
       take: limit,

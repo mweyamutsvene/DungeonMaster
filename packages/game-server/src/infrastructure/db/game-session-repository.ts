@@ -25,4 +25,22 @@ export class PrismaGameSessionRepository implements IGameSessionRepository {
   async getById(id: string): Promise<GameSessionRecord | null> {
     return this.prisma.gameSession.findUnique({ where: { id } });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.gameSession.delete({ where: { id } });
+  }
+
+  async listAll(input?: { limit?: number; offset?: number }): Promise<{ items: GameSessionRecord[]; total: number }> {
+    const limit = input?.limit ?? 50;
+    const offset = input?.offset ?? 0;
+    const [items, total] = await Promise.all([
+      this.prisma.gameSession.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.gameSession.count(),
+    ]);
+    return { items, total };
+  }
 }

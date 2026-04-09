@@ -12,6 +12,7 @@ import { AbilityScores, type AbilityScoresData } from "../../../../domain/entiti
 import type { ResourcePool } from "../../../../domain/entities/combat/resource-pool.js";
 import { getArmorTrainingForClass } from "../../../../domain/entities/classes/registry.js";
 import { getSpeciesTraits } from "../../../../domain/entities/creatures/species-registry.js";
+import { getDragonbornAncestryResistance } from "../../../../domain/entities/creatures/species.js";
 import type { 
   SessionCharacterRecord, 
   SessionMonsterRecord, 
@@ -229,7 +230,13 @@ export function hydrateCharacter(
   // Merge species damage resistances with any already on the sheet
   const sheetResistances = readArray<string>(sheet, 'damageResistances') ?? [];
   const speciesResistances = speciesTraits?.damageResistances ?? [];
-  const mergedResistances = [...new Set([...sheetResistances, ...speciesResistances])];
+
+  // Dragonborn ancestry-specific resistance (e.g., "Red" → fire)
+  const dragonbornAncestry = readString(sheet, 'dragonbornAncestry');
+  const ancestryResistance = dragonbornAncestry ? getDragonbornAncestryResistance(dragonbornAncestry) : undefined;
+  const allResistances = [...sheetResistances, ...speciesResistances];
+  if (ancestryResistance) allResistances.push(ancestryResistance);
+  const mergedResistances = [...new Set(allResistances)];
 
   // Extract equipped armor/shield so getAC() can detect when armor is worn
   const equipment = extractEquipment(sheet);

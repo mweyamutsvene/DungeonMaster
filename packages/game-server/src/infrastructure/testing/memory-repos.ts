@@ -57,6 +57,19 @@ export class MemoryGameSessionRepository implements IGameSessionRepository {
     return this.sessions.get(id) ?? null;
   }
 
+  async delete(id: string): Promise<void> {
+    this.sessions.delete(id);
+  }
+
+  async listAll(input?: { limit?: number; offset?: number }): Promise<{ items: GameSessionRecord[]; total: number }> {
+    const all = [...this.sessions.values()].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    const limit = input?.limit ?? 50;
+    const offset = input?.offset ?? 0;
+    return { items: all.slice(offset, offset + limit), total: all.length };
+  }
+
   // Test helper: clear all sessions
   clear(): void {
     this.sessions.clear();
@@ -405,12 +418,18 @@ export class MemoryEventRepository implements IEventRepository {
   async append(
     sessionId: string,
     input: { id: string } & GameEventInput,
+    combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord> {
     const created: GameEventRecord = {
       id: input.id,
       sessionId,
       type: input.type,
       payload: input.payload as JsonValue,
+      ...(combatContext ? {
+        encounterId: combatContext.encounterId,
+        round: combatContext.round,
+        turnNumber: combatContext.turnNumber,
+      } : {}),
       createdAt: now(),
     };
     this.events.push(created);

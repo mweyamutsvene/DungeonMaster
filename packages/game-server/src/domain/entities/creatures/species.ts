@@ -87,6 +87,28 @@ export const DRAGONBORN: SpeciesDefinition = {
   saveAdvantages: [],
 };
 
+/** Maps a Dragonborn ancestry to its associated damage resistance type. */
+const DRAGONBORN_ANCESTRY_RESISTANCE: Record<string, string> = {
+  black: "acid",
+  blue: "lightning",
+  brass: "fire",
+  bronze: "lightning",
+  copper: "acid",
+  gold: "fire",
+  green: "poison",
+  red: "fire",
+  silver: "cold",
+  white: "cold",
+};
+
+/**
+ * Get the damage resistance type for a Dragonborn ancestry.
+ * Returns undefined if the ancestry is unknown.
+ */
+export function getDragonbornAncestryResistance(ancestry: string): string | undefined {
+  return DRAGONBORN_ANCESTRY_RESISTANCE[ancestry.toLowerCase()];
+}
+
 // ── Gnome ─────────────────────────────────────────────────
 export const GNOME: SpeciesDefinition = {
   name: "Gnome",

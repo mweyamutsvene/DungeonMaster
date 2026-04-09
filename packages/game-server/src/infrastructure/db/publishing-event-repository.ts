@@ -14,8 +14,9 @@ export class PublishingEventRepository implements IEventRepository {
   async append(
     sessionId: string,
     input: { id: string } & GameEventInput,
+    combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord> {
-    const created = await this.inner.append(sessionId, input);
+    const created = await this.inner.append(sessionId, input, combatContext);
 
     const event: SSEEvent = {
       type: created.type,

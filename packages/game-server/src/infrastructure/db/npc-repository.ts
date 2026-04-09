@@ -19,7 +19,7 @@ export class PrismaNPCRepository implements INPCRepository {
         id: input.id,
         sessionId,
         name: input.name,
-        statBlock: input.statBlock as any,
+        statBlock: input.statBlock as Prisma.InputJsonValue,
         faction: input.faction ?? "party",
         aiControlled: input.aiControlled ?? true,
       },

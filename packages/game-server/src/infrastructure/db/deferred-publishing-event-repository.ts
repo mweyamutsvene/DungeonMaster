@@ -28,8 +28,9 @@ export class DeferredPublishingEventRepository implements IEventRepository {
   async append(
     sessionId: string,
     input: { id: string } & GameEventInput,
+    combatContext?: { encounterId: string; round: number; turnNumber: number },
   ): Promise<GameEventRecord> {
-    const created = await this.inner.append(sessionId, input);
+    const created = await this.inner.append(sessionId, input, combatContext);
     this.deferred.push({ sessionId, type: created.type, payload: created.payload as JsonValue });
     return created;
   }
