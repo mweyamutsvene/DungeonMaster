@@ -15,6 +15,9 @@ import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { NotFoundError, ValidationError } from "../../../../application/errors.js";
 import { breakConcentration, getConcentrationSpellName } from "../../../../application/services/combat/helpers/concentration-helper.js";
+import { validateASIChoice, type ASIChoice } from "../../../../domain/rules/ability-score-improvement.js";
+import { getMaxPreparedSpells, getSpellCasterType, isSpellAvailable } from "../../../../domain/rules/spell-preparation.js";
+import { getSpellcastingAbility } from "../../../../domain/rules/spell-casting.js";
 
 export function registerSessionCharacterRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
   /**
@@ -187,5 +190,143 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
     }
 
     return result;
+  });
+
+  /**
+   * PATCH /sessions/:id/characters/:characterId
+   * Update character data: ASI choices, skill proficiencies, skill expertise, prepared/known spells.
+   * Validates ASI rules (correct levels, no score > 20, etc).
+   * Validates spell preparation limits for prepared casters.
+   */
+  app.patch<{
+    Params: { id: string; characterId: string };
+    Body: {
+      asiChoices?: ASIChoice[];
+      skillProficiencies?: string[];
+      skillExpertise?: string[];
+      preparedSpells?: string[];
+      knownSpells?: string[];
+    };
+  }>("/sessions/:id/characters/:characterId", async (req) => {
+    const sessionId = req.params.id;
+    const characterId = req.params.characterId;
+
+    await deps.sessions.getSessionOrThrow(sessionId);
+    const character = await deps.charactersRepo.getById(characterId);
+    if (!character || character.sessionId !== sessionId) {
+      throw new NotFoundError(`Character ${characterId} not found in session ${sessionId}`);
+    }
+
+    const sheet = (character.sheet as Record<string, unknown>) ?? {};
+    const updatedSheet: Record<string, unknown> = { ...sheet };
+
+    // --- ASI Choices ---
+    if (req.body.asiChoices !== undefined) {
+      const classId = (sheet.classId as string) ?? character.className?.toLowerCase() ?? "";
+      const baseScores = (sheet.abilityScores as Record<string, number>) ?? {};
+
+      for (const choice of req.body.asiChoices) {
+        const error = validateASIChoice(choice, classId, baseScores);
+        if (error) throw new ValidationError(`Invalid ASI choice: ${error}`);
+      }
+
+      updatedSheet.asiChoices = req.body.asiChoices;
+    }
+
+    // --- Skill Proficiencies ---
+    if (req.body.skillProficiencies !== undefined) {
+      if (!Array.isArray(req.body.skillProficiencies)) {
+        throw new ValidationError("skillProficiencies must be an array of strings");
+      }
+      updatedSheet.skillProficiencies = req.body.skillProficiencies;
+    }
+
+    // --- Skill Expertise ---
+    if (req.body.skillExpertise !== undefined) {
+      if (!Array.isArray(req.body.skillExpertise)) {
+        throw new ValidationError("skillExpertise must be an array of strings");
+      }
+      // Expertise must be a subset of proficiencies
+      const profs = (req.body.skillProficiencies ?? updatedSheet.skillProficiencies ?? []) as string[];
+      for (const skill of req.body.skillExpertise) {
+        if (!profs.includes(skill)) {
+          throw new ValidationError(`Expertise in '${skill}' requires proficiency in that skill`);
+        }
+      }
+      updatedSheet.skillExpertise = req.body.skillExpertise;
+    }
+
+    // --- Prepared Spells ---
+    if (req.body.preparedSpells !== undefined) {
+      if (!Array.isArray(req.body.preparedSpells)) {
+        throw new ValidationError("preparedSpells must be an array of spell IDs");
+      }
+      const classId = (sheet.classId as string) ?? character.className?.toLowerCase() ?? "";
+      const casterType = getSpellCasterType(classId);
+
+      if (casterType === "prepared" && req.body.preparedSpells.length > 0) {
+        const spellAbility = getSpellcastingAbility(classId);
+        const abilityScores = (sheet.abilityScores as Record<string, number>) ?? {};
+        const score = abilityScores[spellAbility] ?? 10;
+        const abilityMod = Math.floor((score - 10) / 2);
+        const maxPrepared = getMaxPreparedSpells(classId, character.level, abilityMod);
+
+        if (req.body.preparedSpells.length > maxPrepared) {
+          throw new ValidationError(
+            `Too many prepared spells: ${req.body.preparedSpells.length} exceeds maximum of ${maxPrepared} for level ${character.level} ${classId}`
+          );
+        }
+      }
+
+      updatedSheet.preparedSpells = req.body.preparedSpells;
+    }
+
+    // --- Known Spells ---
+    if (req.body.knownSpells !== undefined) {
+      if (!Array.isArray(req.body.knownSpells)) {
+        throw new ValidationError("knownSpells must be an array of spell IDs");
+      }
+      updatedSheet.knownSpells = req.body.knownSpells;
+    }
+
+    const updated = await deps.charactersRepo.updateSheet(characterId, updatedSheet);
+    return updated;
+  });
+
+  /**
+   * GET /sessions/:id/characters/:characterId/spells
+   * Get spell management info: caster type, prepared/known lists, max slots.
+   */
+  app.get<{
+    Params: { id: string; characterId: string };
+  }>("/sessions/:id/characters/:characterId/spells", async (req) => {
+    const sessionId = req.params.id;
+    const characterId = req.params.characterId;
+
+    await deps.sessions.getSessionOrThrow(sessionId);
+    const character = await deps.charactersRepo.getById(characterId);
+    if (!character || character.sessionId !== sessionId) {
+      throw new NotFoundError(`Character ${characterId} not found in session ${sessionId}`);
+    }
+
+    const sheet = (character.sheet as Record<string, unknown>) ?? {};
+    const classId = (sheet.classId as string) ?? character.className?.toLowerCase() ?? "";
+    const casterType = getSpellCasterType(classId);
+    const spellAbility = getSpellcastingAbility(classId);
+    const abilityScores = (sheet.abilityScores as Record<string, number>) ?? {};
+    const score = abilityScores[spellAbility] ?? 10;
+    const abilityMod = Math.floor((score - 10) / 2);
+    const maxPrepared = getMaxPreparedSpells(classId, character.level, abilityMod);
+    const preparedSpells = Array.isArray(sheet.preparedSpells) ? sheet.preparedSpells as string[] : [];
+    const knownSpells = Array.isArray(sheet.knownSpells) ? sheet.knownSpells as string[] : [];
+
+    return {
+      classId,
+      casterType,
+      spellcastingAbility: spellAbility,
+      maxPreparedSpells: maxPrepared,
+      preparedSpells,
+      knownSpells,
+    };
   });
 }

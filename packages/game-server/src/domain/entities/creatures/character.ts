@@ -24,6 +24,10 @@ import { maxHitPoints } from "../../rules/hit-points.js";
 import { computeFeatModifiers } from "../../rules/feat-modifiers.js";
 import type { FightingStyleId } from "../classes/fighting-style.js";
 import { getFightingStyleFeatId } from "../classes/fighting-style.js";
+import type { ASIChoice } from "../../rules/ability-score-improvement.js";
+import { applyASIChoices, collectASIFeatIds } from "../../rules/ability-score-improvement.js";
+import type { Skill } from "../core/skills.js";
+import { computeSkillModifier } from "../core/skills.js";
 
 export interface LevelUpOptions {
   hpMethod?: "average" | "roll";
@@ -107,6 +111,31 @@ export interface CharacterData extends CreatureData {
    * Saving throw advantages from species traits (e.g. Elf: advantage vs charmed).
    */
   speciesSaveAdvantages?: readonly SpeciesSaveAdvantage[];
+
+  /**
+   * Ability Score Improvement choices applied at ASI levels (4, 8, 12, 16, 19, etc.).
+   */
+  asiChoices?: readonly ASIChoice[];
+
+  /**
+   * Skills the character is proficient in (e.g. ["athletics", "perception", "stealth"]).
+   */
+  skillProficiencies?: readonly string[];
+
+  /**
+   * Skills the character has expertise in (double proficiency, e.g. Rogue expertise).
+   */
+  skillExpertise?: readonly string[];
+
+  /**
+   * Spell IDs currently prepared (for prepared casters: Cleric, Druid, Paladin, Wizard).
+   */
+  preparedSpells?: readonly string[];
+
+  /**
+   * Spell IDs permanently known (for known casters: Bard, Ranger, Sorcerer, Warlock).
+   */
+  knownSpells?: readonly string[];
 }
 
 export class Character extends Creature {
@@ -123,6 +152,11 @@ export class Character extends Creature {
   private speciesDamageResistances: string[];
   private speciesSaveAdvantages: readonly SpeciesSaveAdvantage[];
   private classLevelsData?: Array<{ classId: string; level: number; subclass?: string }>;
+  private asiChoices: ASIChoice[];
+  private skillProficiencies: string[];
+  private skillExpertise: string[];
+  private preparedSpells: string[];
+  private knownSpells: string[];
 
   constructor(data: CharacterData) {
     super(data);
@@ -158,6 +192,11 @@ export class Character extends Creature {
     if (data.classLevels && data.classLevels.length > 0) {
       this.classLevelsData = [...data.classLevels];
     }
+    this.asiChoices = data.asiChoices ? [...data.asiChoices] : [];
+    this.skillProficiencies = data.skillProficiencies ? [...data.skillProficiencies] : [];
+    this.skillExpertise = data.skillExpertise ? [...data.skillExpertise] : [];
+    this.preparedSpells = data.preparedSpells ? [...data.preparedSpells] : [];
+    this.knownSpells = data.knownSpells ? [...data.knownSpells] : [];
   }
 
   // === Getters ===
@@ -241,6 +280,67 @@ export class Character extends Creature {
 
   getSpeciesSaveAdvantages(): readonly SpeciesSaveAdvantage[] {
     return this.speciesSaveAdvantages;
+  }
+
+  // === ASI ===
+
+  getASIChoices(): readonly ASIChoice[] {
+    return [...this.asiChoices];
+  }
+
+  /**
+   * Return ability scores with ASI adjustments applied.
+   */
+  getEffectiveAbilityScores(): Record<string, number> {
+    const base: Record<string, number> = { ...this.abilityScores.toJSON() };
+    if (this.asiChoices.length === 0) return base;
+    return applyASIChoices(base, this.asiChoices, this.level);
+  }
+
+  /**
+   * Return feat IDs including those gained through ASI feat choices.
+   */
+  getAllFeatIds(): readonly string[] {
+    const ids = [...this.getFeatIds()];
+    const asiFeatIds = collectASIFeatIds(this.asiChoices, this.level);
+    for (const fid of asiFeatIds) {
+      if (!ids.includes(fid)) ids.push(fid);
+    }
+    return ids;
+  }
+
+  // === Skill Proficiencies ===
+
+  getSkillProficiencies(): readonly string[] {
+    return [...this.skillProficiencies];
+  }
+
+  getSkillExpertise(): readonly string[] {
+    return [...this.skillExpertise];
+  }
+
+  /**
+   * Compute the modifier for a skill check, accounting for proficiency and expertise.
+   */
+  getSkillModifier(skill: Skill): number {
+    const scores: Record<string, number> = { ...this.abilityScores.toJSON() };
+    return computeSkillModifier(
+      scores,
+      skill,
+      this.getProficiencyBonus(),
+      this.skillProficiencies,
+      this.skillExpertise,
+    );
+  }
+
+  // === Spell Preparation ===
+
+  getPreparedSpells(): readonly string[] {
+    return [...this.preparedSpells];
+  }
+
+  getKnownSpells(): readonly string[] {
+    return [...this.knownSpells];
   }
 
   /**
@@ -406,6 +506,11 @@ export class Character extends Creature {
       speciesDamageResistances: this.speciesDamageResistances,
       speciesSaveAdvantages: this.speciesSaveAdvantages,
       ...(this.classLevelsData ? { classLevels: this.classLevelsData } : {}),
+      ...(this.asiChoices.length > 0 ? { asiChoices: this.asiChoices } : {}),
+      ...(this.skillProficiencies.length > 0 ? { skillProficiencies: this.skillProficiencies } : {}),
+      ...(this.skillExpertise.length > 0 ? { skillExpertise: this.skillExpertise } : {}),
+      ...(this.preparedSpells.length > 0 ? { preparedSpells: this.preparedSpells } : {}),
+      ...(this.knownSpells.length > 0 ? { knownSpells: this.knownSpells } : {}),
     };
   }
 }

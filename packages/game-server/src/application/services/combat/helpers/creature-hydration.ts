@@ -237,6 +237,13 @@ export function hydrateCharacter(
   // Derive armor training from class proficiencies (e.g., Wizard → no heavy armor)
   const armorTraining = classId ? getArmorTrainingForClass(classId) : undefined;
 
+  // Parse new EM-M2/M3/M4 fields
+  const asiChoices = readArray(sheet, 'asiChoices') as CharacterData['asiChoices'];
+  const skillProficiencies = readArray<string>(sheet, 'skillProficiencies');
+  const skillExpertise = readArray<string>(sheet, 'skillExpertise');
+  const preparedSpells = readArray<string>(sheet, 'preparedSpells');
+  const knownSpells = readArray<string>(sheet, 'knownSpells');
+
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
     name: record.name,
@@ -261,6 +268,11 @@ export function hydrateCharacter(
     equipment,
     armorTraining,
     classLevels: classLevels && classLevels.length > 0 ? classLevels : undefined,
+    asiChoices: asiChoices && asiChoices.length > 0 ? asiChoices : undefined,
+    skillProficiencies: skillProficiencies && skillProficiencies.length > 0 ? skillProficiencies : undefined,
+    skillExpertise: skillExpertise && skillExpertise.length > 0 ? skillExpertise : undefined,
+    preparedSpells: preparedSpells && preparedSpells.length > 0 ? preparedSpells : undefined,
+    knownSpells: knownSpells && knownSpells.length > 0 ? knownSpells : undefined,
   };
 
   const character = new Character(data);

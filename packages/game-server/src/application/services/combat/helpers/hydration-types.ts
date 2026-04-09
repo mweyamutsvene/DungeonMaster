@@ -47,6 +47,11 @@ export interface CharacterSheet {
   damageVulnerabilities?: string[];
   equipment?: EquipmentJson;
   hitDiceRemaining?: number;
+  asiChoices?: Array<{ level: number; type: string; scores?: Record<string, number>; featId?: string }>;
+  skillProficiencies?: string[];
+  skillExpertise?: string[];
+  preparedSpells?: string[];
+  knownSpells?: string[];
 }
 
 /** Raw JSON shape stored in the monster or NPC `statBlock` column in SQLite. */
