@@ -21,6 +21,7 @@ import {
   hasBonusActionAvailable,
   useBonusAction,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   normalizeConditions,
   addCondition,
@@ -77,9 +78,7 @@ export class HitRiderResolver {
     const actorLevel = ClassFeatureResolver.getLevel((actorChar.sheet ?? {}) as any, actorChar.level);
 
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     const actorRes = normalizeResources(actorCombatant?.resources ?? {});
     const actorResourcePools = getResourcePools(actorRes);
 
@@ -301,9 +300,7 @@ export class HitRiderResolver {
       case "apply-condition": {
         const conditionName = ctx.conditionName as string;
         const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, conditionName)) {
           let conditions = normalizeConditions(targetCombatant.conditions);
           conditions = addCondition(conditions, createCondition(conditionName as Condition, "until_removed", {

@@ -23,6 +23,7 @@ import {
   getActiveEffects,
   isConditionImmuneByEffects,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   calculateBonusFromEffects,
   hasAdvantageFromEffects,
@@ -185,7 +186,7 @@ export class MovementHandlers {
             actorState,
             combatMap,
             (srcId: string) => {
-              const src = combatantStates.find((c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId);
+              const src = findCombatantByEntityId(combatantStates, srcId);
               const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
               return actorIsPC === srcIsPC;
             },

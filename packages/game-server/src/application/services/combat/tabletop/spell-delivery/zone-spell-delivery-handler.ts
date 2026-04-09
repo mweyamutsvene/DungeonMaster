@@ -12,6 +12,7 @@ import { createZone } from '../../../../../domain/entities/combat/zones.js';
 import type { ZoneEffect } from '../../../../../domain/entities/combat/zones.js';
 import { addZone } from '../../../../../domain/rules/combat-map.js';
 import { getPosition } from '../../helpers/resource-utils.js';
+import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
 import type { CombatMap } from '../../../../../domain/rules/combat-map.js';
@@ -54,10 +55,7 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
         if (mapEntity) return mapEntity.position;
       }
       // Fallback: read from combatant resources (entities are lazily populated in mapData)
-      const combatant = combatants.find(
-        (c: any) =>
-          c.characterId === entityId || c.monsterId === entityId || c.npcId === entityId,
-      );
+      const combatant = findCombatantByEntityId(combatants, entityId);
       if (combatant) return getPosition(combatant.resources);
       return null;
     };

@@ -21,6 +21,7 @@ import { syncAuraZones } from "../helpers/aura-sync.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
 import { creatureHasEvasion } from "../../../../domain/rules/evasion.js";
 import { normalizeResources } from "../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { findBestWarCasterSpell } from "../../../../domain/rules/war-caster-oa.js";
 import { findSpellDefinition } from "./handlers/ai-spell-delivery.js";
 
@@ -179,9 +180,7 @@ export async function resolveAiMovement(
             aiCombatant,
             combatMap,
             (srcId: string) => {
-              const src = allCombatantsForZone.find(
-                (c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId,
-              );
+              const src = findCombatantByEntityId(allCombatantsForZone, srcId);
               const srcIsPC = src
                 ? src.combatantType === "Character" || src.combatantType === "NPC"
                 : false;

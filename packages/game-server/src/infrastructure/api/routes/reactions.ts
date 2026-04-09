@@ -18,6 +18,7 @@ import {
   spendResourceFromPool,
   useAttack,
 } from "../../../application/services/combat/helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../../application/services/combat/helpers/combatant-lookup.js";
 
 export function registerReactionRoutes(
   app: FastifyInstance,
@@ -142,9 +143,7 @@ export function registerReactionRoutes(
 
     // Resolve combatant name from encounter roster
     const combatants = await deps.combat.listCombatants(encounterId);
-    const combatantState = combatants.find(c =>
-      (c.characterId === combatantId || c.monsterId === combatantId || c.npcId === combatantId)
-    );
+    const combatantState = findCombatantByEntityId(combatants, combatantId);
     const combatantRef = combatantState?.characterId
       ? { type: "Character" as const, characterId: combatantState.characterId }
       : combatantState?.monsterId
@@ -189,9 +188,7 @@ export function registerReactionRoutes(
 
       if (choice === "use") {
         const combatants = await deps.combat.listCombatants(encounterId);
-        const actorCombatant = combatants.find(
-          (c) => c.characterId === luckyData.actorEntityId || c.monsterId === luckyData.actorEntityId || c.npcId === luckyData.actorEntityId,
-        );
+        const actorCombatant = findCombatantByEntityId(combatants, luckyData.actorEntityId!);
 
         if (!actorCombatant) {
           throw new NotFoundError("Lucky actor combatant not found");
@@ -224,9 +221,7 @@ export function registerReactionRoutes(
       await deps.combat.setPendingAction(encounterId, null as any);
 
       const combatants = await deps.combat.listCombatants(encounterId);
-      const actorCombatant = combatants.find(
-        (c) => c.characterId === luckyData.actorEntityId || c.monsterId === luckyData.actorEntityId || c.npcId === luckyData.actorEntityId,
-      );
+      const actorCombatant = findCombatantByEntityId(combatants, luckyData.actorEntityId!);
       if (actorCombatant && actorCombatant.combatantType === "Character") {
         const spentAttack = useAttack(actorCombatant.resources ?? {});
         await deps.combat.updateCombatantState(actorCombatant.id, {

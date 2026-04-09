@@ -25,6 +25,7 @@ import {
   getActiveEffects,
   setActiveEffects,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   findInventoryItem,
   useConsumableItem,
@@ -75,9 +76,7 @@ export class InteractionHandlers {
 
     // Get actor position
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     if (!actorCombatant) throw new ValidationError("Actor not found in combat");
 
     const actorPos = getPosition(actorCombatant.resources ?? {});
@@ -181,9 +180,7 @@ export class InteractionHandlers {
     if (!map) throw new ValidationError("No map data available");
 
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     if (!actorCombatant) throw new ValidationError("Actor not found in combat");
 
     const actorPos = getPosition(actorCombatant.resources ?? {});
@@ -293,9 +290,7 @@ export class InteractionHandlers {
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     if (!actorCombatant) throw new ValidationError("Actor not found in combat");
 
     const resources = normalizeResources(actorCombatant.resources ?? {});
@@ -380,9 +375,7 @@ export class InteractionHandlers {
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     if (!actorCombatant) throw new ValidationError("Actor not found in combat");
 
     const resources = normalizeResources(actorCombatant.resources ?? {});

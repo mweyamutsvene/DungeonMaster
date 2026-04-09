@@ -12,6 +12,7 @@ import { nanoid } from "nanoid";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import { isFinesse } from "../../../../../domain/entities/items/weapon-properties.js";
 import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   getPosition,
   normalizeResources,
@@ -143,9 +144,7 @@ export class WeaponMasteryResolver {
         // Vex: Gain advantage on next attack against the same target before end of your next turn
         // Uses ActiveEffect with until_triggered duration for one-use advantage
         const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const actorCombatant = combatants.find(
-          (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-        );
+        const actorCombatant = findCombatantByEntityId(combatants, actorId);
         if (actorCombatant) {
           const vexEffect = createEffect(nanoid(), "advantage", "attack_rolls", "until_triggered", {
             targetCombatantId: targetId,
@@ -168,9 +167,7 @@ export class WeaponMasteryResolver {
       case "sap": {
         // Sap: Target has disadvantage on its next attack roll before your next turn
         const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, "Sapped")) {
           let conditions = normalizeConditions(targetCombatant.conditions);
           conditions = addCondition(conditions, createCondition("Sapped" as Condition, "until_start_of_next_turn", {
@@ -192,9 +189,7 @@ export class WeaponMasteryResolver {
       case "slow": {
         // Slow: Target's speed reduced by 10ft until start of your next turn
         const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-        const targetCombatant = combatants.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant && !isConditionImmuneByEffects(targetCombatant.resources, "Slowed")) {
           let conditions = normalizeConditions(targetCombatant.conditions);
           conditions = addCondition(conditions, createCondition("Slowed" as Condition, "until_start_of_next_turn", {
@@ -223,9 +218,7 @@ export class WeaponMasteryResolver {
 
         // Check once-per-turn limit
         const combatantsForCleave = await this.deps.combatRepo.listCombatants(encounterId);
-        const actorCombatantForCleave = combatantsForCleave.find(
-          (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-        );
+        const actorCombatantForCleave = findCombatantByEntityId(combatantsForCleave, actorId);
         if (!actorCombatantForCleave) return "";
 
         const cleaveRes = normalizeResources(actorCombatantForCleave.resources);
@@ -235,9 +228,7 @@ export class WeaponMasteryResolver {
         }
 
         // Find the position of the hit target and the attacker
-        const targetCombatantForCleave = combatantsForCleave.find(
-          (c: any) => c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatantForCleave = findCombatantByEntityId(combatantsForCleave, targetId);
         if (!targetCombatantForCleave) return "";
 
         const actorPosForCleave = getPosition(actorCombatantForCleave.resources ?? {});

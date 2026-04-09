@@ -22,6 +22,7 @@ import {
   updateResourcePool,
   addActiveEffectsToResources,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import { getMartialArtsDieSize } from "../../../../../domain/rules/martial-arts-die.js";
 import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
 import { parseLegendaryTraits } from "../../../../../domain/entities/creatures/legendary-actions.js";
@@ -530,12 +531,8 @@ export class InitiativeHandler {
     // Apply the swap if requested
     if (swapTargetId) {
       const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-      const holderCombatant = combatants.find((c: any) =>
-        c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId
-      );
-      const targetCombatant = combatants.find((c: any) =>
-        c.characterId === swapTargetId || c.monsterId === swapTargetId || c.npcId === swapTargetId
-      );
+      const holderCombatant = findCombatantByEntityId(combatants, actorId);
+      const targetCombatant = findCombatantByEntityId(combatants, swapTargetId);
 
       if (holderCombatant && targetCombatant) {
         const holderInit = holderCombatant.initiative;

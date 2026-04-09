@@ -18,6 +18,7 @@ import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantIdByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
 import { clearActionSpent, resetTurnResources, getActiveEffects, setActiveEffects, normalizeResources, getPosition, resetLegendaryActions, isLegendaryCreature } from "./helpers/resource-utils.js";
+import { findCombatantByEntityId } from "./helpers/combatant-lookup.js";
 import { shouldRageEnd } from "../../../domain/entities/classes/barbarian.js";
 import { parseLegendaryTraits } from "../../../domain/entities/creatures/legendary-actions.js";
 import {
@@ -1085,9 +1086,7 @@ export class CombatService {
             if (recordEntityId && recordPosition) {
               const recordIsPC = record.combatantType === "Character" || record.combatantType === "NPC";
               const zoneBonus = getPassiveZoneSaveBonus(zones, recordPosition, recordEntityId, (srcId) => {
-                const src = combatantRecords.find((c: any) =>
-                  (c.characterId ?? c.monsterId ?? c.npcId) === srcId,
-                );
+                const src = findCombatantByEntityId(combatantRecords, srcId);
                 return src ? (src.combatantType === "Character" || src.combatantType === "NPC") === recordIsPC : false;
               }, saveAbility);
               if (zoneBonus !== 0) {
@@ -1238,9 +1237,7 @@ export class CombatService {
       position,
       entityId,
       (sourceCombatantId: string) => {
-        const src = combatantRecords.find((c: any) =>
-          (c.characterId ?? c.monsterId ?? c.npcId) === sourceCombatantId,
-        );
+        const src = findCombatantByEntityId(combatantRecords, sourceCombatantId);
         const srcIsPC = src
           ? src.combatantType === "Character" || src.combatantType === "NPC"
           : false;
@@ -1252,9 +1249,7 @@ export class CombatService {
 
     // Calculate passive zone save bonus (e.g., Paladin Aura of Protection)
     const isSameFactionFn = (sourceCombatantId: string): boolean => {
-      const src = combatantRecords.find((c: any) =>
-        (c.characterId ?? c.monsterId ?? c.npcId) === sourceCombatantId,
-      );
+      const src = findCombatantByEntityId(combatantRecords, sourceCombatantId);
       const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
       return combatantIsPC === srcIsPC;
     };

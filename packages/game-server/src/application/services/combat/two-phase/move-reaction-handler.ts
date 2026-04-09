@@ -35,6 +35,7 @@ import {
   getPosition,
   getEffectiveSpeed,
 } from "../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { syncEntityPosition } from "../helpers/sync-map-entity.js";
 import { resolveZoneDamageForPath } from "../helpers/zone-damage-resolver.js";
@@ -590,7 +591,7 @@ export class MoveReactionHandler {
           actor,
           combatMap,
           (srcId: string) => {
-            const src = combatants.find((c: any) => (c.characterId ?? c.monsterId ?? c.npcId) === srcId);
+            const src = findCombatantByEntityId(combatants, srcId);
             const srcIsPC = src ? (src.combatantType === "Character" || src.combatantType === "NPC") : false;
             return actorIsPC === srcIsPC;
           },

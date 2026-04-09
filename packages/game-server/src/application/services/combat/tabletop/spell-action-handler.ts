@@ -23,6 +23,7 @@ import { ValidationError } from "../../../errors.js";
 import { resolveSpell, prepareSpellCast } from "../helpers/spell-slot-manager.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { normalizeResources, getPosition } from "../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
@@ -80,9 +81,7 @@ export class SpellActionHandler {
     if (!encounter) throw new ValidationError("No active encounter");
 
     const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
 
     return { encounter, combatants, actorCombatant };
   }
@@ -162,12 +161,7 @@ export class SpellActionHandler {
             (rangeTargetRef as any).characterId ??
             (rangeTargetRef as any).monsterId ??
             (rangeTargetRef as any).npcId;
-          const rangeTarget = rangeCombatants.find(
-            (c: any) =>
-              c.characterId === rangeTargetId ||
-              c.monsterId === rangeTargetId ||
-              c.npcId === rangeTargetId,
-          );
+          const rangeTarget = findCombatantByEntityId(rangeCombatants, rangeTargetId);
           if (rangeTarget) {
             const casterPos = getPosition(normalizeResources(rangeActor.resources ?? {}));
             const targetPos = getPosition(normalizeResources(rangeTarget.resources ?? {}));
@@ -345,10 +339,7 @@ export class SpellActionHandler {
       if (targetRef) {
         const targetId =
           (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
-        const targetCombatant = combatants.find(
-          (c: any) =>
-            c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant) {
           const dartCount = 3 + Math.max(0, effectiveCastLevel - 1);
           let totalDamage = 0;

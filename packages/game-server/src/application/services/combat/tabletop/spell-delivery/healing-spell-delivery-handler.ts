@@ -18,6 +18,7 @@ import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
 import { hasPreventHealingEffect } from '../../helpers/resource-utils.js';
+import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 
 export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -66,10 +67,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
       (targetRef as any).npcId;
 
     // Find the target combatant
-    const targetCombatant = combatants.find(
-      (c: any) =>
-        c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-    );
+    const targetCombatant = findCombatantByEntityId(combatants, targetId);
     if (!targetCombatant) throw new ValidationError(`Target combatant not found in encounter`);
 
     // Validate target isn't dead (3 death save failures)
@@ -164,10 +162,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
 
     // If bonus action spell, also mark bonus action used on resources
     if (isBonusAction) {
-      const actorCombatant = combatants.find(
-        (c: any) =>
-          c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-      );
+      const actorCombatant = findCombatantByEntityId(combatants, actorId);
       if (actorCombatant) {
         const actorResources = actorCombatant.resources ?? {};
         await deps.combatRepo.updateCombatantState(actorCombatant.id, {
@@ -235,9 +230,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     const healTotal = Math.max(0, healRoll.total + spellMod);
 
     // Determine caster faction to find friendly combatants
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     const actorIsPC =
       actorCombatant?.combatantType === "Character" || actorCombatant?.combatantType === "NPC";
 

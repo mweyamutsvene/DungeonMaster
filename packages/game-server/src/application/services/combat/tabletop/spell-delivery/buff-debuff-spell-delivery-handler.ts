@@ -8,6 +8,7 @@
 import { findCombatantByName } from '../combat-text-parser.js';
 import { createEffect } from '../../../../../domain/entities/combat/effects.js';
 import { addActiveEffectsToResources } from '../../helpers/resource-utils.js';
+import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
@@ -71,9 +72,7 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
               (targetRef as any).characterId ??
               (targetRef as any).monsterId ??
               (targetRef as any).npcId;
-            const targetC = combatants.find(
-              (c: any) => c.characterId === tid || c.monsterId === tid || c.npcId === tid,
-            );
+            const targetC = findCombatantByEntityId(combatants, tid);
             if (targetC) targetCombatantIds.push(targetC.id);
           }
         }

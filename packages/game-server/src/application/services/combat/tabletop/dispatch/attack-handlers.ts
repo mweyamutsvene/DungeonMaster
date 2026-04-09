@@ -23,6 +23,7 @@ import {
   addDrawnWeapon,
   getInventory,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
@@ -78,9 +79,7 @@ export class AttackHandlers {
     preferNearest: boolean,
   ): Promise<CombatantRef> {
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     const actorPos = actorCombatant ? getPosition(actorCombatant.resources ?? {}) : null;
     const actorRef = inferActorRef(actorId, roster);
 
@@ -95,9 +94,7 @@ export class AttackHandlers {
         const refId = ref.type === "Character" ? (ref as any).characterId
           : ref.type === "Monster" ? (ref as any).monsterId
           : (ref as any).npcId;
-        const comb = combatants.find(
-          (c: any) => c.characterId === refId || c.monsterId === refId || c.npcId === refId,
-        );
+        const comb = findCombatantByEntityId(combatants, refId);
         if (!comb) return true; // keep if we can't verify
         const hp = typeof (comb.resources as any)?.currentHp === "number" ? (comb.resources as any).currentHp : null;
         return hp === null || hp > 0;
@@ -116,9 +113,7 @@ export class AttackHandlers {
           : ref.type === "Monster" ? (ref as any).monsterId
           : (ref as any).npcId;
 
-        const comb = combatants.find(
-          (c: any) => c.characterId === refId || c.monsterId === refId || c.npcId === refId,
-        );
+        const comb = findCombatantByEntityId(combatants, refId);
         if (!comb) continue;
         const pos = getPosition(comb.resources ?? {});
         if (!pos) continue;
@@ -181,9 +176,7 @@ export class AttackHandlers {
     roster: LlmRoster,
   ): Promise<LlmRoster> {
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     const actorPos = actorCombatant ? getPosition(actorCombatant.resources ?? {}) : null;
     if (!actorPos) return roster; // Can't compute distances without actor position
 
@@ -273,7 +266,7 @@ export class AttackHandlers {
       throw new ValidationError("Actor has already spent their action this turn");
     }
 
-    const targetCombatant = combatantStates.find((c: any) => c.monsterId === targetId || c.characterId === targetId || c.npcId === targetId);
+    const targetCombatant = findCombatantByEntityId(combatantStates, targetId!);
     if (!targetCombatant) throw new ValidationError("Target not found in encounter");
 
     // D&D 2024 Charmed: can't attack the charmer

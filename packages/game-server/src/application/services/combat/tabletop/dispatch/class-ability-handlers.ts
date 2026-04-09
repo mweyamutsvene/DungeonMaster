@@ -27,6 +27,7 @@ import {
   getActiveEffects,
   setActiveEffects,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import { SavingThrowResolver } from "../rolls/saving-throw-resolver.js";
 import type {
@@ -349,9 +350,7 @@ export class ClassAbilityHandlers {
     const turn = encounter?.turn ?? 0;
 
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const targetCombatant = combatants.find((c: any) =>
-      c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-    );
+    const targetCombatant = findCombatantByEntityId(combatants, targetId);
     if (!targetCombatant || targetCombatant.hpCurrent <= 0) return null;
 
     const actorCharacter = characters.find((c) => c.id === actorId);

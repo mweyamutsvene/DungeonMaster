@@ -10,6 +10,7 @@ export { RollStateMachine, loadRoster } from "./roll-state-machine.js";
 export { SpellActionHandler } from "./spell-action-handler.js";
 export { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 export { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
+export { DamageResolver } from "./rolls/damage-resolver.js";
 
 // Action parser chain types
 export type { ActionParserEntry, DispatchContext } from "./action-parser-chain.js";

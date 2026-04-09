@@ -20,6 +20,7 @@ import {
 } from "../../../../../domain/entities/combat/conditions.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
 import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects, removeActiveEffectById } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   applyForcedMovement,
   calculateDistance,
@@ -159,9 +160,7 @@ export class SavingThrowResolver {
 
     // ── ActiveEffect: saving throw bonuses (flat + dice) + advantage/disadvantage ──
     const combatantsForEffects = await this.combatRepo.listCombatants(encounterId);
-    const targetCombatantForEffects = combatantsForEffects.find(
-      (c: any) => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
-    );
+    const targetCombatantForEffects = findCombatantByEntityId(combatantsForEffects, action.actorId);
     const targetEffects = getActiveEffects(targetCombatantForEffects?.resources ?? {});
 
     // Brutal Strike (Staggering Blow): disadvantage on next attack roll OR saving throw.
@@ -358,9 +357,7 @@ export class SavingThrowResolver {
     // Apply condition changes
     if (outcome.conditions) {
       const combatants = await this.combatRepo.listCombatants(encounterId);
-      const targetCombatant = combatants.find(
-        (c: any) => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
-      );
+      const targetCombatant = findCombatantByEntityId(combatants, action.actorId);
 
       if (targetCombatant) {
         let conditions = normalizeConditions(targetCombatant.conditions);
@@ -412,12 +409,8 @@ export class SavingThrowResolver {
     // Forced movement does NOT provoke opportunity attacks (D&D 5e 2024)
     if (outcome.movement?.push) {
       const combatants = await this.combatRepo.listCombatants(encounterId);
-      const targetCombatant = combatants.find(
-        (c: any) => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
-      );
-      const sourceCombatant = combatants.find(
-        (c: any) => c.characterId === action.sourceId || c.monsterId === action.sourceId || c.npcId === action.sourceId,
-      );
+      const targetCombatant = findCombatantByEntityId(combatants, action.actorId);
+      const sourceCombatant = findCombatantByEntityId(combatants, action.sourceId);
 
       if (targetCombatant && sourceCombatant) {
         const targetRes = normalizeResources(targetCombatant.resources);

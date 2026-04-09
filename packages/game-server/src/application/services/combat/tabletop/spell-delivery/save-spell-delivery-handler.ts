@@ -14,6 +14,7 @@
 
 import { ValidationError } from '../../../../errors.js';
 import { normalizeResources, getPosition, addActiveEffectsToResources } from '../../helpers/resource-utils.js';
+import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { applyKoEffectsIfNeeded } from '../../helpers/ko-handler.js';
 import { findCombatantByName } from '../combat-text-parser.js';
 import { applyDamageDefenses, extractDamageDefenses } from '../../../../../domain/rules/damage-defenses.js';
@@ -117,10 +118,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     if (saveAbility === "dexterity" && !spellMatch.ignoresCover) {
       const map = encounter?.mapData as unknown as CombatMap | undefined;
       if (map && map.cells && map.cells.length > 0) {
-        const targetCombatant = combatants.find(
-          (c: any) =>
-            c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         const casterPos = actorCombatant
           ? getPosition(normalizeResources(actorCombatant.resources ?? {}))
           : null;
@@ -205,10 +203,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       totalDamage = applyEvasion(totalDamage, saveSuccess, !!resolution.hasEvasion, halfOnSave);
 
       if (totalDamage > 0) {
-        const targetCombatant = combatants.find(
-          (c: any) =>
-            c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-        );
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant) {
           // Apply damage resistance/immunity/vulnerability for spell damage
           const spellDmgType = spellMatch.damageType;
@@ -271,10 +266,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     // attach a tracking ActiveEffect with saveToEnd so the target repeats the save
     // at the end of each of its turns (D&D 5e 2024).
     if (spellMatch.turnEndSave && resolution.conditionsApplied.length > 0) {
-      const targetCombatant = combatants.find(
-        (c: any) =>
-          c.characterId === targetId || c.monsterId === targetId || c.npcId === targetId,
-      );
+      const targetCombatant = findCombatantByEntityId(combatants, targetId);
       if (targetCombatant) {
         const trackingEffect = createEffect(
           `turn-end-save-${castInfo.spellName}-${targetId}`,
@@ -381,12 +373,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       if (targetRef) {
         targetEntityId =
           (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
-        targetCombatant = combatants.find(
-          (c: any) =>
-            c.characterId === targetEntityId ||
-            c.monsterId === targetEntityId ||
-            c.npcId === targetEntityId,
-        );
+        targetCombatant = findCombatantByEntityId(combatants, targetEntityId!);
       }
     }
     const targetPos: Position | null = targetCombatant
@@ -474,10 +461,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const targetResults: TargetResult[] = [];
 
     for (const entityId of creaturesInArea) {
-      const targetComb = combatants.find(
-        (c: any) =>
-          c.characterId === entityId || c.monsterId === entityId || c.npcId === entityId,
-      );
+      const targetComb = findCombatantByEntityId(combatants, entityId);
       if (!targetComb) continue;
 
       // Resolve display name
