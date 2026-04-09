@@ -157,6 +157,8 @@ export function tryParseMoveTowardText(
     /^go\s+(?:to|toward|towards)\s+(?:the\s+)?(.+?)$/,
     /^run\s+(?:to|toward|towards|at)\s+(?:the\s+)?(.+?)$/,
     /^charge\s+(?:at\s+)?(?:the\s+)?(.+?)$/,
+    // "dash toward goblin" / "dash to X" = colloquial movement, not the Dash action
+    /^dash\s+(?:toward|towards|to|at|near|up\s+to|next\s+to|closer\s+to)\s+(?:the\s+)?(.+?)$/,
   ];
 
   for (const pattern of patterns) {
@@ -178,7 +180,9 @@ export function tryParseMoveTowardText(
 /** Parse dash / dodge / disengage / ready from text. */
 export function tryParseSimpleActionText(input: string): "dash" | "dodge" | "disengage" | "ready" | null {
   const normalized = input.trim().toLowerCase();
-  if (/\b(dash)\b/.test(normalized)) return "dash";
+  // "dash toward goblin" / "dash to orc" / "dash at dragon" = movement, NOT the Dash action.
+  // Only "dash", "use dash", "take the dash action" etc. should trigger the Dash action.
+  if (/\bdash\b/.test(normalized) && !/\bdash\s+(toward|towards|to|at|near|up\s+to|next\s+to|closer\s+to)\s+/i.test(normalized)) return "dash";
   if (/\b(dodge)\b/.test(normalized)) return "dodge";
   if (/\b(disengage)\b/.test(normalized)) return "disengage";
   if (/\b(ready)\b/.test(normalized)) return "ready";

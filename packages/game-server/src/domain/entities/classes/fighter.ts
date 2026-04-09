@@ -1,7 +1,7 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
-import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
 import { REMARKABLE_ATHLETE, ADDITIONAL_FIGHTING_STYLE } from "./feature-keys.js";
 
 export interface ActionSurgeState {
@@ -177,6 +177,57 @@ const indomitable = createIndomitableState(level);
   subclasses: [ChampionSubclass],
 };
 
+// ----- Fighting Style Reactions -----
+
+/**
+ * Protection fighting style reaction (D&D 5e 2024).
+ * When a creature you can see attacks a target (other than you) within 5 feet of you,
+ * you can use your reaction to impose disadvantage on the attack roll.
+ * Requires: shield, reaction available, within 5ft of the target being attacked.
+ *
+ * NOTE: This reaction belongs to the *protector* (an ally of the target), NOT the target.
+ * It triggers on the attacker's attack against an ally, meaning the protector sees the attack
+ * and steps in. The AttackReactionDef system currently detects reactions on the TARGET of the
+ * attack. Full integration requires extending the reaction detection to check nearby allies.
+ *
+ * TODO: CO-L6 — Wire into TwoPhaseActionService AttackReactionHandler.
+ * Detection needs to scan allies within 5ft of the target, not just the target itself.
+ * Resolution: impose disadvantage on the attack roll (requires reroll or pre-roll check).
+ */
+const PROTECTION_REACTION: AttackReactionDef = {
+  reactionType: "protection",
+  classId: "fighter",
+  detect(input: AttackReactionInput): DetectedAttackReaction | null {
+    // Protection is detected on nearby allies, not the target itself.
+    // This stub returns null — full implementation requires ally-scan extension.
+    // See canUseProtection() in domain/rules/ for eligibility logic.
+    return null;
+  },
+};
+
+/**
+ * Interception fighting style reaction (D&D 5e 2024).
+ * When a creature you can see hits a target within 5 feet of you with an attack,
+ * you can use your reaction to reduce the damage by 1d10 + your proficiency bonus (min 0).
+ * You must be wielding a shield or a simple/martial weapon.
+ *
+ * NOTE: Like Protection, this triggers on an ally being attacked, not the target itself.
+ * Requires extending the reaction detection to scan nearby allies.
+ *
+ * TODO: CO-L5 — Wire into TwoPhaseActionService AttackReactionHandler.
+ * Detection needs to scan allies wielding a shield or weapon within 5ft of the target.
+ * Resolution: after hit confirmed and damage rolled, reduce damage by 1d10 + proficiency bonus.
+ */
+const INTERCEPTION_REACTION: AttackReactionDef = {
+  reactionType: "interception",
+  classId: "fighter",
+  detect(input: AttackReactionInput): DetectedAttackReaction | null {
+    // Interception is detected on nearby allies, not the target itself.
+    // This stub returns null — full implementation requires ally-scan extension.
+    return null;
+  },
+};
+
 /** Combat text profile — maps text patterns to Fighter ability IDs. */
 export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "fighter",
@@ -186,4 +237,5 @@ export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     { keyword: "indomitable", normalizedPatterns: [/indomitable|useindomitable/], abilityId: "class:fighter:indomitable", category: "classAction" },
   ],
   attackEnhancements: [],
+  attackReactions: [PROTECTION_REACTION, INTERCEPTION_REACTION],
 };

@@ -95,6 +95,28 @@ function stripUndefined(obj: PreparedSpellDefinition): Partial<PreparedSpellDefi
   return result as Partial<PreparedSpellDefinition>;
 }
 
+// ─────────────────────── Upcast Validation (pure) ──────────────────
+
+/**
+ * Validate upcast constraints.
+ * Cantrips cannot be upcast. Cast level must be >= spell level and <= 9.
+ * Throws ValidationError on violations. No-ops when castAtLevel is undefined.
+ */
+export function validateUpcast(spellLevel: number, castAtLevel: number | undefined, isCantrip: boolean): void {
+  if (castAtLevel == null) return;
+  if (isCantrip) {
+    throw new ValidationError("Cantrips cannot be upcast");
+  }
+  if (castAtLevel < spellLevel) {
+    throw new ValidationError(
+      `Cannot cast a level ${spellLevel} spell using a level ${castAtLevel} slot`,
+    );
+  }
+  if (castAtLevel > 9) {
+    throw new ValidationError(`Spell slot level cannot exceed 9 (got ${castAtLevel})`);
+  }
+}
+
 // ─────────────────────── Spell Preparation (async) ──────────────────
 
 /**
@@ -133,15 +155,8 @@ export async function prepareSpellCast(
   // Determine the effective slot level to spend
   const effectiveLevel = castAtLevel ?? spellLevel;
 
-  // Validate upcasting constraints
-  if (effectiveLevel < spellLevel) {
-    throw new ValidationError(
-      `Cannot cast a level ${spellLevel} spell using a level ${effectiveLevel} slot`,
-    );
-  }
-  if (effectiveLevel > 9) {
-    throw new ValidationError(`Spell slot level cannot exceed 9 (got ${effectiveLevel})`);
-  }
+  // Validate upcasting constraints (delegated to shared pure function)
+  validateUpcast(spellLevel, castAtLevel, false);
 
   // Reload from DB for a fresh read (avoids stale in-memory resources)
   const combatants = await combatRepo.listCombatants(encounterId);

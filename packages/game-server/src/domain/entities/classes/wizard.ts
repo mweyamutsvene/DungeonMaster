@@ -225,12 +225,55 @@ const ABSORB_ELEMENTS_REACTION: DamageReactionDef = {
   },
 };
 
+// ----- Spell Reaction: Silvery Barbs (attack roll success) -----
+
+/**
+ * Silvery Barbs attack reaction detection (D&D 5e 2024).
+ * When a creature within 60 feet succeeds on an attack roll, ability check, or saving throw,
+ * you can use your reaction to force a reroll, using the lower result. Then grant one creature
+ * advantage on the next d20 roll within 1 minute.
+ * Requires a level 1+ spell slot + reaction + hasSilveryBarbsPrepared flag.
+ *
+ * TODO: CO-L4 — Full reaction flow integration (reroll resolution, advantage grant).
+ * Currently only detects eligibility; resolution requires a new reaction handler in
+ * TwoPhaseActionService to process the forced reroll and apply the advantage buff.
+ */
+const SILVERY_BARBS_REACTION: AttackReactionDef = {
+  reactionType: "silvery_barbs",
+  classId: "wizard",
+  detect(input: AttackReactionInput): DetectedAttackReaction | null {
+    if (!input.hasReaction || !input.isCharacter) return null;
+
+    // Check hasSilveryBarbsPrepared flag (set by buildCombatResources)
+    if (input.resources.hasSilveryBarbsPrepared !== true) return null;
+
+    // Silvery Barbs only triggers when the attack *hits* (succeeds)
+    if (input.attackRoll < input.targetAC) return null;
+
+    // Check level 1+ spell slot or Pact Magic availability
+    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
+    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
+    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    if (!hasSpellSlot && !hasPactSlot) return null;
+
+    return {
+      reactionType: "silvery_barbs",
+      context: {
+        attackerId: input.attackerId,
+        attackRoll: input.attackRoll,
+        targetAC: input.targetAC,
+        slotToSpend: hasSpellSlot ? "spellSlot_1" : "pactMagic",
+      },
+    };
+  },
+};
+
 /** Combat text profile for Wizard — attack reactions, damage reactions, spell reactions. */
 export const WIZARD_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "wizard",
   actionMappings: [],
   attackEnhancements: [],
-  attackReactions: [SHIELD_REACTION],
+  attackReactions: [SHIELD_REACTION, SILVERY_BARBS_REACTION],
   damageReactions: [ABSORB_ELEMENTS_REACTION],
   spellReactions: [COUNTERSPELL_REACTION],
 };

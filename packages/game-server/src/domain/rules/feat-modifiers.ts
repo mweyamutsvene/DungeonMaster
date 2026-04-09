@@ -12,6 +12,7 @@ export const FEAT_DEFENSE = "feat_defense";
 export const FEAT_DUELING = "feat_dueling";
 export const FEAT_GRAPPLER = "feat_grappler";
 export const FEAT_GREAT_WEAPON_FIGHTING = "feat_great-weapon-fighting";
+export const FEAT_INTERCEPTION = "feat_interception";
 export const FEAT_MAGIC_INITIATE = "feat_magic-initiate";
 export const FEAT_PROTECTION = "feat_protection";
 export const FEAT_RESILIENT = "feat_resilient";

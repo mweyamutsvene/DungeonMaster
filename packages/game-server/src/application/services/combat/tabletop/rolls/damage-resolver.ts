@@ -26,12 +26,14 @@ import type {
   SessionMonsterRecord,
   SessionNPCRecord,
   CombatEncounterRecord,
+  JsonValue,
 } from "../../../../types.js";
 import {
   normalizeResources,
   getActiveEffects,
   setActiveEffects,
   getPosition,
+  patchResources,
 } from "../../helpers/resource-utils.js";
 import {
   getDamageDefenseEffects,
@@ -212,7 +214,7 @@ export class DamageResolver {
         const targetRes = normalizeResources(targetCombatant.resources);
         if (targetRes.raging === true) {
           await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
-            resources: { ...targetRes, rageDamageTakenThisTurn: true } as any,
+            resources: patchResources(targetRes, { rageDamageTakenThisTurn: true }),
           });
           if (this.debugLogsEnabled) console.log(`[DamageResolver] Rage damage taken tracked for ${action.targetId}`);
         }
@@ -235,7 +237,7 @@ export class DamageResolver {
             const effects = getActiveEffects(koTargetForRage.resources ?? {});
             const nonRageEffects = effects.filter((e: ActiveEffect) => e.source !== "Rage");
             const updatedRes = setActiveEffects({ ...koRes, raging: false }, nonRageEffects);
-            await this.deps.combatRepo.updateCombatantState(koTargetForRage.id, { resources: updatedRes as any });
+            await this.deps.combatRepo.updateCombatantState(koTargetForRage.id, { resources: updatedRes });
             if (this.debugLogsEnabled) console.log(`[DamageResolver] Rage ended on KO for ${action.targetId}`);
           }
         }
@@ -352,7 +354,7 @@ export class DamageResolver {
       if (actorForSneak) {
         const actorRes = normalizeResources(actorForSneak.resources);
         await this.deps.combatRepo.updateCombatantState(actorForSneak.id, {
-          resources: { ...actorRes, sneakAttackUsedThisTurn: true } as any,
+          resources: patchResources(actorRes, { sneakAttackUsedThisTurn: true }),
         });
         if (this.debugLogsEnabled) console.log(`[DamageResolver] Sneak Attack used this turn — marked`);
       }
@@ -360,7 +362,7 @@ export class DamageResolver {
 
     await this.deps.combatRepo.clearPendingAction(encounter.id);
 
-    const targetName = (target as any).name ?? "Target";
+    const targetName = target && "name" in target ? (target as { name: string }).name : "Target";
     const isFlurryStrike1 = action.bonusAction === "flurry-of-blows" && action.flurryStrike === 1;
     const isFlurryStrike2 = action.bonusAction === "flurry-of-blows" && action.flurryStrike === 2;
 
@@ -546,7 +548,7 @@ export class DamageResolver {
       if (actorForLoading) {
         const loadRes = normalizeResources(actorForLoading.resources);
         await this.deps.combatRepo.updateCombatantState(actorForLoading.id, {
-          resources: { ...loadRes, loadingWeaponFiredThisTurn: true } as any,
+          resources: patchResources(loadRes, { loadingWeaponFiredThisTurn: true }),
         });
       }
     }
@@ -672,7 +674,7 @@ export class DamageResolver {
     };
 
     const updatedMap = addGroundItem(mapData, groundItem);
-    await this.deps.combatRepo.updateEncounter(encounter.id, { mapData: updatedMap as any });
+    await this.deps.combatRepo.updateEncounter(encounter.id, { mapData: updatedMap as JsonValue });
 
     if (this.debugLogsEnabled) {
       console.log(`[DamageResolver] Thrown weapon ${weaponSpec.name} dropped at (${targetPos.x}, ${targetPos.y}) by ${actorId}`);
@@ -733,6 +735,6 @@ export class DamageResolver {
       }
     }
 
-    await this.deps.combatRepo.updateEncounter(encounter.id, { mapData: currentMap as any });
+    await this.deps.combatRepo.updateEncounter(encounter.id, { mapData: currentMap as JsonValue });
   }
 }

@@ -6,6 +6,17 @@ export type CombatantRef =
   | { type: "Monster"; monsterId: string }
   | { type: "NPC"; npcId: string };
 
+/**
+ * Extract the entity ID from a CombatantRef (characterId, monsterId, or npcId).
+ */
+export function getEntityIdFromRef(ref: CombatantRef): string {
+  switch (ref.type) {
+    case "Character": return ref.characterId;
+    case "Monster": return ref.monsterId;
+    case "NPC": return ref.npcId;
+  }
+}
+
 export function combatantRefFromState(state: CombatantStateRecord): CombatantRef | null {
   if (state.combatantType === "Character" && state.characterId) {
     return { type: "Character", characterId: state.characterId };

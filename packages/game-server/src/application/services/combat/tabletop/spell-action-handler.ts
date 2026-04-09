@@ -20,10 +20,11 @@
  */
 
 import { ValidationError } from "../../../errors.js";
-import { resolveSpell, prepareSpellCast } from "../helpers/spell-slot-manager.js";
+import { resolveSpell, prepareSpellCast, validateUpcast } from "../helpers/spell-slot-manager.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
-import { normalizeResources, getPosition } from "../helpers/resource-utils.js";
+import { normalizeResources, getPosition, patchResources } from "../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
+import { getEntityIdFromRef } from "../helpers/combatant-ref.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
@@ -33,7 +34,7 @@ import type { Condition } from "../../../../domain/entities/combat/conditions.js
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import type { LlmRoster } from "../../../commands/game-command.js";
 import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
-import type { SessionCharacterRecord } from "../../../types.js";
+import type { SessionCharacterRecord, JsonValue } from "../../../types.js";
 import {
   SpellAttackDeliveryHandler,
   HealingSpellDeliveryHandler,
@@ -115,19 +116,7 @@ export class SpellActionHandler {
 
     // Determine effective cast level (for upcasting)
     const castAtLevel = castInfo.castAtLevel;
-    if (castAtLevel != null) {
-      if (isCantrip) {
-        throw new ValidationError("Cantrips cannot be upcast");
-      }
-      if (castAtLevel < spellLevel) {
-        throw new ValidationError(
-          `Cannot cast a level ${spellLevel} spell using a level ${castAtLevel} slot`,
-        );
-      }
-      if (castAtLevel > 9) {
-        throw new ValidationError(`Spell slot level cannot exceed 9 (got ${castAtLevel})`);
-      }
-    }
+    validateUpcast(spellLevel, castAtLevel, isCantrip);
     const effectiveCastLevel = castAtLevel ?? spellLevel;
     const targetRef = castInfo.targetName ? findCombatantByName(castInfo.targetName, roster) : undefined;
 
@@ -185,10 +174,7 @@ export class SpellActionHandler {
       if (rangeActor) {
         const rangeTargetRef = findCombatantByName(castInfo.targetName, roster);
         if (rangeTargetRef) {
-          const rangeTargetId =
-            (rangeTargetRef as any).characterId ??
-            (rangeTargetRef as any).monsterId ??
-            (rangeTargetRef as any).npcId;
+          const rangeTargetId = getEntityIdFromRef(rangeTargetRef);
           const rangeTarget = findCombatantByEntityId(rangeCombatants, rangeTargetId);
           if (rangeTarget) {
             const casterPos = getPosition(normalizeResources(rangeActor.resources ?? {}));
@@ -243,7 +229,7 @@ export class SpellActionHandler {
             const res = normalizeResources(fresh.resources);
             const flag = isBonusAction ? "bonusActionSpellCastThisTurn" : "actionSpellCastThisTurn";
             await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-              resources: { ...res, [flag]: true } as any,
+              resources: patchResources(res, { [flag]: true }),
             });
           }
         }
@@ -263,7 +249,7 @@ export class SpellActionHandler {
         reactionType: "counterspell",
         spellName: castInfo.spellName,
         spellLevel: effectiveCastLevel,
-      } as any);
+      } as JsonValue);
 
       const byCombatantId = new Map(
         initiateResult.counterspellOpportunities.map((o) => [o.combatantId, o]),
@@ -315,7 +301,7 @@ export class SpellActionHandler {
             const res = normalizeResources(fresh.resources);
             const flag = isBonusAction ? "bonusActionSpellCastThisTurn" : "actionSpellCastThisTurn";
             await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-              resources: { ...res, [flag]: true } as any,
+              resources: patchResources(res, { [flag]: true }),
             });
           }
         }
@@ -363,8 +349,7 @@ export class SpellActionHandler {
       const { encounter, combatants } = await this.resolveEncounterContext(sessionId, actorId);
       const autoHitTargetRef = findCombatantByName(castInfo.targetName, roster);
       if (autoHitTargetRef) {
-        const targetId =
-          (autoHitTargetRef as any).characterId ?? (autoHitTargetRef as any).monsterId ?? (autoHitTargetRef as any).npcId;
+        const targetId = getEntityIdFromRef(autoHitTargetRef);
         const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant) {
           const dartCount = resolvedSpell.dartCount + Math.max(0, effectiveCastLevel - resolvedSpell.level);

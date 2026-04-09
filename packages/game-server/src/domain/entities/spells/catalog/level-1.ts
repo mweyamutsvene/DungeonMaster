@@ -97,6 +97,19 @@ export const CURE_WOUNDS = {
   description: 'A creature you touch regains 2d8 + spellcasting modifier HP.',
 } as const satisfies CanonicalSpell;
 
+export const DETECT_MAGIC = {
+  name: 'Detect Magic',
+  level: 1,
+  concentration: true,
+  ritual: true,
+  school: 'divination',
+  castingTime: 'action',
+  range: 'self',
+  components: { v: true, s: true },
+  classLists: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Wizard'],
+  description: 'For the duration, you sense the presence of magic within 30 feet. Can be cast as a ritual.',
+} as const satisfies CanonicalSpell;
+
 export const GUIDING_BOLT = {
   name: 'Guiding Bolt',
   level: 1,
@@ -262,6 +275,17 @@ export const SHIELD_SPELL = {
   components: { v: true, s: true },
   classLists: ['Sorcerer', 'Wizard'],
   description: '+5 AC until start of your next turn, including against the triggering attack. Blocks Magic Missile.',
+} as const satisfies CanonicalSpell;
+
+export const SILVERY_BARBS = {
+  name: 'Silvery Barbs',
+  level: 1,
+  school: 'enchantment',
+  castingTime: 'reaction',
+  range: 60,
+  components: { v: true },
+  classLists: ['Bard', 'Sorcerer', 'Wizard'],
+  description: 'When a creature within 60 feet succeeds on an attack roll, ability check, or saving throw, force a reroll and use the lower result. Grant one creature of your choice advantage on the next d20 roll within 1 minute.',
 } as const satisfies CanonicalSpell;
 
 export const SHIELD_OF_FAITH = {
@@ -443,6 +467,7 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   CAUSE_FEAR,
   COMMAND,
   CURE_WOUNDS,
+  DETECT_MAGIC,
   FAERIE_FIRE,
   GUIDING_BOLT,
   HEALING_WORD,
@@ -456,6 +481,7 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   MAGIC_MISSILE,
   SHIELD_SPELL,
   SHIELD_OF_FAITH,
+  SILVERY_BARBS,
   SLEEP,
   THUNDERWAVE,
   THUNDEROUS_WARD,

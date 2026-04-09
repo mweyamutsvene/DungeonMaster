@@ -43,4 +43,4 @@ export function listSpellsBySchool(school: string): CanonicalSpell[] {
 }
 
 export { SPELL_BY_NAME as SPELL_CATALOG };
-export type { CanonicalSpell, SpellSchool } from './types.js';
+export type { CanonicalSpell, SpellSchool, SpellCastingMode } from './types.js';

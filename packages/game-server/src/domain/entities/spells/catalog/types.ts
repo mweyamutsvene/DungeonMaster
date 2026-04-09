@@ -29,3 +29,17 @@ export interface CanonicalSpell extends PreparedSpellDefinition {
   readonly classLists: readonly string[];
   readonly description: string;
 }
+
+/**
+ * How a spell is being cast. Affects slot consumption and casting time.
+ *
+ * - `normal`: Standard casting — spends a spell slot, uses the spell's standard casting time.
+ * - `ritual`: Ritual casting — does NOT consume a spell slot, but takes 10 minutes longer.
+ *   Only spells with `ritual: true` in the catalog can be cast this way.
+ *   In combat, ritual casting is effectively impossible (10+ minutes).
+ *
+ * TODO: SS-L7 — Wire into SpellActionHandler castInfo and prepareSpellCast.
+ * When castingMode is 'ritual', skip spell slot deduction in prepareSpellCast.
+ * Add validation: reject ritual casting for non-ritual spells, reject in active combat.
+ */
+export type SpellCastingMode = 'normal' | 'ritual';

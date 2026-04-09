@@ -20,6 +20,16 @@ export function normalizeResources(raw: unknown): Record<string, unknown> {
 }
 
 /**
+ * Merge additional key-value pairs into existing resources and return as JsonValue.
+ * Avoids `as any` casts when updating combatant resources with flags/counters.
+ *
+ * Usage: `combatRepo.updateCombatantState(id, { resources: patchResources(res, { rageDamageTakenThisTurn: true }) })`
+ */
+export function patchResources(existing: Record<string, unknown>, patch: Record<string, unknown>): JsonValue {
+  return { ...existing, ...patch } as JsonValue;
+}
+
+/**
  * Check if a combatant has already spent their action this turn.
  * For attack actions, considers Extra Attack feature.
  */

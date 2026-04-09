@@ -10,6 +10,8 @@ import type { LlmRoster } from '../../../../commands/game-command.js';
 import type { ActionParseResult, TabletopCombatServiceDeps } from '../tabletop-types.js';
 import type { TabletopEventEmitter } from '../tabletop-event-emitter.js';
 import type { SavingThrowResolver } from '../rolls/saving-throw-resolver.js';
+import type { SessionCharacterRecord, CombatEncounterRecord, CombatantStateRecord } from '../../../../types.js';
+import type { CombatantRef } from '../../helpers/combatant-ref.js';
 
 /**
  * All data needed for a spell cast, resolved once by SpellActionHandler before dispatch.
@@ -25,16 +27,18 @@ export interface SpellCastingContext {
   /** The effective slot level consumed (equals castAtLevel if upcasting, else spellLevel). */
   castAtLevel?: number;
   isConcentration: boolean;
+  /** Character sheet — untyped JSON from database. TODO: Create a proper CharacterSheet interface. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sheet: any;
-  characters: any[];
-  actor: any;
+  characters: SessionCharacterRecord[];
+  actor: CombatantRef;
   roster: LlmRoster;
   /** Current encounter (fetched after slot spending) */
-  encounter: any;
+  encounter: CombatEncounterRecord;
   /** All combatants in the encounter (fetched after slot spending) */
-  combatants: any[];
+  combatants: CombatantStateRecord[];
   /** The caster's combatant entry (fetched after slot spending) */
-  actorCombatant: any;
+  actorCombatant: CombatantStateRecord | undefined;
 }
 
 /**

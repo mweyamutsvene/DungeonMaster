@@ -15,6 +15,7 @@ import {
   FEAT_DEFENSE,
   FEAT_DUELING,
   FEAT_GREAT_WEAPON_FIGHTING,
+  FEAT_INTERCEPTION,
   FEAT_PROTECTION,
   FEAT_TWO_WEAPON_FIGHTING,
 } from "../../rules/feat-modifiers.js";
@@ -28,6 +29,7 @@ export type FightingStyleId =
   | "defense"
   | "dueling"
   | "great-weapon-fighting"
+  | "interception"
   | "protection"
   | "two-weapon-fighting";
 
@@ -36,6 +38,7 @@ export const ALL_FIGHTING_STYLE_IDS: readonly FightingStyleId[] = [
   "defense",
   "dueling",
   "great-weapon-fighting",
+  "interception",
   "protection",
   "two-weapon-fighting",
 ] as const;
@@ -50,6 +53,7 @@ const FIGHTING_STYLE_TO_FEAT: Record<FightingStyleId, string> = {
   "defense": FEAT_DEFENSE,
   "dueling": FEAT_DUELING,
   "great-weapon-fighting": FEAT_GREAT_WEAPON_FIGHTING,
+  "interception": FEAT_INTERCEPTION,
   "protection": FEAT_PROTECTION,
   "two-weapon-fighting": FEAT_TWO_WEAPON_FIGHTING,
 };

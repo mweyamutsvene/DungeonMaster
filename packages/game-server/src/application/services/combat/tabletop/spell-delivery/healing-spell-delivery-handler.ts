@@ -275,7 +275,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     const healingSummaries: string[] = [];
 
     for (const target of eligibleTargets) {
-      const targetId = target.characterId ?? target.monsterId ?? target.npcId;
+      const targetId = target.characterId ?? target.monsterId ?? target.npcId ?? target.id;
       const hpBefore = target.hpCurrent;
       const hpAfter = Math.min(target.hpMax, hpBefore + healTotal);
       const actualHealing = hpAfter - hpBefore;
