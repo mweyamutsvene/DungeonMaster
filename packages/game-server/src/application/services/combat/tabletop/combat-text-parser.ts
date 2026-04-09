@@ -497,6 +497,18 @@ export function tryParseUseItemText(input: string): { itemName: string } | null 
   return { itemName };
 }
 
+/**
+ * Parse "end turn", "end my turn", "pass", "done", "skip", "nothing".
+ * Returns true if matched, null otherwise.
+ */
+export function tryParseEndTurnText(input: string): true | null {
+  const normalized = input.trim().toLowerCase();
+  if (/^(?:end\s+(?:my\s+)?turn|pass|done|skip|nothing)$/.test(normalized)) {
+    return true;
+  }
+  return null;
+}
+
 // ----- Roster / ref helpers -----
 
 /** Look up an actor in the roster and return the combatant ref. */

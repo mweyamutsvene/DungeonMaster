@@ -357,23 +357,24 @@ export class SpellActionHandler {
       );
     }
 
-    // --- Simple spell (Magic Missile, unknown spells, etc.) ---
-
-    // Magic Missile: 3 darts at 1d4+1 force each at level 1, +1 dart per upcasted level
-    const isMagicMissile = castInfo.spellName.toLowerCase() === "magic missile";
-    if (isMagicMissile && this.deps.diceRoller && castInfo.targetName) {
+    // --- Auto-hit spells (Magic Missile, etc.) — catalog-driven via autoHit + dartCount fields ---
+    const resolvedSpell = spellMatch ?? getCanonicalSpell(castInfo.spellName);
+    if (resolvedSpell?.autoHit && resolvedSpell.dartCount && resolvedSpell.damage && this.deps.diceRoller && castInfo.targetName) {
       const { encounter, combatants } = await this.resolveEncounterContext(sessionId, actorId);
-      const targetRef = findCombatantByName(castInfo.targetName, roster);
-      if (targetRef) {
+      const autoHitTargetRef = findCombatantByName(castInfo.targetName, roster);
+      if (autoHitTargetRef) {
         const targetId =
-          (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
+          (autoHitTargetRef as any).characterId ?? (autoHitTargetRef as any).monsterId ?? (autoHitTargetRef as any).npcId;
         const targetCombatant = findCombatantByEntityId(combatants, targetId);
         if (targetCombatant) {
-          const dartCount = 3 + Math.max(0, effectiveCastLevel - 1);
+          const dartCount = resolvedSpell.dartCount + Math.max(0, effectiveCastLevel - resolvedSpell.level);
+          const diceSides = resolvedSpell.damage.diceSides;
+          const diceCount = resolvedSpell.damage.diceCount;
+          const modifier = resolvedSpell.damage.modifier ?? 0;
           let totalDamage = 0;
           const dartRolls: number[] = [];
           for (let i = 0; i < dartCount; i++) {
-            const roll = this.deps.diceRoller.rollDie(4, 1, 1);
+            const roll = this.deps.diceRoller.rollDie(diceSides, diceCount, modifier);
             dartRolls.push(roll.total);
             totalDamage += roll.total;
           }
@@ -399,13 +400,15 @@ export class SpellActionHandler {
             }
           }
 
+          const damageType = resolvedSpell.damageType ?? "force";
+          const diceNotation = `${diceCount}d${diceSides}${modifier ? `+${modifier}` : ""}`;
           const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
           return {
             requiresPlayerInput: false,
             actionComplete: true,
             type: "SIMPLE_ACTION_COMPLETE",
             action: "CastSpell",
-            message: `Cast Magic Missile at ${castInfo.targetName}.${slotNote} ${dartCount} darts (${dartRolls.map((r) => `1d4+1=${r}`).join(", ")}) = ${totalDamage} force damage. HP: ${hpBefore} → ${hpAfter}.`,
+            message: `Cast ${castInfo.spellName} at ${castInfo.targetName}.${slotNote} ${dartCount} darts (${dartRolls.map((r) => `${diceNotation}=${r}`).join(", ")}) = ${totalDamage} ${damageType} damage. HP: ${hpBefore} → ${hpAfter}.`,
           };
         }
       }

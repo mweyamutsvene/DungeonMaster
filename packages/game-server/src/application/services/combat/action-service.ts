@@ -290,6 +290,18 @@ export class ActionService {
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
 
+    // D&D 5e 2024: Help action requires being within 5 feet of the target
+    const actorPos = getPosition(normalizeResources(actorState.resources ?? {}));
+    const targetPos = getPosition(normalizeResources(targetState.resources ?? {}));
+    if (actorPos && targetPos) {
+      const distance = calculateDistance(actorPos, targetPos);
+      if (distance > 5.0001) {
+        throw new ValidationError(
+          `Help action requires being within 5 feet of the target. You are ${Math.round(distance)} ft away.`,
+        );
+      }
+    }
+
     // Spend the action
     const updatedResources = input.skipActionCheck
       ? { ...(normalizeResources(actorState.resources)), bonusActionUsed: true }

@@ -242,8 +242,8 @@ export const MAGIC_MISSILE = {
   level: 1,
   damage: { diceCount: 1, diceSides: 4, modifier: 1 },
   damageType: 'force',
-  // Phase 4: add autoHit: true — Magic Missile always hits (no attack roll needed)
-  // Phase 4: add dartCount: 3 — three darts at base level, +1 per upcast level
+  autoHit: true,
+  dartCount: 3,
   upcastScaling: { additionalDice: { diceCount: 1, diceSides: 4 } },
   school: 'evocation',
   castingTime: 'action',

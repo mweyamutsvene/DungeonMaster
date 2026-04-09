@@ -479,14 +479,14 @@ describe("Help action creates advantage ActiveEffect", () => {
     const charId = await addCharacter(app, sessionId, { name: "Helper" });
     const monId = await addMonster(app, sessionId);
 
-    // Start combat
+    // Start combat – place combatants within 5 feet so Help action range check passes
     const combatRes = await app.inject({
       method: "POST",
       url: `/sessions/${sessionId}/combat/start`,
       payload: {
         combatants: [
-          { combatantType: "Character", characterId: charId, initiative: 20, hpCurrent: 40, hpMax: 40 },
-          { combatantType: "Monster", monsterId: monId, initiative: 10, hpCurrent: 7, hpMax: 7 },
+          { combatantType: "Character", characterId: charId, initiative: 20, hpCurrent: 40, hpMax: 40, resources: { position: { x: 10, y: 10 }, speed: 30 } },
+          { combatantType: "Monster", monsterId: monId, initiative: 10, hpCurrent: 7, hpMax: 7, resources: { position: { x: 15, y: 10 }, speed: 30 } },
         ],
       },
     });

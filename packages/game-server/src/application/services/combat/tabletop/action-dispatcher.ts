@@ -59,6 +59,7 @@ import {
   tryParseSheatheWeaponText,
   tryParseUseItemText,
   tryParseAttackText,
+  tryParseEndTurnText,
   inferActorRef,
 } from "./combat-text-parser.js";
 
@@ -252,7 +253,20 @@ export class ActionDispatcher {
       return this.interactionHandlers.handleUseItemAction(sessionId, encounterId, actorId, command.itemName, roster);
     }
 
-    // endTurn / rollResult should not reach here through the tabletop text flow
+    // -- End turn --
+    if (command.kind === "endTurn") {
+      const actor = inferActorRef(actorId, roster);
+      await this.deps.combat.endTurn(sessionId, { encounterId, actor });
+      return {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE" as const,
+        action: "EndTurn",
+        message: "Turn ended.",
+      };
+    }
+
+    // rollResult should not reach here through the tabletop text flow
     throw new ValidationError(`Action type "${command.kind}" is not supported in the tabletop text flow`);
   }
 
@@ -455,7 +469,24 @@ export class ActionDispatcher {
           this.interactionHandlers.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
       },
 
-      // 19. Attack (last because it's the broadest text match)
+      // 19. End turn / pass / done / skip
+      {
+        id: "endTurn",
+        tryParse: (text) => tryParseEndTurnText(text),
+        handle: async (_parsed, ctx) => {
+          const actor = inferActorRef(ctx.actorId, ctx.roster);
+          await this.deps.combat.endTurn(ctx.sessionId, { encounterId: ctx.encounterId, actor });
+          return {
+            requiresPlayerInput: false,
+            actionComplete: true,
+            type: "SIMPLE_ACTION_COMPLETE" as const,
+            action: "EndTurn",
+            message: "Turn ended.",
+          };
+        },
+      },
+
+      // 20. Attack (last because it's the broadest text match)
       {
         id: "attack",
         tryParse: (text, roster) => tryParseAttackText(text, roster),

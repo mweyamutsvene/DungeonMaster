@@ -120,6 +120,17 @@ export interface PreparedSpellDefinition {
     readonly baseCount: number;
     readonly scaling: 'cantrip' | 'perLevel';
   };
+  /**
+   * Auto-hit spell: bypasses attack rolls entirely (e.g. Magic Missile).
+   * Damage is resolved directly without to-hit mechanics.
+   */
+  readonly autoHit?: boolean;
+  /**
+   * Base number of projectiles/darts for auto-hit spells (e.g. Magic Missile = 3).
+   * For spells with upcast scaling, additional darts are computed as:
+   *   dartCount + (castAtLevel - spell.level)
+   */
+  readonly dartCount?: number;
 }
 
 /**

@@ -8,10 +8,13 @@ import { ValidationError } from "../../../../errors.js";
 import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
 import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
 import { CUNNING_ACTION } from "../../../../../domain/entities/classes/feature-keys.js";
+import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import {
   normalizeResources,
   readBoolean,
+  getPosition,
 } from "../../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
   inferActorRef,
   findCombatantByName,
@@ -134,6 +137,7 @@ export class SocialHandlers {
 
   /**
    * Handle Help action – give ally advantage on next attack against target.
+   * D&D 5e 2024: Helper must be within 5 feet of the target creature.
    */
   async handleHelpAction(
     sessionId: string,
@@ -147,6 +151,25 @@ export class SocialHandlers {
     const targetRef = findCombatantByName(targetName, roster);
     if (!targetRef) {
       throw new ValidationError(`Could not find target: ${targetName}`);
+    }
+
+    // D&D 5e 2024: Help action requires being within 5 feet of the target
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
+    const targetEntityId =
+      (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
+    const targetCombatant = findCombatantByEntityId(combatants, targetEntityId);
+    if (actorCombatant && targetCombatant) {
+      const actorPos = getPosition(normalizeResources(actorCombatant.resources ?? {}));
+      const targetPos = getPosition(normalizeResources(targetCombatant.resources ?? {}));
+      if (actorPos && targetPos) {
+        const distance = calculateDistance(actorPos, targetPos);
+        if (distance > 5.0001) {
+          throw new ValidationError(
+            `Help action requires being within 5 feet of ${targetName}. You are ${Math.round(distance)} ft away.`,
+          );
+        }
+      }
     }
 
     await this.deps.actions.help(sessionId, { encounterId, actor, target: targetRef });
