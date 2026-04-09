@@ -661,3 +661,175 @@ describe("Character species traits", () => {
     expect(resistances).toHaveLength(2); // poison not duplicated
   });
 });
+
+describe("Character multiclass support", () => {
+  it("getClassLevels() derives single entry from single-class fields", () => {
+    const c = new Character({
+      id: "mc1",
+      name: "Single",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 5,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+    });
+
+    const levels = c.getClassLevels();
+    expect(levels).toEqual([{ classId: "fighter", level: 5 }]);
+  });
+
+  it("getClassLevels() returns stored classLevels when present", () => {
+    const c = new Character({
+      id: "mc2",
+      name: "Multi",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 8,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      classLevels: [
+        { classId: "fighter", level: 5 },
+        { classId: "monk", level: 3, subclass: "open-hand" },
+      ],
+    });
+
+    const levels = c.getClassLevels();
+    expect(levels).toEqual([
+      { classId: "fighter", level: 5 },
+      { classId: "monk", level: 3, subclass: "open-hand" },
+    ]);
+  });
+
+  it("getTotalLevel() sums class levels for multiclass", () => {
+    const c = new Character({
+      id: "mc3",
+      name: "Multi",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 8,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      classLevels: [
+        { classId: "fighter", level: 5 },
+        { classId: "rogue", level: 3 },
+      ],
+    });
+
+    expect(c.getTotalLevel()).toBe(8);
+  });
+
+  it("getTotalLevel() returns single level when no classLevels", () => {
+    const c = new Character({
+      id: "mc4",
+      name: "Single",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 5,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+    });
+
+    expect(c.getTotalLevel()).toBe(5);
+  });
+
+  it("includes subclass in derived classLevels", () => {
+    const c = new Character({
+      id: "mc5",
+      name: "Subclassed",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 3,
+      characterClass: "Fighter",
+      classId: "fighter",
+      subclass: "champion",
+      experiencePoints: 0,
+    });
+
+    expect(c.getClassLevels()).toEqual([{ classId: "fighter", level: 3, subclass: "champion" }]);
+  });
+
+  it("toJSON includes classLevels when present", () => {
+    const c = new Character({
+      id: "mc6",
+      name: "Multi",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 8,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+      classLevels: [
+        { classId: "fighter", level: 5 },
+        { classId: "monk", level: 3 },
+      ],
+    });
+
+    const json = c.toJSON();
+    expect(json.classLevels).toEqual([
+      { classId: "fighter", level: 5 },
+      { classId: "monk", level: 3 },
+    ]);
+  });
+
+  it("toJSON omits classLevels when not present", () => {
+    const c = new Character({
+      id: "mc7",
+      name: "Single",
+      maxHP: 10,
+      currentHP: 10,
+      armorClass: 15,
+      speed: 30,
+      abilityScores: new AbilityScores({
+        strength: 16, dexterity: 14, constitution: 14,
+        intelligence: 10, wisdom: 10, charisma: 10,
+      }),
+      level: 5,
+      characterClass: "Fighter",
+      classId: "fighter",
+      experiencePoints: 0,
+    });
+
+    const json = c.toJSON();
+    expect(json.classLevels).toBeUndefined();
+  });
+});

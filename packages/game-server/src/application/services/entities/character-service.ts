@@ -34,6 +34,7 @@ export class CharacterService {
       className?: string | null;
       sheet: JsonValue;
       id?: string;
+      classLevels?: Array<{ classId: string; level: number; subclass?: string }>;
     },
   ): Promise<SessionCharacterRecord> {
     const session = await this.sessions.getById(sessionId);
@@ -58,6 +59,11 @@ export class CharacterService {
     let sheet = (typeof input.sheet === "object" && input.sheet !== null)
       ? enrichSheetArmor(enrichSheetAttacks(input.sheet as Record<string, unknown>))
       : input.sheet;
+
+    // Store classLevels in sheet JSON when provided (multiclass support)
+    if (input.classLevels && input.classLevels.length > 0 && typeof sheet === "object" && sheet !== null) {
+      (sheet as Record<string, unknown>).classLevels = input.classLevels;
+    }
 
     const created = await this.characters.createInSession(sessionId, {
       id,

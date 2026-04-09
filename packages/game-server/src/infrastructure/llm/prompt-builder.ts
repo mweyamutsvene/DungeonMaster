@@ -79,4 +79,16 @@ export class PromptBuilder {
   getVersion(): string {
     return this.version;
   }
+
+  /**
+   * Estimate the total token count across all sections.
+   * Uses ~4 characters per token heuristic.
+   */
+  estimateTokens(): number {
+    let totalChars = 0;
+    for (const content of this.sections.values()) {
+      totalChars += content.length;
+    }
+    return Math.ceil(totalChars / 4);
+  }
 }

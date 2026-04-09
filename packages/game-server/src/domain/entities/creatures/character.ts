@@ -87,6 +87,13 @@ export interface CharacterData extends CreatureData {
   fightingStyle?: FightingStyleId;
 
   /**
+   * Multi-class support: array of class entries with per-class levels.
+   * When present, takes precedence over the single `characterClass` + `level` fields.
+   * When absent, the character is single-class and classLevels is derived from the single fields.
+   */
+  classLevels?: Array<{ classId: string; level: number; subclass?: string }>;
+
+  /**
    * Darkvision range in feet (0 means none). Typically from species traits.
    */
   darkvisionRange?: number;
@@ -115,6 +122,7 @@ export class Character extends Creature {
   private darkvisionRange: number;
   private speciesDamageResistances: string[];
   private speciesSaveAdvantages: readonly SpeciesSaveAdvantage[];
+  private classLevelsData?: Array<{ classId: string; level: number; subclass?: string }>;
 
   constructor(data: CharacterData) {
     super(data);
@@ -147,11 +155,25 @@ export class Character extends Creature {
 
     this.featIds = data.featIds ? [...data.featIds] : [];
     this.fightingStyle = data.fightingStyle;
+    if (data.classLevels && data.classLevels.length > 0) {
+      this.classLevelsData = [...data.classLevels];
+    }
   }
 
   // === Getters ===
 
   getLevel(): number {
+    return this.level;
+  }
+
+  /**
+   * Returns the total character level (sum of all class levels for multiclass,
+   * or the single level for single-class characters).
+   */
+  getTotalLevel(): number {
+    if (this.classLevelsData && this.classLevelsData.length > 0) {
+      return this.classLevelsData.reduce((sum, cl) => sum + cl.level, 0);
+    }
     return this.level;
   }
 
@@ -161,6 +183,20 @@ export class Character extends Creature {
 
   getClassId(): CharacterClassId | undefined {
     return this.classId;
+  }
+
+  /**
+   * Returns the normalized class levels array.
+   * For single-class characters, derives it from the single class fields.
+   * For multi-class characters, returns the stored classLevels array.
+   */
+  getClassLevels(): Array<{ classId: string; level: number; subclass?: string }> {
+    if (this.classLevelsData && this.classLevelsData.length > 0) {
+      return [...this.classLevelsData];
+    }
+    const id = this.classId ?? this.characterClass?.toLowerCase();
+    if (!id) return [];
+    return [{ classId: id, level: this.level, ...(this.subclass ? { subclass: this.subclass } : {}) }];
   }
 
   getSubclass(): string | undefined {
@@ -369,6 +405,7 @@ export class Character extends Creature {
       darkvisionRange: this.darkvisionRange,
       speciesDamageResistances: this.speciesDamageResistances,
       speciesSaveAdvantages: this.speciesSaveAdvantages,
+      ...(this.classLevelsData ? { classLevels: this.classLevelsData } : {}),
     };
   }
 }

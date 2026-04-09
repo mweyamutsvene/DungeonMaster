@@ -1,253 +1,138 @@
-# SME Research — EntityManagement
-**Scope**: Deep dive across ALL entity management code.  
-**Files covered**: 45+ files across services/entities, domain entities, repositories, infrastructure/db, infrastructure/testing, and application/types.
+# SME Research — EntityManagement — EM-M1: Basic Multiclassing Support
+**Scope**: Character entity, CharacterService, Prisma schema, CombatResourceBuilder, ClassFeatureResolver, hydration, and all className/classId consumers.
+**Files investigated**: 15+ source files across domain, application, and infrastructure layers.
 
 ---
 
-## Category 1: TODO / FIXME Comments (2 found)
+## Current State
 
-| # | File | Line | Priority | Description |
-|---|------|------|----------|-------------|
-| 1 | `application/services/entities/spell-lookup-service.ts` | 10-17 | Medium | 7-item TODO block: slot consumption, concentration tracking, save DC calc, TwoPhaseActionService integration for reaction spells, ActionService integration for spell attacks, AoE targeting. These are documented aspirations — some are NOW actually implemented elsewhere (concentration in `concentration-helper.ts`, TwoPhase reactions in `two-phase/spell-reaction-handler.ts`). The comment is stale/misleading about what's done vs not done. |
-| 2 | `domain/entities/items/magic-item-catalog.ts` | 428 | Low | Potion of Speed's Haste "extra action" not implemented — comment says "implement extra action via separate work." A real functional gap in Potion of Speed mechanics. |
+### Character entity (`domain/entities/creatures/character.ts`)
+- `CharacterData` interface: `level: number`, `characterClass: string`, `classId?: CharacterClassId`, `subclass?: string`, `subclassLevel?: number`
+- `Character` class stores private fields with getters: `getLevel()`, `getClass()`, `getClassId()`, `getSubclass()`
+- **No `classLevels` array exists** — strictly single-class
+- Constructor infers `classId` from `characterClass` via `isCharacterClassId()`
+- `levelUp()` assumes single class: increments level, recomputes HP via single `hitDie`, calls `defaultResourcePoolsForClass({ classId, level })`
+- `takeRest()` delegates to `refreshClassResourcePools()` with single classId/level
+- `getAC()` checks single `this.classId` for Unarmored Defense (barbarian/monk)
+- `toJSON()` serializes single `class`/`classId`
 
----
+### Prisma schema — `SessionCharacter` model
+- `level Int`, `className String?` — single class, no multiclass columns or JSON
 
-## Category 2: Repository Interface Parity Gaps — **3 gaps, 1 critical**
+### SessionCharacterRecord (`application/types.ts`)
+- `level: number`, `className: string | null` — mirrors Prisma, no multiclass fields
 
-### 2A. `PendingActionRepository` has NO Prisma implementation — CRITICAL
-- **Interface**: `application/repositories/pending-action-repository.ts` (11 methods)
-- **Only implementation**: `InMemoryPendingActionRepository` in `infrastructure/testing/memory-repos.ts:474`
-- **Used in production**: `infrastructure/api/app.ts:199` and `:382` — `new InMemoryPendingActionRepository()` is instantiated directly in the production app factory.
-- **Impact**: ALL pending actions (reaction prompts, Counterspell, Shield, Deflect Attacks, Opportunity Attacks) are LOST on server restart. A production server that restarts mid-reaction always orphans those pending actions.
-- **Not in UoW**: `PrismaUnitOfWork.run()` (`infrastructure/db/unit-of-work.ts`) does NOT include a `pendingActionsRepo` in its `RepositoryBundle`. Reaction resolution is therefore non-transactional: pendingAction + combatantState + event writes can be split across a crash.
-- **Not exported from barrel**: `application/repositories/index.ts` — all OTHER repo interfaces are exported; `PendingActionRepository` is not, which is an inconsistency.
+### ICharacterRepository (`application/repositories/character-repository.ts`)
+- `createInSession()` input: `{ id, name, level, className, sheet }` — single class
 
-### 2B. `ICharacterRepository` and `IMonsterRepository` missing `delete()`
-- **Interface**: `application/repositories/character-repository.ts` — no `delete()`
-- **Interface**: `application/repositories/monster-repository.ts` — no `delete()`
-- **Compare**: `INPCRepository` (`application/repositories/npc-repository.ts`) HAS `delete(id: string)`; Prisma and memory impls both implement it.
-- **Impact**: Characters and monsters added to a session cannot be removed. If a DM accidentally adds a wrong monster, the only fix is recreating the session.
-- Priority: Medium
+### MemoryCharacterRepository (`infrastructure/testing/memory-repos.ts`)
+- Mirrors `ICharacterRepository` — returns `SessionCharacterRecord` with single className/level
 
-### 2C. `ICharacterRepository` and `IMonsterRepository` missing `updateFaction()` / `updateAiControlled()`
-- Neither `ICharacterRepository` nor `IMonsterRepository` has methods to update `faction` or `aiControlled` post-creation; only `updateSheet` exists. Changing a monster's faction mid-session is impossible without re-creating it.
-- Priority: Low
+### CharacterService (`application/services/entities/character-service.ts`)
+- `addCharacter()`: validates `className` against class registry, stores single class
+- `takeSessionRest()` (line ~163): reads `char.className` for resource refresh
 
----
+### CombatResourceBuilder (`domain/entities/classes/combat-resource-builder.ts`)
+- Input: `{ className: string; level: number; sheet }` — single class
+- `buildCombatResources()`: single `classId`, calls `getClassDefinition()` once, `resourcesAtLevel()` once
+- Pact Magic detection hardcoded: `if (classId === "warlock" ...)`
 
-## Category 3: Dead Prisma DB Tables with No Repository (3 orphaned tables)
+### InitiativeHandler (`combat/tabletop/rolls/initiative-handler.ts`)
+- `buildCombatantResources(className, level, sheet)` → single-class resources
+- Danger Sense effect hardcoded: `className.toLowerCase() === "barbarian"`
+- Called per-character at combat start
 
-All three exist in `prisma/schema.prisma` but have ZERO application-layer code reading from them. No repository interface, no Prisma implementation, no service usage.
+### Creature hydration (`combat/helpers/creature-hydration.ts`)
+- `hydrateCharacter()`: sets `characterClass: record.className ?? 'Fighter'`, `classId: sheet.classId ?? record.className?.toLowerCase()`
+- Single-class assumption throughout
 
-| Table | Schema Lines | Comment in catalog | Priority |
-|-------|-------------|-------------------|----------|
-| `ClassFeatureDefinition` | ~31-38 | No reference in any app code | Low (likely planned) |
-| `ItemDefinition` | ~40-47 | `magic-item-catalog.ts:7` references it: _"or loaded from the database via the ItemDefinition table"_ but never does | Medium — StaticCatalog vs DB split is half-done |
-| `ConditionDefinition` | ~49-55 | No reference anywhere | Low (likely stale) |
-
-`ItemDefinition` is the most impactful because the comment implies intent to use it, but all magic items are currently served from the static in-code catalog. If a DM wants custom magic items, there's no path.
-
----
-
-## Category 4: Creature Hydration Gaps — **3 confirmed gaps, 1 potential bug**
-
-### 4A. [BUG — HIGH] Character `equipment` not hydrated → Unarmored Defense incorrectly fires for Barbarians/Monks wearing armor
-
-`hydrateCharacter()` (`application/services/combat/helpers/creature-hydration.ts:87-145`) never reads `equippedArmor` or `equippedShield` from the sheet. The `CharacterData` passed to `new Character(...)` has no `equipment` field.
-
-```ts
-// hydrateCharacter() does NOT include:
-equipment: sheet.equippedArmor ? { armor: ..., shield: ... } : undefined,
-```
-
-In `Character.getAC()`:
-```ts
-const wearingArmor = !!this.getEquipment()?.armor;  // ALWAYS false for hydrated chars
-if (!wearingArmor && classId && classHasFeature(classId, UNARMORED_DEFENSE, level)) {
-  // This FIRES even for Barbarians/Monks wearing armor!
-```
-
-A Barbarian in Chain Mail (AC 16) hydrated from DB would incorrectly get Unarmored Defense (10 + DEX + CON) applied instead of 16. In practice this only bites if Barbarians/Monks ever enter combat while wearing armor, which is unusual but possible.
-
-### 4B. [CONFIRMED GAP — MEDIUM] Character `subclass`/`subclassLevel` NOT read during hydration
-
-`hydrateCharacter()` does not read `subclass` or `subclassLevel` from sheet JSON. The hydrated `Character` will always have `subclass = undefined`.
-
-**Impact**: `hasOpenHandTechnique()` in `ClassFeatureResolver` checks `character.getSubclass()?.toLowerCase().includes("open hand")`. For a hydrated monk with Open Hand subclass, this check would fail — Open Hand Technique would not work after the character is loaded from DB. Other future subclass-gated features would share this bug.
-
-### 4C. [CONFIRMED GAP — HIGH] Monster/NPC damage resistances NOT on domain entity
-
-`hydrateMonster()` creates a `Monster` domain object with no `damageResistances`/`damageImmunities`/`damageVulnerabilities`. The `Monster` and `NPC` domain classes (and the base `Creature` class) have NO fields for these.
-
-Damage defenses are handled via a SEPARATE code path: `extractDamageDefenses(statBlock)` reads from raw JSON in combat services. This creates a dual-tracking issue:
-- `character.getSpeciesDamageResistances()` works for Characters
-- Monsters/NPCs require the caller to call `extractDamageDefenses(statBlock)` separately
-- If a new combat code path forgets to call `extractDamageDefenses()`, monsters/NPCs silently get no resistances
-
-The `Creature` base class has no `getDamageResistances()` / `getDamageImmunities()` methods, making the polymorphic API incomplete for this concern.
-
-### 4D. [CONFIRMED GAP — MEDIUM] `tempHP` not in `CombatantStateRecord` — lost on re-hydration
-
-`CombatantStateRecord` (`application/types.ts`) has no `hpTemp` field. Temp HP is tracked in memory on the domain `Creature` object but is NOT persisted to DB. If a character gains Temp HP mid-combat and the server restarts (or the hydration function is called again), the Temp HP is lost.
-
-Temp HP changes are not in `extractCombatantState()` (`creature-hydration.ts:253-260`) either — it only extracts `hpCurrent` and `conditions`.
+### Registry's multi-class function (EXISTS but UNUSED)
+- `hasFeature(classLevels: Array<{classId, level}>, feature)` in `registry.ts:127` — multi-class ready
+- `classHasFeature(classId, feature, level)` — single-class, used in 40+ call sites
 
 ---
 
-## Category 5: Character Sheet Fields Consumed vs Ignored During Combat Hydration
+## Affected Files (with rationale)
 
-Fields in character sheet JSON that are read during `hydrateCharacter()`:
-- ✅ `abilityScores`
-- ✅ `maxHP` / `hitPoints`
-- ✅ `currentHP` (overridden by combatantState.hpCurrent)
-- ✅ `armorClass` / `ac`
-- ✅ `speed` (also overridden by species)
-- ✅ `level`
-- ✅ `classId`
-- ✅ `featIds` / `feats`
-- ✅ `resourcePools` (initial state from sheet)
-- ✅ `fightingStyle`
-- ✅ `species` / `race` (species trait lookup)
+| File | Change Needed |
+|------|---------------|
+| `domain/entities/creatures/character.ts` | Add `classLevels` to `CharacterData`, add `getClassLevels()` normalizer, update `levelUp()`, `takeRest()`, `getAC()`, `toJSON()` |
+| `application/types.ts` | Decide: add field to `SessionCharacterRecord` OR rely on `sheet` JSON |
+| `prisma/schema.prisma` | Either add `classLevels Json?` column or store in `sheet` |
+| `application/repositories/character-repository.ts` | Update `createInSession` input if new column |
+| `infrastructure/testing/memory-repos.ts` | Mirror repo interface changes |
+| `infrastructure/db/character-repository.ts` | Mirror Prisma schema changes |
+| `application/services/entities/character-service.ts` | Accept `classLevels` in `addCharacter()`, use in rest logic |
+| `domain/entities/classes/combat-resource-builder.ts` | Accept class array, iterate ALL classes for resource pools |
+| `combat/tabletop/rolls/initiative-handler.ts` | Pass multi-class info into `buildCombatantResources()` |
+| `combat/helpers/creature-hydration.ts` | Read `classLevels` from sheet/record, construct `CharacterData` with it |
+| `domain/entities/classes/class-feature-resolver.ts` | Add multi-class overloads or forward to `hasFeature(classLevels)` |
+| `domain/rules/class-resources.ts` | `defaultResourcePoolsForClass` needs multi-class iteration |
+| `domain/rules/rest.ts` | `refreshClassResourcePools` needs multi-class iteration |
 
-Fields in sheet that are **NOT** read during hydration (some are gaps, some by design):
-- ❌ `subclass` / `subclassLevel` — **Gap** (see 4B above)
-- ❌ `equippedArmor` / `equippedShield` → `equipment` — **Gap** (see 4A above)
-- ❌ `armorTraining` — never hydrated; defaults to all-trained
-- ❌ `hitDiceRemaining` — only used by `takeSessionRest()`, not hydrated to domain entity
-- ❌ `className` as `CharacterData.characterClass` starts from `record.className` (not sheet), which is correct
-- ❌ `damageResistances`/`damageImmunities` on Sheet — these ARE merged into `speciesDamageResistances` during hydration via `mergedResistances`, which is correct
-- ❌ `darkvisionRange` — set from species but not from sheet directly (could miss manual overrides)
-
----
-
-## Category 6: Inventory System Completeness
-
-### What's working:
-- ✅ CRUD API: GET/POST/DELETE/PATCH in `session-inventory.ts`
-- ✅ Domain helpers: `addInventoryItem`, `removeInventoryItem`, `findInventoryItem`, `useConsumableItem`, `getAttunedCount`, `canAttune`
-- ✅ Attunement slot cap (3) enforced at API layer
-- ✅ `getWeaponMagicBonuses()` computes attack/damage bonuses from equipped magic weapons
-
-### Gaps:
-
-| # | Priority | Description |
-|---|----------|-------------|
-| 1 | HIGH | **Equip magic armor doesn't update sheet AC**: PATCH inventory sets `equipped: true` on the item, but does NOT re-run `enrichSheetArmor()` to update `sheet.armorClass`, `sheet.equippedArmor`, `sheet.equippedShield`. A `+1 Breastplate` equipped via inventory would NOT change the character's numeric AC. The armor enrichment only runs at character creation time. |
-| 2 | MEDIUM | **Magic item charges not decremented via API**: `CharacterItemInstance.currentCharges` tracks remaining charges, but there is no HTTP endpoint or `CharacterService` method to decrement charges after item use (except potions that call `useConsumableItem()`). Actively using a Staff of Fire in combat will never reduce its charges through the standard flow. |
-| 3 | MEDIUM | **No "use item" HTTP endpoint**: `useConsumableItem()` is a domain function but there is no API surface to trigger it outside combat (e.g., drinking a potion before combat starts). The combat tabletop flow routes potion use, but there's no out-of-combat `/sessions/:id/characters/:charId/inventory/:itemName/use` endpoint. |
-| 4 | LOW | **No item transfer API**: can't move items between characters or drop to ground via API |
-| 5 | LOW | **Inventory not synced to combatant resources at combat start**: the initialization path that copies `sheet.inventory` into `combatantState.resources.inventory` should be verified — if it's missing, combat-time item lookups for magic weapon bonuses would fail |
+### Downstream consumers reading single className/classId (13+ call sites):
+- `combat-service.ts:1295` — `creatureHasEvasion(char.className)`
+- `hit-rider-resolver.ts:77,87` — profiles filter by single `actorClassName`
+- `saving-throw-resolver.ts:235,265` — Paladin aura check
+- `attack-reaction-handler.ts:153,733` — target class for reaction detection
+- `spell-reaction-handler.ts:107` — other caster class check
+- `session-tabletop.ts:106,125` — class for roll-result flow
+- `tactical-view-service.ts:422,435` — actor class for tactical display
+- `combatant-resolver.ts:207` — className for combat stats
+- `executor-helpers.ts:83` — `actorRef.getClassId()` returns single ID
+- `creature-abilities.ts:16` — `creature.getClassId()` for ability lookup
+- `ai-context-builder.ts:513` — `getClassAbilities(className, level)`
+- `tabletop-utils.ts:74` — Feral Instinct check on single className
 
 ---
 
-## Category 7: Event System Completeness
+## Key Design Decision: Where to store classLevels
 
-### Currently emitted (29 event types in union):
-`SessionCreated`, `CharacterAdded`, `RestStarted`, `RestCompleted`, `CombatStarted`, `CombatEnded`, `TurnAdvanced`, `DeathSave`, `AttackResolved`, `DamageApplied`, `ActionResolved`, `OpportunityAttack`, `Move`, `HealingApplied`, `NarrativeText`, `ConcentrationMaintained`, `ConcentrationBroken`, `ReactionPrompt`, `ReactionResolved`, `Counterspell`, `ShieldCast`, `DeflectAttacks`, `DeflectAttacksRedirect`, `UncannyDodge`, `AbsorbElements`, `HellishRebuke`, `AiDecision`, `LegendaryAction`, `LairAction`
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: New Prisma column `classLevels Json?`** | Explicit, visible at DB level | Migration needed, dual-source with className+level |
+| **B: Store in `sheet` JSON** | No schema change, no migration | Less visible, requires hydration extraction |
 
-### Missing events:
-
-| Event | Priority | Justification |
-|-------|----------|---------------|
-| `MonsterAdded` | Medium | `CharacterAdded` exists but there's no equivalent for monsters added to a session. SSE clients can't subscribe to monster roster changes. |
-| `NPCAdded` | Medium | Same gap for NPCs. |
-| `InventoryChanged` | Medium | No event fired when inventory is mutated (GET/POST/DELETE/PATCH in `session-inventory.ts`). SSE clients (player-cli) have no way to react to inventory changes in real-time. |
-| `ConditionApplied` / `ConditionRemoved` | Low | Conditions are silently written to DB; no individual event per condition change. Makes the event log incomplete for narration/replay. |
-| `ItemUsed` | Low | No event for consuming a potion or using an item in combat. The `ActionResolved` event generically covers it but doesn't specialize for item consumption. |
-| `SpellCast` | Low | Spell casts surface as `ActionResolved { action: "CastSpell" }`. A dedicated `SpellCast` event would improve narration context and replay fidelity. |
-| `LevelUp` | Low | No event when a character levels up. |
+**Recommendation: Option B** (store in `sheet.classLevels`). The `sheet` JSON already carries arbitrary class data (`className`, `subclass`, `classId`, etc.), and hydration already reads from it. No migration needed. The record-level `className` and `level` remain as the "primary" class for backward compat.
 
 ---
 
-## Category 8: NPC vs Monster Handling Asymmetries
+## D&D 5e Multiclass Rules That Affect Implementation
 
-| Dimension | Monster | NPC | Notes |
-|-----------|---------|-----|-------|
-| Default faction | `"enemy"` | `"party"` | Consistent and intentional |
-| `delete()` support | ❌ Missing from `IMonsterRepository` | ✅ `INPCRepository.delete()` | Gap — monsters can't be removed |
-| CR / Proficiency scaling | CR-based formula in `Monster.getProficiencyBonus()` | Fixed via `data.proficiencyBonus ?? 2` in `NPC` | NPCs used as enemies don't get CR-based scaling |
-| `monsterDefinitionId` | Has it — links to `MonsterDefinition` for stat block lookup | None | NPCs always hand-rolled; no definition catalog |
-| Damage resistances on entity | Neither has fields on domain entity | Neither has fields | Both use `extractDamageDefenses()` side-channel |
-| Species traits | Not applicable | Not applicable | Only Characters get species enrichment |
-| `statBlock` vs `sheet` naming | `statBlock` JSON column | `statBlock` JSON column | Consistent, but differs from Character's `sheet` |
-
-The key asymmetry is **`delete()` missing on Monsters but present on NPCs**. A monster added to a session by mistake cannot be removed without rebuilding the session.
+1. **Total character level** = sum of all class levels. Used for: proficiency bonus, cantrip scaling, HP total, XP thresholds.
+2. **Individual class level** = per-class. Used for: feature eligibility, resource pool sizes, Extra Attack, hit die type for HP.
+3. **Proficiency bonus** comes from TOTAL level: `Math.floor((totalLevel-1)/4) + 2`.
+4. **Extra Attack doesn't stack**: Fighter 5 / Monk 5 gets it from either, not both. Highest tier wins.
+5. **Spell slots**: Multiclass spellcasters have a SHARED slot table based on combined caster levels (with half-caster/third-caster weighting). Current sheet-based `spellSlots` field can express this — the complex calculation is a future concern.
+6. **HP**: Each level-up adds hit die from the class being leveled. A Fighter 3 / Wizard 2 has 3d10 + 2d6 hit dice.
+7. **Resource pools per class**: Ki from Monk levels only, Rage from Barbarian levels only, etc. No collisions expected since pool names are class-prefixed.
 
 ---
 
-## Category 9: Character Generation Gaps
+## Dependencies That Could Break
 
-`CharacterService.addCharacter()` (`application/services/entities/character-service.ts:32-74`):
-- ✅ Validates name (non-empty) and level (integer 1-20)
-- ✅ Enriches sheet with weapon catalog + armor catalog properties
-- ❌ **No validation of `className`**: any string accepted, including invalid class IDs. A character with `className: "Spaceship"` will be created without error. The `classId` normalization silently fails and the character gets no resource pools.
-- ❌ **No validation that sheet has required fields** (`abilityScores`, `maxHp`): an empty `{}` sheet will be stored and will fail at hydration time with silent defaults (all 10 ability scores, 10 HP).
-- ❌ **`hitDiceRemaining` not initialized**: `takeSessionRest()` reads `sheet.hitDiceRemaining as number` with fallback to `totalHitDice`, but a freshly created character never has this field set explicitly. Correct by fallback, but fragile.
-
----
-
-## Category 10: Unit of Work Consistency
-
-- ✅ `PrismaUnitOfWork` includes 7 repos: sessions, characters, monsters, npcs, combat, events, spells
-- ❌ `PendingActionRepository` is NOT in UoW — reaction resolution writes (pendingAction + combatantState + event) are non-transactional
-- ❌ `createInMemoryRepos()` returns `InMemoryRepos` which does NOT include `pendingActionsRepo` — tests that need reactions must separately instantiate `InMemoryPendingActionRepository`. This inconsistency creates test setup boilerplate and risks tests that forget to create it.
-- ❌ Character sheet updates in `CharacterService.takeSessionRest()` do multiple `characters.updateSheet()` calls in a `for` loop — no UoW transaction. If the server dies partway through a rest, some characters get updated and some don't.
+1. **HitRiderResolver** (line 87): `profiles.filter(p => p.classId === actorClassName)` — only matches ONE class. Multi-class needs to match ANY class.
+2. **CombatTextProfile matching**: `matchAttackEnhancements()` / `detectAttackReactions()` filter profiles by classId — need to check all classes.
+3. **AI context builder**: `getClassAbilities(className, level)` returns abilities for ONE class. Multi-class character's AI behavior would be incomplete.
+4. **Feral Instinct check** in `tabletop-utils.ts`: hardcoded `className === "barbarian"`. Would miss a multi-class barbarian.
+5. **All 13+ `char.className` call sites** above need a strategy: check all classes or just "primary" class.
 
 ---
 
-## Category 11: Dead Code / Unused Entity Types
+## Risks
 
-| Entity / Type | File | Status | Notes |
-|---------------|------|--------|-------|
-| `ClassFeatureDefinition` | Prisma schema only | Orphaned table | No read/write path exists |
-| `ItemDefinition` | Prisma schema only | Orphaned table | Comment in catalog implies intent; never used |
-| `ConditionDefinition` | Prisma schema only | Orphaned table | All condition logic lives in `conditions.ts` |
-| `InventoryItem` (legacy) | `domain/entities/items/inventory.ts:18-40` | Legacy type kept for ammo/thrown tracking | Comment says "legacy for backward compat" — may be able to unify with `CharacterItemInstance` |
-| `proficiencyBonus` computed in `hydrateCharacter` | `creature-hydration.ts:96` | Computed but not used | `const proficiencyBonus = readNumber(sheet, 'proficiencyBonus') ?? ...` — this variable is set but not passed into `CharacterData` (Character derives proficiency from level). Dead code inside hydration. |
+1. **Blast radius**: 13+ call sites read `className` as a single string. Changing all at once is risky. A phased approach (add `getClassLevels()` first, migrate consumers incrementally) is safer.
+2. **E2E test scenarios**: All 43+ scenarios assume single-class. Multi-class must be opt-in and backward-compatible — when `classLevels` is absent/empty, behavior must be unchanged.
+3. **Resource pool name conflicts**: Unlikely since pools are class-prefixed (e.g., `ki`, `rage`, `actionSurge`), but should be validated.
+4. **Hit points computation**: `levelUp()` currently uses single hitDie. Multi-class levelUp needs to know WHICH class is being leveled to pick the right hit die. The `levelUp()` API needs a `targetClassId` parameter.
 
 ---
 
-## Category 12: Missing Entity Validators at System Boundaries
+## Recommendations
 
-| Location | Missing Validation | Priority |
-|----------|--------------------|----------|
-| `CharacterService.addCharacter()` | `className` not validated against class registry | Medium |
-| `CharacterService.addCharacter()` | Sheet structure not validated (required fields) | Low |
-| `session-creatures.ts` POST /monsters | Monster stat block not validated for required fields | Low |
-| `session-creatures.ts` POST /npcs | NPC stat block not validated | Low |
-| `PendingActionRepository` | No expiry cleanup scheduled — `cleanupExpired()` defined but never called by a background task | Medium |
-
----
-
-## Summary Table
-
-| Category | Count | Highest Priority Finding |
-|----------|-------|--------------------------|
-| TODO/FIXME | 2 | Stale TODO in spell-lookup-service |
-| Repo parity gaps | 3 | No Prisma impl for PendingActionRepository (CRITICAL) |
-| Dead Prisma tables | 3 | ItemDefinition orphaned despite catalog comment |
-| Hydration gaps | 4 | `equipment` not hydrated → Unarmored Defense fires while armored (BUG) |
-| Sheet fields unused in combat | ~5 | `subclass` and `equipment` never hydrated |
-| Inventory completeness | 5 | Magic armor equip doesn't update AC |
-| Event system gaps | 7 | MonsterAdded, NPCAdded, InventoryChanged missing |
-| NPC vs Monster asymmetries | 6 | Monsters can't be deleted |
-| Character generation gaps | 3 | No className validation |
-| Unit of Work | 3 | Rest operation not transactional |
-| Dead code | 5 | Legacy InventoryItem type, unused proficiencyBonus in hydration |
-| Missing validators | 4 | cleanupExpired() never scheduled |
-| **TOTAL** | **50** | |
-
----
-
-## Top 5 Actionable Priorities
-
-1. **[CRITICAL][Correctness Bug]** Hydrate `equipment` (from sheet `equippedArmor`/`equippedShield`) into `CharacterData` in `hydrateCharacter()` — prevents Unarmored Defense miscalculation for Barbarians/Monks wearing armor.
-
-2. **[CRITICAL][Durability]** Implement `PrismaPendingActionRepository` and add it to `PrismaUnitOfWork`. The production server currently loses all in-flight reactions on restart.
-
-3. **[HIGH][Correctness Bug]** Add `subclass`/`subclassLevel` reading to `hydrateCharacter()` — Open Hand Technique silently breaks for DB-persisted monks.
-
-4. **[HIGH][Correctness Gap]** `tempHP` needs a column in `CombatantStateRecord` (or stored in `resources` JSON with a known key) and restored during `hydrateCharacter()`.
-
-5. **[MEDIUM][Feature Completeness]** Add `delete()` to `IMonsterRepository`/`ICharacterRepository` and re-run `enrichSheetArmor()` when equipping armor via inventory PATCH.
+1. **Phase 1 (safe, backward-compat)**: Add `classLevels?: Array<{classId, level, subclass?}>` to `CharacterData`. Implement `getClassLevels()` that returns `[{classId: this.classId, level: this.level, subclass: this.subclass}]` when classLevels is absent. All new code uses `getClassLevels()` — existing single-class getters remain for backward compat.
+2. **Phase 2**: Update `CombatResourceBuilder` to accept `classLevels` array and iterate all classes. Update `buildCombatantResources()` in initiative handler.
+3. **Phase 3**: Migrate feature-check consumers from `classHasFeature(singleClass, feature, level)` to `hasFeature(getClassLevels(), feature)` — one call site at a time.
+4. **Phase 4**: Update hydration to read `sheet.classLevels` and populate `CharacterData.classLevels`.
+5. **Don't change Prisma schema** — store in sheet JSON. Keep `className`/`level` as the primary class.
+6. **Total level**: `getLevel()` should return sum of classLevels when present. Keep existing `level` field as-is for backward compat; `getLevel()` prioritizes classLevels sum.

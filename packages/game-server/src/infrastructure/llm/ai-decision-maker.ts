@@ -3,6 +3,7 @@ import type { IAiDecisionMaker, AiDecision, AiCombatContext } from '../../applic
 import { extractFirstJsonObject } from './json.js';
 import { llmDebugLog } from './debug.js';
 import { PromptBuilder } from './prompt-builder.js';
+import { truncateContextForLlm } from './context-budget.js';
 
 /**
  * Infrastructure adapter: LLM-based AI decision maker
@@ -69,12 +70,21 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
 
     // Strip battlefield from the JSON snapshot — it's already rendered as a formatted top-level section
     const { battlefield: _bf, ...contextWithoutBattlefield } = input.context;
+
+    // Apply progressive truncation to fit within LLM context window
+    const { context: truncatedContext, wasTruncated } = truncateContextForLlm(contextWithoutBattlefield as AiCombatContext);
+    if (wasTruncated) {
+      this.aiLog('[LlmAiDecisionMaker] Context truncated to fit token budget');
+    }
+    // Strip battlefield from truncated context too (it was already on the original)
+    const { battlefield: _bf2, ...truncatedWithoutBattlefield } = truncatedContext;
+
     const prompt = new PromptBuilder('v1')
       .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable, hasSpells))
       .addSectionIf(!!bf, 'battlefield', battlefieldContent)
       .addSectionIf(!!bp, 'battle-plan', battlePlanContent)
       .addSectionIf(hasNarrative, 'narrative', narrativeContent)
-      .addSection('combat-state', 'Current combat state:\n' + JSON.stringify(contextWithoutBattlefield, null, 2));
+      .addSection('combat-state', 'Current combat state:\n' + JSON.stringify(truncatedWithoutBattlefield));
 
     const messages = prompt.buildAsMessages();
 

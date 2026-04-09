@@ -51,6 +51,12 @@ export interface CombatResourceBuilderInput {
     preparedSpells?: Array<{ name: string; [key: string]: unknown }>;
     resourcePools?: Array<{ name: string; current: number; max: number }>;
   };
+  /**
+   * Multi-class support: when provided, iterates all class entries for resource pools.
+   * Each entry's resourcesAtLevel() is called with the class-specific level.
+   * When absent, uses single className + level (backward compatible).
+   */
+  classLevels?: Array<{ classId: string; level: number; subclass?: string }>;
 }
 
 // ----- Builder -----
@@ -63,25 +69,39 @@ export interface CombatResourceBuilderInput {
  * then adds cross-class concerns (spell slots, Shield tracking).
  */
 export function buildCombatResources(input: CombatResourceBuilderInput): CombatResourcesResult {
-  const { className, level, sheet } = input;
-  const classId = className.toLowerCase();
+  const { className, level, sheet, classLevels } = input;
 
   let resourcePools: ResourcePool[] = [];
 
+  // Compute ability modifiers from sheet scores (shared across all class entries)
+  const abilityModifiers: Record<string, number> = {};
+  if (sheet?.abilityScores) {
+    for (const [ability, score] of Object.entries(sheet.abilityScores)) {
+      if (typeof score === "number") {
+        abilityModifiers[ability] = Math.floor((score - 10) / 2);
+      }
+    }
+  }
+
   // 1. Class-specific resource pools (from domain class definitions)
-  if (isCharacterClassId(classId)) {
-    const classDef = getClassDefinition(classId as CharacterClassId);
-    // Compute ability modifiers from sheet scores for classes that need them
-    // (e.g. Monk's Wholeness of Body uses WIS modifier).
-    const abilityModifiers: Record<string, number> = {};
-    if (sheet?.abilityScores) {
-      for (const [ability, score] of Object.entries(sheet.abilityScores)) {
-        if (typeof score === "number") {
-          abilityModifiers[ability] = Math.floor((score - 10) / 2);
+  //    When classLevels is provided, iterate each class entry for its pools.
+  //    Otherwise fall back to single className + level (backward compatible).
+  const classEntries = classLevels && classLevels.length > 0
+    ? classLevels
+    : [{ classId: className.toLowerCase(), level, subclass: (sheet as any)?.subclass as string | undefined }];
+
+  for (const entry of classEntries) {
+    const entryClassId = entry.classId.toLowerCase();
+    if (isCharacterClassId(entryClassId)) {
+      const classDef = getClassDefinition(entryClassId as CharacterClassId);
+      const classPools = classDef.resourcesAtLevel?.(entry.level, abilityModifiers, entry.subclass) ?? [];
+      // Merge: only add pools not already present (avoid duplicates across classes)
+      for (const pool of classPools) {
+        if (!resourcePools.some((p) => p.name === pool.name)) {
+          resourcePools.push({ ...pool });
         }
       }
     }
-    resourcePools = [...(classDef.resourcesAtLevel?.(level, abilityModifiers, sheet?.subclass) ?? [])];
   }
 
   // 2. Merge any existing sheet-level resource pools that aren't already present
@@ -134,10 +154,13 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
   // 6. Sentinel feat detection (for OA enhancements)
   const sentinelEnabled = Array.isArray(featIds) && featIds.includes(FEAT_SENTINEL);
 
-  // 7. Pact Magic slot level (Warlock only)
+  // 7. Pact Magic slot level (Warlock only — check all class entries)
   let pactSlotLevel: number | undefined;
-  if (classId === "warlock" && level >= 1) {
-    pactSlotLevel = pactMagicSlotsForLevel(level).slotLevel;
+  for (const entry of classEntries) {
+    if (entry.classId.toLowerCase() === "warlock" && entry.level >= 1) {
+      pactSlotLevel = pactMagicSlotsForLevel(entry.level).slotLevel;
+      break;
+    }
   }
 
   return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, warCasterEnabled, sentinelEnabled, pactSlotLevel };

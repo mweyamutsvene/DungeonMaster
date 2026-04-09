@@ -194,4 +194,55 @@ describe("buildCombatResources", () => {
       max: 1,
     });
   });
+
+  it("builds resources from classLevels array for multiclass character", () => {
+    const result = buildCombatResources({
+      className: "Fighter",
+      level: 8,
+      sheet: { abilityScores: { wisdom: 16, dexterity: 16 } } as any,
+      classLevels: [
+        { classId: "fighter", level: 5 },
+        { classId: "monk", level: 3 },
+      ],
+    });
+
+    // Should have resources from both classes
+    expect(result.resourcePools.find(p => p.name === "actionSurge")).toBeDefined();
+    expect(result.resourcePools.find(p => p.name === "secondWind")).toBeDefined();
+    expect(result.resourcePools.find(p => p.name === "ki")).toBeDefined();
+    // Ki should be based on monk level 3, not total level 8
+    expect(result.resourcePools.find(p => p.name === "ki")?.max).toBe(3);
+  });
+
+  it("classLevels omitted falls back to single className + level", () => {
+    const withLevels = buildCombatResources({
+      className: "Fighter",
+      level: 5,
+      sheet: {} as any,
+      classLevels: [{ classId: "fighter", level: 5 }],
+    });
+
+    const withoutLevels = buildCombatResources({
+      className: "Fighter",
+      level: 5,
+      sheet: {} as any,
+    });
+
+    expect(withLevels.resourcePools).toEqual(withoutLevels.resourcePools);
+  });
+
+  it("multiclass warlock detects pact slot level from classLevels", () => {
+    const result = buildCombatResources({
+      className: "Fighter",
+      level: 7,
+      sheet: { abilityScores: { charisma: 16 } } as any,
+      classLevels: [
+        { classId: "fighter", level: 5 },
+        { classId: "warlock", level: 2 },
+      ],
+    });
+
+    expect(result.pactSlotLevel).toBeDefined();
+    expect(result.resourcePools.find(p => p.name === "pactMagic")).toBeDefined();
+  });
 });

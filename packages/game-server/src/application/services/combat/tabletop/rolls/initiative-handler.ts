@@ -59,6 +59,7 @@ function buildCombatantResources(
   className: string,
   level: number,
   sheet: any,
+  classLevels?: Array<{ classId: string; level: number; subclass?: string }>,
 ): Record<string, unknown> {
   const resources: Record<string, unknown> = {};
 
@@ -72,6 +73,7 @@ function buildCombatantResources(
     className,
     level,
     sheet: sheet ?? {},
+    classLevels,
   });
   if (combatRes.resourcePools.length > 0) {
     resources.resourcePools = combatRes.resourcePools;
@@ -201,7 +203,8 @@ export class InitiativeHandler {
       const charClassName = character.className ?? sheet?.className ?? "";
       const charLevel = ClassFeatureResolver.getLevel(sheet, character.level);
 
-      const charResources = buildCombatantResources(charClassName, charLevel, sheet);
+      const charClassLevels = Array.isArray(sheet?.classLevels) ? sheet.classLevels : undefined;
+      const charResources = buildCombatantResources(charClassName, charLevel, sheet, charClassLevels);
 
       combatants.push(this.buildCombatantEntry("Character", actorId, finalInitiative, sheet?.currentHp ?? sheet?.maxHp ?? 10, sheet?.maxHp ?? 10, charResources));
     }
@@ -237,7 +240,8 @@ export class InitiativeHandler {
       }
       const otherInitiative = otherRoll + otherDexMod + otherAlertBonus;
 
-      const otherResources = buildCombatantResources(otherClassName, otherLevel, otherSheet);
+      const otherClassLevels = Array.isArray(otherSheet?.classLevels) ? otherSheet.classLevels : undefined;
+      const otherResources = buildCombatantResources(otherClassName, otherLevel, otherSheet, otherClassLevels);
 
       combatants.push(this.buildCombatantEntry("Character", otherChar.id, otherInitiative, otherSheet?.currentHp ?? otherSheet?.maxHp ?? 10, otherSheet?.maxHp ?? 10, otherResources));
 

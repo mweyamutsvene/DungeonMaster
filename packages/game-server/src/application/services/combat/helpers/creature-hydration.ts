@@ -206,6 +206,18 @@ export function hydrateCharacter(
   // Parse subclass info (e.g., "Open Hand" for Monk, "Champion" for Fighter)
   const subclass = readString(sheet, 'subclass');
   const subclassLevel = readNumber(sheet, 'subclassLevel') ?? undefined;
+
+  // Parse multiclass class levels from sheet (if present)
+  const rawClassLevels = readArray(sheet, 'classLevels');
+  const classLevels = rawClassLevels
+    ? (rawClassLevels as Array<Record<string, unknown>>)
+        .filter((cl) => typeof cl.classId === "string" && typeof cl.level === "number")
+        .map((cl) => ({
+          classId: cl.classId as string,
+          level: cl.level as number,
+          ...(typeof cl.subclass === "string" ? { subclass: cl.subclass } : {}),
+        }))
+    : undefined;
   
   // Parse species and look up combat-relevant traits
   const speciesName = readString(sheet, 'species') ?? readString(sheet, 'race');
@@ -248,6 +260,7 @@ export function hydrateCharacter(
     speciesSaveAdvantages: speciesTraits?.saveAdvantages,
     equipment,
     armorTraining,
+    classLevels: classLevels && classLevels.length > 0 ? classLevels : undefined,
   };
 
   const character = new Character(data);

@@ -83,7 +83,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CR-M1: Savage Attacker fires every hit instead of once-per-turn.** D&D 5e 2024 says once per turn. No turn-tracking state in `resolveAttack()`.
   - Files: `domain/combat/attack-resolver.ts`
 
-- [ ] **CR-M2: Multiple damage types per attack not supported.** `AttackSpec` has single `damageType`. Flame Tongue (slashing + fire), Divine Smite (weapon + radiant) need separate resistance checks per type.
+- [x] **CR-M2: Multiple damage types per attack not supported.** Added `additionalDamage` field to `AttackSpec`; each type gets individual defense checks. Critical hits double all damage types.
   - Files: `domain/combat/attack-resolver.ts`
 
 - [x] **CR-M3: Incapacitated/death doesn't break concentration in domain layer.** Only damage triggers checks. D&D 5e 2024 also ends concentration on Incapacitated or death.
@@ -95,8 +95,8 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CR-M5: `attemptMovement()` uses Euclidean distance instead of alternating diagonal cost.** Fixed: calculateDistance now uses Chebyshev (D&D grid standard).
   - Files: `domain/rules/movement.ts`
 
-- [ ] **CR-M6: Heavily/lightly obscured areas not implemented.** No obscuration terrain types. Heavy obscuration should grant Blinded condition.
-  - Files: `domain/rules/combat-map-types.ts`, `domain/rules/hide.ts`
+- [x] **CR-M6: Heavily/lightly obscured areas not implemented.** Added `ObscuredLevel` type, `getObscuredLevelAt()`, and `getObscurationAttackModifiers()` wired into all attack paths.
+  - Files: `domain/rules/combat-map-types.ts`, `domain/rules/combat-map-sight.ts`
 
 - [x] **CR-M7: Warlock pact slots may not refresh on short rest.** (already correct — pactMagic uses `refreshOn: "both"`) `rest.ts` blanket checks `spellSlot_*` prefix → long rest only. If Warlock pact slots use that naming, short rest recovery breaks.
   - Files: `domain/rules/rest.ts`
@@ -123,25 +123,25 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CO-M3: Bonus action spell limitations not enforced.** (already done) If BA spell cast, only cantrip allowed as action. Not checked.
   - Files: `tabletop/action-dispatcher.ts`, `tabletop/spell-action-handler.ts`
 
-- [ ] **CO-M4: `handleDamageRoll` is ~370 lines — extract to DamageResolver class.**
-  - Files: `tabletop/roll-state-machine.ts`
+- [x] **CO-M4: `handleDamageRoll` is ~370 lines — extract to DamageResolver class.** Extracted to `rolls/damage-resolver.ts`; `handleDamageRoll` is now a 3-line delegation.
+  - Files: `tabletop/rolls/damage-resolver.ts`, `tabletop/roll-state-machine.ts`
 
-- [ ] **CO-M5: Redundant `listCombatants` calls (5-7 per damage resolution).** Each call is a DB read.
-  - Files: `tabletop/roll-state-machine.ts`
+- [x] **CO-M5: Redundant `listCombatants` calls (5-7 per damage resolution).** Cached combatants in DamageResolver and RollStateMachine; 11 calls → 1 initial + 2-3 post-mutation re-fetches.
+  - Files: `tabletop/rolls/damage-resolver.ts`, `tabletop/roll-state-machine.ts`
 
 - [x] **CO-M6: Sentinel incapacitation check hardcoded to `false` (existing TODO).** (already done)
   - Files: `two-phase/attack-reaction-handler.ts`
 
-- [ ] **CO-M7: `CombatService.nextTurn()` at ~280 lines — growing unwieldy.**
+- [x] **CO-M7: `CombatService.nextTurn()` at ~280 lines — growing unwieldy.** Decomposed into 6 private methods; `nextTurn()` is now a thin orchestrator.
   - Files: `application/services/combat/combat-service.ts`
 
-- [ ] **CO-M8: Duplicated combatant-by-entity-ID lookup pattern across many files.** Should be shared utility.
-  - Files: Multiple
+- [x] **CO-M8: Duplicated combatant-by-entity-ID lookup pattern across many files.** Extracted `findCombatantByEntityId()` + `getEntityId()` to `helpers/combatant-lookup.ts`; replaced ~40 patterns across 22 files.
+  - Files: `application/services/combat/helpers/combatant-lookup.ts`
 
-- [ ] **CO-M9: Dual OA resolution paths (ActionService.move vs MoveReactionHandler).** Maintenance risk — OA rule changes must be applied in both places.
-  - Files: `combat/action-service.ts`, `two-phase/move-reaction-handler.ts`
+- [x] **CO-M9: Dual OA resolution paths consolidated.** ActionService.move now delegates to shared `resolveOpportunityAttacks()` via synthetic PendingAction. Both paths use same resolver with full ActiveEffect support.
+  - Files: `combat/action-service.ts`, `helpers/oa-detection.ts`
 
-- [ ] **CO-M10: `completeMove` has ~135 lines of inline OA roll resolution in facade.** Should be delegated.
+- [x] **CO-M10: `completeMove` inline OA resolution delegated.** Resolved as part of CO-M9 OA consolidation.
   - Files: `tabletop-combat-service.ts`
 
 ### Spell System
@@ -151,11 +151,11 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **SS-M2: Sacred Flame should ignore cover.** Cover bonus still applied in save resolution.
   - Files: `domain/entities/spells/catalog/cantrips.ts`, save delivery handler
 
-- [ ] **SS-M3: Eldritch Blast multi-beam not implemented.** At levels 5/11/17, should create additional beams (separate attack rolls).
-  - Files: `domain/entities/spells/catalog/cantrips.ts`, `tabletop/spell-delivery/`
+- [x] **SS-M3: Eldritch Blast multi-beam implemented.** Added `multiAttack` field + `getSpellAttackCount()`. Spell strike chaining in RollStateMachine. E2E scenario added.
+  - Files: `domain/entities/spells/prepared-spell-definition.ts`, `tabletop/spell-delivery/spell-attack-delivery-handler.ts`
 
-- [ ] **SS-M4: Scorching Ray multi-ray not implemented.** Should be 3 separate attack rolls, +1 per upcast level.
-  - Files: `domain/entities/spells/catalog/level-2.ts`, `tabletop/spell-delivery/`
+- [x] **SS-M4: Scorching Ray multi-ray implemented.** Uses same `multiAttack` system as Eldritch Blast. 3 base rays + 1 per upcast level. E2E scenario added.
+  - Files: `domain/entities/spells/catalog/level-2.ts`, `tabletop/spell-delivery/spell-attack-delivery-handler.ts`
 
 - [x] **SS-M5: Thunderwave missing push-on-fail.** Save delivery supports `outcome.movement.push` but catalog entry lacks movement data.
   - Files: `domain/entities/spells/catalog/level-1.ts`
@@ -170,8 +170,8 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
   - Files: New feature for `domain/entities/classes/wizard.ts`
   - Rule: PHB 2024 Wizard "Arcane Recovery"
 
-- [ ] **SS-M9: Spell components stored but never enforced.** Silenced/Stunned creatures can still cast verbal spells. No free hand check for somatic.
-  - Files: `tabletop/spell-action-handler.ts`, `domain/entities/combat/conditions.ts`
+- [x] **SS-M9: Spell components — verbal enforcement added.** Verbal component check blocks casting when caster has cannotSpeak conditions (Stunned, Paralyzed, etc.). TODOs for Silence zone, somatic/material, Subtle Spell.
+  - Files: `tabletop/spell-action-handler.ts`
 
 - [x] **SS-M10: No range validation on spell targets.** Caster can target anyone regardless of distance.
   - Files: `tabletop/spell-action-handler.ts`
@@ -179,14 +179,14 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **SS-M11: Zone saveDC not populated from caster's spell save DC at creation time.**
   - Files: `tabletop/spell-delivery/zone-spell-delivery-handler.ts`
 
-- [ ] **SS-M12: Missing important spells from catalog.** Detect Magic, Command, Faerie Fire, Hunter's Mark, Hex, Sleep, Aid, Darkness, Invisibility, Lesser Restoration, Silence, Web, Haste, Slow, Lightning Bolt, Fly.
-  - Files: `domain/entities/spells/catalog/`
+- [x] **SS-M12: Spell catalog expanded.** Added 10 spells: Command, Faerie Fire, Sleep, Hunter's Mark, Hex, Aid, Darkness, Invisibility, Lesser Restoration, Web. Still missing: Detect Magic, Silence, Haste, Slow, Lightning Bolt, Fly.
+  - Files: `domain/entities/spells/catalog/level-1.ts`, `level-2.ts`
 
 ### AI Behavior
-- [ ] **AI-M1: AI can't cast bonus-action spells separately from action spells.** D&D 5e allows BA spell + cantrip action.
+- [x] **AI-M1: AI BA spell + action cantrip rule enforced.** Step 4b previews BA, restricts main action to cantrips. Step 9 blocks BA spells after leveled action.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M2: No multi-target/AoE spell evaluation in deterministic AI.** Only single-target considered.
+- [x] **AI-M2: AoE spell evaluation added.** `estimateAoETargets()` uses Chebyshev grid distance to weight spell value by affected enemy count.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 - [x] **AI-M3: No Disengage-before-retreat logic in deterministic AI.** Retreats provoke OAs needlessly.
@@ -195,13 +195,13 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **AI-M4: No triage for dying allies.** Ignores allies at 0 HP with death saves. No Help/Spare the Dying consideration.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M5: Deterministic AI ignores buff/debuff spells entirely.** Only considers healing and damage spells. Bless, Hold Person, etc. are dead code for non-LLM play.
+- [x] **AI-M5: Buff/debuff spell support added.** Debuffs prioritized against high-value threats; buffs cast in early rounds when not concentrating. Priority: healing > debuff > buff > damage.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
-- [ ] **AI-M6: Legendary attack bypasses ActiveEffects.** Uses simplified attack resolution — skips advantage/disadvantage from effects, Bless, Rage damage, flanking, damage defenses.
+- [x] **AI-M6: Legendary attack now applies ActiveEffects.** Full condition-based advantage/disadvantage, attack/AC bonuses, damage modifiers (Rage, Bless, etc.), and damage defenses.
   - Files: `application/services/combat/ai/ai-turn-orchestrator.ts`
 
-- [ ] **AI-M7: No cover-seeking positioning for ranged combatants.**
+- [x] **AI-M7: Cover-seeking positioning for ranged combatants.** `findCoverPosition()` evaluates grid cells for cover from enemies while maintaining LOS + attack range.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 - [x] **AI-M8: Extra Attack doesn't re-evaluate targets between swings.** First target might die but AI sends all attacks to same target.
@@ -210,7 +210,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **AI-M9: No token/context limit awareness for LLM payloads.** `AiContextBuilder.build()` can produce very large payloads.
   - Files: `application/services/combat/ai/ai-context-builder.ts`
 
-- [ ] **AI-M10: Bonus action class abilities missing from deterministic AI.** Missing: Wholeness of Body, Divine Smite (paladin bonus), Bardic Inspiration, Healing Word (BA spell).
+- [x] **AI-M10: Bonus action abilities added to deterministic AI.** BA healing spells (Healing Word), Spiritual Weapon attacks. `pickBonusAction` evaluates all ally lists.
   - Files: `application/services/combat/ai/deterministic-ai.ts`
 
 ### Entity Management
@@ -232,15 +232,15 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **EM-M6: `armorTraining` not extracted from class during hydration.** A Wizard wearing heavy armor gets no penalty because hydration defaults to `all: true`.
   - Files: `application/services/combat/helpers/` (hydration code)
 
-- [x] **EM-M7: Species save advantages hydrated but not consumed.** `speciesTraits.saveAdvantages` data exists in domain but is lost during hydration (not passed to CharacterData constructor), never checked in saving throw resolution.
-  - Files: `domain/entities/creatures/species-registry.ts`, hydration code
+- [x] **EM-M7: Species save advantages hydrated and consumed.** Hydration now passes `speciesSaveAdvantages` to CharacterData; saving-throw-resolver checks against conditions.
+  - Files: `application/services/combat/helpers/creature-hydration.ts`, `tabletop/rolls/saving-throw-resolver.ts`
 
 - [x] **EM-M8: `PendingActionRepository` not exported from barrel.** Must be imported directly, inconsistent with other repos.
   - Files: `application/repositories/index.ts`
 
 ### Class Abilities
-- [ ] **CA-M1: Paladin Channel Divinity pool tracked but nothing spends it.** No executor, no `abilityId` in capabilities.
-  - Files: `domain/entities/classes/paladin.ts`
+- [x] **CA-M1: Paladin Channel Divinity — Divine Sense executor.** `ChannelDivinityExecutor` registered, text mapping added, costs 1 charge + bonus action.
+  - Files: `abilities/executors/paladin/channel-divinity-executor.ts`, `domain/entities/classes/paladin.ts`
 
 - [x] **CA-M2: LayOnHands executor only heals self, not allies.** D&D 5e 2024: "touch a willing creature (which can be yourself)."
   - Files: `abilities/executors/paladin/lay-on-hands-executor.ts`
@@ -254,14 +254,13 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CA-M5: Warlock missing `spellcasting` in features map.** `classHasFeature("warlock", SPELLCASTING, level)` returns false. Generic checks miss Warlocks.
   - Files: `domain/entities/classes/warlock.ts`
 
-- [ ] **CA-M6: Cleric missing Destroy Undead upgrade (level 5).** When Undead fails Turn save and has CR below threshold, it's instantly destroyed.
-  - Files: `domain/entities/classes/cleric.ts`, `abilities/executors/`
-  - Rule: PHB 2024 Cleric level 5
+- [x] **CA-M6: Cleric Destroy Undead (level 5+).** `getDestroyUndeadCRThreshold()` added; Turn Undead processor now destroys low-CR undead on failed save.
+  - Files: `domain/entities/classes/cleric.ts`, `tabletop/dispatch/class-ability-handlers.ts`
 
 - [x] **CA-M7: Barbarian missing post-level-9 features in features map.** Relentless Rage (11), Persistent Rage (15), Indomitable Might (18), Primal Champion (20).
   - Files: `domain/entities/classes/barbarian.ts`
 
-- [ ] **CA-M8: Paladin/Cleric Channel Divinity naming collision.** Identical function names in both files. Multiclass would share pool key with different max-uses formulas.
+- [x] **CA-M8: Channel Divinity naming collision fixed.** Paladin → `channelDivinity:paladin`, Cleric → `channelDivinity:cleric`. Updated across all source + test files.
   - Files: `domain/entities/classes/paladin.ts`, `domain/entities/classes/cleric.ts`
 
 - [x] **CA-M9: Open Hand Technique enhancement in base Monk profile, not subclass profile.** `SubclassDefinition` supports `combatTextProfile` — OHT should use it.
@@ -275,7 +274,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-L1: Creature size never used in movement/cover/pathfinding.** `MapEntity.size` exists but is never consumed. Large+ creatures should occupy multiple cells.
 - [ ] **CR-L2: No mounted combat rules.**
 - [ ] **CR-L3: No falling damage rules (1d6 per 10ft).**
-- [ ] **CR-L4: Help action has no range limit check (should be within 5ft).**
+- [x] **CR-L4: Help action range check added.** 5-foot distance validation in both tabletop and programmatic paths.
 - [ ] **CR-L5: Protection fighting style — flag only, no domain function.**
 - [ ] **CR-L6: Two-Weapon Fighting base mechanic lives only in application layer executor, not domain.**
 - [ ] **CR-L7: `isOnMap()` uses `<=` instead of `<` — potential off-by-one.**
@@ -283,7 +282,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [ ] **CR-L9: Mutable action economy objects inconsistent with immutable patterns elsewhere.**
 
 ### Combat Orchestration
-- [ ] **CO-L1: No "end turn" / "pass" text parser.**
+- [x] **CO-L1: "end turn" / "pass" text parser added.** Parser entry in ActionDispatcher chain matches `end turn`, `pass`, `done`, `skip`, `nothing`.
 - [ ] **CO-L2: "Dash toward goblin" incorrectly parsed as Dash action.**
 - [ ] **CO-L3: No ABILITY_CHECK pending action type for player-rolled contested checks.**
 - [ ] **CO-L4: Silvery Barbs reaction not supported.**
@@ -295,10 +294,10 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 ### Spell System
 - [x] **SS-L1: Toll the Dead should deal d12 vs d8 on damaged target.**
 - [x] **SS-L2: Ray of Frost should reduce target speed by 10ft.**
-- [x] **SS-L3: Chill Touch should prevent HP regeneration.** (catalog effect placeholder exists but healing handler doesn't enforce it)
+- [x] **SS-L3: Chill Touch prevent_healing implemented.** Added `prevent_healing` EffectType, enforced in healing delivery handler + potion use.
 - [ ] **SS-L4: Duplicate upcast validation in handler + slot manager.**
 - [ ] **SS-L5: `any` types in SpellCastingContext (6 fields).**
-- [ ] **SS-L6: Magic Missile hardcoded inline instead of catalog-driven.**
+- [x] **SS-L6: Magic Missile catalog-driven.** Added `autoHit` + `dartCount` fields; inline logic replaced with generic auto-hit delivery.
 - [ ] **SS-L7: Ritual casting not implemented (low impact in combat).**
 
 ### AI Behavior
@@ -329,76 +328,43 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 
 ## Summary Stats
 
-| Tier | Count |
-|------|-------|
-| Critical | 7 |
-| High | 12 |
-| Medium | 43 |
-| Low | 31 |
-| **Total** | **93** |
+| Tier | Total | Done | Remaining |
+|------|-------|------|-----------|
+| Critical | 7 | 7 | 0 |
+| High | 12 | 12 | 0 |
+| Medium | 43 | 37 | 6 |
+| Low | 31 | 10 | 21 |
+| **Total** | **93** | **66** | **27** |
 
-### By Domain
+### Remaining Items by Domain
 
-| Domain | Critical | High | Medium | Low | Total |
-|--------|----------|------|--------|-----|-------|
-| Combat Rules | 0 | 3 | 11 | 9 | 23 |
-| Class Abilities | 2 | 6 | 9 | 5 | 22 |
-| Spell System | 2 | 2 | 12 | 7 | 23 |
-| Combat Orchestration | 0 | 0 | 10 | 8 | 18 |
-| AI Behavior | 2 | 0 | 10 | 7 | 19 |
-| Entity Management | 1 | 0 | 8 | 6 | 15 |
+| Domain | Medium | Low | Total Remaining |
+|--------|--------|-----|-----------------|
+| Combat Rules | 0 | 6 | 6 |
+| Class Abilities | 0 | 3 | 3 |
+| Spell System | 0 | 3 | 3 |
+| Combat Orchestration | 1 | 6 | 7 |
+| AI Behavior | 3 | 6 | 9 |
+| Entity Management | 6 | 6 | 12 |
 
 ---
 
 ## Recommended Implementation Order
 
-### Sprint 1: Fix What's Broken
-1. SS-C2 (Inflict Wounds classification) — 5 min fix
-2. CA-C1 (stub executors for 6 orphaned profiles) — prevent runtime errors
-3. EM-C1 (fix findActiveEncounter divergence) — prevent production bugs
-4. EM-M8 (PendingActionRepository barrel export) — 1 line fix
+### ~~Sprint 1: Fix What's Broken~~ ✅ COMPLETE
+### ~~Sprint 2: Core Rule Correctness~~ ✅ COMPLETE
+### ~~Sprint 3: Feature Completeness~~ ✅ COMPLETE
+### ~~Sprint 4: AI Quality~~ ✅ COMPLETE
+### ~~Sprint 5: Test Coverage~~ ✅ COMPLETE
+### ~~Sprint 6: Architecture Cleanup~~ ✅ COMPLETE
 
-### Sprint 2: Core Rule Correctness
-5. SS-C1 (end-of-turn save repeats) — foundational mechanic for many spells
-6. CR-M3 (concentration breaks on incapacitated/death)
-7. CR-M1 (Savage Attacker once-per-turn)
-8. CR-M4 (Grapple/Shove nat 1/20)
-9. SS-M6 (Spiritual Weapon — remove concentration, add BA mechanic)
-10. SS-M1 (Guiding Bolt advantage effect)
-11. SS-M5 (Thunderwave push)
+### Remaining Work (Medium tier — 6 items)
+- CO-M2 (Legendary actions between turns — orchestration gap)
+- AI-M9 (LLM payload token/context limits)
+- EM-M1 (Multiclassing — long-term architectural)
+- EM-M2 (ASI system)
+- EM-M3 (Skill proficiency system)
+- EM-M4 (Spell preparation API)
 
-### Sprint 3: Feature Completeness
-12. SS-H1 (mechanical fields for Misty Step, Mage Armor, etc.)
-13. CA-H2 (Rogue Hide implementation)
-14. CA-H1 (Barbarian Brutal Strike wiring)
-15. CA-C2 (Berserker Frenzy executor)
-16. AI-C1 (AI zone spell delivery)
-17. AI-C2 (deterministic AI useFeature)
-18. CO-M3 (bonus action spell limitation enforcement)
-
-### Sprint 4: AI Quality
-19. AI-M3 (Disengage before retreat)
-20. AI-M4 (dying ally triage)
-21. AI-M5 (buff/debuff spell AI)
-22. AI-M8 (re-evaluate targets between Extra Attacks)
-23. AI-M10 (bonus action class abilities in deterministic AI)
-24. AI-M6 (legendary attack ActiveEffects)
-
-### Sprint 5: Test Coverage
-25. CR-H1, CR-H2, CR-H3 (weapon mastery, feat modifiers, damage defense tests)
-26. SS-H2 (E2E scenarios for healing, zone, buff, repeat-save)
-
-### Sprint 6: Architecture Cleanup
-27. CO-M4 (extract DamageResolver from handleDamageRoll)
-28. CO-M5 (consolidate listCombatants calls)
-29. CO-M7 (decompose CombatService.nextTurn)
-30. CO-M8 (shared combatant lookup utility)
-31. CA-H6 (feature-keys.ts constants for raw strings)
-32. CO-L8 / EM-L5 (typed resources, remove `as any`)
-
-### Ongoing / As-Needed
-- SS-M12 (expand spell catalog)
-- CR-M2 (multiple damage types per attack)
-- CA-M6 (Cleric Destroy Undead)
-- EM-M1 (multiclassing — long-term)
-- CR-L1 (creature size — systemic)
+### Remaining Work (Low tier — 21 items)
+See individual domain sections above. These are quality/non-blocking items.
