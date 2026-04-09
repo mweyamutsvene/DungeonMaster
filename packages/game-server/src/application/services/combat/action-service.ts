@@ -1,10 +1,9 @@
 
 import { nanoid } from "nanoid";
 
-import { resolveAttack, type AttackSpec } from "../../../domain/combat/attack-resolver.js";
 import { SeededDiceRoller } from "../../../domain/rules/dice-roller.js";
 import { attemptMovement, calculateDistance, type Position, type MovementAttempt } from "../../../domain/rules/movement.js";
-import { hasElevationAdvantage, isPitEntry, type CombatMap } from "../../../domain/rules/combat-map.js";
+import { isPitEntry, type CombatMap } from "../../../domain/rules/combat-map.js";
 
 import { NotFoundError, ValidationError } from "../../errors.js";
 import {
@@ -15,7 +14,6 @@ import {
   markDisengaged,
   getPosition,
   getEffectiveSpeed,
-  useReaction,
   addActiveEffectsToResources,
 } from "./helpers/resource-utils.js";
 import {
@@ -30,7 +28,6 @@ import type { ICombatantResolver } from "./helpers/combatant-resolver.js";
 import type { CombatantRef } from "./helpers/combatant-ref.js";
 import { findCombatantStateByRef } from "./helpers/combatant-ref.js";
 import { resolveEncounterOrThrow } from "./helpers/encounter-resolver.js";
-import { isRecord, readNumber } from "./helpers/json-helpers.js";
 import {
   type AttackActionInput,
   type SimpleActionBaseInput,
@@ -41,13 +38,12 @@ import {
   type HideActionInput,
   type SearchActionInput,
   type MoveActionInput,
-  getAbilityModifier,
   hashStringToInt32,
-  buildCreatureAdapter,
 } from "./helpers/combat-utils.js";
 import { resolvePitEntry } from "./helpers/pit-terrain-resolver.js";
 import { detectOpportunityAttacks } from "./helpers/oa-detection.js";
-import { lookupWeapon, hasWeaponProperty } from "../../../domain/entities/items/weapon-catalog.js";
+import { resolveOpportunityAttacks, type ResolveOAInput } from "./helpers/opportunity-attack-resolver.js";
+
 
 import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
 import { GrappleActionHandler } from "./action-handlers/grapple-action-handler.js";
@@ -523,7 +519,7 @@ export class ActionService {
       resources: updatedResources as JsonValue,
     });
 
-    // Execute opportunity attacks
+    // Execute opportunity attacks via shared resolver (CO-M9: consolidated OA resolution)
     const executedAttacks: Array<{
       attackerId: string;
       targetId: string;
@@ -531,180 +527,73 @@ export class ActionService {
     }> = [];
     let latestHpCurrent = actor.hpCurrent;
 
-    for (const opp of opportunityAttacks) {
-      if (!opp.canAttack) continue; // Skip if can't attack
+    const eligibleOAs = opportunityAttacks.filter(opp => opp.canAttack);
+    if (eligibleOAs.length > 0) {
+      // Build synthetic PendingAction for the shared OA resolver
+      const reactionOpportunities = eligibleOAs.map((opp, idx) => ({
+        id: `auto-oa-${idx}`,
+        combatantId: opp.attackerId,
+        reactionType: "opportunity_attack" as const,
+        canUse: true,
+        context: {},
+      }));
+      const resolvedReactions = eligibleOAs.map((opp, idx) => ({
+        opportunityId: `auto-oa-${idx}`,
+        combatantId: opp.attackerId,
+        choice: "use" as const,
+        respondedAt: new Date(),
+      }));
+      const syntheticPendingAction = {
+        id: `auto-oa-${nanoid()}`,
+        encounterId: encounter.id,
+        actor: input.actor,
+        type: "move" as const,
+        data: { type: "move" as const, from: currentPos, to: input.destination, path: [input.destination] },
+        reactionOpportunities,
+        resolvedReactions,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      };
 
-      const attacker = combatants.find(c => c.id === opp.attackerId);
-      if (!attacker) continue;
+      const oaInput: ResolveOAInput = {
+        sessionId,
+        pendingAction: syntheticPendingAction,
+        encounter: { id: encounter.id, round: encounter.round, mapData: encounter.mapData },
+        actor: {
+          id: actor.id,
+          hpCurrent: actor.hpCurrent,
+          hpMax: actor.hpMax,
+          resources: actor.resources,
+          conditions: actor.conditions,
+          characterId: actor.characterId,
+          monsterId: actor.monsterId,
+          npcId: (actor as any).npcId,
+          combatantType: actor.combatantType,
+        },
+        combatants,
+        moveFrom: currentPos,
+      };
 
-      // Use the attacker's reaction
-      const attackerResources = normalizeResources(attacker.resources);
-      const updatedAttackerResources = useReaction(attackerResources);
-      await this.combat.updateCombatantState(attacker.id, {
-        resources: updatedAttackerResources as JsonValue,
+      const oaResult = await resolveOpportunityAttacks(oaInput, {
+        combat: this.combat,
+        combatants: this.combatants,
+        events: this.events,
       });
 
-      // Get attacker's weapon/attack
-      const attackerRef: CombatantRef = attacker.combatantType === "Character" && attacker.characterId
-        ? { type: "Character", characterId: attacker.characterId }
-        : attacker.combatantType === "Monster" && attacker.monsterId
-        ? { type: "Monster", monsterId: attacker.monsterId }
-        : attacker.combatantType === "NPC" && attacker.npcId
-        ? { type: "NPC", npcId: attacker.npcId }
-        : { type: "Character", characterId: "" }; // Fallback (shouldn't happen)
-
-      const attackerStats = await this.combatants.getCombatStats(attackerRef);
-
-      const targetStats = await getActorCombatStats();
-
-      // Build attack spec (use equipped weapon or default melee attack)
-      let spec: AttackSpec | null = null;
-      const equippedWeapon = attackerStats.equipment?.weapon;
-
-      if (equippedWeapon) {
-        // Look up real weapon stats from the catalog
-        const strMod = getAbilityModifier(attackerStats.abilityScores.strength);
-        const dexMod = getAbilityModifier(attackerStats.abilityScores.dexterity);
-        const profBonus = attackerStats.proficiencyBonus;
-
-        // Try direct lookup, then strip magic prefix (e.g. "+1 Longsword" → "Longsword")
-        let catalogEntry = lookupWeapon(equippedWeapon);
-        if (!catalogEntry) {
-          const stripped = equippedWeapon.replace(/^\+\d+\s+/, "");
-          if (stripped !== equippedWeapon) catalogEntry = lookupWeapon(stripped);
-        }
-
-        if (catalogEntry && catalogEntry.kind === "melee") {
-          // D&D 5e: finesse weapons use max(STR, DEX)
-          const isFinesse = hasWeaponProperty(catalogEntry, "finesse");
-          const abilityMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
-          // Detect magic bonus from weapon name (e.g. "+1 Longsword")
-          const magicMatch = equippedWeapon.match(/^\+(\d+)\s+/);
-          const magicBonus = magicMatch ? parseInt(magicMatch[1], 10) : 0;
-          spec = {
-            name: equippedWeapon,
-            attackBonus: abilityMod + profBonus + magicBonus,
-            damage: {
-              diceCount: catalogEntry.damage.diceCount,
-              diceSides: catalogEntry.damage.diceSides,
-              modifier: abilityMod + magicBonus,
-            },
-            kind: "melee",
-          };
-        } else {
-          // Weapon not in catalog or not melee — fall back to estimate
-          spec = {
-            name: equippedWeapon,
-            attackBonus: strMod + profBonus,
-            damage: { diceCount: 1, diceSides: 6, modifier: strMod },
-            kind: "melee",
-          };
-        }
-      } else if (attacker.combatantType === "Monster") {
-        // Try to get monster's first melee attack
-        const attacks = await this.combatants.getMonsterAttacks(attacker.monsterId!);
-        const meleeAttack = attacks.find((a: any) => a.kind === "melee");
-        if (meleeAttack && isRecord(meleeAttack)) {
-          const attackBonus = readNumber(meleeAttack, "attackBonus");
-          const dmg = isRecord(meleeAttack.damage) ? meleeAttack.damage : null;
-          const diceCount = dmg ? readNumber(dmg, "diceCount") : null;
-          const diceSides = dmg ? readNumber(dmg, "diceSides") : null;
-          const modifierVal = dmg ? dmg.modifier : undefined;
-
-          if (attackBonus !== null && diceCount !== null && diceSides !== null) {
-            const modN = modifierVal === undefined ? 0 : typeof modifierVal === "number" ? modifierVal : 0;
-            spec = {
-              name: typeof meleeAttack.name === "string" ? meleeAttack.name : undefined,
-              kind: "melee",
-              attackBonus,
-              damage: { diceCount, diceSides, modifier: modN },
-            };
-          }
-        }
-      }
-
-      if (!spec) {
-        // Default unarmed strike
-        const strMod = getAbilityModifier(attackerStats.abilityScores.strength);
-        spec = {
-          name: "Unarmed Strike",
-          attackBonus: strMod,
-          damage: { diceCount: 1, diceSides: 4, modifier: strMod },
-          kind: "melee",
-        };
-      }
-
-      // Execute attack
-      const seed = hashStringToInt32(
-        `${sessionId}:${encounter.id}:opportunity:${opp.attackerId}:${opp.targetId}:${currentPos.x}:${currentPos.y}`,
-      );
-      const diceRoller = new SeededDiceRoller(seed);
-
-      const attackerAdapter = buildCreatureAdapter({
-        armorClass: attackerStats.armorClass,
-        abilityScores: attackerStats.abilityScores,
-        featIds: attackerStats.featIds,
-        hpCurrent: attacker.hpCurrent,
-      }).creature as any;
-
-      const targetAdapter = buildCreatureAdapter({
-        armorClass: targetStats.armorClass,
-        abilityScores: targetStats.abilityScores,
-        hpCurrent: latestHpCurrent,
-      });
-
-      const target = targetAdapter.creature as any;
-      const attackerPosition = getPosition(attackerResources);
-      const elevationAdvantage = combatMap
-        ? hasElevationAdvantage(combatMap, attackerPosition, currentPos)
-        : false;
-      const attackResult = resolveAttack(diceRoller, attackerAdapter, target, spec, {
-        elevationAdvantage,
-      });
-
-      // Apply damage to moving actor
-      const hpBeforeAttack = latestHpCurrent;
-      const newHp = targetAdapter.getHpCurrent();
-      await this.combat.updateCombatantState(actor.id, {
-        hpCurrent: newHp,
-      });
-      latestHpCurrent = newHp;
-
-      // Apply KO effects if target dropped to 0 HP from opportunity attack
-      await applyKoEffectsIfNeeded(actor, hpBeforeAttack, newHp, this.combat);
-
-      executedAttacks.push({
-        attackerId: opp.attackerId,
-        targetId: opp.targetId,
-        result: attackResult,
-      });
-
-      // Emit opportunity attack event
-      if (this.events) {
-        await this.events.append(sessionId, {
-          id: nanoid(),
-          type: "OpportunityAttack",
-          payload: {
-            encounterId: encounter.id,
-            attackerId: opp.attackerId,
-            targetId: opp.targetId,
-            attackName: spec.name || "Melee Attack",
-            result: attackResult,
-          },
+      for (const executed of oaResult.executedOAs) {
+        executedAttacks.push({
+          attackerId: executed.attackerId,
+          targetId: executed.targetId,
+          result: { hit: true, damage: { applied: executed.damage } },
         });
+      }
 
-        if ((attackResult as any).hit && (attackResult as any).damage?.applied > 0) {
-          await this.events.append(sessionId, {
-            id: nanoid(),
-            type: "DamageApplied",
-            payload: {
-              encounterId: encounter.id,
-              target: input.actor,
-              amount: (attackResult as any).damage.applied,
-              hpCurrent: newHp,
-            },
-          });
-        }
+      if (!oaResult.targetStillAlive) {
+        latestHpCurrent = 0;
+      } else {
+        // Re-fetch current HP after OA resolution
+        const updatedCombatant = (await this.combat.listCombatants(encounter.id)).find(c => c.id === actor.id);
+        latestHpCurrent = updatedCombatant?.hpCurrent ?? actor.hpCurrent;
       }
     }
 
