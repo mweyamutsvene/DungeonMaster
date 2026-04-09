@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   addEntity,
+  computeFallDamage,
   computePitFallDamage,
   createCombatMap,
   getCellAt,
   getCoverLevel,
   getCoverSaveBonus,
+  getCreatureCellFootprint,
   getCreatures,
   getElevationAttackModifier,
   getElevationOf,
@@ -732,6 +734,56 @@ describe("Combat Map", () => {
       expect(computePitFallDamage(20, dice)).toBe(9);
       // Minimum 1d6 even when depth is 0
       expect(computePitFallDamage(0, dice)).toBe(6);
+    });
+  });
+
+  describe("getCreatureCellFootprint", () => {
+    it("returns 1 for Tiny, Small, Medium", () => {
+      expect(getCreatureCellFootprint("Tiny")).toBe(1);
+      expect(getCreatureCellFootprint("Small")).toBe(1);
+      expect(getCreatureCellFootprint("Medium")).toBe(1);
+    });
+
+    it("returns 2 for Large", () => {
+      expect(getCreatureCellFootprint("Large")).toBe(2);
+    });
+
+    it("returns 3 for Huge", () => {
+      expect(getCreatureCellFootprint("Huge")).toBe(3);
+    });
+
+    it("returns 4 for Gargantuan", () => {
+      expect(getCreatureCellFootprint("Gargantuan")).toBe(4);
+    });
+  });
+
+  describe("computeFallDamage", () => {
+    it("computes 1d6 per 10ft fallen", () => {
+      const dice = new FixedDiceRoller([3, 4, 5]);
+      // 30ft = 3d6
+      expect(computeFallDamage(30, dice)).toBe(12);
+    });
+
+    it("caps at 20d6", () => {
+      const dice = new FixedDiceRoller([3]);
+      // 250ft = 25 dice, but capped at 20d6
+      expect(computeFallDamage(250, dice)).toBe(60); // 20 × 3
+    });
+
+    it("minimum 1d6 for 0 or negative distances", () => {
+      const dice = new FixedDiceRoller([5]);
+      expect(computeFallDamage(0, dice)).toBe(5);
+      expect(computeFallDamage(-10, dice)).toBe(5);
+    });
+  });
+
+  describe("isOnMap boundary checks", () => {
+    it("rejects positions at the map boundary (exclusive upper bound)", () => {
+      const map = createCombatMap({ id: "t", name: "T", width: 50, height: 50 });
+      // width=50 means valid x is [0, 49]. x=50 is out of bounds.
+      expect(isOnMap(map, { x: 45, y: 25 })).toBe(true);
+      expect(isOnMap(map, { x: 50, y: 25 })).toBe(false);
+      expect(isOnMap(map, { x: 25, y: 50 })).toBe(false);
     });
   });
 });

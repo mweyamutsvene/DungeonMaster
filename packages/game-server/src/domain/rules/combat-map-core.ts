@@ -9,12 +9,30 @@
 import type { Position } from "./movement.js";
 import { calculateDistance } from "./movement.js";
 import type { CombatMap, MapCell, MapEntity, TerrainType } from "./combat-map-types.js";
+import type { CreatureSize } from "../entities/core/types.js";
 import type { DiceRoller } from "./dice-roller.js";
 
 export interface TerrainCellOptions {
   terrainElevation?: number;
   terrainDepth?: number;
 }
+
+/**
+ * Return the number of grid cells per side a creature occupies based on its size.
+ * D&D 5e 2024: Tiny/Small/Medium = 1, Large = 2, Huge = 3, Gargantuan = 4.
+ */
+export function getCreatureCellFootprint(size: CreatureSize): number {
+  switch (size) {
+    case "Large": return 2;
+    case "Huge": return 3;
+    case "Gargantuan": return 4;
+    default: return 1; // Tiny, Small, Medium
+  }
+}
+
+// TODO: CR-L1 — integrate getCreatureCellFootprint into pathfinding/movement
+// validation so Large+ creatures check ALL occupied cells for passability.
+// See isCellWalkable() in pathfinding.ts and isPositionPassable() here.
 
 /**
  * Create a new combat map with default terrain.
@@ -158,13 +176,14 @@ export function getItems(map: CombatMap): MapEntity[] {
 
 /**
  * Check if a position is on the map.
+ * Grid cells are 0-indexed, so valid positions are [0, dimension).
  */
 export function isOnMap(map: CombatMap, position: Position): boolean {
   return (
     position.x >= 0 &&
-    position.x <= map.width &&
+    position.x < map.width &&
     position.y >= 0 &&
-    position.y <= map.height
+    position.y < map.height
   );
 }
 
@@ -276,11 +295,19 @@ export function isPitEntry(map: CombatMap, from: Position, to: Position): boolea
 }
 
 /**
+ * Compute falling damage.
+ * D&D 5e 2024: 1d6 bludgeoning per 10ft fallen, max 20d6.
+ */
+export function computeFallDamage(distanceFeet: number, diceRoller: DiceRoller): number {
+  const safeDistance = Number.isFinite(distanceFeet) ? Math.max(0, distanceFeet) : 0;
+  const diceCount = Math.min(20, Math.max(1, Math.floor(safeDistance / 10)));
+  return diceRoller.rollDie(6, diceCount).total;
+}
+
+/**
  * Compute fall damage for pit entry.
- * D&D 5e: 1d6 per 10ft fallen, minimum 1d6.
+ * Delegates to the general computeFallDamage.
  */
 export function computePitFallDamage(depthFeet: number, diceRoller: DiceRoller): number {
-  const safeDepth = Number.isFinite(depthFeet) ? Math.max(0, depthFeet) : 0;
-  const diceCount = Math.max(1, Math.floor(safeDepth / 10));
-  return diceRoller.rollDie(6, diceCount).total;
+  return computeFallDamage(depthFeet, diceRoller);
 }

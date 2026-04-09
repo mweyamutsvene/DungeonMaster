@@ -11,6 +11,7 @@
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
 import { resolveWeaponMastery } from "../../../../../../domain/rules/weapon-mastery.js";
+import { canMakeOffhandAttack } from "../../../../../../domain/combat/two-weapon-fighting.js";
 import { requireActor } from "../executor-helpers.js";
 
 /**
@@ -97,10 +98,11 @@ export class OffhandAttackExecutor implements AbilityExecutor {
       };
     }
 
-    // TWF validation: both weapons must have the Light property (D&D 5e 2024)
-    const mainIsLight = (mainHandWeapon as any)?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-    const offIsLight = (offhandWeapon as any)?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-    if (!mainIsLight || !offIsLight) {
+    // TWF validation: delegate to domain function
+    // The attack objects carry weapon properties on the (extended) weapon spec
+    const mainWeaponProps = { properties: (mainHandWeapon as any)?.properties as string[] | undefined };
+    const offWeaponProps = { properties: (offhandWeapon as any)?.properties as string[] | undefined };
+    if (!canMakeOffhandAttack(mainWeaponProps, offWeaponProps)) {
       return {
         success: false,
         summary: 'Two-weapon fighting requires both weapons to have the Light property',

@@ -7,7 +7,8 @@
  * Sub-modules:
  *   combat-map-types.ts  � TerrainType, CoverLevel, MapCell, MapEntity, CombatMap
  *   combat-map-core.ts   � createCombatMap, getCellAt, setTerrainAt, entity CRUD,
- *                          isOnMap, isPositionPassable, getTerrainSpeedModifier
+ *                          isOnMap, isPositionPassable, getTerrainSpeedModifier,
+ *                          getCreatureCellFootprint, computeFallDamage, computePitFallDamage
  *   combat-map-sight.ts  � hasLineOfSight, getCoverLevel, getCoverACBonus,
  *                          getCoverSaveBonus, getEntitiesInRadius, getFactionsInRange,
  *                          getObscuredLevelAt, getObscurationAttackModifiers
