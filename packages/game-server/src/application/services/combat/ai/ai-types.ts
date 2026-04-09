@@ -235,6 +235,11 @@ export interface AiCombatContext {
   actionHistory: string[];
   turnResults: TurnStepResult[];
   lastActionResult: TurnStepResult | null;
+  /**
+   * Raw combat map data (optional). Used by deterministic AI for cover-seeking
+   * position evaluation. Not serialized to LLM prompts.
+   */
+  mapData?: unknown;
   battlePlan?: {
     priority: string;
     focusTarget?: string;

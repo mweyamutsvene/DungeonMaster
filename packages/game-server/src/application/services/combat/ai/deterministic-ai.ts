@@ -21,6 +21,10 @@
 import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "./ai-types.js";
 import { scoreTargets } from "./ai-target-scorer.js";
 import type { ScoredTarget } from "./ai-target-scorer.js";
+import { getCoverLevel, hasLineOfSight } from "../../../../domain/rules/combat-map-sight.js";
+import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
+import { calculateDistance } from "../../../../domain/rules/movement.js";
+import { isPositionPassable } from "../../../../domain/rules/combat-map-core.js";
 
 /**
  * Determine if a creature is primarily ranged based on its available attacks.
@@ -674,6 +678,94 @@ function pickFeatureAction(
   return undefined;
 }
 
+/**
+ * AI-M7: Find the best cover-seeking position for a ranged combatant.
+ *
+ * Among reachable cells within attack range of the primary target,
+ * prefer positions that provide cover from the most enemies while
+ * maintaining line of sight to the target.
+ *
+ * Returns a position to move to, or undefined if no meaningful cover is available.
+ */
+function findCoverPosition(
+  currentPos: { x: number; y: number },
+  primaryTarget: ScoredTarget,
+  enemies: AiCombatContext["enemies"],
+  speed: number,
+  map: CombatMap,
+): { x: number; y: number } | undefined {
+  const targetPos = primaryTarget.enemy.position;
+  if (!targetPos) return undefined;
+
+  const gridSize = map.gridSize || 5;
+  const maxRange = 60; // Standard ranged attack range
+  const searchRadius = Math.floor(speed / gridSize); // Grid cells we can reach
+
+  // Generate candidate positions within movement range
+  const candidates: Array<{
+    pos: { x: number; y: number };
+    coverScore: number;
+    distToTarget: number;
+  }> = [];
+
+  for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      const pos = {
+        x: currentPos.x + dx * gridSize,
+        y: currentPos.y + dy * gridSize,
+      };
+
+      // Skip current position
+      if (pos.x === currentPos.x && pos.y === currentPos.y) continue;
+
+      // Must be within movement speed
+      const moveDist = calculateDistance(currentPos, pos);
+      if (moveDist > speed) continue;
+
+      // Must be on the map and passable
+      if (!isPositionPassable(map, pos)) continue;
+
+      // Must have line of sight to primary target
+      const los = hasLineOfSight(map, pos, targetPos);
+      if (!los.visible) continue;
+
+      // Must be within attack range of target
+      const distToTarget = calculateDistance(pos, targetPos);
+      if (distToTarget > maxRange) continue;
+
+      // Too close to target (ranged combatants want distance)
+      if (distToTarget < 10) continue;
+
+      // Score: count how many enemies this position provides cover from
+      let coverScore = 0;
+      for (const enemy of enemies) {
+        if (!enemy.position || enemy.hp.current <= 0) continue;
+        const cover = getCoverLevel(map, enemy.position, pos);
+        if (cover === "half") coverScore += 1;
+        else if (cover === "three-quarters") coverScore += 2;
+        else if (cover === "full") coverScore += 3;
+      }
+
+      if (coverScore > 0) {
+        candidates.push({ pos, coverScore, distToTarget });
+      }
+    }
+  }
+
+  if (candidates.length === 0) return undefined;
+
+  // Pick the best: highest cover score, break ties by preferring moderate distance
+  candidates.sort((a, b) => {
+    if (b.coverScore !== a.coverScore) return b.coverScore - a.coverScore;
+    // Prefer 20-40ft range for ranged attackers
+    const aRangePenalty = Math.abs(a.distToTarget - 30);
+    const bRangePenalty = Math.abs(b.distToTarget - 30);
+    return aRangePenalty - bRangePenalty;
+  });
+
+  return candidates[0]!.pos;
+}
+
 export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
@@ -772,6 +864,21 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
             endTurn: false,
             intentNarration: `${input.combatantName} moves toward ${primaryTarget.name}.`,
           };
+        }
+        // AI-M7: Cover-seeking — if in attack range, look for a position with cover
+        if (combatant.position && distToTarget !== Infinity && distToTarget <= 60) {
+          const aiMap = ctx.mapData as CombatMap | undefined;
+          if (aiMap) {
+            const coverPos = findCoverPosition(combatant.position, primaryTarget, livingEnemies, speed, aiMap);
+            if (coverPos) {
+              return {
+                action: "move",
+                destination: coverPos,
+                endTurn: false,
+                intentNarration: `${input.combatantName} repositions behind cover.`,
+              };
+            }
+          }
         }
       } else {
         // Melee: close distance if out of reach
