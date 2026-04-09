@@ -153,7 +153,7 @@ CONDITIONS (IMPORTANT — source of truth):
 
 RESOURCES (check before using abilities):
 - context.combatant.resourcePools is an array of { name, current, max } tracking expendable resources.
-- Pool names include: "ki", "spellSlot_1" through "spellSlot_9", "rage", "actionSurge", "secondWind", "channelDivinity", "layOnHands", "pactMagic".
+- Pool names include: "ki", "spellSlot_1" through "spellSlot_9", "rage", "actionSurge", "secondWind", "channelDivinity:paladin", "channelDivinity:cleric", "layOnHands", "pactMagic".
 - ALWAYS check current > 0 before attempting abilities that cost resources.
 - Do NOT try to cast a leveled spell if the corresponding spellSlot_N pool has current === 0.
 - Cantrips (level 0 spells) do not consume spell slots.

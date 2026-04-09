@@ -25,7 +25,7 @@ export function clericChannelDivinityUsesForLevel(level: number): number {
 
 export function createChannelDivinityState(level: number): ChannelDivinityState {
   const max = clericChannelDivinityUsesForLevel(level);
-  return { pool: { name: "channelDivinity", current: max, max } };
+  return { pool: { name: "channelDivinity:cleric", current: max, max } };
 }
 
 export function spendChannelDivinity(
@@ -99,7 +99,7 @@ export const Cleric: CharacterClassDefinition = {
     return cd.pool.max > 0 ? [cd.pool] : [];
   },
   restRefreshPolicy: [
-    { poolKey: "channelDivinity", refreshOn: "both", computeMax: (level) => clericChannelDivinityUsesForLevel(level) },
+    { poolKey: "channelDivinity:cleric", refreshOn: "both", computeMax: (level) => clericChannelDivinityUsesForLevel(level) },
   ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
@@ -107,7 +107,7 @@ export const Cleric: CharacterClassDefinition = {
     ];
     if (level >= 2) {
       caps.push({ name: "Channel Divinity", economy: "action", cost: `${clericChannelDivinityUsesForLevel(level)} uses/short rest`, effect: "Channel divine energy for magical effects" });
-      caps.push({ name: "Turn Undead", economy: "action", cost: "1 Channel Divinity use", effect: "Undead within 30 ft must succeed WIS save or be turned", abilityId: "class:cleric:turn-undead", resourceCost: { pool: "channelDivinity", amount: 1 } });
+      caps.push({ name: "Turn Undead", economy: "action", cost: "1 Channel Divinity use", effect: "Undead within 30 ft must succeed WIS save or be turned", abilityId: "class:cleric:turn-undead", resourceCost: { pool: "channelDivinity:cleric", amount: 1 } });
     }
     return caps;
   },

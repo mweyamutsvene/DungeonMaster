@@ -50,7 +50,7 @@ export class TurnUndeadExecutor implements AbilityExecutor {
       }
 
       // Check Channel Divinity uses
-      if (!hasResourceAvailable(resources, "channelDivinity", 1)) {
+      if (!hasResourceAvailable(resources, "channelDivinity:cleric", 1)) {
         return {
           success: false,
           summary: "No Channel Divinity uses remaining (recharges on short/long rest)",
@@ -59,7 +59,7 @@ export class TurnUndeadExecutor implements AbilityExecutor {
       }
 
       // Spend Channel Divinity and mark action spent
-      const spentPool = spendResourceFromPool(resources, "channelDivinity", 1) as Record<string, unknown>;
+      const spentPool = spendResourceFromPool(resources, "channelDivinity:cleric", 1) as Record<string, unknown>;
       const updatedResources = { ...spentPool, actionSpent: true };
 
       // Calculate save DC: 8 + proficiency bonus + Wisdom modifier
@@ -78,7 +78,7 @@ export class TurnUndeadExecutor implements AbilityExecutor {
           saveDC,
           saveAbility: "wisdom",
           actorLevel: level,
-          spendResource: { poolName: "channelDivinity", amount: 1 },
+          spendResource: { poolName: "channelDivinity:cleric", amount: 1 },
         },
       };
     } catch (err: any) {

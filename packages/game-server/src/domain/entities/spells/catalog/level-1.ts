@@ -326,22 +326,137 @@ export const THUNDEROUS_WARD = {
   description: 'Wraps target in thunderous energy. If target moves voluntarily, it takes 2d8 thunder damage.',
 } as const satisfies CanonicalSpell;
 
+export const COMMAND = {
+  name: 'Command',
+  level: 1,
+  saveAbility: 'wisdom',
+  halfDamageOnSave: false,
+  conditions: { onFailure: ['Incapacitated'] },
+  // On failed save, target obeys a one-word command on its next turn.
+  // Approximated as Incapacitated for one turn (cannot take actions).
+  turnEndSave: { ability: 'wisdom', removeConditionOnSuccess: true },
+  school: 'enchantment',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true },
+  classLists: ['Bard', 'Cleric', 'Paladin'],
+  description: 'Speak a one-word command to a creature. On failed WIS save, target follows the command on its next turn. +1 target per slot level above 1st.',
+} as const satisfies CanonicalSpell;
+
+export const FAERIE_FIRE = {
+  name: 'Faerie Fire',
+  level: 1,
+  concentration: true,
+  saveAbility: 'dexterity',
+  halfDamageOnSave: false,
+  area: { type: 'cube' as const, size: 20 },
+  effects: [
+    {
+      type: 'advantage' as const,
+      target: 'attack_rolls' as const,
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  // On failed save: outlined in light, attacks have advantage, can't benefit from Invisible
+  school: 'evocation',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true },
+  classLists: ['Bard', 'Druid'],
+  description: 'Creatures in a 20-foot cube make DEX save. On fail: outlined in light, attack rolls against them have advantage, cannot benefit from Invisible.',
+} as const satisfies CanonicalSpell;
+
+export const HEX = {
+  name: 'Hex',
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'necrotic',
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+    {
+      type: 'disadvantage' as const,
+      target: 'ability_checks' as const,
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'enchantment',
+  castingTime: 'bonus_action',
+  range: 90,
+  components: { v: true, s: true, m: 'the petrified eye of a newt' },
+  classLists: ['Warlock'],
+  description: 'Bonus action. Target takes extra 1d6 necrotic on your attacks and has disadvantage on one ability check type you choose.',
+} as const satisfies CanonicalSpell;
+
+export const HUNTERS_MARK = {
+  name: "Hunter's Mark",
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'force',
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'divination',
+  castingTime: 'bonus_action',
+  range: 90,
+  components: { v: true },
+  classLists: ['Ranger'],
+  description: "Bonus action. Mark a creature. Your weapon attacks deal extra 1d6 force damage to the target. Can move the mark as bonus action when the target drops to 0 HP.",
+} as const satisfies CanonicalSpell;
+
+export const SLEEP = {
+  name: 'Sleep',
+  level: 1,
+  concentration: true,
+  // D&D 5e 2024: Sleep is concentration, WIS save, puts creatures to sleep
+  saveAbility: 'wisdom',
+  halfDamageOnSave: false,
+  conditions: { onFailure: ['Unconscious'] },
+  area: { type: 'sphere' as const, size: 20 },
+  school: 'enchantment',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true, s: true, m: 'a pinch of sand' },
+  classLists: ['Bard', 'Sorcerer', 'Wizard'],
+  description: 'Creatures in a 20-foot-radius sphere make WIS save or fall Unconscious. The spell ends for a creature if it takes damage or someone uses an action to wake it.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
   BLESS,
   BURNING_HANDS,
   CAUSE_FEAR,
+  COMMAND,
   CURE_WOUNDS,
+  FAERIE_FIRE,
   GUIDING_BOLT,
   HEALING_WORD,
   HELLISH_REBUKE,
   HEROISM,
+  HEX,
+  HUNTERS_MARK,
   INFLICT_WOUNDS,
   LONGSTRIDER,
   MAGE_ARMOR,
   MAGIC_MISSILE,
   SHIELD_SPELL,
   SHIELD_OF_FAITH,
+  SLEEP,
   THUNDERWAVE,
   THUNDEROUS_WARD,
 ];

@@ -80,7 +80,7 @@ describe("rest resource refresh", () => {
   });
 
   it("refreshes cleric channel divinity on short rest (2024 rules)", () => {
-    const pools = [{ name: "channelDivinity", current: 0, max: 3 }];
+    const pools = [{ name: "channelDivinity:cleric", current: 0, max: 3 }];
     const refreshed = refreshClassResourcePools({
       classId: "cleric",
       level: 6,

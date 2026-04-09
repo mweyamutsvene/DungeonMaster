@@ -25,7 +25,7 @@ describe("class resources", () => {
 
     const lvl3 = defaultResourcePoolsForClass({ classId: "paladin", level: 3 });
     expect(lvl3).toEqual([
-      { name: "channelDivinity", current: 1, max: 1 },
+      { name: "channelDivinity:paladin", current: 1, max: 1 },
       { name: "layOnHands", current: 15, max: 15 },
     ]);
   });

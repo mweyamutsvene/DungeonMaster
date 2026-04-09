@@ -49,7 +49,7 @@ export class ChannelDivinityExecutor implements AbilityExecutor {
       }
 
       // Check Channel Divinity uses
-      if (!hasResourceAvailable(resources, "channelDivinity", 1)) {
+      if (!hasResourceAvailable(resources, "channelDivinity:paladin", 1)) {
         return {
           success: false,
           summary: "No Channel Divinity uses remaining (recharges on short/long rest)",
@@ -65,7 +65,7 @@ export class ChannelDivinityExecutor implements AbilityExecutor {
           aoeEffect: "divineSense",
           range: 60,
           detectsCreatureTypes: ["celestial", "fiend", "undead"],
-          spendResource: { poolName: "channelDivinity", amount: 1 },
+          spendResource: { poolName: "channelDivinity:paladin", amount: 1 },
         },
       };
     } catch (err: any) {

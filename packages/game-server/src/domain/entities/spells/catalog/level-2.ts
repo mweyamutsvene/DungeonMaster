@@ -182,13 +182,136 @@ export const SPIRITUAL_WEAPON = {
   description: 'A floating spectral weapon that attacks for 1d8 + spellcasting modifier force damage. Move and repeat as bonus action.',
 } as const satisfies CanonicalSpell;
 
+export const AID = {
+  name: 'Aid',
+  level: 2,
+  // D&D 5e 2024: Aid is NOT concentration. Increases max HP by 5 per slot level for 3 creatures.
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'hit_points' as const,
+      value: 5, // Base: +5 max HP, scales +5 per upcast level
+      duration: 'rounds' as const,
+      roundsRemaining: 4800, // ~8 hours at 6s rounds
+      appliesTo: 'target' as const,
+    },
+  ],
+  upcastScaling: { additionalDice: { diceCount: 0, diceSides: 0 } },
+  // Custom upcast: +5 max HP per level above 2nd (not dice-based; delivery handler interprets)
+  school: 'abjuration',
+  castingTime: 'action',
+  range: 30,
+  components: { v: true, s: true, m: 'a strip of white cloth' },
+  classLists: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger'],
+  description: 'Up to 3 creatures gain 5 extra max HP (and current HP) for 8 hours. +5 per slot level above 2nd.',
+} as const satisfies CanonicalSpell;
+
+export const DARKNESS = {
+  name: 'Darkness',
+  level: 2,
+  concentration: true,
+  zone: {
+    type: 'placed' as const,
+    radiusFeet: 15,
+    shape: 'circle' as const,
+    effects: [
+      {
+        trigger: 'passive' as const,
+        conditions: ['Blinded'],
+        affectsEnemies: true,
+        affectsAllies: true,
+        affectsSelf: true,
+      },
+    ],
+  },
+  school: 'evocation',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true, m: 'bat fur and a piece of coal' },
+  classLists: ['Sorcerer', 'Warlock', 'Wizard'],
+  description: 'Magical darkness fills a 15-foot-radius sphere. Creatures inside are heavily obscured (effectively Blinded). Nonmagical light cannot illuminate it.',
+} as const satisfies CanonicalSpell;
+
+export const INVISIBILITY = {
+  name: 'Invisibility',
+  level: 2,
+  concentration: true,
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'custom' as const,
+      conditionName: 'Invisible',
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'illusion',
+  castingTime: 'action',
+  range: 'touch',
+  components: { v: true, s: true, m: 'an eyelash in gum arabic' },
+  classLists: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+  description: 'Target becomes Invisible until the spell ends. Ends if target attacks or casts a spell. +1 target per slot level above 2nd.',
+} as const satisfies CanonicalSpell;
+
+export const LESSER_RESTORATION = {
+  name: 'Lesser Restoration',
+  level: 2,
+  // Ends one condition: Blinded, Deafened, Paralyzed, or Poisoned
+  effects: [
+    {
+      type: 'custom' as const,
+      target: 'custom' as const,
+      duration: 'instant' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'abjuration',
+  castingTime: 'action',
+  range: 'touch',
+  components: { v: true, s: true },
+  classLists: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger'],
+  description: 'End one condition on a creature you touch: Blinded, Deafened, Paralyzed, or Poisoned.',
+} as const satisfies CanonicalSpell;
+
+export const WEB = {
+  name: 'Web',
+  level: 2,
+  concentration: true,
+  zone: {
+    type: 'placed' as const,
+    radiusFeet: 20,
+    shape: 'cube' as const,
+    effects: [
+      {
+        trigger: 'on_start_turn' as const,
+        saveAbility: 'dexterity',
+        conditions: ['Restrained'],
+        affectsEnemies: true,
+        affectsAllies: true,
+        affectsSelf: true,
+      },
+    ],
+  },
+  school: 'conjuration',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true, s: true, m: 'a bit of spiderweb' },
+  classLists: ['Sorcerer', 'Wizard'],
+  description: 'Thick webs fill a 20-foot cube. DEX save or Restrained. Restrained creatures can repeat save at end of each turn.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_2_CATALOG: readonly CanonicalSpell[] = [
+  AID,
   CLOUD_OF_DAGGERS,
+  DARKNESS,
   HOLD_PERSON,
+  INVISIBILITY,
+  LESSER_RESTORATION,
   MISTY_STEP,
   MOONBEAM,
   SCORCHING_RAY,
   SHATTER,
   SPIKE_GROWTH,
   SPIRITUAL_WEAPON,
+  WEB,
 ];

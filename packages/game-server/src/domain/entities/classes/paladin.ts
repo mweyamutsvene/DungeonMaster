@@ -47,7 +47,7 @@ export function paladinChannelDivinityUsesForLevel(level: number): number {
 
 export function createChannelDivinityState(level: number): ChannelDivinityState {
   const max = paladinChannelDivinityUsesForLevel(level);
-  return { pool: { name: "channelDivinity", current: max, max } };
+  return { pool: { name: "channelDivinity:paladin", current: max, max } };
 }
 
 export function spendChannelDivinity(
@@ -178,7 +178,7 @@ export const Paladin: CharacterClassDefinition = {
   },
   restRefreshPolicy: [
     { poolKey: "layOnHands", refreshOn: "long", computeMax: (level) => layOnHandsPoolForLevel(level) },
-    { poolKey: "channelDivinity", refreshOn: "both", computeMax: (level) => paladinChannelDivinityUsesForLevel(level) },
+    { poolKey: "channelDivinity:paladin", refreshOn: "both", computeMax: (level) => paladinChannelDivinityUsesForLevel(level) },
   ],
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
@@ -188,7 +188,7 @@ export const Paladin: CharacterClassDefinition = {
       caps.push({ name: "Divine Smite", economy: "bonusAction", cost: "1 spell slot", requires: "Melee weapon hit", effect: "Add 2d8+ radiant damage on melee hit", abilityId: "class:paladin:divine-smite" });
     }
     if (level >= 3) {
-      caps.push({ name: "Channel Divinity: Divine Sense", economy: "bonusAction", cost: `1 Channel Divinity use (${paladinChannelDivinityUsesForLevel(level)} uses/short rest)`, effect: "Detect celestials, fiends, and undead within 60 ft", abilityId: "class:paladin:divine-sense", resourceCost: { pool: "channelDivinity", amount: 1 } });
+      caps.push({ name: "Channel Divinity: Divine Sense", economy: "bonusAction", cost: `1 Channel Divinity use (${paladinChannelDivinityUsesForLevel(level)} uses/short rest)`, effect: "Detect celestials, fiends, and undead within 60 ft", abilityId: "class:paladin:divine-sense", resourceCost: { pool: "channelDivinity:paladin", amount: 1 } });
     }
     if (level >= 5) {
       caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });

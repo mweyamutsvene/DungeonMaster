@@ -27,6 +27,9 @@ import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
+import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
+import { readConditionNames, getConditionEffects } from "../../../../domain/entities/combat/conditions.js";
+import type { Condition } from "../../../../domain/entities/combat/conditions.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import type { LlmRoster } from "../../../commands/game-command.js";
 import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
@@ -127,6 +130,31 @@ export class SpellActionHandler {
     }
     const effectiveCastLevel = castAtLevel ?? spellLevel;
     const targetRef = castInfo.targetName ? findCombatantByName(castInfo.targetName, roster) : undefined;
+
+    // D&D 5e 2024: Spell component enforcement
+    // Verbal component: blocked by any condition that sets cannotSpeak (Stunned, Paralyzed, Petrified, Unconscious)
+    // TODO: SS-M9 — Check if caster is in a Silence zone effect (requires zone position lookup)
+    // TODO: SS-M9 — Somatic component enforcement (free hand check — too complex with current equipment tracking)
+    // TODO: SS-M9 — Subtle Spell metamagic (Sorcerer) should bypass V/S requirements; no metamagic system yet
+    {
+      const canonical = getCanonicalSpell(castInfo.spellName);
+      const hasVerbalComponent = canonical?.components?.v ?? (spellMatch as any)?.components?.v ?? false;
+      if (hasVerbalComponent) {
+        const { actorCombatant: componentCheckCombatant } = await this.resolveEncounterContext(sessionId, actorId);
+        if (componentCheckCombatant) {
+          const conditionNames = readConditionNames(componentCheckCombatant.conditions);
+          const cannotSpeak = conditionNames.some((name) => {
+            const effects = getConditionEffects(name as Condition);
+            return effects.cannotSpeak;
+          });
+          if (cannotSpeak) {
+            throw new ValidationError(
+              `Cannot cast ${castInfo.spellName} — verbal component required but caster cannot speak (${conditionNames.filter((name) => getConditionEffects(name as Condition).cannotSpeak).join(", ")})`,
+            );
+          }
+        }
+      }
+    }
 
     // D&D 5e 2024: Bonus action spell restriction
     // If a bonus action spell (leveled) was cast this turn, only cantrips as action spells.
