@@ -96,6 +96,10 @@ export interface AttackPendingAction {
   coverACBonus?: number;
   /** Prevents offering Lucky more than once for the same attack roll sequence. */
   luckyPrompted?: boolean;
+  /** Current spell strike index (1-based) for multi-attack spells (Eldritch Blast beams, Scorching Ray rays) */
+  spellStrike?: number;
+  /** Total spell strikes for multi-attack spells */
+  spellStrikeTotal?: number;
 }
 
 export interface DamagePendingAction {
@@ -112,6 +116,10 @@ export interface DamagePendingAction {
   sneakAttackDice?: number;
   /** Post-damage enhancements to resolve (built at damage time from player opt-in keywords) */
   enhancements?: HitRiderEnhancement[];
+  /** Current spell strike index (1-based) for multi-attack spells */
+  spellStrike?: number;
+  /** Total spell strikes for multi-attack spells */
+  spellStrikeTotal?: number;
 }
 
 /**

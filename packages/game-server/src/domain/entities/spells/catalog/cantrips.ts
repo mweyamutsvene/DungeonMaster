@@ -15,8 +15,8 @@ export const ELDRITCH_BLAST = {
   attackType: 'ranged_spell',
   damage: { diceCount: 1, diceSides: 10 },
   damageType: 'force',
-  // No upcastScaling — cantrip scaling creates extra beams at levels 5/11/17,
-  // not extra dice per beam. Beam count handled by cantrip-specific logic.
+  // Cantrip scaling creates extra beams at levels 5/11/17, not extra dice per beam.
+  multiAttack: { baseCount: 1, scaling: 'cantrip' },
   school: 'evocation',
   castingTime: 'action',
   range: 120,

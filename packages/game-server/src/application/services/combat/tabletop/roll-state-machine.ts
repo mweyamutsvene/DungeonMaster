@@ -708,6 +708,39 @@ export class RollStateMachine {
         };
       }
 
+      // Handle miss for multi-attack spell (Eldritch Blast beams, Scorching Ray rays)
+      if (action.spellStrike && action.spellStrikeTotal && action.spellStrike < action.spellStrikeTotal) {
+        const nextStrike = action.spellStrike + 1;
+        const nextPending: AttackPendingAction = {
+          type: "ATTACK",
+          timestamp: new Date(),
+          actorId,
+          attacker: actorId,
+          target: action.target,
+          targetId: action.targetId,
+          weaponSpec: action.weaponSpec,
+          spellStrike: nextStrike,
+          spellStrikeTotal: action.spellStrikeTotal,
+        };
+
+        await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
+
+        return {
+          rollType: "attack",
+          rawRoll: rollValue,
+          modifier: attackBonus,
+          total,
+          targetAC: effectAdjustedAC,
+          hit: false,
+          targetHpRemaining: (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0,
+          requiresPlayerInput: true,
+          actionComplete: false,
+          type: "REQUEST_ROLL",
+          diceNeeded: "d20",
+          message: `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20.`,
+        };
+      }
+
       // Regular miss
       await this.deps.combatRepo.clearPendingAction(encounter.id);
       await this.eventEmitter.markActionSpent(encounter.id, actorId);
@@ -879,6 +912,8 @@ export class RollStateMachine {
       bonusAction: action.bonusAction,
       flurryStrike: action.flurryStrike,
       sneakAttackDice: sneakAttackDiceCount > 0 ? sneakAttackDiceCount : undefined,
+      spellStrike: action.spellStrike,
+      spellStrikeTotal: action.spellStrikeTotal,
       // Enhancements are built at damage time from player opt-in keywords, not here
     };
 
@@ -1328,6 +1363,42 @@ export class RollStateMachine {
         message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a d20.`,
         ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
         ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
+      };
+    }
+
+    // Handle multi-attack spell strike chaining (Eldritch Blast beams, Scorching Ray rays)
+    const isSpellStrikeNotLast = action.spellStrike && action.spellStrikeTotal && action.spellStrike < action.spellStrikeTotal;
+    if (isSpellStrikeNotLast) {
+      const nextStrike = action.spellStrike! + 1;
+      const nextPending: AttackPendingAction = {
+        type: "ATTACK",
+        timestamp: new Date(),
+        actorId,
+        attacker: actorId,
+        target: action.targetId,
+        targetId: action.targetId,
+        weaponSpec: action.weaponSpec,
+        spellStrike: nextStrike,
+        spellStrikeTotal: action.spellStrikeTotal,
+      };
+
+      await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
+
+      return {
+        rollType: "attack",
+        rawRoll: rollValue,
+        modifier: damageModifier,
+        total: totalDamage,
+        totalDamage,
+        targetName,
+        hpBefore,
+        hpAfter,
+        targetHpRemaining: hpAfter,
+        actionComplete: false,
+        requiresPlayerInput: true,
+        type: "REQUEST_ROLL",
+        diceNeeded: "d20",
+        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20.`,
       };
     }
 

@@ -111,7 +111,7 @@ export const SCORCHING_RAY = {
   damage: { diceCount: 2, diceSides: 6 },
   damageType: 'fire',
   // Each ray deals 2d6. Base: 3 rays. +1 ray per slot level above 2nd.
-  // upcastScaling here represents per-ray bonus; ray count handled by spell-specific logic.
+  multiAttack: { baseCount: 3, scaling: 'perLevel' },
   school: 'evocation',
   castingTime: 'action',
   range: 120,

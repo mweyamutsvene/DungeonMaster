@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getCantripDamageDice, getUpcastBonusDice } from "./prepared-spell-definition.js";
+import { getCantripDamageDice, getUpcastBonusDice, getSpellAttackCount } from "./prepared-spell-definition.js";
 import type { PreparedSpellDefinition } from "./prepared-spell-definition.js";
 
 describe("getCantripDamageDice", () => {
@@ -123,5 +123,80 @@ describe("getUpcastBonusDice", () => {
   it("spell without upcastScaling field returns null even when upcast", () => {
     const noScaling: PreparedSpellDefinition = { name: "Magic Missile", level: 1 };
     expect(getUpcastBonusDice(noScaling, 3)).toBeNull();
+  });
+});
+
+// ─────────────────────── getSpellAttackCount ─────────────────────────
+
+const ELDRITCH_BLAST: PreparedSpellDefinition = {
+  name: "Eldritch Blast",
+  level: 0,
+  attackType: "ranged_spell",
+  damage: { diceCount: 1, diceSides: 10 },
+  multiAttack: { baseCount: 1, scaling: "cantrip" },
+};
+
+const SCORCHING_RAY: PreparedSpellDefinition = {
+  name: "Scorching Ray",
+  level: 2,
+  attackType: "ranged_spell",
+  damage: { diceCount: 2, diceSides: 6 },
+  multiAttack: { baseCount: 3, scaling: "perLevel" },
+};
+
+describe("getSpellAttackCount", () => {
+  describe("cantrip scaling (Eldritch Blast)", () => {
+    it("returns 1 beam at levels 1-4", () => {
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 1)).toBe(1);
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 4)).toBe(1);
+    });
+
+    it("returns 2 beams at levels 5-10", () => {
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 5)).toBe(2);
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 10)).toBe(2);
+    });
+
+    it("returns 3 beams at levels 11-16", () => {
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 11)).toBe(3);
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 16)).toBe(3);
+    });
+
+    it("returns 4 beams at levels 17-20", () => {
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 17)).toBe(4);
+      expect(getSpellAttackCount(ELDRITCH_BLAST, 20)).toBe(4);
+    });
+  });
+
+  describe("perLevel scaling (Scorching Ray)", () => {
+    it("returns 3 rays at base level 2", () => {
+      expect(getSpellAttackCount(SCORCHING_RAY, 5, 2)).toBe(3);
+    });
+
+    it("returns 4 rays at level 3 (upcast)", () => {
+      expect(getSpellAttackCount(SCORCHING_RAY, 5, 3)).toBe(4);
+    });
+
+    it("returns 5 rays at level 4 (upcast)", () => {
+      expect(getSpellAttackCount(SCORCHING_RAY, 5, 4)).toBe(5);
+    });
+
+    it("returns 7 rays at level 6 (upcast)", () => {
+      expect(getSpellAttackCount(SCORCHING_RAY, 5, 6)).toBe(7);
+    });
+
+    it("uses spell base level when castAtLevel is undefined", () => {
+      expect(getSpellAttackCount(SCORCHING_RAY, 5)).toBe(3);
+    });
+  });
+
+  describe("non-multi-attack spells", () => {
+    it("returns 1 for Fire Bolt (no multiAttack field)", () => {
+      expect(getSpellAttackCount(FIRE_BOLT, 17)).toBe(1);
+    });
+
+    it("returns 1 for any spell without multiAttack", () => {
+      const magic: PreparedSpellDefinition = { name: "Magic Missile", level: 1 };
+      expect(getSpellAttackCount(magic, 5)).toBe(1);
+    });
   });
 });

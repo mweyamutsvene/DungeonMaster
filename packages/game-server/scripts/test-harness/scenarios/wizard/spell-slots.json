@@ -90,7 +90,7 @@
       "expect": { "error": true, "errorContains": "spell slots remaining" }
     },
     {
-      "comment": "Cast Scorching Ray (level 2) - now a ranged spell attack (canonical catalog). Should consume 2nd-level slot (1→0)",
+      "comment": "Cast Scorching Ray (level 2) - now a ranged spell attack (canonical catalog). Should consume 2nd-level slot (1→0). 3 rays at base level.",
       "type": "action",
       "input": { "text": "cast Scorching Ray at Skeleton Warrior" },
       "expect": { "rollType": "attack", "requiresPlayerInput": true }
@@ -98,13 +98,37 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 15" },
-      "comment": "Scorching Ray attack roll: 15 + 6 = 21 vs AC 13 → hit",
+      "comment": "Scorching Ray ray 1 attack roll: 15 + 6 = 21 vs AC 13 → hit",
       "expect": { "hit": true, "requiresPlayerInput": true }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 8" },
-      "comment": "Scorching Ray damage",
+      "comment": "Scorching Ray ray 1 damage → chains to ray 2",
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Scorching Ray ray 2 attack roll: 15 + 6 = 21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Scorching Ray ray 2 damage → chains to ray 3",
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "Scorching Ray ray 3 attack roll: 15 + 6 = 21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "comment": "Scorching Ray ray 3 damage → last ray, action complete",
       "expect": { "actionComplete": true }
     },
     { "type": "endTurn" },

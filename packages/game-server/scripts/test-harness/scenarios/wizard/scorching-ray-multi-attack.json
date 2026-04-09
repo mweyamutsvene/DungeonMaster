@@ -1,0 +1,109 @@
+{
+  "name": "Wizard Scorching Ray Multi-Ray (3 rays)",
+  "description": "Tests Scorching Ray multi-ray mechanics. Scorching Ray creates 3 separate attack rolls, each dealing 2d6 fire damage. Tests: (1) three attack→damage cycles, (2) correct chaining between rays, (3) a miss on ray 2 still chains to ray 3, (4) action completes only after last ray.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Troll",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 13, "constitution": 20,
+            "intelligence": 7, "wisdom": 9, "charisma": 7
+          },
+          "maxHp": 84, "hp": 84, "armorClass": 15, "speed": 30,
+          "challengeRating": 5, "experienceValue": 1800,
+          "attacks": [
+            {
+              "name": "Claw", "kind": "melee", "attackBonus": 7,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "--- Scorching Ray: 3 rays at level 2 ---",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Troll" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 attack roll: 15 + 6 = 21 vs AC 15 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 damage: 8 fire → chains to ray 2",
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 attack roll: 3 + 6 = 9 vs AC 15 → MISS, chains to ray 3",
+      "type": "rollResult",
+      "input": { "text": "I rolled 3" },
+      "expect": { "hit": false, "requiresPlayerInput": true, "actionComplete": false }
+    },
+    {
+      "comment": "Ray 3 attack roll: 18 + 6 = 24 vs AC 15 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 damage: 7 fire → last ray, action complete",
+      "type": "rollResult",
+      "input": { "text": "I rolled 7" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

@@ -110,6 +110,16 @@ export interface PreparedSpellDefinition {
     readonly ability: string;
     readonly removeConditionOnSuccess: boolean;
   };
+  /**
+   * Multi-attack spell declaration (Eldritch Blast beams, Scorching Ray rays).
+   * Each attack is a separate attack roll with independent hit/miss/crit.
+   * - `cantrip` scaling: uses cantrip tiers (1/2/3/4 at character levels 1/5/11/17)
+   * - `perLevel` scaling: baseCount + (castAtLevel - spell.level) extra attacks
+   */
+  readonly multiAttack?: {
+    readonly baseCount: number;
+    readonly scaling: 'cantrip' | 'perLevel';
+  };
 }
 
 /**
@@ -145,4 +155,32 @@ export function getUpcastBonusDice(
     bonusDiceCount: levelsAbove * spell.upcastScaling.additionalDice.diceCount,
     diceSides: spell.upcastScaling.additionalDice.diceSides,
   };
+}
+
+/**
+ * Compute the number of independent attack rolls for a multi-attack spell.
+ *
+ * - Eldritch Blast (cantrip scaling): 1/2/3/4 beams at character levels 1/5/11/17
+ * - Scorching Ray (perLevel scaling):  baseCount + (castAtLevel - spell.level)
+ *
+ * Returns 1 for spells without multiAttack.
+ */
+export function getSpellAttackCount(
+  spell: PreparedSpellDefinition,
+  characterLevel: number,
+  castAtLevel?: number,
+): number {
+  if (!spell.multiAttack) return 1;
+  const { baseCount, scaling } = spell.multiAttack;
+  if (scaling === 'cantrip') {
+    // Same tier breakpoints as cantrip damage scaling
+    if (characterLevel >= 17) return baseCount * 4;
+    if (characterLevel >= 11) return baseCount * 3;
+    if (characterLevel >= 5) return baseCount * 2;
+    return baseCount;
+  }
+  // perLevel: base + extra per slot level above spell's base
+  const effectiveLevel = castAtLevel ?? spell.level;
+  const extra = Math.max(0, effectiveLevel - spell.level);
+  return baseCount + extra;
 }

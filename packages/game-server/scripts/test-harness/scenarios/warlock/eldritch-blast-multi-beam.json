@@ -1,0 +1,96 @@
+{
+  "name": "Warlock Eldritch Blast Multi-Beam (Level 5)",
+  "description": "Tests Eldritch Blast multi-beam mechanics at level 5. At level 5, Eldritch Blast creates 2 beams, each requiring a separate attack roll and dealing 1d10 force damage. The damage dice do NOT scale (no 2d10 per beam) — the scaling IS the extra beams. Verifies: (1) two separate attack→damage cycles, (2) correct chaining between beams, (3) action completes only after the last beam.",
+  "setup": {
+    "character": {
+      "name": "Malachar the Dark",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 18
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 }
+        ],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 59, "hp": 59, "armorClass": 11, "speed": 40,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready myself" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "--- Eldritch Blast: 2 beams at level 5 ---",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Ogre" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack roll: 15 + 7 = 22 vs AC 11 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: 8 force damage → chains to beam 2",
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack roll: 12 + 7 = 19 vs AC 11 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: 6 force damage → last beam, action complete",
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

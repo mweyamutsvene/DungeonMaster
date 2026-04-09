@@ -1,11 +1,11 @@
 /**
  * SpellAttackDeliveryHandler — handles projectile/melee spell attack rolls.
- * Covers: Fire Bolt, Guiding Bolt, Inflict Wounds, etc.
+ * Covers: Fire Bolt, Guiding Bolt, Inflict Wounds, Eldritch Blast (multi-beam), Scorching Ray (multi-ray).
  */
 
 import { ValidationError } from '../../../../errors.js';
 import { normalizeConditions } from '../../../../../domain/entities/combat/conditions.js';
-import { getCantripDamageDice, getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import { getCantripDamageDice, getUpcastBonusDice, getSpellAttackCount } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { deriveRollModeFromConditions, findCombatantByName } from '../combat-text-parser.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
@@ -40,17 +40,24 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
 
     const spellDamage = spellMatch.damage ?? { diceCount: 1, diceSides: 10, modifier: 0 };
 
-    // Cantrip scaling: scale damage dice by character level (D&D 5e 2024)
+    // Multi-attack spells (Eldritch Blast, Scorching Ray) scale via attack count, NOT dice count.
+    // Single-attack cantrips scale via getCantripDamageDice().
+    const characterLevel: number = typeof sheet?.level === "number" && sheet.level >= 1 ? sheet.level : 1;
+    const totalStrikes = getSpellAttackCount(spellMatch, characterLevel, castAtLevel ?? undefined);
+    const isMultiAttack = totalStrikes > 1;
+
     let diceCount = spellDamage.diceCount;
-    if (spellMatch.level === 0) {
-      const characterLevel: number = typeof sheet?.level === "number" && sheet.level >= 1 ? sheet.level : 1;
+    if (spellMatch.level === 0 && !isMultiAttack) {
+      // Standard cantrip damage scaling (Fire Bolt, etc.) — NOT for multi-attack cantrips
       diceCount = getCantripDamageDice(spellDamage.diceCount, characterLevel);
     }
 
-    // Upcast scaling: add bonus dice per slot level above base
-    const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
-    if (upcastBonus) {
-      diceCount += upcastBonus.bonusDiceCount;
+    // Upcast scaling: add bonus dice per slot level above base (only for non-multi-attack spells)
+    if (!isMultiAttack) {
+      const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
+      if (upcastBonus) {
+        diceCount += upcastBonus.bonusDiceCount;
+      }
     }
 
     const effectiveLevel = castAtLevel ?? spellLevel;
@@ -90,12 +97,14 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       targetId,
       weaponSpec: spellWeaponSpec,
       rollMode,
+      ...(isMultiAttack ? { spellStrike: 1, spellStrikeTotal: totalStrikes } : {}),
     };
 
     await this.handlerDeps.deps.combatRepo.setPendingAction(encounter.id, pendingAction);
 
     const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
     const rollModeNote = rollMode !== "normal" ? ` (${rollMode})` : "";
+    const strikeNote = isMultiAttack ? ` (beam 1 of ${totalStrikes})` : "";
 
     return {
       requiresPlayerInput: true,
@@ -105,7 +114,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       diceNeeded: "d20",
       advantage: rollMode === "advantage",
       disadvantage: rollMode === "disadvantage",
-      message: `Casting ${castInfo.spellName} at ${targetName}${slotNote}${rollModeNote}. Roll a d20 for spell attack.`,
+      message: `Casting ${castInfo.spellName} at ${targetName}${slotNote}${rollModeNote}${strikeNote}. Roll a d20 for spell attack.`,
     };
   }
 }
