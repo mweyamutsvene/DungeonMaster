@@ -3,4 +3,5 @@ export { Combat, type Combatant, type CombatState } from "./combat.js";
 export { rollInitiative, swapInitiative, type InitiativeEntry } from "./initiative.js";
 export { canUseProtection, type ProtectionEligibility } from "./protection.js";
 export { canMakeOffhandAttack, computeOffhandDamageModifier, type WeaponProperties } from "./two-weapon-fighting.js";
+export { canMount, getMountingCost, type MountState, type MountControlMode } from "./mount.js";
 // movement.ts removed — dead code. Canonical movement lives in domain/rules/movement.ts

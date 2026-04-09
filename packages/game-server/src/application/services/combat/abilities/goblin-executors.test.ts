@@ -192,5 +192,99 @@ describe('Goblin Ability Executors', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('MISSING_SERVICE');
     });
+
+    it('should fail when bonus action is already used', async () => {
+      const context: AbilityExecutionContext = {
+        sessionId: 'test-session',
+        encounterId: 'test-encounter',
+        actor: { id: 'goblin-123', name: 'Sneaky Goblin' } as any,
+        combat: {} as any,
+        abilityId: 'monster:bonus:nimble-escape',
+        params: {
+          actor: { type: 'Monster', monsterId: 'goblin-123' },
+          resources: { bonusActionUsed: true },
+        },
+        services: {
+          disengage: vi.fn(),
+          hide: vi.fn(),
+        },
+      };
+
+      const result = await registry.execute(context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('NO_BONUS_ACTION');
+    });
+
+    it('should fail when creature is incapacitated', async () => {
+      const context: AbilityExecutionContext = {
+        sessionId: 'test-session',
+        encounterId: 'test-encounter',
+        actor: { id: 'goblin-123', name: 'Sneaky Goblin' } as any,
+        combat: {} as any,
+        abilityId: 'monster:bonus:nimble-escape',
+        params: {
+          actor: { type: 'Monster', monsterId: 'goblin-123' },
+          conditions: ['Incapacitated'],
+        },
+        services: {
+          disengage: vi.fn(),
+          hide: vi.fn(),
+        },
+      };
+
+      const result = await registry.execute(context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('INCAPACITATED');
+    });
+
+    it('should fail when creature is stunned', async () => {
+      const context: AbilityExecutionContext = {
+        sessionId: 'test-session',
+        encounterId: 'test-encounter',
+        actor: { id: 'goblin-123', name: 'Sneaky Goblin' } as any,
+        combat: {} as any,
+        abilityId: 'monster:bonus:nimble-escape',
+        params: {
+          actor: { type: 'Monster', monsterId: 'goblin-123' },
+          conditions: ['Stunned'],
+        },
+        services: {
+          disengage: vi.fn(),
+          hide: vi.fn(),
+        },
+      };
+
+      const result = await registry.execute(context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('INCAPACITATED');
+    });
+
+    it('should succeed when no resources or conditions are provided (backward compat)', async () => {
+      const mockDisengage = vi.fn().mockResolvedValue({ success: true });
+
+      const context: AbilityExecutionContext = {
+        sessionId: 'test-session',
+        encounterId: 'test-encounter',
+        actor: { id: 'goblin-123', name: 'Sneaky Goblin' } as any,
+        combat: {} as any,
+        abilityId: 'monster:bonus:nimble-escape',
+        params: {
+          actor: { type: 'Monster', monsterId: 'goblin-123' },
+          // No resources or conditions — backward compat path
+        },
+        services: {
+          disengage: mockDisengage,
+          hide: vi.fn(),
+        },
+      };
+
+      const result = await registry.execute(context);
+
+      expect(result.success).toBe(true);
+      expect(mockDisengage).toHaveBeenCalled();
+    });
   });
 });
