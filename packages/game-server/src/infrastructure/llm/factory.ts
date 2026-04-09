@@ -1,5 +1,6 @@
 import { GitHubModelsProvider } from "./github-models-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
+import { OpenAiProvider } from "./openai-provider.js";
 import type { LlmProvider } from "./types.js";
 
 export function createLlmProviderFromEnv(): LlmProvider | undefined {
@@ -30,9 +31,17 @@ export function createLlmProviderFromEnv(): LlmProvider | undefined {
   }
 
   if (provider === "openai") {
-    throw new Error(
-      "OpenAI provider is not yet implemented. Set DM_LLM_PROVIDER=ollama (with DM_OLLAMA_MODEL) or DM_LLM_PROVIDER=github-models (with DM_GITHUB_MODELS_MODEL + GITHUB_TOKEN) instead.",
-    );
+    const apiKey = process.env.DM_OPENAI_API_KEY;
+    if (!apiKey) return undefined;
+
+    const model = process.env.DM_OPENAI_MODEL;
+    if (!model) return undefined;
+
+    return new OpenAiProvider({
+      baseUrl: process.env.DM_OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+      apiKey,
+      defaultTimeoutMs: Number(process.env.DM_LLM_TIMEOUT_MS ?? 30000),
+    });
   }
 
   return undefined;
@@ -41,5 +50,6 @@ export function createLlmProviderFromEnv(): LlmProvider | undefined {
 export function getDefaultModelFromEnv(): string | undefined {
   const provider = (process.env.DM_LLM_PROVIDER ?? "ollama").toLowerCase();
   if (provider === "github-models") return process.env.DM_GITHUB_MODELS_MODEL;
+  if (provider === "openai") return process.env.DM_OPENAI_MODEL;
   return process.env.DM_OLLAMA_MODEL;
 }

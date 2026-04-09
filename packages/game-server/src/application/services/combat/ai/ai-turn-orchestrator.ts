@@ -25,6 +25,7 @@ import { TwoPhaseActionService } from "../two-phase-action-service.js";
 import { nanoid } from "nanoid";
 import type { IAiDecisionMaker, AiDecision, TurnStepResult, ActorRef } from "./ai-types.js";
 import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
+import { buildActorRef as buildActorRefShared } from "./build-actor-ref.js";
 import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
@@ -215,18 +216,10 @@ export class AiTurnOrchestrator {
 
   /**
    * Build an ActorRef from a combatant state record.
+   * Delegates to shared helper (AI-L5).
    */
   private buildActorRef(combatant: CombatantStateRecord): ActorRef | null {
-    if (combatant.combatantType === "Monster" && combatant.monsterId) {
-      return { type: "Monster", monsterId: combatant.monsterId };
-    }
-    if (combatant.combatantType === "NPC" && combatant.npcId) {
-      return { type: "NPC", npcId: combatant.npcId };
-    }
-    if (combatant.combatantType === "Character" && combatant.characterId) {
-      return { type: "Character", characterId: combatant.characterId };
-    }
-    return null;
+    return buildActorRefShared(combatant);
   }
 
   /**

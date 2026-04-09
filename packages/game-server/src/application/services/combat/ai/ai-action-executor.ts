@@ -24,6 +24,7 @@ import type { PendingActionRepository } from "../../../repositories/pending-acti
 import type { AbilityRegistry } from "../abilities/ability-registry.js";
 import type { AiDecision, TurnStepResult, ActorRef } from "./ai-types.js";
 import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
+import { buildActorRef as buildActorRefShared } from "./build-actor-ref.js";
 import type { AiMovementDeps } from "./ai-movement-resolver.js";
 import type { AiActionHandlerContext, AiActionHandlerDeps } from "./ai-action-handler.js";
 import type { AiLogger, AiReactionDecider } from "./ai-action-handler.js";
@@ -111,18 +112,10 @@ export class AiActionExecutor {
 
   /**
    * Build an ActorRef from a combatant state record.
+   * Delegates to shared helper (AI-L5).
    */
   buildActorRef(combatant: CombatantStateRecord): ActorRef | null {
-    if (combatant.combatantType === "Monster" && combatant.monsterId) {
-      return { type: "Monster", monsterId: combatant.monsterId };
-    }
-    if (combatant.combatantType === "NPC" && combatant.npcId) {
-      return { type: "NPC", npcId: combatant.npcId };
-    }
-    if (combatant.combatantType === "Character" && combatant.characterId) {
-      return { type: "Character", characterId: combatant.characterId };
-    }
-    return null;
+    return buildActorRefShared(combatant);
   }
 
   /**

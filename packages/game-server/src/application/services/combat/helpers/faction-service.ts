@@ -6,11 +6,28 @@ import type { INPCRepository } from "../../../repositories/npc-repository.js";
 
 export type FactionRelationship = "ally" | "enemy" | "neutral";
 
+/**
+ * AI-L7: Default faction relationship table.
+ * Same faction = ally; "neutral" is neutral to everyone;
+ * otherwise hostile. Can be overridden via constructor config.
+ */
+const DEFAULT_RELATIONSHIP_TABLE: ReadonlyMap<string, FactionRelationship> = new Map();
+
+export interface FactionServiceConfig {
+  /**
+   * AI-L7: Custom faction relationship overrides.
+   * Keys are "faction1:faction2" (sorted alphabetically), values are the relationship.
+   * Example: { "enemy:mercenary": "ally" } makes "enemy" and "mercenary" factions allies.
+   */
+  relationshipOverrides?: Record<string, FactionRelationship>;
+}
+
 export interface FactionServiceDeps {
   combat: ICombatRepository;
   characters: ICharacterRepository;
   monsters: IMonsterRepository;
   npcs: INPCRepository;
+  config?: FactionServiceConfig;
 }
 
 /**
@@ -92,12 +109,34 @@ export class FactionService {
   /**
    * Determine relationship between two factions.
    */
+  /**
+   * Determine relationship between two factions.
+   *
+   * AI-L7: Now supports "neutral" faction and configurable overrides.
+   * Rules (in order):
+   * 1. Same faction → ally
+   * 2. Check relationship overrides (if configured)
+   * 3. Either faction is "neutral" → neutral
+   * 4. Otherwise → enemy
+   */
   getRelationship(faction1: string, faction2: string): FactionRelationship {
-    // Simple rule: same faction = ally, different = enemy
-    // Can be extended for neutral factions or faction alliance tables
     if (faction1 === faction2) {
       return "ally";
     }
+
+    // Check configurable overrides
+    const overrides = this.deps.config?.relationshipOverrides;
+    if (overrides) {
+      const key = [faction1, faction2].sort().join(":");
+      const override = overrides[key];
+      if (override) return override;
+    }
+
+    // "neutral" faction is neutral to everyone
+    if (faction1 === "neutral" || faction2 === "neutral") {
+      return "neutral";
+    }
+
     return "enemy";
   }
 

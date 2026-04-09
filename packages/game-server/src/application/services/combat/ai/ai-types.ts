@@ -247,6 +247,12 @@ export interface AiCombatContext {
     tacticalNotes: string;
     retreatCondition?: string;
   };
+  /**
+   * AI-L2: Flee threshold as a fraction of max HP (e.g. 0.25 = flee when HP ≤ 25%).
+   * Opt-in per creature type — undefined means never flee (backward compatible).
+   * Undead, constructs, etc. should leave this undefined.
+   */
+  fleeThreshold?: number;
 }
 
 /**

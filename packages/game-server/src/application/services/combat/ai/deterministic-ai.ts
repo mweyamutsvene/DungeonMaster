@@ -24,7 +24,9 @@ import type { ScoredTarget } from "./ai-target-scorer.js";
 import { getCoverLevel, hasLineOfSight } from "../../../../domain/rules/combat-map-sight.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
+import type { Position } from "../../../../domain/rules/movement.js";
 import { isPositionPassable } from "../../../../domain/rules/combat-map-core.js";
+import { isFlanking } from "../../../../domain/rules/flanking.js";
 
 /**
  * Determine if a creature is primarily ranged based on its available attacks.
@@ -766,6 +768,48 @@ function findCoverPosition(
   return candidates[0]!.pos;
 }
 
+/**
+ * AI-L1: Find a flanking position adjacent to the target.
+ *
+ * For each living ally adjacent to the target, compute the opposite (flanking) cell.
+ * Return the first such cell that is within movement range and passable.
+ * This is a secondary tiebreaker — the AI uses it only when it needs to move toward a target.
+ */
+function findFlankingPosition(
+  currentPos: Position,
+  targetPos: Position,
+  allyPositions: readonly Position[],
+  speed: number,
+  map?: CombatMap,
+  gridSize: number = 5,
+): Position | undefined {
+  for (const allyPos of allyPositions) {
+    // Ally must be adjacent to target
+    const dx = Math.abs(allyPos.x - targetPos.x);
+    const dy = Math.abs(allyPos.y - targetPos.y);
+    if (Math.max(dx, dy) === 0 || Math.max(dx, dy) > gridSize) continue;
+
+    // Compute the flanking cell (reflection of ally through target)
+    const flankPos: Position = {
+      x: 2 * targetPos.x - allyPos.x,
+      y: 2 * targetPos.y - allyPos.y,
+    };
+
+    // Verify actual flanking geometry
+    if (!isFlanking(flankPos, targetPos, allyPos, gridSize)) continue;
+
+    // Must be reachable
+    const dist = calculateDistance(currentPos, flankPos);
+    if (dist > speed) continue;
+
+    // Must be passable on the map (if map available)
+    if (map && !isPositionPassable(map, flankPos)) continue;
+
+    return flankPos;
+  }
+  return undefined;
+}
+
 export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
@@ -808,6 +852,43 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const actionSpent = economy?.actionSpent ?? false;
     const movementSpent = economy?.movementSpent ?? false;
     const bonusActionSpent = economy?.bonusActionSpent ?? false;
+
+    // AI-L2: Flee threshold — if HP is at or below the configured threshold, prioritize escape.
+    const fleeThreshold = ctx.fleeThreshold;
+    if (fleeThreshold !== undefined && fleeThreshold > 0) {
+      const hpFraction = combatant.hp.current / combatant.hp.max;
+      if (hpFraction <= fleeThreshold) {
+        // Try bonus-action disengage first (Cunning Action / Nimble Escape)
+        if (!bonusActionSpent && !actionSpent) {
+          const bonusDisengage = hasBonusDisengage(combatant);
+          if (bonusDisengage) {
+            return {
+              action: "dash",
+              bonusAction: bonusDisengage,
+              endTurn: true,
+              intentNarration: `${input.combatantName} panics and flees!`,
+            };
+          }
+        }
+        // Action disengage + move away
+        if (!actionSpent && !movementSpent) {
+          return {
+            action: "disengage",
+            endTurn: false,
+            intentNarration: `${input.combatantName} disengages to flee!`,
+          };
+        }
+        // Already disengaged earlier — move away
+        if (!movementSpent && livingEnemies[0]) {
+          return {
+            action: "moveAwayFrom",
+            target: livingEnemies[0].name,
+            endTurn: true,
+            intentNarration: `${input.combatantName} flees in terror!`,
+          };
+        }
+      }
+    }
 
     // Step 1b: Triage — prioritize healing dying allies over attacking
     if (!actionSpent) {
@@ -883,6 +964,26 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       } else {
         // Melee: close distance if out of reach
         if (distToTarget !== Infinity && distToTarget > meleeReach) {
+          // AI-L1: Prefer flanking position over generic moveToward
+          if (combatant.position && primaryTarget.enemy.position) {
+            const allyPositions = ctx.allies
+              .filter(a => a.position && a.hp.current > 0)
+              .map(a => a.position!);
+            if (allyPositions.length > 0) {
+              const aiMap = ctx.mapData as CombatMap | undefined;
+              const flankPos = findFlankingPosition(
+                combatant.position, primaryTarget.enemy.position, allyPositions, speed, aiMap,
+              );
+              if (flankPos) {
+                return {
+                  action: "move",
+                  destination: flankPos,
+                  endTurn: false,
+                  intentNarration: `${input.combatantName} moves to flank ${primaryTarget.name}.`,
+                };
+              }
+            }
+          }
           return {
             action: "moveToward",
             target: primaryTarget.name,

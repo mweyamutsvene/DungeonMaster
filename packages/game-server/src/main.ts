@@ -83,7 +83,8 @@ const itemDefinitionsRepo = new PrismaItemDefinitionRepository(prisma);
 
 const llmProvider = createLlmProviderFromEnv();
 const llmModel = getDefaultModelFromEnv();
-const llmConfig = llmProvider && llmModel ? { model: llmModel, temperature: 0.7, timeoutMs: 180000 } : undefined;
+const llmTemperature = Number(process.env.DM_LLM_TEMPERATURE ?? 0.7);
+const llmConfig = llmProvider && llmModel ? { model: llmModel, temperature: llmTemperature, timeoutMs: 180000 } : undefined;
 const storyGenerator = llmProvider && llmModel ? new StoryGenerator(llmProvider, { model: llmModel }) : undefined;
 const intentParser = llmProvider && llmModel ? new IntentParser(llmProvider, { model: llmModel }) : undefined;
 const narrativeGenerator =

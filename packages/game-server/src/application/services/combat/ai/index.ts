@@ -31,5 +31,8 @@ export * from "./ai-target-scorer.js";
 // Deterministic fallback AI
 export * from "./deterministic-ai.js";
 
+// Shared helpers
+export * from "./build-actor-ref.js";
+
 // Legendary action handler
 export * from "./legendary-action-handler.js";
