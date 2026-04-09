@@ -178,6 +178,7 @@ function pickHealingForDyingAlly(
 function pickBonusAction(
   combatant: AiCombatContext["combatant"],
   enemies: AiCombatContext["enemies"],
+  allies?: AiCombatContext["allies"],
 ): string | undefined {
   const economy = combatant.economy;
   if (economy?.bonusActionSpent) return undefined;
@@ -247,6 +248,29 @@ function pickBonusAction(
     return "cunningAction:disengage";
   }
 
+  // 7. Bonus-action healing spells (Healing Word) — heal ally below 50% HP
+  if (allies && allies.length > 0) {
+    const rawSpells = combatant.spells as unknown[] | undefined;
+    if (rawSpells && rawSpells.length > 0) {
+      const spells = parseSpells(rawSpells);
+      const baHealingSpells = spells.filter(
+        s => s.isBonusAction && s.healing && hasAvailableSlot(resourcePools, s.level),
+      );
+      if (baHealingSpells.length > 0) {
+        const hurtAlly = allies.find(a => a.hp.current > 0 && a.hp.percentage < 50);
+        if (hurtAlly) {
+          // Return a special token so the caller knows to cast a BA healing spell
+          return `castSpell:${baHealingSpells[0]!.name}:${hurtAlly.name}`;
+        }
+      }
+    }
+  }
+
+  // 8. Spiritual Weapon attack — if Spiritual Weapon is active (concentration)
+  if (combatant.concentrationSpell?.toLowerCase() === "spiritual weapon") {
+    return "spiritualWeaponAttack";
+  }
+
   return undefined;
 }
 
@@ -263,7 +287,27 @@ interface AiSpellInfo {
   concentration?: boolean;
   isBonusAction?: boolean;
   area?: unknown;
+  /** Spell is a buff (Bless, Shield of Faith, etc.) — target self or ally */
+  isBuff?: boolean;
+  /** Spell is a debuff (Hold Person, Cause Fear, etc.) — target enemy */
+  isDebuff?: boolean;
 }
+
+// ── Well-known buff/debuff spell classification ──
+
+const BUFF_SPELLS = new Set([
+  "bless", "shield of faith", "mage armor", "heroism", "longstrider",
+  "aid", "protection from evil and good", "sanctuary", "haste",
+  "protection from energy", "freedom of movement", "stoneskin",
+  "death ward", "beacon of hope",
+]);
+
+const DEBUFF_SPELLS = new Set([
+  "hold person", "cause fear", "bane", "command", "entangle",
+  "faerie fire", "hex", "hunter's mark", "hold monster",
+  "blindness/deafness", "ray of enfeeblement", "bestow curse",
+  "slow", "fear", "hypnotic pattern", "banishment",
+]);
 
 /**
  * Parse the untyped spells array into typed spell info for evaluation.
@@ -287,6 +331,8 @@ function parseSpells(rawSpells: unknown[]): AiSpellInfo[] {
       concentration: typeof s.concentration === "boolean" ? s.concentration : undefined,
       isBonusAction: typeof s.isBonusAction === "boolean" ? s.isBonusAction : undefined,
       area: s.area,
+      isBuff: BUFF_SPELLS.has(name.toLowerCase()),
+      isDebuff: DEBUFF_SPELLS.has(name.toLowerCase()),
     });
   }
   return parsed;
@@ -347,6 +393,8 @@ function estimateSpellDamage(dmg: AiSpellInfo["damage"]): number {
  *
  * Priorities:
  * 1. Healing spells if allies are below 50% HP
+ * 1b. Debuff spells on high-value threats
+ * 1c. Buff spells on self/allies in early combat
  * 2. Damage cantrips (free, no slot cost) against enemies
  * 3. Damage spells if we have slots and no strong melee attacks
  * 4. Skip if creature has good physical attacks (prefer attacking)
@@ -356,6 +404,7 @@ function pickSpell(
   primaryTarget: ScoredTarget,
   allies: AiCombatContext["allies"],
   combatantName: string,
+  round?: number,
 ): AiDecision | undefined {
   const rawSpells = combatant.spells as unknown[] | undefined;
   if (!rawSpells || rawSpells.length === 0) return undefined;
@@ -369,10 +418,10 @@ function pickSpell(
     // Filter out concentration spells, can still cast non-concentration
     const nonConcentration = spells.filter(s => !s.concentration);
     if (nonConcentration.length === 0) return undefined;
-    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName);
+    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName, round);
   }
 
-  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName);
+  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName, round);
 }
 
 function pickFromCandidates(
@@ -382,12 +431,14 @@ function pickFromCandidates(
   allies: AiCombatContext["allies"],
   resourcePools: Array<{ name: string; current: number; max: number }>,
   combatantName: string,
+  round?: number,
 ): AiDecision | undefined {
   // 1. Healing: check if any ally (including self) is below 50% HP
+  // Skip BA healing spells here — reserve them for bonus action alongside an attack
   const hurtAllies = allies.filter(a => a.hp.percentage < 50 && a.hp.current > 0);
   if (hurtAllies.length > 0 || combatant.hp.percentage < 50) {
     const healingSpells = spells
-      .filter(s => s.healing && hasAvailableSlot(resourcePools, s.level))
+      .filter(s => s.healing && !s.isBonusAction && hasAvailableSlot(resourcePools, s.level))
       .sort((a, b) => estimateSpellDamage(b.healing) - estimateSpellDamage(a.healing));
 
     if (healingSpells.length > 0) {
@@ -404,6 +455,54 @@ function pickFromCandidates(
         target: healTarget,
         endTurn: !spell.isBonusAction,
         intentNarration: `${combatantName} casts ${spell.name} on ${healTarget}.`,
+      };
+    }
+  }
+
+  // 1b. Debuff spells — prioritize disabling high-value threats
+  const debuffSpells = spells
+    .filter(s => s.isDebuff && hasAvailableSlot(resourcePools, s.level))
+    .sort((a, b) => b.level - a.level); // Prefer stronger debuffs
+
+  if (debuffSpells.length > 0) {
+    // Find a high-value target: prefer concentration casters and low-WIS enemies
+    const highValueTarget = primaryTarget; // Target scorer already prioritizes threats
+    const spell = debuffSpells[0]!;
+    const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+    return {
+      action: "castSpell",
+      spellName: spell.name,
+      spellLevel: slotLevel,
+      target: highValueTarget.name,
+      endTurn: true,
+      intentNarration: `${combatantName} casts ${spell.name} on ${highValueTarget.name}!`,
+    };
+  }
+
+  // 1c. Buff spells — cast on self or allies early in combat
+  const isEarlyCombat = (round ?? 1) <= 2;
+  if (isEarlyCombat) {
+    const activeBuffs = (combatant.activeBuffs ?? []).map(b => b.toLowerCase());
+    const buffSpells = spells
+      .filter(s => s.isBuff && hasAvailableSlot(resourcePools, s.level))
+      .filter(s => !activeBuffs.includes(s.name.toLowerCase())) // Don't re-cast active buffs
+      .sort((a, b) => b.level - a.level); // Prefer stronger buffs
+
+    if (buffSpells.length > 0) {
+      const spell = buffSpells[0]!;
+      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+      // Multi-target buffs (Bless) prefer allies; single-target (Shield of Faith, Mage Armor) prefer self
+      const isMultiTarget = spell.name.toLowerCase() === "bless" || spell.name.toLowerCase() === "aid";
+      const target = isMultiTarget && allies.length > 0
+        ? allies[0]!.name
+        : combatantName;
+      return {
+        action: "castSpell",
+        spellName: spell.name,
+        spellLevel: slotLevel,
+        target,
+        endTurn: !spell.isBonusAction,
+        intentNarration: `${combatantName} casts ${spell.name}${target !== combatantName ? ` on ${target}` : ""}!`,
       };
     }
   }
@@ -667,11 +766,11 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
 
     // Step 4b: Spell casting — evaluate before physical attacks
     if (!actionSpent) {
-      const spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName);
+      const spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName, ctx.combat.round);
       if (spellDecision) {
         // Attach bonus action if available and spell doesn't end turn
         if (!bonusActionSpent && !spellDecision.endTurn) {
-          const bonusAction = pickBonusAction(combatant, livingEnemies);
+          const bonusAction = pickBonusAction(combatant, livingEnemies, ctx.allies);
           if (bonusAction) {
             spellDecision.bonusAction = bonusAction;
           }
@@ -685,7 +784,7 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       const featureDecision = pickFeatureAction(combatant, input.combatantName);
       if (featureDecision) {
         if (!bonusActionSpent && !featureDecision.endTurn) {
-          const bonusAction = pickBonusAction(combatant, livingEnemies);
+          const bonusAction = pickBonusAction(combatant, livingEnemies, ctx.allies);
           if (bonusAction) {
             featureDecision.bonusAction = bonusAction;
           }
@@ -726,7 +825,7 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       const isLastAttack = attacksMade + 1 >= attacksPerAction;
 
       // Only attach bonus action and endTurn on the final attack
-      const bonusAction = isLastAttack && !bonusActionSpent ? pickBonusAction(combatant, livingEnemies) : undefined;
+      const bonusAction = isLastAttack && !bonusActionSpent ? pickBonusAction(combatant, livingEnemies, ctx.allies) : undefined;
 
       return {
         action: "attack",
@@ -783,7 +882,7 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
 
     // Step 9: Use bonus action if we haven't used it yet
     if (!bonusActionSpent) {
-      const bonusAction = pickBonusAction(combatant, livingEnemies);
+      const bonusAction = pickBonusAction(combatant, livingEnemies, ctx.allies);
       if (bonusAction) {
         return {
           action: "endTurn",

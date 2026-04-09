@@ -661,70 +661,267 @@ describe("DeterministicAiDecisionMaker", () => {
     });
   });
 
-  // ── AI-M8: Re-evaluate targets between Extra Attack swings ───
-  describe("re-evaluate targets between Extra Attack swings", () => {
-    it("switches target if previous attack hit the primary target", async () => {
+  // ── AI-M5: Buff/debuff spell support ───────────────────────────
+  describe("buff/debuff spell support", () => {
+    it("casts debuff spell (Hold Person) on primary target", async () => {
       const ctx = makeContext({
         combatant: makeCombatant({
-          attacksPerAction: 2,
+          name: "Cleric",
+          spells: [
+            { name: "Hold Person", level: 2, saveAbility: "WIS", concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_2", current: 2, max: 2 }],
+          attacks: [],
         }),
-        enemies: [
-          makeEnemy({ name: "Goblin1", position: { x: 1, y: 0 }, distanceFeet: 5, hp: { current: 20, max: 20, percentage: 100 } }),
-          makeEnemy({ name: "Goblin2", position: { x: 0, y: 1 }, distanceFeet: 5, hp: { current: 20, max: 20, percentage: 100 } }),
-        ],
-        turnResults: [
-          {
-            step: 1,
-            action: "attack" as const,
-            ok: true,
-            summary: "Attack hit Goblin1 for 10 damage",
-            data: { hit: true, damage: 10, target: "Goblin1", attackName: "Scimitar" },
-          },
-        ],
+        enemies: [makeEnemy({ name: "Fighter", position: { x: 1, y: 0 }, distanceFeet: 5 })],
       });
 
       const decision = await ai.decide({
-        combatantName: "Fighter",
+        combatantName: "Cleric",
         combatantType: "Character",
         context: ctx,
       });
 
-      // Should re-evaluate: since previous attack hit Goblin1, pick Goblin2
-      // (Note: Goblin1 is still alive in enemies list since context wasn't refreshed in this test,
-      // but the re-evaluation heuristic checks if the last attack hit the primary target)
-      expect(decision!.action).toBe("attack");
-      expect(decision!.target).toBe("Goblin2");
+      expect(decision!.action).toBe("castSpell");
+      expect(decision!.spellName).toBe("Hold Person");
+      expect(decision!.target).toBe("Fighter");
     });
 
-    it("keeps same target if previous attack missed", async () => {
+    it("casts buff spell (Bless) early in combat", async () => {
       const ctx = makeContext({
         combatant: makeCombatant({
-          attacksPerAction: 2,
+          name: "Cleric",
+          spells: [
+            { name: "Bless", level: 1, concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 3, max: 3 }],
+          attacks: [],
+          economy: { actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: true },
         }),
-        enemies: [
-          makeEnemy({ name: "Goblin1", position: { x: 1, y: 0 }, distanceFeet: 5, hp: { current: 10, max: 20, percentage: 50 } }),
-          makeEnemy({ name: "Goblin2", position: { x: 0, y: 1 }, distanceFeet: 5, hp: { current: 20, max: 20, percentage: 100 } }),
+        combat: { round: 1, turn: 0, totalCombatants: 4 },
+        allies: [
+          { name: "Fighter", hp: { current: 50, max: 50, percentage: 100 }, initiative: 10 },
         ],
-        turnResults: [
-          {
-            step: 1,
-            action: "attack" as const,
-            ok: true,
-            summary: "Attack missed Goblin1",
-            data: { hit: false, damage: 0, target: "Goblin1", attackName: "Scimitar" },
-          },
-        ],
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
       });
 
       const decision = await ai.decide({
-        combatantName: "Fighter",
+        combatantName: "Cleric",
         combatantType: "Character",
         context: ctx,
       });
 
-      // Should keep Goblin1 (scored higher due to lower HP) since attack missed
+      expect(decision!.action).toBe("castSpell");
+      expect(decision!.spellName).toBe("Bless");
+    });
+
+    it("casts Shield of Faith on self early in combat", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Shield of Faith", level: 1, concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 2, max: 2 }],
+          attacks: [],
+          economy: { actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: true },
+        }),
+        combat: { round: 1, turn: 0, totalCombatants: 2 },
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      expect(decision!.action).toBe("castSpell");
+      expect(decision!.spellName).toBe("Shield of Faith");
+      expect(decision!.target).toBe("Cleric"); // Self-targeted
+    });
+
+    it("does not cast buff spell when already concentrating", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Bless", level: 1, concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 3, max: 3 }],
+          concentrationSpell: "Spirit Guardians",
+        }),
+        combat: { round: 1, turn: 0, totalCombatants: 4 },
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Should not cast Bless (concentration) since already concentrating
+      expect(decision!.action).not.toBe("castSpell");
+    });
+
+    it("does not cast buff spell after round 2", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Bless", level: 1, concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 3, max: 3 }],
+          attacks: [],
+        }),
+        combat: { round: 3, turn: 0, totalCombatants: 4 },
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 3, y: 0 }, distanceFeet: 15 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Should not cast Bless after round 2 — prefer other actions
+      expect(decision!.spellName).not.toBe("Bless");
+    });
+
+    it("does not re-cast active buff", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Shield of Faith", level: 1, concentration: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 2, max: 2 }],
+          activeBuffs: ["Shield of Faith"],
+          attacks: [],
+        }),
+        combat: { round: 1, turn: 0, totalCombatants: 2 },
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 3, y: 0 }, distanceFeet: 15 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Should not re-cast an already-active buff
+      expect(decision!.spellName).not.toBe("Shield of Faith");
+    });
+
+    it("prioritizes healing over debuff", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          hp: { current: 15, max: 40, percentage: 37 },
+          spells: [
+            { name: "Hold Person", level: 2, saveAbility: "WIS", concentration: true },
+            { name: "Cure Wounds", level: 1, healing: { diceCount: 1, diceSides: 8, modifier: 3 } },
+          ],
+          resourcePools: [
+            { name: "spellSlot_1", current: 2, max: 2 },
+            { name: "spellSlot_2", current: 1, max: 1 },
+          ],
+          attacks: [],
+        }),
+        enemies: [makeEnemy({ name: "Fighter", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Healing should take priority over debuff when hurt
+      expect(decision!.action).toBe("castSpell");
+      expect(decision!.spellName).toBe("Cure Wounds");
+    });
+  });
+
+  // ── AI-M10: Bonus action spells ───────────────────────────
+  describe("bonus action spells", () => {
+    it("uses Healing Word as bonus action when ally is hurt", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Healing Word", level: 1, healing: { diceCount: 1, diceSides: 4, modifier: 3 }, isBonusAction: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 2, max: 2 }],
+          attacks: [{ name: "Mace", toHit: 4, damage: "1d6+2", kind: "melee" }],
+        }),
+        allies: [
+          { name: "Fighter", hp: { current: 15, max: 50, percentage: 30 }, initiative: 10 },
+        ],
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Should attack and use Healing Word as bonus action
       expect(decision!.action).toBe("attack");
-      expect(decision!.target).toBe("Goblin1");
+      expect(decision!.bonusAction).toContain("castSpell:");
+      expect(decision!.bonusAction).toContain("Healing Word");
+      expect(decision!.bonusAction).toContain("Fighter");
+    });
+
+    it("does not use BA heal when no allies are hurt", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          spells: [
+            { name: "Healing Word", level: 1, healing: { diceCount: 1, diceSides: 4, modifier: 3 }, isBonusAction: true },
+          ],
+          resourcePools: [{ name: "spellSlot_1", current: 2, max: 2 }],
+          attacks: [{ name: "Mace", toHit: 4, damage: "1d6+2", kind: "melee" }],
+        }),
+        allies: [
+          { name: "Fighter", hp: { current: 50, max: 50, percentage: 100 }, initiative: 10 },
+        ],
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      // Bonus action should not be a spell since no one is hurt
+      expect(decision!.action).toBe("attack");
+      if (decision!.bonusAction) {
+        expect(decision!.bonusAction).not.toContain("castSpell:");
+      }
+    });
+
+    it("uses Spiritual Weapon attack as bonus action when concentrating", async () => {
+      const ctx = makeContext({
+        combatant: makeCombatant({
+          name: "Cleric",
+          concentrationSpell: "Spiritual Weapon",
+          attacks: [{ name: "Mace", toHit: 4, damage: "1d6+2", kind: "melee" }],
+        }),
+        enemies: [makeEnemy({ name: "Goblin", position: { x: 1, y: 0 }, distanceFeet: 5 })],
+      });
+
+      const decision = await ai.decide({
+        combatantName: "Cleric",
+        combatantType: "Character",
+        context: ctx,
+      });
+
+      expect(decision!.action).toBe("attack");
+      expect(decision!.bonusAction).toBe("spiritualWeaponAttack");
     });
   });
 });

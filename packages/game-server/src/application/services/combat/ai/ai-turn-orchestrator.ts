@@ -28,13 +28,23 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { AiContextBuilder } from "./ai-context-builder.js";
 import { AiActionExecutor } from "./ai-action-executor.js";
 import { readConditionNames } from "../../../../domain/entities/combat/conditions.js";
-import { normalizeResources, setAttacksAllowed } from "../helpers/resource-utils.js";
+import { normalizeResources, setAttacksAllowed, getActiveEffects } from "../helpers/resource-utils.js";
 import { isLegendaryCreature as isLegendaryCreatureCheck } from "../helpers/resource-utils.js";
 import { spendLegendaryAction as spendLegendaryActionCharges } from "../helpers/resource-utils.js";
 import { chooseLegendaryAction, type LegendaryActionDecision } from "./legendary-action-handler.js";
 import type { BattlePlanService } from "./battle-plan-service.js";
 import { DeterministicAiDecisionMaker } from "./deterministic-ai.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import {
+  hasAdvantageFromEffects,
+  hasDisadvantageFromEffects,
+  calculateBonusFromEffects,
+  getDamageDefenseEffects,
+} from "../../../../domain/entities/combat/effects.js";
+import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
+import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
+import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 
 /**
  * LLM-driven tactical decision-making for AI-controlled combatants.
@@ -848,7 +858,7 @@ export class AiTurnOrchestrator {
     if (!target || !this.diceRoller) return;
 
     // Look up the attack from the boss's stat block
-    let attacks: Array<{ name: string; attackBonus: number; damage: { diceCount: number; diceSides: number; modifier: number }; damageType?: string }> = [];
+    let attacks: Array<{ name: string; attackBonus: number; damage: { diceCount: number; diceSides: number; modifier: number }; damageType?: string; kind?: string }> = [];
     if (boss.monsterId) {
       const mon = await this.monsters.getById(boss.monsterId);
       if (mon) {
@@ -871,7 +881,66 @@ export class AiTurnOrchestrator {
       return;
     }
 
-    // Get target AC
+    // ── ActiveEffect integration: advantage/disadvantage + attack bonus ──
+    const attackerActiveEffects = getActiveEffects(boss.resources ?? {});
+    const targetActiveEffects = getActiveEffects(target.resources ?? {});
+    const attackKind: "melee" | "ranged" = (attackDef as any).kind === "ranged" ? "ranged" : "melee";
+
+    let effectAdvantage = 0;
+    let effectDisadvantage = 0;
+
+    // Attacker's self-effects
+    if (hasAdvantageFromEffects(attackerActiveEffects, "attack_rolls")) effectAdvantage++;
+    if (attackKind === "melee" && hasAdvantageFromEffects(attackerActiveEffects, "melee_attack_rolls")) effectAdvantage++;
+    if (attackKind === "ranged" && hasAdvantageFromEffects(attackerActiveEffects, "ranged_attack_rolls")) effectAdvantage++;
+    if (hasDisadvantageFromEffects(attackerActiveEffects, "attack_rolls")) effectDisadvantage++;
+    if (attackKind === "melee" && hasDisadvantageFromEffects(attackerActiveEffects, "melee_attack_rolls")) effectDisadvantage++;
+    if (attackKind === "ranged" && hasDisadvantageFromEffects(attackerActiveEffects, "ranged_attack_rolls")) effectDisadvantage++;
+
+    // Target's effects on incoming attacks (Dodge → disadvantage)
+    for (const eff of targetActiveEffects) {
+      if (eff.target !== "attack_rolls" && eff.target !== "melee_attack_rolls" && eff.target !== "ranged_attack_rolls") continue;
+      if (eff.target === "melee_attack_rolls" && attackKind !== "melee") continue;
+      if (eff.target === "ranged_attack_rolls" && attackKind !== "ranged") continue;
+      if (!eff.targetCombatantId || eff.targetCombatantId !== target.id) continue;
+      if (eff.type === "advantage") effectAdvantage++;
+      if (eff.type === "disadvantage") effectDisadvantage++;
+    }
+
+    // Condition-based roll mode
+    const attackerConditions = normalizeConditions(boss.conditions as unknown[]);
+    const targetConditions = normalizeConditions(target.conditions as unknown[]);
+    const rollMode = deriveRollModeFromConditions(attackerConditions, targetConditions, attackKind, effectAdvantage, effectDisadvantage);
+
+    // Roll d20 with advantage/disadvantage
+    let d20: number;
+    if (rollMode === "advantage") {
+      const r1 = this.diceRoller.d20().total;
+      const r2 = this.diceRoller.d20().total;
+      d20 = Math.max(r1, r2);
+    } else if (rollMode === "disadvantage") {
+      const r1 = this.diceRoller.d20().total;
+      const r2 = this.diceRoller.d20().total;
+      d20 = Math.min(r1, r2);
+    } else {
+      d20 = this.diceRoller.d20().total;
+    }
+    const isCritical = d20 === 20;
+
+    // Attack bonus from ActiveEffects (Bless, etc.)
+    const atkBonusResult = calculateBonusFromEffects(attackerActiveEffects, "attack_rolls");
+    let effectAtkBonus = atkBonusResult.flatBonus;
+    for (const dr of atkBonusResult.diceRolls) {
+      const count = Math.abs(dr.count);
+      const sign = dr.count < 0 ? -1 : 1;
+      for (let i = 0; i < count; i++) {
+        effectAtkBonus += sign * this.diceRoller.rollDie(dr.sides).total;
+      }
+    }
+    const attackBonus = (attackDef.attackBonus ?? 0) + effectAtkBonus;
+    const attackTotal = d20 + attackBonus;
+
+    // Get target AC (with ActiveEffect bonuses like Shield)
     let ac = 10;
     if (target.characterId) {
       const ch = await this.characters.getById(target.characterId);
@@ -883,14 +952,16 @@ export class AiTurnOrchestrator {
       const n = await this.npcs.getById(target.npcId);
       if (n) ac = (n.statBlock as any)?.armorClass ?? 10;
     }
+    // AC bonus from target ActiveEffects (Shield spell, etc.)
+    for (const eff of targetActiveEffects) {
+      if (eff.target === "armor_class" && eff.type === "bonus" && typeof eff.value === "number") {
+        ac += eff.value;
+      }
+    }
 
-    // Roll attack
-    const attackRoll = this.diceRoller.d20().total;
-    const attackTotal = attackRoll + (attackDef.attackBonus ?? 0);
-    const isCritical = attackRoll === 20;
     const hit = isCritical || attackTotal >= ac;
 
-    this.aiLog(`[LegendaryAction] Attack roll: ${attackRoll} + ${attackDef.attackBonus} = ${attackTotal} vs AC ${ac} → ${hit ? "HIT" : "MISS"}`);
+    this.aiLog(`[LegendaryAction] Attack roll: ${d20} + ${attackDef.attackBonus}${effectAtkBonus ? ` + effect(${effectAtkBonus})` : ""} = ${attackTotal} vs AC ${ac}${rollMode !== "normal" ? ` [${rollMode}]` : ""} → ${hit ? "HIT" : "MISS"}`);
 
     // Emit attack event
     if (this.events) {
@@ -900,8 +971,8 @@ export class AiTurnOrchestrator {
         payload: {
           encounterId,
           attackName: attackDef.name,
-          attackRoll,
-          attackBonus: attackDef.attackBonus,
+          attackRoll: d20,
+          attackBonus,
           attackTotal,
           targetAC: ac,
           hit,
@@ -914,19 +985,96 @@ export class AiTurnOrchestrator {
     if (!hit) return;
 
     // Roll damage
-    let totalDamage = 0;
-    const diceCount = isCritical ? (attackDef.damage?.diceCount ?? 1) * 2 : (attackDef.damage?.diceCount ?? 1);
+    const effectiveDiceCount = isCritical ? (attackDef.damage?.diceCount ?? 1) * 2 : (attackDef.damage?.diceCount ?? 1);
     const diceSides = attackDef.damage?.diceSides ?? 6;
-    for (let i = 0; i < diceCount; i++) {
+    let totalDamage = 0;
+    for (let i = 0; i < effectiveDiceCount; i++) {
       totalDamage += this.diceRoller.rollDie(diceSides).total;
     }
     totalDamage += attackDef.damage?.modifier ?? 0;
 
+    // ActiveEffect: extra damage from attacker (Rage bonus, Hunter's Mark, etc.)
+    const dmgEffects = attackerActiveEffects.filter(
+      (e) =>
+        (e.type === "bonus" || e.type === "penalty") &&
+        (e.target === "damage_rolls" ||
+          (e.target === "melee_damage_rolls" && attackKind === "melee") ||
+          (e.target === "ranged_damage_rolls" && attackKind === "ranged")),
+    );
+    for (const eff of dmgEffects) {
+      if (eff.type === "bonus") totalDamage += eff.value ?? 0;
+      if (eff.type === "penalty") totalDamage -= eff.value ?? 0;
+      if (eff.diceValue) {
+        const sign = eff.type === "penalty" ? -1 : 1;
+        for (let i = 0; i < Math.abs(eff.diceValue.count); i++) {
+          totalDamage += sign * this.diceRoller.rollDie(eff.diceValue.sides).total;
+        }
+      }
+    }
+    totalDamage = Math.max(0, totalDamage);
+
+    // Apply damage resistance / immunity / vulnerability
+    const dmgType = attackDef.damageType;
+    if (totalDamage > 0 && dmgType) {
+      try {
+        const targetRef = this.buildActorRef(target);
+        if (targetRef) {
+          const tgtStats = await this.combatantResolver.getCombatStats(targetRef as any);
+          const defenses = tgtStats.damageDefenses ? { ...tgtStats.damageDefenses } : ({} as any);
+
+          // Merge in ActiveEffect damage defenses
+          const effDef = getDamageDefenseEffects(targetActiveEffects, dmgType);
+          if (effDef.resistances) {
+            defenses.damageResistances = [
+              ...new Set([...(defenses.damageResistances ?? []), dmgType.toLowerCase()]),
+            ];
+          }
+          if (effDef.vulnerabilities) {
+            defenses.damageVulnerabilities = [
+              ...new Set([...(defenses.damageVulnerabilities ?? []), dmgType.toLowerCase()]),
+            ];
+          }
+          if (effDef.immunities) {
+            defenses.damageImmunities = [
+              ...new Set([...(defenses.damageImmunities ?? []), dmgType.toLowerCase()]),
+            ];
+          }
+
+          if (defenses.damageResistances || defenses.damageImmunities || defenses.damageVulnerabilities) {
+            const defResult = applyDamageDefenses(totalDamage, dmgType, defenses);
+            totalDamage = defResult.adjustedDamage;
+          }
+        }
+      } catch {
+        /* proceed without defenses if stats unavailable */
+      }
+    }
+
     // Apply damage
-    const newHp = Math.max(0, target.hpCurrent - totalDamage);
+    const hpBefore = target.hpCurrent;
+    const newHp = Math.max(0, hpBefore - totalDamage);
     await this.combat.updateCombatantState(target.id, { hpCurrent: newHp });
 
-    this.aiLog(`[LegendaryAction] Damage: ${totalDamage} ${attackDef.damageType ?? ""} → target HP ${target.hpCurrent} → ${newHp}`);
+    // Handle KO effects (unconscious, death save tracking)
+    await applyKoEffectsIfNeeded(
+      target,
+      hpBefore,
+      newHp,
+      this.combat,
+      (msg) => this.aiLog(`[LegendaryAction KO] ${msg}`),
+    );
+
+    this.aiLog(`[LegendaryAction] Damage: ${totalDamage} ${dmgType ?? ""} → target HP ${hpBefore} → ${newHp}`);
+
+    // D&D 5e 2024: Rage damage-taken tracking
+    {
+      const tgtRes = normalizeResources(target.resources);
+      if (tgtRes.raging === true) {
+        await this.combat.updateCombatantState(target.id, {
+          resources: { ...tgtRes, rageDamageTakenThisTurn: true } as any,
+        });
+      }
+    }
 
     // Emit damage event
     if (this.events) {
@@ -941,7 +1089,7 @@ export class AiTurnOrchestrator {
             amount: totalDamage,
             hpCurrent: newHp,
             source: "legendary_action",
-            damageType: attackDef.damageType ?? "untyped",
+            damageType: dmgType ?? "untyped",
           },
         });
       }
