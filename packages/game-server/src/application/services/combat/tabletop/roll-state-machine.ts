@@ -379,11 +379,11 @@ export class RollStateMachine {
     }
 
     // ── ActiveEffect: attack bonus + AC modifiers ──
-    const attackerCombatant = (await this.deps.combatRepo.listCombatants(encounter.id))
-      .find((c: any) => c.id === actorId);
+    // CO-M5: Pre-load combatants once for the entire attack roll resolution
+    let combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+    const attackerCombatant = combatants.find((c: any) => c.id === actorId);
     const attackerEffects = getActiveEffects(attackerCombatant?.resources ?? {});
-    const targetCombatant = (await this.deps.combatRepo.listCombatants(encounter.id))
-      .find((c: any) => c.id === targetId);
+    const targetCombatant = combatants.find((c: any) => c.id === targetId);
     const targetEffects = getActiveEffects(targetCombatant?.resources ?? {});
 
     // Attack bonus from effects (flat + dice)
@@ -424,8 +424,7 @@ export class RollStateMachine {
     // D&D 5e 2024: Rage attack tracking — any attack roll counts (hit or miss)
     // Use entity ID matching (characterId/monsterId/npcId) since actorId is an entity ID, not a combatant record ID
     {
-      const allCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
-      const attackerForRage = findCombatantByEntityId(allCombatants, actorId);
+      const attackerForRage = findCombatantByEntityId(combatants, actorId);
       if (attackerForRage) {
         const atkRes = normalizeResources(attackerForRage.resources);
         if (atkRes.raging === true) {
@@ -439,13 +438,12 @@ export class RollStateMachine {
 
     // Consume StunningStrikePartial after this attack (only grants advantage on ONE attack)
     {
-      const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-      const targetCombatant = findCombatantByEntityId(combatantStates, targetId);
-      if (targetCombatant) {
-        const targetConds = normalizeConditions(targetCombatant.conditions);
+      const targetForStun = findCombatantByEntityId(combatants, targetId);
+      if (targetForStun) {
+        const targetConds = normalizeConditions(targetForStun.conditions);
         if (targetConds.some(c => c.condition === "StunningStrikePartial")) {
           const updatedConds = removeCondition(targetConds, "StunningStrikePartial" as Condition);
-          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+          await this.deps.combatRepo.updateCombatantState(targetForStun.id, {
             conditions: updatedConds as any,
           });
           if (this.debugLogsEnabled) console.log(`[RollStateMachine] Consumed StunningStrikePartial on ${targetId} after attack`);
@@ -455,13 +453,12 @@ export class RollStateMachine {
 
     // D&D 5e 2024: Making an attack breaks the Hidden condition (hit or miss)
     {
-      const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-      const actorCombatant = findCombatantByEntityId(combatantStates, actorId);
-      if (actorCombatant) {
-        const actorConds = normalizeConditions(actorCombatant.conditions);
+      const actorForHidden = findCombatantByEntityId(combatants, actorId);
+      if (actorForHidden) {
+        const actorConds = normalizeConditions(actorForHidden.conditions);
         if (actorConds.some(c => c.condition === "Hidden")) {
           const updatedConds = removeCondition(actorConds, "Hidden" as Condition);
-          await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          await this.deps.combatRepo.updateCombatantState(actorForHidden.id, {
             conditions: updatedConds as any,
           });
           if (this.debugLogsEnabled) console.log(`[RollStateMachine] Hidden condition removed from ${actorId} after attack`);
@@ -470,8 +467,7 @@ export class RollStateMachine {
     }
 
     if (!hit) {
-      const combatantStatesForLucky = await this.deps.combatRepo.listCombatants(encounter.id);
-      const actorCombatantForLucky = findCombatantByEntityId(combatantStatesForLucky, actorId);
+      const actorCombatantForLucky = findCombatantByEntityId(combatants, actorId);
 
       // Lucky interactive decision: pause miss resolution and prompt spend/decline.
       if (
@@ -625,8 +621,7 @@ export class RollStateMachine {
 
       // D&D 5e 2024: Loading property — mark that a Loading weapon was fired this turn
       if (action.weaponSpec?.properties?.some((p: string) => typeof p === "string" && p.toLowerCase() === "loading")) {
-        const combatantStatesForLoading = await this.deps.combatRepo.listCombatants(encounter.id);
-        const actorForLoading = findCombatantByEntityId(combatantStatesForLoading, actorId);
+        const actorForLoading = findCombatantByEntityId(combatants, actorId);
         if (actorForLoading) {
           const loadRes = normalizeResources(actorForLoading.resources);
           await this.deps.combatRepo.updateCombatantState(actorForLoading.id, {
@@ -643,13 +638,12 @@ export class RollStateMachine {
         const abilityMod = action.weaponSpec.damage?.modifier ?? 0;
         grazeDamage = Math.max(0, abilityMod);
         if (grazeDamage > 0) {
-          const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-          const targetCombatant = findCombatantByEntityId(combatantStates, targetId);
-          if (targetCombatant && targetCombatant.hpCurrent > 0) {
-            const hpBefore = targetCombatant.hpCurrent;
+          const grazeTarget = findCombatantByEntityId(combatants, targetId);
+          if (grazeTarget && grazeTarget.hpCurrent > 0) {
+            const hpBefore = grazeTarget.hpCurrent;
             const hpAfter = Math.max(0, hpBefore - grazeDamage);
-            await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
-            await applyKoEffectsIfNeeded(targetCombatant, hpBefore, hpAfter, this.deps.combatRepo);
+            await this.deps.combatRepo.updateCombatantState(grazeTarget.id, { hpCurrent: hpAfter });
+            await applyKoEffectsIfNeeded(grazeTarget, hpBefore, hpAfter, this.deps.combatRepo);
             grazeSuffix = ` Graze: ${grazeDamage} ${action.weaponSpec.damageType ?? ""} damage. HP: ${hpBefore} → ${hpAfter}.`;
             if (this.debugLogsEnabled) console.log(`[RollStateMachine] Graze mastery: ${grazeDamage} damage to ${targetId} (HP: ${hpBefore} → ${hpAfter})`);
           }
@@ -697,24 +691,23 @@ export class RollStateMachine {
     const actorLevel = ClassFeatureResolver.getLevel((actorChar?.sheet ?? {}) as any, actorChar?.level);
 
     if (classHasFeature(actorClassName, SNEAK_ATTACK, actorLevel)) {
-      const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-      const actorCombatant = combatantStates.find((c: any) => c.characterId === actorId);
-      const targetCombatant = combatantStates.find((c: any) =>
+      const actorCombatantForSneak = combatants.find((c: any) => c.characterId === actorId);
+      const targetCombatantForSneak = combatants.find((c: any) =>
         c.monsterId === targetId || c.characterId === targetId || c.npcId === targetId);
 
       // Check ally adjacency: any friendly combatant (not attacker, not target) within 5ft of target
       let allyAdjacentToTarget = false;
-      if (targetCombatant) {
-        const targetPos = getPosition(targetCombatant.resources ?? {});
+      if (targetCombatantForSneak) {
+        const targetPos = getPosition(targetCombatantForSneak.resources ?? {});
         if (targetPos) {
-          for (const c of combatantStates) {
+          for (const c of combatants) {
             // Skip attacker and target
-            if (c.id === actorCombatant?.id || c.id === targetCombatant.id) continue;
+            if (c.id === actorCombatantForSneak?.id || c.id === targetCombatantForSneak.id) continue;
             // Skip dead/unconscious allies
             const conds = Array.isArray(c.conditions) ? c.conditions as string[] : [];
             if (conds.some((cd: string) => cd.toLowerCase() === "unconscious" || cd.toLowerCase() === "dead")) continue;
             // Must be same faction as attacker (Characters/NPCs vs Monsters)
-            const attackerIsPC = actorCombatant?.combatantType === "Character" || actorCombatant?.combatantType === "NPC";
+            const attackerIsPC = actorCombatantForSneak?.combatantType === "Character" || actorCombatantForSneak?.combatantType === "NPC";
             const allyIsPC = c.combatantType === "Character" || c.combatantType === "NPC";
             if (attackerIsPC !== allyIsPC) continue;
             // Check distance to target
@@ -727,8 +720,8 @@ export class RollStateMachine {
         }
       }
 
-      const sneakUsed = actorCombatant?.resources
-        ? (normalizeResources(actorCombatant.resources) as any).sneakAttackUsedThisTurn === true
+      const sneakUsed = actorCombatantForSneak?.resources
+        ? (normalizeResources(actorCombatantForSneak.resources) as any).sneakAttackUsedThisTurn === true
         : false;
 
       const eligible = isSneakAttackEligible({
@@ -753,9 +746,7 @@ export class RollStateMachine {
 
     // Compute eligible on-hit enhancements for the attacker
     const actorSheet = (actorChar?.sheet ?? {}) as any;
-    const actorCombatantForEnhancements = findCombatantByEntityId(
-      await this.deps.combatRepo.listCombatants(encounter.id), actorId,
-    );
+    const actorCombatantForEnhancements = findCombatantByEntityId(combatants, actorId);
     const actorResForEnhancements = normalizeResources(actorCombatantForEnhancements?.resources ?? {});
     const actorResourcePools = getResourcePools(actorResForEnhancements);
     const eligibleEnhancements = actorChar

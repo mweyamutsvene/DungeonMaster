@@ -274,6 +274,47 @@ function pickBonusAction(
   return undefined;
 }
 
+/**
+ * Check if a bonus action token represents a spell cast (e.g., "castSpell:Healing Word:Ally").
+ */
+function isBonusActionSpellCast(token: string): boolean {
+  return token.startsWith("castSpell:");
+}
+
+/**
+ * Estimate the number of enemies that would be hit by an AoE spell.
+ * Uses Chebyshev distance (D&D grid diagonal = 5ft) to approximate targeting.
+ * For each enemy position as potential AoE center, counts enemies within radius.
+ */
+function estimateAoETargets(
+  spell: AiSpellInfo,
+  combatantPos: { x: number; y: number } | undefined,
+  enemies: AiCombatContext["enemies"],
+): number {
+  const area = spell.area as { type?: string; size?: number } | undefined;
+  if (!area || typeof area.size !== "number") return 1;
+
+  const radiusFeet = area.size;
+  const positionedEnemies = enemies.filter(e => e.position && e.hp.current > 0);
+  if (positionedEnemies.length <= 1) return positionedEnemies.length || 1;
+
+  // For each enemy position as potential AoE center, count enemies within radius
+  let maxTargets = 1;
+  for (const center of positionedEnemies) {
+    let count = 0;
+    for (const e of positionedEnemies) {
+      // Grid positions: 1 cell = 5 feet. Use Chebyshev distance (D&D diagonal = 5ft).
+      const dx = Math.abs(e.position!.x - center.position!.x) * 5;
+      const dy = Math.abs(e.position!.y - center.position!.y) * 5;
+      const dist = Math.max(dx, dy);
+      if (dist <= radiusFeet) count++;
+    }
+    if (count > maxTargets) maxTargets = count;
+  }
+
+  return maxTargets;
+}
+
 // ── Spell type for AI evaluation (parsed from unknown[] spells) ──
 
 interface AiSpellInfo {
@@ -405,6 +446,7 @@ function pickSpell(
   allies: AiCombatContext["allies"],
   combatantName: string,
   round?: number,
+  options?: { cantripsOnly?: boolean; enemies?: AiCombatContext["enemies"] },
 ): AiDecision | undefined {
   const rawSpells = combatant.spells as unknown[] | undefined;
   if (!rawSpells || rawSpells.length === 0) return undefined;
@@ -418,10 +460,10 @@ function pickSpell(
     // Filter out concentration spells, can still cast non-concentration
     const nonConcentration = spells.filter(s => !s.concentration);
     if (nonConcentration.length === 0) return undefined;
-    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName, round);
+    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName, round, options);
   }
 
-  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName, round);
+  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName, round, options);
 }
 
 function pickFromCandidates(
@@ -432,22 +474,29 @@ function pickFromCandidates(
   resourcePools: Array<{ name: string; current: number; max: number }>,
   combatantName: string,
   round?: number,
+  options?: { cantripsOnly?: boolean; enemies?: AiCombatContext["enemies"] },
 ): AiDecision | undefined {
-  // 1. Healing: check if any ally (including self) is below 50% HP
-  // Skip BA healing spells here — reserve them for bonus action alongside an attack
-  const hurtAllies = allies.filter(a => a.hp.percentage < 50 && a.hp.current > 0);
-  if (hurtAllies.length > 0 || combatant.hp.percentage < 50) {
-    const healingSpells = spells
-      .filter(s => s.healing && !s.isBonusAction && hasAvailableSlot(resourcePools, s.level))
-      .sort((a, b) => estimateSpellDamage(b.healing) - estimateSpellDamage(a.healing));
+  const cantripsOnly = options?.cantripsOnly ?? false;
+  const enemies = options?.enemies ?? [];
 
-    if (healingSpells.length > 0) {
-      const spell = healingSpells[0]!;
-      // Heal self if we're hurt, otherwise heal the most hurt ally
-      const healTarget = combatant.hp.percentage < 50
-        ? combatantName
-        : (hurtAllies.sort((a, b) => a.hp.percentage - b.hp.percentage)[0]?.name ?? combatantName);
-      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+  // When cantripsOnly is set (D&D 5e 2024: BA spell restricts action to cantrips),
+  // skip healing, debuffs, buffs, and leveled damage — jump straight to cantrips.
+  if (!cantripsOnly) {
+    // 1. Healing: check if any ally (including self) is below 50% HP
+    // Skip BA healing spells here — reserve them for bonus action alongside an attack
+    const hurtAllies = allies.filter(a => a.hp.percentage < 50 && a.hp.current > 0);
+    if (hurtAllies.length > 0 || combatant.hp.percentage < 50) {
+      const healingSpells = spells
+        .filter(s => s.healing && !s.isBonusAction && hasAvailableSlot(resourcePools, s.level))
+        .sort((a, b) => estimateSpellDamage(b.healing) - estimateSpellDamage(a.healing));
+
+      if (healingSpells.length > 0) {
+        const spell = healingSpells[0]!;
+        // Heal self if we're hurt, otherwise heal the most hurt ally
+        const healTarget = combatant.hp.percentage < 50
+          ? combatantName
+          : (hurtAllies.sort((a, b) => a.hp.percentage - b.hp.percentage)[0]?.name ?? combatantName);
+        const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
       return {
         action: "castSpell",
         spellName: spell.name,
@@ -506,11 +555,17 @@ function pickFromCandidates(
       };
     }
   }
+  } // end if (!cantripsOnly)
 
   // 2. Damage cantrips — free to cast, always a good option
+  // AI-M2: Weight AoE cantrips by estimated number of targets hit
   const cantrips = spells
     .filter(s => s.level === 0 && s.damage)
-    .sort((a, b) => estimateSpellDamage(b.damage) - estimateSpellDamage(a.damage));
+    .sort((a, b) => {
+      const aTargets = a.area ? estimateAoETargets(a, combatant.position, enemies) : 1;
+      const bTargets = b.area ? estimateAoETargets(b, combatant.position, enemies) : 1;
+      return (estimateSpellDamage(b.damage) * bTargets) - (estimateSpellDamage(a.damage) * aTargets);
+    });
 
   if (cantrips.length > 0) {
     const cantrip = cantrips[0]!;
@@ -524,6 +579,9 @@ function pickFromCandidates(
     };
   }
 
+  // cantripsOnly guard: leveled damage spells are not allowed when BA spell restricts action
+  if (cantripsOnly) return undefined;
+
   // 3. Leveled damage spells — only if creature has weak/no physical attacks
   const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number }>;
   const hasStrongAttacks = attacks.length >= 2 || attacks.some(a =>
@@ -533,9 +591,14 @@ function pickFromCandidates(
   // If creature has strong physical attacks, prefer those over spending slots
   if (hasStrongAttacks) return undefined;
 
+  // AI-M2: Weight AoE damage spells by estimated number of targets hit
   const damageSpells = spells
     .filter(s => s.level > 0 && s.damage && hasAvailableSlot(resourcePools, s.level))
-    .sort((a, b) => estimateSpellDamage(b.damage) - estimateSpellDamage(a.damage));
+    .sort((a, b) => {
+      const aTargets = a.area ? estimateAoETargets(a, combatant.position, enemies) : 1;
+      const bTargets = b.area ? estimateAoETargets(b, combatant.position, enemies) : 1;
+      return (estimateSpellDamage(b.damage) * bTargets) - (estimateSpellDamage(a.damage) * aTargets);
+    });
 
   if (damageSpells.length > 0) {
     const spell = damageSpells[0]!;
@@ -765,17 +828,43 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Step 4b: Spell casting — evaluate before physical attacks
+    // AI-M1: D&D 5e 2024 BA spell + action cantrip coordination.
+    // If a BA spell is picked, the main action can only be a cantrip (not a leveled spell).
     if (!actionSpent) {
-      const spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName, ctx.combat.round);
-      if (spellDecision) {
-        // Attach bonus action if available and spell doesn't end turn
-        if (!bonusActionSpent && !spellDecision.endTurn) {
-          const bonusAction = pickBonusAction(combatant, livingEnemies, ctx.allies);
-          if (bonusAction) {
-            spellDecision.bonusAction = bonusAction;
-          }
+      // Preview bonus action to detect BA spell constraint
+      let candidateBA: string | undefined;
+      if (!bonusActionSpent) {
+        candidateBA = pickBonusAction(combatant, livingEnemies, ctx.allies);
+      }
+      const baIsSpell = candidateBA ? isBonusActionSpellCast(candidateBA) : false;
+
+      let spellDecision: AiDecision | undefined;
+
+      if (baIsSpell) {
+        // BA is a spell → main action restricted to cantrips only
+        spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName, ctx.combat.round,
+          { cantripsOnly: true, enemies: livingEnemies });
+        if (spellDecision) {
+          spellDecision.bonusAction = candidateBA;
+          return spellDecision;
         }
-        return spellDecision;
+        // No cantrip available → try unrestricted spell without BA spell attached
+        spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName, ctx.combat.round,
+          { enemies: livingEnemies });
+        if (spellDecision) {
+          // Don't attach BA spell to a leveled main action spell
+          return spellDecision;
+        }
+      } else {
+        // BA is not a spell (or no BA) → no restriction on main action
+        spellDecision = pickSpell(combatant, primaryTarget, ctx.allies, input.combatantName, ctx.combat.round,
+          { enemies: livingEnemies });
+        if (spellDecision) {
+          if (candidateBA && !spellDecision.endTurn) {
+            spellDecision.bonusAction = candidateBA;
+          }
+          return spellDecision;
+        }
       }
     }
 
@@ -881,15 +970,27 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Step 9: Use bonus action if we haven't used it yet
+    // AI-M1: D&D 5e 2024 — if a leveled spell was cast as an action this turn,
+    // the BA cannot be another spell (only cantrips allowed, and BA cantrips are rare).
     if (!bonusActionSpent) {
       const bonusAction = pickBonusAction(combatant, livingEnemies, ctx.allies);
       if (bonusAction) {
-        return {
-          action: "endTurn",
-          bonusAction,
-          endTurn: true,
-          intentNarration: `${input.combatantName} uses ${bonusAction}.`,
-        };
+        // Check if a leveled spell was already cast this turn
+        const castLeveledSpellThisTurn = turnResults.some(
+          r => r.action === "castSpell" && r.ok &&
+            r.decision?.spellLevel !== undefined && r.decision.spellLevel > 0,
+        );
+        // If action was a leveled spell and BA is a spell, skip the BA spell
+        if (castLeveledSpellThisTurn && isBonusActionSpellCast(bonusAction)) {
+          // Can't combine BA spell with leveled action spell — skip
+        } else {
+          return {
+            action: "endTurn",
+            bonusAction,
+            endTurn: true,
+            intentNarration: `${input.combatantName} uses ${bonusAction}.`,
+          };
+        }
       }
     }
 

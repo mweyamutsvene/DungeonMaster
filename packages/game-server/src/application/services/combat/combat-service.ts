@@ -520,6 +520,49 @@ export class CombatService {
     }
 
     // Hydrate creatures from records
+    const creatures = await this.hydrateCreatures(combatantRecords);
+
+    if (creatures.size === 0) {
+      throw new ValidationError("Failed to hydrate any creatures for combat");
+    }
+
+    // Hydrate Combat domain instance
+    const combat = hydrateCombat(encounter, combatantRecords, creatures, this.diceRoller);
+
+    // Phase 1: End-of-turn effects for the outgoing combatant
+    await this.processEndOfTurnEffects(encounter, combat, combatantRecords);
+
+    // Phase 2: Advance turn order (domain logic + skip defeated non-characters)
+    const { round, turn, updated } = await this.advanceTurnOrder(encounter, combat, combatantRecords);
+
+    // Phase 3: Incoming combatant effects (rage end, legendary reset, action economy)
+    const freshRecords = await this.combat.listCombatants(encounter.id);
+    await this.processIncomingCombatantEffects(encounter, combat, freshRecords);
+
+    // Phase 4: Start-of-turn effects for the newly active combatant
+    await this.processStartOfTurnEffects(encounter, combat, combatantRecords);
+
+    // Phase 5: Emit TurnAdvanced event
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "TurnAdvanced",
+        payload: { encounterId: encounter.id, round, turn },
+      });
+    }
+
+    // Phase 6: Death save auto-roll if needed
+    if (!input?.skipDeathSaveAutoRoll) {
+      await this.processDeathSaveIfNeeded(sessionId, encounter, combat);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Hydrate creatures from combatant records into a Map<combatantId, Creature>.
+   */
+  private async hydrateCreatures(combatantRecords: any[]): Promise<Map<string, Creature>> {
     const creatures = new Map<string, Creature>();
     for (const record of combatantRecords) {
       if (record.characterId && this.characters) {
@@ -539,42 +582,51 @@ export class CombatService {
         }
       }
     }
+    return creatures;
+  }
 
-    if (creatures.size === 0) {
-      throw new ValidationError("Failed to hydrate any creatures for combat");
-    }
-
-    // Hydrate Combat domain instance
-    const combat = hydrateCombat(encounter, combatantRecords, creatures, this.diceRoller);
-
-    // --- End-of-turn condition expiry for the outgoing combatant ---
+  /**
+   * Phase 1: Process end-of-turn effects for the outgoing (current) combatant.
+   * - Condition expiry (end_of_turn)
+   * - ActiveEffect cleanup
+   * - Zone triggers (Cloud of Daggers, Spirit Guardians, etc.)
+   */
+  private async processEndOfTurnEffects(
+    encounter: CombatEncounterRecord,
+    combat: ReturnType<typeof hydrateCombat>,
+    combatantRecords: any[],
+  ): Promise<void> {
     const outgoingCreatureId = combat.getActiveCreature().getId();
     const outgoingRecord = combatantRecords.find(c => c.id === outgoingCreatureId);
     const outgoingEntityId = outgoingRecord?.characterId ?? outgoingRecord?.monsterId ?? outgoingRecord?.npcId;
-    if (outgoingEntityId) {
-      for (const record of combatantRecords) {
-        const structuredConditions = normalizeConditions(record.conditions);
-        const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId);
-        if (removed.length > 0) {
-          await this.combat.updateCombatantState(record.id, {
-            conditions: remaining as any,
-          });
-          console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at end of ${outgoingEntityId}'s turn`);
-        }
+    if (!outgoingEntityId) return;
+
+    for (const record of combatantRecords) {
+      const structuredConditions = normalizeConditions(record.conditions);
+      const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId);
+      if (removed.length > 0) {
+        await this.combat.updateCombatantState(record.id, {
+          conditions: remaining as any,
+        });
+        console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at end of ${outgoingEntityId}'s turn`);
       }
-
-      // ── ActiveEffect: end-of-turn processing ──
-      await this.processActiveEffectsAtTurnEvent(combatantRecords, "end_of_turn", outgoingEntityId, encounter);
-
-      // ── Zone: end-of-turn triggers (Cloud of Daggers, Spirit Guardians, etc.) ──
-      await this.processZoneTurnTriggers(encounter, combatantRecords, "on_end_turn", outgoingCreatureId, outgoingEntityId);
     }
 
-    // Advance turn via domain logic
+    await this.processActiveEffectsAtTurnEvent(combatantRecords, "end_of_turn", outgoingEntityId, encounter);
+    await this.processZoneTurnTriggers(encounter, combatantRecords, "on_end_turn", outgoingCreatureId, outgoingEntityId);
+  }
+
+  /**
+   * Phase 2: Advance turn order via domain logic, skip defeated non-characters, persist.
+   */
+  private async advanceTurnOrder(
+    encounter: CombatEncounterRecord,
+    combat: ReturnType<typeof hydrateCombat>,
+    combatantRecords: any[],
+  ): Promise<{ round: number; turn: number; updated: CombatEncounterRecord }> {
     combat.endTurn();
 
-    // Skip over defeated non-characters (monsters typically don't act at 0 HP).
-    // Characters at 0 HP are handled via death saves.
+    // Skip over defeated non-characters (monsters die at 0 HP; characters get death saves)
     for (let i = 0; i < combatantRecords.length; i++) {
       const activeId = combat.getActiveCreature().getId();
       const activeRecord = combatantRecords.find((c) => c.id === activeId) ?? null;
@@ -590,61 +642,53 @@ export class CombatService {
       break;
     }
 
-    // Extract dirty state for persistence
     const { round, turn } = extractCombatState(combat);
     const updated = await this.combat.updateEncounter(encounter.id, { round, turn });
+    return { round, turn, updated };
+  }
 
-    // Re-fetch combatant records to get the latest state after effect cleanup
-    // (the original combatantRecords may have stale activeEffects that were
-    // removed during end-of-turn processing above)
-    const freshRecords = await this.combat.listCombatants(encounter.id);
+  /**
+   * Phase 3: Process incoming combatant effects at the start of their turn.
+   * - Rage end check (barbarian)
+   * - Legendary action charge reset
+   * - Action economy persistence for all creatures
+   */
+  private async processIncomingCombatantEffects(
+    encounter: CombatEncounterRecord,
+    combat: ReturnType<typeof hydrateCombat>,
+    freshRecords: any[],
+  ): Promise<void> {
+    const incomingCreatureId = combat.getActiveCreature().getId();
+    const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
 
-    // ── Rage End Check (incoming combatant — start of their turn) ──
-    // D&D 5e 2024: Rage ends "if you haven't made an attack roll or taken damage
-    // since the end of your last turn." The check must happen at the START of the
-    // raging barbarian's turn, giving the gap between turns (other creatures' turns)
-    // for the barbarian to take damage or make opportunity attacks.
-    // Must read flags BEFORE extractActionEconomy resets them (isFreshEconomy=true).
-    {
-      const incomingCreatureId = combat.getActiveCreature().getId();
-      const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
-      if (incomingRecord) {
-        const inRes = normalizeResources(incomingRecord.resources);
-        if (inRes.raging === true) {
-          const attacked = inRes.rageAttackedThisTurn === true;
-          const tookDamage = inRes.rageDamageTakenThisTurn === true;
-          const isUnconscious = incomingRecord.hpCurrent <= 0;
-          if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
-            const effects = getActiveEffects(incomingRecord.resources ?? {});
-            const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
-            let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
-            updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
-            await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
-            // Update in-memory record so extractActionEconomy doesn't overwrite with stale data
-            (incomingRecord as any).resources = updatedRes;
-            console.log(`[CombatService] Rage ended for combatant ${incomingRecord.id} (attacked=${attacked}, tookDamage=${tookDamage}, unconscious=${isUnconscious})`);
-          }
+    // Rage End Check — must read flags BEFORE extractActionEconomy resets them
+    if (incomingRecord) {
+      const inRes = normalizeResources(incomingRecord.resources);
+      if (inRes.raging === true) {
+        const attacked = inRes.rageAttackedThisTurn === true;
+        const tookDamage = inRes.rageDamageTakenThisTurn === true;
+        const isUnconscious = incomingRecord.hpCurrent <= 0;
+        if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
+          const effects = getActiveEffects(incomingRecord.resources ?? {});
+          const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
+          let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
+          updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
+          await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
+          (incomingRecord as any).resources = updatedRes;
+          console.log(`[CombatService] Rage ended for combatant ${incomingRecord.id} (attacked=${attacked}, tookDamage=${tookDamage}, unconscious=${isUnconscious})`);
         }
       }
     }
 
-    // ── Legendary Action Charge Reset (incoming combatant — start of their turn) ──
-    // D&D 5e 2024: A legendary creature regains all spent legendary actions at the
-    // start of its own turn.
-    {
-      const incomingCreatureId = combat.getActiveCreature().getId();
-      const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
-      if (incomingRecord && isLegendaryCreature(incomingRecord.resources)) {
-        const updatedRes = resetLegendaryActions(incomingRecord.resources);
-        await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
-        (incomingRecord as any).resources = updatedRes;
-        console.log(`[CombatService] Legendary action charges reset for combatant ${incomingRecord.id}`);
-      }
+    // Legendary Action Charge Reset
+    if (incomingRecord && isLegendaryCreature(incomingRecord.resources)) {
+      const updatedRes = resetLegendaryActions(incomingRecord.resources);
+      await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
+      (incomingRecord as any).resources = updatedRes;
+      console.log(`[CombatService] Legendary action charges reset for combatant ${incomingRecord.id}`);
     }
 
     // Persist action economy for all creatures
-    // Note: In a new round, all action economies are reset by endTurn()
-    // In a regular turn, only the new active combatant's economy is reset
     const order = combat.getOrder();
     await Promise.all(
       order.map((entry) => {
@@ -656,152 +700,140 @@ export class CombatService {
         return this.combat.updateCombatantState(creatureId, { resources });
       }),
     );
+  }
 
-    // Condition expiry: Remove "Stunned" from combatants whose stun expires
-    // at the start of the newly active combatant's turn.
+  /**
+   * Phase 4: Process start-of-turn effects for the newly active combatant.
+   * - Condition expiry (start_of_turn)
+   * - StunningStrikePartial removal
+   * - ActiveEffect start-of-turn processing
+   * - Zone triggers (Moonbeam, Spirit Guardians, etc.)
+   */
+  private async processStartOfTurnEffects(
+    encounter: CombatEncounterRecord,
+    combat: ReturnType<typeof hydrateCombat>,
+    combatantRecords: any[],
+  ): Promise<void> {
     const activeCreatureId = combat.getActiveCreature().getId();
-    const activeRecord = combatantRecords.find(
-      (c) => c.id === activeCreatureId,
-    );
-    // Determine the entity ID (characterId/monsterId/npcId) of the active combatant
+    const activeRecord = combatantRecords.find((c) => c.id === activeCreatureId);
     const activeEntityId = activeRecord?.characterId ?? activeRecord?.monsterId ?? activeRecord?.npcId;
-    if (activeEntityId) {
-      // Re-fetch combatants to get latest state (action economy may have been updated above)
-      const latestRecords = await this.combat.listCombatants(encounter.id);
-      for (const record of latestRecords) {
-        const res = typeof record.resources === "object" && record.resources !== null
-          ? record.resources as Record<string, unknown>
-          : {};
+    if (!activeEntityId) return;
 
-        // General-purpose structured condition expiry (System 4)
-        // Check for conditions with expiresAt tracking
-        const structuredConditions = normalizeConditions(record.conditions);
-        const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId;
-        const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId);
-        if (removed.length > 0) {
-          await this.combat.updateCombatantState(record.id, {
-            conditions: remaining as any,
-          });
-          console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at start of ${activeEntityId}'s turn`);
-        }
-
-        // Also remove StunningStrikePartial (speed halved + adv on next attack) at start of any of target's own turns
-        if (recordEntityId === activeEntityId) {
-          if (structuredConditions.some(c => c.condition === "StunningStrikePartial")) {
-            const updatedConditions = removeCondition(structuredConditions, "StunningStrikePartial" as Condition);
-            await this.combat.updateCombatantState(record.id, {
-              conditions: updatedConditions as any,
-            });
-            console.log(`[CombatService] Removed StunningStrikePartial from active combatant ${record.id}`);
-          }
-        }
+    const latestRecords = await this.combat.listCombatants(encounter.id);
+    for (const record of latestRecords) {
+      const structuredConditions = normalizeConditions(record.conditions);
+      const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId;
+      const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId);
+      if (removed.length > 0) {
+        await this.combat.updateCombatantState(record.id, {
+          conditions: remaining as any,
+        });
+        console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at start of ${activeEntityId}'s turn`);
       }
 
-      // ── ActiveEffect: start-of-turn processing ──
-      const latestRecordsForEffects = await this.combat.listCombatants(encounter.id);
-      await this.processActiveEffectsAtTurnEvent(latestRecordsForEffects, "start_of_turn", activeEntityId, encounter);
-
-      // ── Zone: start-of-turn triggers (Moonbeam, Spirit Guardians, etc.) ──
-      await this.processZoneTurnTriggers(encounter, latestRecordsForEffects, "on_start_turn", activeCreatureId, activeEntityId);
+      // Remove StunningStrikePartial at start of target's own turn
+      if (recordEntityId === activeEntityId) {
+        if (structuredConditions.some(c => c.condition === "StunningStrikePartial")) {
+          const updatedConditions = removeCondition(structuredConditions, "StunningStrikePartial" as Condition);
+          await this.combat.updateCombatantState(record.id, {
+            conditions: updatedConditions as any,
+          });
+          console.log(`[CombatService] Removed StunningStrikePartial from active combatant ${record.id}`);
+        }
+      }
     }
+
+    const latestRecordsForEffects = await this.combat.listCombatants(encounter.id);
+    await this.processActiveEffectsAtTurnEvent(latestRecordsForEffects, "start_of_turn", activeEntityId, encounter);
+    await this.processZoneTurnTriggers(encounter, latestRecordsForEffects, "on_start_turn", activeCreatureId, activeEntityId);
+  }
+
+  /**
+   * Phase 6: Auto-roll death save for the active combatant if needed.
+   */
+  private async processDeathSaveIfNeeded(
+    sessionId: string,
+    encounter: CombatEncounterRecord,
+    combat: ReturnType<typeof hydrateCombat>,
+  ): Promise<void> {
+    const activeCombatantId = combat.getActiveCreature().getId();
+    const postAdvanceCombatants = await this.combat.listCombatants(encounter.id);
+    const activeCombatant = postAdvanceCombatants.find((c) => c.id === activeCombatantId);
+    if (!activeCombatant || !activeCombatant.characterId) return;
+
+    const resources = (activeCombatant.resources as any) || {};
+    const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
+    const isStabilized = resources.stabilized === true;
+
+    if (!needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) return;
+
+    // Automatically make death saving throw
+    const roll = this.diceRoller.rollDie(20).total;
+    const saveResult = makeDeathSave(roll, currentDeathSaves);
+
+    let updatedDeathSaves = currentDeathSaves;
+    let updatedHp = activeCombatant.hpCurrent;
+    let updatedStabilized = isStabilized;
+    let resultType: 'success' | 'failure' | 'stabilized' | 'dead' | 'revived' = 'success';
+
+    if (saveResult.outcome === 'dead') {
+      resultType = 'dead';
+      updatedDeathSaves = { ...currentDeathSaves, failures: 3 };
+    } else if (saveResult.outcome === 'stabilized') {
+      resultType = 'stabilized';
+      updatedStabilized = true;
+      updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
+    } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
+      resultType = 'revived';
+      updatedHp = 1;
+      updatedDeathSaves = { successes: 0, failures: 0 };
+      updatedStabilized = false;
+    } else {
+      resultType = saveResult.outcome;
+      updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
+    }
+
+    const updatedResources = {
+      ...resources,
+      deathSaves: updatedDeathSaves,
+      stabilized: updatedStabilized,
+    };
+
+    await this.combat.updateCombatantState(activeCombatant.id, {
+      hpCurrent: updatedHp,
+      resources: updatedResources,
+    });
 
     if (this.events) {
       await this.events.append(sessionId, {
         id: nanoid(),
-        type: "TurnAdvanced",
-        payload: { encounterId: encounter.id, round, turn },
+        type: "DeathSave",
+        payload: {
+          encounterId: encounter.id,
+          combatantId: activeCombatant.id,
+          roll,
+          result: resultType,
+          deathSaves: updatedDeathSaves,
+          ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
+        },
       });
     }
 
-    // Check if the newly active combatant needs a death saving throw.
-    // By default, only Characters make death saves (monsters typically die at 0 HP).
-    // When skipDeathSaveAutoRoll is true (tabletop mode), skip auto-rolling.
-    if (!input?.skipDeathSaveAutoRoll) {
-      const activeCombatantId = combat.getActiveCreature().getId();
-      const postAdvanceCombatants = await this.combat.listCombatants(encounter.id);
-      const activeCombatant = postAdvanceCombatants.find((c) => c.id === activeCombatantId);
-      if (activeCombatant && activeCombatant.characterId) {
-        const resources = (activeCombatant.resources as any) || {};
-        const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
-        const isStabilized = resources.stabilized === true;
+    if (resultType === 'dead') {
+      const updatedCombatants = await this.combat.listCombatants(encounter.id);
+      const victoryAfterDeath = await this.victoryPolicy.evaluate({ combatants: updatedCombatants });
+      if (victoryAfterDeath) {
+        await this.combat.updateEncounter(encounter.id, { status: victoryAfterDeath });
 
-        if (needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) {
-          // Automatically make death saving throw
-          const roll = this.diceRoller.rollDie(20).total;
-          const saveResult = makeDeathSave(roll, currentDeathSaves);
-
-          let updatedDeathSaves = currentDeathSaves;
-          let updatedHp = activeCombatant.hpCurrent;
-          let updatedStabilized = isStabilized;
-          let resultType: 'success' | 'failure' | 'stabilized' | 'dead' | 'revived' = 'success';
-
-          if (saveResult.outcome === 'dead') {
-            resultType = 'dead';
-            updatedDeathSaves = { ...currentDeathSaves, failures: 3 };
-          } else if (saveResult.outcome === 'stabilized') {
-            resultType = 'stabilized';
-            updatedStabilized = true;
-            updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-          } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
-            resultType = 'revived';
-            updatedHp = 1; // Regain 1 HP
-            updatedDeathSaves = { successes: 0, failures: 0 }; // Reset
-            updatedStabilized = false;
-          } else {
-            // Normal success or failure
-            resultType = saveResult.outcome;
-            updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-          }
-
-          // Update combatant state
-          const updatedResources = {
-            ...resources,
-            deathSaves: updatedDeathSaves,
-            stabilized: updatedStabilized,
-          };
-
-          await this.combat.updateCombatantState(activeCombatant.id, {
-            hpCurrent: updatedHp,
-            resources: updatedResources,
+        if (this.events) {
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: "CombatEnded",
+            payload: { encounterId: encounter.id, result: victoryAfterDeath },
           });
-
-          // Emit death save event
-          if (this.events) {
-            await this.events.append(sessionId, {
-              id: nanoid(),
-              type: "DeathSave",
-              payload: {
-                encounterId: encounter.id,
-                combatantId: activeCombatant.id,
-                roll,
-                result: resultType,
-                deathSaves: updatedDeathSaves,
-                ...(updatedHp > 0 ? { hpRestored: 1 } : {}),
-              },
-            });
-          }
-
-          // If the combatant died, check victory again
-          if (resultType === 'dead') {
-            const updatedCombatants = await this.combat.listCombatants(encounter.id);
-            const victoryAfterDeath = await this.victoryPolicy.evaluate({ combatants: updatedCombatants });
-            if (victoryAfterDeath) {
-              await this.combat.updateEncounter(encounter.id, { status: victoryAfterDeath });
-
-              if (this.events) {
-                await this.events.append(sessionId, {
-                  id: nanoid(),
-                  type: "CombatEnded",
-                  payload: { encounterId: encounter.id, result: victoryAfterDeath },
-                });
-              }
-            }
-          }
         }
       }
-    } // end skipDeathSaveAutoRoll guard (nextTurnDomain)
-
-    return updated;
+    }
   }
 
   async endTurn(

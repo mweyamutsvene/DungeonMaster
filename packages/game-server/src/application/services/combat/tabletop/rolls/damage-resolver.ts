@@ -88,6 +88,10 @@ export class DamageResolver {
     npcs: SessionNPCRecord[],
     rawText?: string,
   ): Promise<DamageResult> {
+    // CO-M5: Pre-load combatants once. Reloaded after HP mutations that may affect
+    // downstream logic (KO, concentration, retaliatory damage, victory check).
+    let combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+
     const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
 
     const target =
@@ -122,9 +126,7 @@ export class DamageResolver {
 
     // ── ActiveEffect: extra damage (flat + dice) ──
     // Includes Rage melee damage bonus, Hunter's Mark, etc.
-    const actorCombatant = findCombatantByEntityId(
-      await this.deps.combatRepo.listCombatants(encounter.id), action.actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, action.actorId);
     const actorRes = actorCombatant?.resources ?? {} as Record<string, unknown>;
     {
       const attackerEffects = getActiveEffects(actorCombatant?.resources ?? {});
@@ -168,10 +170,7 @@ export class DamageResolver {
 
       // ── ActiveEffect: damage defense modifiers (resistance/vulnerability/immunity) ──
       // Includes Rage B/P/S resistance, spell-granted resistances, etc.
-      const targetCombatantForDefenses = findCombatantByEntityId(
-        await this.deps.combatRepo.listCombatants(encounter.id),
-        action.targetId,
-      );
+      const targetCombatantForDefenses = findCombatantByEntityId(combatants, action.targetId);
       if (targetCombatantForDefenses) {
         const tgtEffects = getActiveEffects(targetCombatantForDefenses.resources ?? {});
         const effDef = getDamageDefenseEffects(tgtEffects, damageType);
@@ -196,9 +195,8 @@ export class DamageResolver {
       }
     }
 
-    // Apply damage
-    const combatantStates = await this.deps.combatRepo.listCombatants(encounter.id);
-    const targetCombatant = findCombatantByEntityId(combatantStates, action.targetId);
+    // Apply damage — use cached combatants (no HP mutations since load)
+    const targetCombatant = findCombatantByEntityId(combatants, action.targetId);
 
     const hpBefore = targetCombatant?.hpCurrent ?? 0;
     let hpAfter = hpBefore;
@@ -227,9 +225,10 @@ export class DamageResolver {
       );
 
       // D&D 5e 2024: Rage ends immediately when a creature drops to 0 HP (unconscious)
+      // Re-fetch combatants after HP mutation for accurate resource/condition state
       if (hpAfter === 0) {
-        const koTargetForRage = (await this.deps.combatRepo.listCombatants(encounter.id))
-          .find((c: any) => c.id === targetCombatant.id);
+        combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+        const koTargetForRage = combatants.find((c: any) => c.id === targetCombatant.id);
         if (koTargetForRage) {
           const koRes = normalizeResources(koTargetForRage.resources);
           if (koRes.raging === true) {
@@ -244,8 +243,8 @@ export class DamageResolver {
 
       // Auto-break concentration on KO (Unconscious = Incapacitated → concentration ends)
       if (hpAfter === 0 && targetCombatant) {
-        const koTarget = (await this.deps.combatRepo.listCombatants(encounter.id))
-          .find((c: any) => c.id === targetCombatant.id);
+        // combatants already refreshed above when hpAfter === 0
+        const koTarget = combatants.find((c: any) => c.id === targetCombatant.id);
         if (koTarget) {
           const koSpellName = getConcentrationSpellName(koTarget.resources);
           if (koSpellName) {
@@ -275,8 +274,8 @@ export class DamageResolver {
       // Concentration check: if the target is concentrating and took damage, auto-roll CON save
       // If hpAfter === 0, concentration is auto-broken (handled by KO effects / condition-based break)
       if (totalDamage > 0 && hpAfter > 0 && targetCombatant) {
-        const latestCombatant = (await this.deps.combatRepo.listCombatants(encounter.id))
-          .find((c: any) => c.id === targetCombatant.id);
+        const latestCombatant = findCombatantByEntityId(combatants, targetCombatant.id)
+          ?? (await this.deps.combatRepo.listCombatants(encounter.id)).find((c: any) => c.id === targetCombatant.id);
         const spellName = getConcentrationSpellName(latestCombatant?.resources);
         if (spellName && this.deps.diceRoller) {
           // Get CON save modifier from the character sheet or stat block
@@ -319,7 +318,7 @@ export class DamageResolver {
         const tgtEffects = getActiveEffects(targetCombatant.resources ?? {});
         const retaliatory = tgtEffects.filter(e => e.type === 'retaliatory_damage');
         if (retaliatory.length > 0 && this.deps.diceRoller) {
-          const attackerForRetaliation = findCombatantByEntityId(combatantStates, actorId);
+          const attackerForRetaliation = findCombatantByEntityId(combatants, actorId);
           if (attackerForRetaliation && attackerForRetaliation.hpCurrent > 0) {
             let totalRetaliatoryDamage = 0;
             for (const eff of retaliatory) {
@@ -349,10 +348,10 @@ export class DamageResolver {
 
     // Mark Sneak Attack as used for this turn if it was applied
     if (action.sneakAttackDice && action.sneakAttackDice > 0) {
-      const actorCombatant = combatantStates.find((c: any) => c.characterId === actorId);
-      if (actorCombatant) {
-        const actorRes = normalizeResources(actorCombatant.resources);
-        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+      const actorForSneak = combatants.find((c: any) => c.characterId === actorId);
+      if (actorForSneak) {
+        const actorRes = normalizeResources(actorForSneak.resources);
+        await this.deps.combatRepo.updateCombatantState(actorForSneak.id, {
           resources: { ...actorRes, sneakAttackUsedThisTurn: true } as any,
         });
         if (this.debugLogsEnabled) console.log(`[DamageResolver] Sneak Attack used this turn — marked`);
@@ -398,10 +397,7 @@ export class DamageResolver {
           }
           // D&D 5e 2024: Apply per-type damage defenses for enhancement damage
           if (bonusDamage > 0 && enhancement.bonusDice.damageType) {
-            const targetForDefenses = findCombatantByEntityId(
-              await this.deps.combatRepo.listCombatants(encounter.id),
-              action.targetId,
-            );
+            const targetForDefenses = findCombatantByEntityId(combatants, action.targetId);
             if (targetForDefenses) {
               const tgtRecord =
                 monsters.find((m) => m.id === action.targetId) ||
@@ -429,10 +425,9 @@ export class DamageResolver {
             }
           }
           if (bonusDamage > 0) {
-            const targetCombatantForBonus = findCombatantByEntityId(
-              await this.deps.combatRepo.listCombatants(encounter.id),
-              action.targetId,
-            );
+            // Re-fetch after potential HP mutations from prior enhancement iterations
+            combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+            const targetCombatantForBonus = findCombatantByEntityId(combatants, action.targetId);
             if (targetCombatantForBonus) {
               const bonusHpBefore = targetCombatantForBonus.hpCurrent;
               const newHp = Math.max(0, bonusHpBefore - bonusDamage);
@@ -547,8 +542,7 @@ export class DamageResolver {
 
     // D&D 5e 2024: Loading property — mark that a Loading weapon was fired this turn
     if (action.weaponSpec?.properties?.some((p: string) => typeof p === "string" && p.toLowerCase() === "loading")) {
-      const combatantStatesForLoading = await this.deps.combatRepo.listCombatants(encounter.id);
-      const actorForLoading = findCombatantByEntityId(combatantStatesForLoading, actorId);
+      const actorForLoading = findCombatantByEntityId(combatants, actorId);
       if (actorForLoading) {
         const loadRes = normalizeResources(actorForLoading.resources);
         await this.deps.combatRepo.updateCombatantState(actorForLoading.id, {
@@ -559,16 +553,16 @@ export class DamageResolver {
 
     // Drop thrown weapon on the ground at target position (hit)
     if (action.weaponSpec?.isThrownAttack) {
-      await this.dropThrownWeaponOnGround(encounter, actorId, action.targetId, action.weaponSpec, encounter.round ?? 1);
+      await this.dropThrownWeaponOnGround(encounter, actorId, action.targetId, action.weaponSpec, encounter.round ?? 1, combatants);
     }
 
     // Check for victory/defeat if target was defeated
     let combatEnded = false;
     let victoryStatus: CombatVictoryStatus | undefined;
     if (hpAfter <= 0 && this.deps.victoryPolicy) {
-      // Re-fetch combatants with updated HP
-      const updatedCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
-      victoryStatus = await this.deps.victoryPolicy.evaluate({ combatants: updatedCombatants }) ?? undefined;
+      // Re-fetch combatants with updated HP for accurate victory evaluation
+      combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+      victoryStatus = await this.deps.victoryPolicy.evaluate({ combatants }) ?? undefined;
 
       if (victoryStatus) {
         combatEnded = true;
@@ -639,13 +633,14 @@ export class DamageResolver {
     targetId: string,
     weaponSpec: { name: string; kind: "melee" | "ranged"; attackBonus: number; damage?: { diceCount: number; diceSides: number; modifier: number }; damageType?: string; properties?: string[]; normalRange?: number; longRange?: number; mastery?: string },
     round: number,
+    combatantsCache?: any[],
   ): Promise<void> {
     const mapData = encounter.mapData as CombatMap | undefined;
     if (!mapData) return;
 
     // Find target position — that's where the thrown weapon lands
-    const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
-    const targetCombatant = findCombatantByEntityId(combatants, targetId);
+    const allCombatants = combatantsCache ?? await this.deps.combatRepo.listCombatants(encounter.id);
+    const targetCombatant = findCombatantByEntityId(allCombatants, targetId);
     const targetPos = targetCombatant ? getPosition(targetCombatant.resources ?? {}) : null;
     if (!targetPos) return;
 
