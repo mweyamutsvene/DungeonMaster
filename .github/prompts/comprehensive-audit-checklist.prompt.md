@@ -232,7 +232,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **EM-M6: `armorTraining` not extracted from class during hydration.** A Wizard wearing heavy armor gets no penalty because hydration defaults to `all: true`.
   - Files: `application/services/combat/helpers/` (hydration code)
 
-- [x] **EM-M7: Species save advantages hydrated but not consumed.** (domain entity wired; hydration passthrough pending) `speciesTraits.saveAdvantages` data exists but is lost during hydration, never checked in saving throw resolution.
+- [x] **EM-M7: Species save advantages hydrated but not consumed.** `speciesTraits.saveAdvantages` data exists in domain but is lost during hydration (not passed to CharacterData constructor), never checked in saving throw resolution.
   - Files: `domain/entities/creatures/species-registry.ts`, hydration code
 
 - [x] **EM-M8: `PendingActionRepository` not exported from barrel.** Must be imported directly, inconsistent with other repos.
@@ -295,7 +295,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 ### Spell System
 - [x] **SS-L1: Toll the Dead should deal d12 vs d8 on damaged target.**
 - [x] **SS-L2: Ray of Frost should reduce target speed by 10ft.**
-- [x] **SS-L3: Chill Touch should prevent HP regeneration.**
+- [x] **SS-L3: Chill Touch should prevent HP regeneration.** (catalog effect placeholder exists but healing handler doesn't enforce it)
 - [ ] **SS-L4: Duplicate upcast validation in handler + slot manager.**
 - [ ] **SS-L5: `any` types in SpellCastingContext (6 fields).**
 - [ ] **SS-L6: Magic Missile hardcoded inline instead of catalog-driven.**

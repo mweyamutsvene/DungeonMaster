@@ -29,6 +29,7 @@ export type EffectType =
   | 'retaliatory_damage'  // Damage dealt back to melee attacker
   | 'condition_immunity'  // Prevents a specific condition from being applied
   | 'recurring_temp_hp'   // Grants temp HP at start/end of turn
+  | 'prevent_healing'     // Prevents HP regeneration/healing (e.g., Chill Touch)
   | 'custom';             // Custom effect
 
 /**

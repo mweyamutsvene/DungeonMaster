@@ -423,6 +423,15 @@ export function isConditionImmuneByEffects(resources: JsonValue, conditionName: 
   return hasConditionImmunity(effects, conditionName);
 }
 
+/**
+ * Check if a combatant has a prevent_healing effect (e.g., from Chill Touch).
+ * When present, HP restoration (spells, potions, class features) should be blocked.
+ */
+export function hasPreventHealingEffect(resources: JsonValue): boolean {
+  const effects = getActiveEffects(resources);
+  return effects.some(e => e.type === 'prevent_healing');
+}
+
 // ── Drawn weapon tracking ─────────────────────────────────────────────────────
 
 /**

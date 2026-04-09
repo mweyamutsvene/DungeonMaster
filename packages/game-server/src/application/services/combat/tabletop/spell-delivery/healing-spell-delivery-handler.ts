@@ -17,6 +17,7 @@ import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepar
 import type { ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
+import { hasPreventHealingEffect } from '../../helpers/resource-utils.js';
 
 export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -76,6 +77,27 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     const deathSaves = resources?.deathSaves;
     if (deathSaves && deathSaves.failures >= 3) {
       throw new ValidationError(`${targetName} is dead and cannot be healed`);
+    }
+
+    // Check for prevent_healing effect (e.g., Chill Touch)
+    if (hasPreventHealingEffect(targetCombatant.resources ?? {})) {
+      // Still spend the action/slot
+      const isBonusAction = spellMatch.isBonusAction ?? false;
+      await deps.actions.castSpell(sessionId, {
+        encounterId: encounter.id,
+        actor,
+        spellName: castInfo.spellName,
+        skipActionCheck: isBonusAction,
+      });
+      const effectiveLevel = castAtLevel ?? spellLevel;
+      const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
+      return {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE",
+        action: "CastSpell",
+        message: `Cast ${castInfo.spellName} on ${targetName}.${slotNote} Healing has no effect — target is affected by Chill Touch.`,
+      };
     }
 
     // Roll healing dice
@@ -230,6 +252,8 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
         if (deathSaves && deathSaves.failures >= 3) return false;
         // Skip combatants already at full HP (no benefit)
         if (c.hpCurrent >= c.hpMax) return false;
+        // Skip combatants with prevent_healing effect (e.g., Chill Touch)
+        if (hasPreventHealingEffect(c.resources ?? {})) return false;
         return true;
       })
       .slice(0, MAX_TARGETS);

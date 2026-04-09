@@ -5,7 +5,7 @@
 
 import { nanoid } from "nanoid";
 import type { AiActionHandler, AiActionHandlerContext, AiActionHandlerDeps, AiHandlerResult } from "../ai-action-handler.js";
-import { normalizeResources, getInventory, addActiveEffectsToResources } from "../../helpers/resource-utils.js";
+import { normalizeResources, getInventory, addActiveEffectsToResources, hasPreventHealingEffect } from "../../helpers/resource-utils.js";
 import { useConsumableItem } from "../../../../../domain/entities/items/inventory.js";
 import { lookupMagicItem } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { createEffect } from "../../../../../domain/entities/combat/effects.js";
@@ -105,14 +105,19 @@ export class UseObjectHandler implements AiActionHandler {
 
     // ── Apply healing ─────────────────────────────────────────────
     if (potionEffects.healing && diceRoller) {
-      const formula = potionEffects.healing;
-      const diceResult = diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
-      const healAmount = diceResult.total;
-      const hpBefore = aiCombatant.hpCurrent;
-      const hpMax = aiCombatant.hpMax;
-      newHpCurrent = Math.min(hpMax, hpBefore + healAmount);
-      const actualHeal = newHpCurrent - hpBefore;
-      messageParts.push(`heals ${actualHeal} HP (${formula.diceCount}d${formula.diceSides}+${formula.modifier} = ${healAmount}). HP: ${newHpCurrent}/${hpMax}`);
+      // Skip healing if prevent_healing effect is active (e.g., Chill Touch)
+      if (hasPreventHealingEffect(resources)) {
+        messageParts.push(`healing has no effect (affected by Chill Touch)`);
+      } else {
+        const formula = potionEffects.healing;
+        const diceResult = diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
+        const healAmount = diceResult.total;
+        const hpBefore = aiCombatant.hpCurrent;
+        const hpMax = aiCombatant.hpMax;
+        newHpCurrent = Math.min(hpMax, hpBefore + healAmount);
+        const actualHeal = newHpCurrent - hpBefore;
+        messageParts.push(`heals ${actualHeal} HP (${formula.diceCount}d${formula.diceSides}+${formula.modifier} = ${healAmount}). HP: ${newHpCurrent}/${hpMax}`);
+      }
     }
 
     // ── Apply temp HP ──────────────────────────────────────────────

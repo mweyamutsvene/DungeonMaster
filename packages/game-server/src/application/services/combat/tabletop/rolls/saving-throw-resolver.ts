@@ -44,6 +44,7 @@ import type { SavingThrowPendingAction, SaveOutcome, SavingThrowAutoResult } fro
 import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
 import { AURA_OF_PROTECTION, EVASION } from "../../../../../domain/entities/classes/feature-keys.js";
 import { computeAuraSaveBonus, getAuraOfProtectionRange } from "../../../../../domain/entities/classes/paladin.js";
+import { getSpeciesTraits } from "../../../../../domain/entities/creatures/species-registry.js";
 
 /**
  * Parameters for creating a saving throw pending action.
@@ -301,14 +302,38 @@ export class SavingThrowResolver {
     const hasEffectAdvantage = hasAdvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
     const hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility) || staggeringSaveDisadvantage;
 
+    // ── Species save advantages (Elf vs charmed, Halfling vs frightened, Dwarf vs poisoned, etc.) ──
+    let speciesAdvantage = false;
+    const speciesName = targetSheet?.species ?? targetSheet?.race;
+    if (typeof speciesName === "string") {
+      const speciesTraits = getSpeciesTraits(speciesName);
+      if (speciesTraits) {
+        // Check condition-based advantages (e.g., Halfling: advantage on saves vs Frightened)
+        const conditionsOnFailure: string[] = action.onFailure?.conditions?.add ?? [];
+        for (const sa of speciesTraits.saveAdvantages) {
+          if (sa.againstCondition && conditionsOnFailure.some(
+            c => c.toLowerCase() === sa.againstCondition!.toLowerCase(),
+          )) {
+            speciesAdvantage = true;
+            if (this.debugLogsEnabled) {
+              console.log(`[SavingThrowResolver] Species advantage: ${speciesName} vs ${sa.againstCondition}`);
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    const hasFinalAdvantage = hasEffectAdvantage || speciesAdvantage;
+
     // Roll the d20 (with advantage/disadvantage from effects)
     let roll;
-    if (hasEffectAdvantage && !hasEffectDisadvantage) {
+    if (hasFinalAdvantage && !hasEffectDisadvantage) {
       const roll1 = this.diceRoller.d20();
       const roll2 = this.diceRoller.d20();
       roll = roll1.total >= roll2.total ? roll1 : roll2;
       if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Advantage on save: d20(${roll1.total}, ${roll2.total}) → ${roll.total}`);
-    } else if (hasEffectDisadvantage && !hasEffectAdvantage) {
+    } else if (hasEffectDisadvantage && !hasFinalAdvantage) {
       const roll1 = this.diceRoller.d20();
       const roll2 = this.diceRoller.d20();
       roll = roll1.total <= roll2.total ? roll1 : roll2;

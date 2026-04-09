@@ -245,6 +245,7 @@ export function hydrateCharacter(
     fightingStyle,
     darkvisionRange: readNumber(sheet, 'darkvisionRange') ?? readNumber(sheet, 'darkvision') ?? speciesTraits?.darkvisionRange ?? 0,
     speciesDamageResistances: mergedResistances.length > 0 ? mergedResistances : undefined,
+    speciesSaveAdvantages: speciesTraits?.saveAdvantages,
     equipment,
     armorTraining,
   };

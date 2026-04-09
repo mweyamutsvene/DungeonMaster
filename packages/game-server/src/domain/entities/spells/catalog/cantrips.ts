@@ -116,13 +116,10 @@ export const CHILL_TOUCH = {
   damageType: 'necrotic',
   onHitEffects: [
     {
-      type: 'custom' as const,
+      type: 'prevent_healing' as const,
       target: 'hit_points' as const,
       duration: 'until_start_of_next_turn' as const,
       appliesTo: 'target' as const,
-      // TODO: No 'prevent_healing' EffectType yet. The healing delivery handler
-      // and any HP-restore logic must check for this custom effect and skip
-      // regeneration/healing when present. See SS-L3.
     },
   ],
   school: 'necromancy',
