@@ -31,6 +31,7 @@ import {
   BrutalStrikeExecutor,
   FrenzyExecutor,
   LayOnHandsExecutor,
+  ChannelDivinityExecutor,
   TurnUndeadExecutor,
   BardicInspirationExecutor,
   WildShapeExecutor,
@@ -270,6 +271,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new BrutalStrikeExecutor());
   abilityRegistry.register(new FrenzyExecutor());
   abilityRegistry.register(new LayOnHandsExecutor());
+  abilityRegistry.register(new ChannelDivinityExecutor());
   abilityRegistry.register(new TurnUndeadExecutor());
   abilityRegistry.register(new BardicInspirationExecutor());
   abilityRegistry.register(new WildShapeExecutor());

@@ -29,7 +29,7 @@ export {
 } from "./monk/index.js";
 
 // Paladin abilities
-export { LayOnHandsExecutor } from "./paladin/index.js";
+export { LayOnHandsExecutor, ChannelDivinityExecutor } from "./paladin/index.js";
 
 // Rogue abilities
 export { CunningActionExecutor } from "./rogue/index.js";

@@ -1,6 +1,6 @@
 {
-  "name": "Cleric Turn Undead: Channel Divinity AoE vs Undead",
-  "description": "A Cleric uses Turn Undead to force Wisdom saves on nearby Undead. Only Undead monsters within 30ft are targeted; non-undead are unaffected. Tests Channel Divinity spend, AoE targeting, save resolution, and Frightened condition application.",
+  "name": "Cleric Turn Undead: Channel Divinity AoE vs Undead with Destroy Undead",
+  "description": "A level 5 Cleric uses Turn Undead. Low-CR undead (CR 0.25 skeleton) are destroyed via Destroy Undead (5e 2024: CR <= 0.5 at level 5). Higher-CR undead (CR 2 ghast) that fail the save are Frightened. Non-undead are unaffected. Tests Channel Divinity spend, AoE targeting, save resolution, Destroy Undead, and Frightened condition.",
   "setup": {
     "character": {
       "name": "Brother Aldric",
@@ -40,7 +40,8 @@
         ],
         "features": [
           { "name": "Channel Divinity", "description": "2 uses per short rest at level 5" },
-          { "name": "Turn Undead", "description": "Each Undead within 30 ft must make a WIS save or become Frightened" }
+          { "name": "Turn Undead", "description": "Each Undead within 30 ft must make a WIS save or become Frightened" },
+          { "name": "Destroy Undead", "description": "Undead CR 1/2 or lower destroyed on failed Turn Undead save (level 5)" }
         ]
       }
     },
@@ -74,6 +75,39 @@
               "attackBonus": 4,
               "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
               "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Ghast",
+        "position": { "x": 12, "y": 12 },
+        "statBlock": {
+          "name": "Ghast",
+          "type": "Undead",
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 17,
+            "constitution": 10,
+            "intelligence": 11,
+            "wisdom": 1,
+            "charisma": 8
+          },
+          "maxHp": 36,
+          "hp": 36,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 2,
+          "proficiencyBonus": 2,
+          "saveProficiencies": [],
+          "actions": [
+            {
+              "name": "Claws",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
             }
           ]
         }
@@ -132,7 +166,7 @@
     {
       "type": "action",
       "input": { "text": "turn undead" },
-      "comment": "Cleric uses Turn Undead — Skeleton (Undead, WIS 8, -1 mod) must save DC 14; Goblin (Humanoid) is unaffected",
+      "comment": "Cleric uses Turn Undead — Skeleton (CR 0.25, WIS 1) destroyed by Destroy Undead; Ghast (CR 2, WIS 1) fails but CR > 0.5 so Frightened; Goblin (Humanoid) unaffected",
       "expect": {
         "actionComplete": true,
         "type": "SIMPLE_ACTION_COMPLETE"
@@ -140,10 +174,20 @@
     },
     {
       "type": "assertState",
-      "comment": "Skeleton should be Frightened (WIS 1, -5 mod → d20(18)-5=13 < DC 14 → fails)",
+      "comment": "Skeleton (CR 0.25) should be destroyed (HP 0) by Destroy Undead at cleric level 5 (threshold CR 0.5)",
+      "expect": {
+        "monsterHp": {
+          "name": "Skeleton Warrior",
+          "exact": 0
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ghast (CR 2) failed the save but CR > 0.5 so should be Frightened (not destroyed)",
       "expect": {
         "monsterConditions": {
-          "name": "Skeleton Warrior",
+          "name": "Ghast",
           "hasConditions": ["Frightened"]
         }
       }

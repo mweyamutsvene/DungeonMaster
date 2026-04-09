@@ -44,6 +44,22 @@ export function resetChannelDivinityOnShortRest(
 }
 
 /**
+ * Destroy Undead CR threshold by Cleric level (D&D 5e 2024).
+ * Starting at level 5, undead that fail the Turn Undead save and have
+ * CR at or below this threshold are instantly destroyed.
+ *
+ * Returns null if the cleric is below level 5 (feature not yet available).
+ */
+export function getDestroyUndeadCRThreshold(clericLevel: number): number | null {
+  if (clericLevel < 5) return null;
+  if (clericLevel < 8) return 0.5;
+  if (clericLevel < 11) return 1;
+  if (clericLevel < 14) return 2;
+  if (clericLevel < 17) return 3;
+  return 4;
+}
+
+/**
  * Cleric combat text profile.
  * - Turn Undead: classAction that uses Channel Divinity (costs regular action)
  */
@@ -72,6 +88,7 @@ export const Cleric: CharacterClassDefinition = {
     "spellcasting": 1,
     "channel-divinity": 2,
     "turn-undead": 2,
+    "destroy-undead": 5,
   },
   resourcesAtLevel: (level) => {
     const cd = createChannelDivinityState(level);

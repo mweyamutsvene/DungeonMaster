@@ -60,10 +60,12 @@ export const SUPREME_SNEAK = "supreme-sneak";
 export const DIVINE_SMITE = "divine-smite";
 export const LAY_ON_HANDS = "lay-on-hands";
 export const AURA_OF_PROTECTION = "aura-of-protection";
+export const DIVINE_SENSE = "divine-sense";
 
 // ── Cleric / Paladin (shared) ───────────────────────────────
 export const CHANNEL_DIVINITY = "channel-divinity";
 export const TURN_UNDEAD = "turn-undead";
+export const DESTROY_UNDEAD = "destroy-undead";
 
 // ── Ranger ──────────────────────────────────────────────────
 export const FAVORED_ENEMY = "favored-enemy";

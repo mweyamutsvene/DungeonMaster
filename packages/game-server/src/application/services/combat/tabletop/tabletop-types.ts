@@ -130,7 +130,7 @@ export interface HitRiderEnhancement {
   readonly abilityId: string;
   readonly displayName: string;
   /** Bonus damage dice to add to the damage total */
-  readonly bonusDice?: { diceCount: number; diceSides: number };
+  readonly bonusDice?: { diceCount: number; diceSides: number; damageType?: string };
   /**
    * Post-damage effect type to trigger after damage is applied.
    * - "saving-throw" → resolve via SavingThrowResolver (context must include save params)

@@ -115,6 +115,12 @@ export const PALADIN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       category: "bonusAction" as const,
       normalizedPatterns: [/layonhands/, /layinghands/, /layhands/],
     },
+    {
+      keyword: "divine-sense",
+      abilityId: "class:paladin:divine-sense",
+      category: "bonusAction" as const,
+      normalizedPatterns: [/divinesense/, /channeldivinity(?:divine)?sense/],
+    },
   ],
   attackEnhancements: [
     {
@@ -145,6 +151,7 @@ export const Paladin: CharacterClassDefinition = {
     "fighting-style": 2,
     "divine-smite": 2,
     "channel-divinity": 3,
+    "divine-sense": 3,
     "extra-attack": 5,
     "aura-of-protection": 6,
   },
@@ -181,7 +188,7 @@ export const Paladin: CharacterClassDefinition = {
       caps.push({ name: "Divine Smite", economy: "bonusAction", cost: "1 spell slot", requires: "Melee weapon hit", effect: "Add 2d8+ radiant damage on melee hit", abilityId: "class:paladin:divine-smite" });
     }
     if (level >= 3) {
-      caps.push({ name: "Channel Divinity", economy: "action", cost: `${paladinChannelDivinityUsesForLevel(level)} uses/short rest`, effect: "Channel divine energy for oath abilities" });
+      caps.push({ name: "Channel Divinity: Divine Sense", economy: "bonusAction", cost: `1 Channel Divinity use (${paladinChannelDivinityUsesForLevel(level)} uses/short rest)`, effect: "Detect celestials, fiends, and undead within 60 ft", abilityId: "class:paladin:divine-sense", resourceCost: { pool: "channelDivinity", amount: 1 } });
     }
     if (level >= 5) {
       caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });

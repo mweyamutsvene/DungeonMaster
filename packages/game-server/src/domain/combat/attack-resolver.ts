@@ -10,7 +10,7 @@ import {
   type AttackKind,
   type WeaponContext,
 } from "../rules/feat-modifiers.js";
-import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult } from "../rules/damage-defenses.js";
+import { applyDamageDefenses, type DamageDefenses, type DamageDefenseResult, type DamageType } from "../rules/damage-defenses.js";
 import { hasProperty } from "../entities/items/weapon-properties.js";
 import { getAdjustedMode } from "../rules/ability-checks.js";
 import { getCriticalHitThreshold } from "../entities/classes/registry.js";
@@ -45,6 +45,13 @@ export interface AttackSpec {
   damageType?: string;
 
   /**
+   * Additional damage types dealt alongside the primary damage.
+   * D&D 5e 2024: each damage type is checked separately against defenses.
+   * Example: Flame Tongue (slashing primary + fire additional).
+   */
+  additionalDamage?: Array<{ dice: string; damageType: DamageType }>;
+
+  /**
    * Optional weapon context used for feat interactions (e.g. Great Weapon Fighting).
    */
   weapon?: WeaponContext;
@@ -53,6 +60,15 @@ export interface AttackSpec {
 export interface AttackRoll {
   d20: number;
   total: number;
+}
+
+/** Result for a single additional damage type. */
+export interface AdditionalDamageResult {
+  damageType: string;
+  roll: DiceRoll;
+  rawDamage: number;
+  applied: number;
+  defenseApplied?: DamageDefenseResult["defenseApplied"];
 }
 
 export interface AttackResult {
@@ -70,6 +86,8 @@ export interface AttackResult {
     defenseApplied?: DamageDefenseResult["defenseApplied"];
     /** Damage type of the attack */
     damageType?: string;
+    /** Breakdown of additional damage types (each checked separately against defenses) */
+    additionalDamageResults?: AdditionalDamageResult[];
   };
 }
 
@@ -225,13 +243,42 @@ export function resolveAttack(
 
   const rawApplied = hit ? Math.max(0, damageRoll.total) : 0;
 
-  // Apply damage resistance/immunity/vulnerability
+  // Apply damage resistance/immunity/vulnerability for primary damage
   let applied = rawApplied;
   let defenseApplied: DamageDefenseResult["defenseApplied"] | undefined;
   if (hit && rawApplied > 0 && options?.targetDefenses && spec.damageType) {
     const defenseResult = applyDamageDefenses(rawApplied, spec.damageType, options.targetDefenses);
     applied = defenseResult.adjustedDamage;
     defenseApplied = defenseResult.defenseApplied;
+  }
+
+  // D&D 5e 2024: Additional damage types — each checked separately against defenses.
+  // Critical hits double dice for all damage types.
+  let additionalDamageResults: AdditionalDamageResult[] | undefined;
+  if (hit && spec.additionalDamage && spec.additionalDamage.length > 0) {
+    additionalDamageResults = [];
+    for (const extra of spec.additionalDamage) {
+      const parsed = parseDiceString(extra.dice);
+      if (!parsed) continue;
+      const extraDiceCount = critical ? parsed.count * 2 : parsed.count;
+      const extraRoll = diceRoller.rollDie(parsed.sides, extraDiceCount, 0);
+      const extraRaw = Math.max(0, extraRoll.total);
+      let extraApplied = extraRaw;
+      let extraDefense: DamageDefenseResult["defenseApplied"] | undefined;
+      if (extraRaw > 0 && options?.targetDefenses) {
+        const extraDefResult = applyDamageDefenses(extraRaw, extra.damageType, options.targetDefenses);
+        extraApplied = extraDefResult.adjustedDamage;
+        extraDefense = extraDefResult.defenseApplied;
+      }
+      applied += extraApplied;
+      additionalDamageResults.push({
+        damageType: extra.damageType,
+        roll: extraRoll,
+        rawDamage: extraRaw,
+        applied: extraApplied,
+        defenseApplied: extraDefense,
+      });
+    }
   }
 
   if (hit) {
@@ -249,6 +296,16 @@ export function resolveAttack(
       roll: damageRoll,
       defenseApplied,
       damageType: spec.damageType,
+      ...(additionalDamageResults && additionalDamageResults.length > 0
+        ? { additionalDamageResults }
+        : {}),
     },
   };
+}
+
+/** Parse a dice string like "2d8" into count and sides. */
+function parseDiceString(dice: string): { count: number; sides: number } | null {
+  const m = dice.trim().toLowerCase().match(/^(\d+)d(\d+)$/);
+  if (!m) return null;
+  return { count: Math.max(1, Number.parseInt(m[1]!, 10)), sides: Math.max(2, Number.parseInt(m[2]!, 10)) };
 }

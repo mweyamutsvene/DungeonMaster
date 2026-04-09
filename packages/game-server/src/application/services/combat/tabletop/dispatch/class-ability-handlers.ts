@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
 import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { getDestroyUndeadCRThreshold } from "../../../../../domain/entities/classes/cleric.js";
 import { createEffect } from "../../../../../domain/entities/combat/effects.js";
 import type {
   SessionCharacterRecord,
@@ -266,6 +267,7 @@ export class ClassAbilityHandlers {
         result.data.saveDC as number,
         (result.data.saveAbility as string) || "wisdom",
         characters,
+        (result.data.actorLevel as number) ?? 1,
       );
       if (turnSummary) {
         return {
@@ -462,6 +464,8 @@ export class ClassAbilityHandlers {
   /**
    * Resolve Turn Undead AoE: find all Undead monsters within 30 ft,
    * roll Wisdom saving throws, and apply Frightened on failure.
+   * D&D 5e 2024: Destroy Undead (level 5+) — instantly destroy undead
+   * with CR at or below a threshold when they fail the save.
    *
    * @returns A summary string of results, or null if no undead were in range.
    */
@@ -473,6 +477,7 @@ export class ClassAbilityHandlers {
     saveDC: number,
     saveAbility: string,
     characters: SessionCharacterRecord[],
+    actorLevel: number = 1,
   ): Promise<string | null> {
     const allCombatants = await this.deps.combatRepo.listCombatants(encounterId);
     const actorResNorm = normalizeResources(actorCombatant.resources);
@@ -533,7 +538,21 @@ export class ClassAbilityHandlers {
       if (resolution.success) {
         turnResults.push(`${monsterName} succeeds (rolled ${resolution.total} vs DC ${saveDC})`);
       } else {
-        turnResults.push(`${monsterName} fails (rolled ${resolution.total} vs DC ${saveDC}) — Frightened!`);
+        // D&D 5e 2024: Destroy Undead — if cleric is level 5+ and undead CR <= threshold, destroy it
+        const destroyCRThreshold = getDestroyUndeadCRThreshold(actorLevel);
+        const monsterCR = typeof (statBlock as any)?.challengeRating === "number"
+          ? (statBlock as any).challengeRating
+          : typeof (statBlock as any)?.cr === "number"
+            ? (statBlock as any).cr
+            : null;
+
+        if (destroyCRThreshold !== null && monsterCR !== null && monsterCR <= destroyCRThreshold) {
+          // Destroy the undead: set HP to 0
+          await this.deps.combatRepo.updateCombatantState(combatant.id, { hpCurrent: 0 });
+          turnResults.push(`${monsterName} fails (rolled ${resolution.total} vs DC ${saveDC}) — destroyed by divine power!`);
+        } else {
+          turnResults.push(`${monsterName} fails (rolled ${resolution.total} vs DC ${saveDC}) — Frightened!`);
+        }
       }
     }
 

@@ -886,3 +886,106 @@ describe("Grappler feat advantage", () => {
     expect(result.attack.d20).toBe(15);
   });
 });
+
+describe("additionalDamage", () => {
+  it("applies additional damage types with separate defense checks", () => {
+    // Roller: d20=15 (hit), primary 1d8=1, additional 2d6=1+1=2
+    const dice = new SequenceDiceRoller([15]);
+    const attacker = makeArcher("flame");
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 3 },
+      damageType: "slashing",
+      additionalDamage: [
+        { dice: "2d6", damageType: "fire" },
+      ],
+    });
+
+    expect(result.hit).toBe(true);
+    // Primary: 1 + 3 = 4 (SequenceDiceRoller.rollDie returns 1 per die)
+    // Additional: 2 × 1 = 2
+    // Total: 4 + 2 = 6
+    expect(result.damage.applied).toBe(6);
+    expect(result.damage.additionalDamageResults).toHaveLength(1);
+    expect(result.damage.additionalDamageResults![0].damageType).toBe("fire");
+    expect(result.damage.additionalDamageResults![0].rawDamage).toBe(2);
+    expect(result.damage.additionalDamageResults![0].applied).toBe(2);
+  });
+
+  it("applies resistance only to the correct damage type", () => {
+    const dice = new SequenceDiceRoller([15]);
+    const attacker = makeArcher("flame");
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 3 },
+      damageType: "slashing",
+      additionalDamage: [
+        { dice: "2d6", damageType: "fire" },
+      ],
+    }, {
+      targetDefenses: {
+        damageResistances: ["fire"],
+      },
+    });
+
+    expect(result.hit).toBe(true);
+    // Primary slashing: 1 + 3 = 4 (no resistance)
+    // Additional fire: floor(2 / 2) = 1 (resistance)
+    // Total: 4 + 1 = 5
+    expect(result.damage.applied).toBe(5);
+    expect(result.damage.defenseApplied).toBe("none"); // No slashing defense
+    expect(result.damage.additionalDamageResults![0].defenseApplied).toBe("resistance");
+    expect(result.damage.additionalDamageResults![0].applied).toBe(1);
+  });
+
+  it("doubles additional damage dice on critical hit", () => {
+    // Natural 20 = crit
+    const dice = new SequenceDiceRoller([20]);
+    const attacker = makeArcher("crit");
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 3 },
+      damageType: "slashing",
+      additionalDamage: [
+        { dice: "1d6", damageType: "fire" },
+      ],
+    });
+
+    expect(result.critical).toBe(true);
+    // Primary: 2d8 (crit doubles) = 2 × 1 + 3 = 5
+    // Additional: 2d6 (crit doubles 1d6→2d6) = 2 × 1 = 2
+    // Total: 5 + 2 = 7
+    expect(result.damage.applied).toBe(7);
+    expect(result.damage.additionalDamageResults![0].roll.rolls).toHaveLength(2); // doubled
+  });
+
+  it("does not apply additional damage on miss", () => {
+    // Natural 1 = miss
+    const dice = new SequenceDiceRoller([1]);
+    const attacker = makeArcher("miss");
+    const target = makeNpc("target", 10);
+
+    const result = resolveAttack(dice, attacker, target, {
+      kind: "melee",
+      attackBonus: 5,
+      damage: { diceCount: 1, diceSides: 8, modifier: 3 },
+      damageType: "slashing",
+      additionalDamage: [
+        { dice: "2d6", damageType: "fire" },
+      ],
+    });
+
+    expect(result.hit).toBe(false);
+    expect(result.damage.applied).toBe(0);
+    expect(result.damage.additionalDamageResults).toBeUndefined();
+  });
+});

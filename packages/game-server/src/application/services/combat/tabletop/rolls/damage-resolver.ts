@@ -396,6 +396,38 @@ export class DamageResolver {
             const dieRoll = this.deps.diceRoller?.rollDie(enhancement.bonusDice.diceSides);
             bonusDamage += dieRoll?.total ?? 0;
           }
+          // D&D 5e 2024: Apply per-type damage defenses for enhancement damage
+          if (bonusDamage > 0 && enhancement.bonusDice.damageType) {
+            const targetForDefenses = findCombatantByEntityId(
+              await this.deps.combatRepo.listCombatants(encounter.id),
+              action.targetId,
+            );
+            if (targetForDefenses) {
+              const tgtRecord =
+                monsters.find((m) => m.id === action.targetId) ||
+                characters.find((c) => c.id === action.targetId) ||
+                npcs.find((n) => n.id === action.targetId);
+              const tgtSheet = (tgtRecord as any)?.statBlock ?? (tgtRecord as any)?.sheet ?? {};
+              const defenses = extractDamageDefenses(tgtSheet);
+              // Include ActiveEffect-granted defense modifiers
+              const tgtEffects = getActiveEffects(targetForDefenses.resources ?? {});
+              const effDef = getDamageDefenseEffects(tgtEffects, enhancement.bonusDice.damageType);
+              if (effDef.resistances) {
+                defenses.damageResistances = [...new Set([...(defenses.damageResistances ?? []), enhancement.bonusDice.damageType.toLowerCase()])];
+              }
+              if (effDef.vulnerabilities) {
+                defenses.damageVulnerabilities = [...new Set([...(defenses.damageVulnerabilities ?? []), enhancement.bonusDice.damageType.toLowerCase()])];
+              }
+              if (effDef.immunities) {
+                defenses.damageImmunities = [...new Set([...(defenses.damageImmunities ?? []), enhancement.bonusDice.damageType.toLowerCase()])];
+              }
+              if (defenses.damageResistances || defenses.damageImmunities || defenses.damageVulnerabilities) {
+                const defResult = applyDamageDefenses(bonusDamage, enhancement.bonusDice.damageType, defenses);
+                bonusDamage = defResult.adjustedDamage;
+                if (this.debugLogsEnabled) console.log(`[DamageResolver] Enhancement damage defense: ${defResult.defenseApplied} (${enhancement.bonusDice.damageType}) → ${bonusDamage}`);
+              }
+            }
+          }
           if (bonusDamage > 0) {
             const targetCombatantForBonus = findCombatantByEntityId(
               await this.deps.combatRepo.listCombatants(encounter.id),
