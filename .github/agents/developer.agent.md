@@ -31,49 +31,8 @@ There is no such thing as a pre-existing bug, if a test is failing assume its du
 9. **Git Commits** — Make atomic commits with clear messages. For large features, consider multiple commits (e.g., "Add grapple action handler", "Implement grapple mechanics in domain", "Add grapple E2E scenario"). Make sure all work is committed at the end of all work.
 ---
 
-## Adaptive Workflow: 3-Tier Complexity
-
-**At the start of every task, assess complexity and choose a tier:**
-
-| Signal | Simple | Medium | Complex |
-|--------|--------|--------|---------|
-| Files touched | 1–3 | 4–8 | 8+ |
-| DDD layers | 1 | 1–2 | 2+ |
-| Flows affected | 1 | 1–2 | 3+ |
-| New feature | No | Small | Major |
-| Dual-path risk | No | Maybe | Yes |
-
----
-
-### Tier 1: Simple (Direct Implementation)
-
-For single-flow, single-layer changes (bug fix, config, docs, dead code):
-
-1. Read relevant test scenarios and source
-2. Implement directly: domain → application → infrastructure
-3. Verify: `typecheck` → `test` → `test:e2e:combat:mock`
-4. Create plan files for any `TODO` comments
-
-**Batch dispatch**: When there are multiple simple items, dispatch each to the relevant implementer agent rather than doing them yourself. Do this in parallel if they are independent.
-
----
-
-### Tier 2: Medium (Plan-First, Lean Orchestration)
-
-For 1-2 flow changes where you understand the scope well enough to plan directly. **Skips SME research — instruction files auto-load domain knowledge when you read source files.**
-
-1. **Plan**: Write plan to `.github/prompts/plan-{feature}.prompt.md` using the plan template below. Include the Cross-Flow Risk Checklist.
-2. **Review**: Dispatch affected SMEs to VALIDATE the plan only (no research phase).
-3. **Implement**: Dispatch implementer agents for each affected flow.
-4. **Test**: Dispatch E2EScenarioWriter and VitestWriter.
-5. **Verify**: `typecheck` → `test` → `test:e2e:combat:mock`. Fix or re-dispatch.
-
-**Batch dispatch**: When there are multiple simple items, dispatch each to the relevant implementer agent rather than doing them yourself. Do this in parallel if they are independent.
----
-
-### Tier 3: Complex (Full Orchestration)
-
-For cross-cutting flow changes, major new features, or anything touching the pending action state machine. Uses SMEs as **disposable context windows** — they do deep dives in their own context and write concise summaries so YOUR context stays clean.
+## Adaptive Workflow: 
+Uses SMEs as **disposable context windows** — they do deep dives in their own context and write concise summaries so YOUR context stays clean.
 
 #### Step 1: Analyze
 Determine which flows are affected. List them explicitly.

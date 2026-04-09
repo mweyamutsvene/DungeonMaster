@@ -286,6 +286,20 @@ export interface SentinelReactionAttackPayload {
   damage: number;
 }
 
+export interface ReadiedActionTriggeredPayload {
+  encounterId: string;
+  reactorId: string;
+  reactorName: string;
+  triggerType: string;
+  targetId: string;
+  targetName: string;
+  attackName: string;
+  attackRoll: number;
+  targetAC: number;
+  hit: boolean;
+  damage: number;
+}
+
 // ---------------------------------------------------------------------------
 // Discriminated union of all game events
 // ---------------------------------------------------------------------------
@@ -323,7 +337,8 @@ export type GameEventInput =
   | { type: "AiDecision"; payload: AiDecisionPayload }
   | { type: "LegendaryAction"; payload: LegendaryActionPayload }
   | { type: "LairAction"; payload: LairActionPayload }
-  | { type: "SentinelReactionAttack"; payload: SentinelReactionAttackPayload };
+  | { type: "SentinelReactionAttack"; payload: SentinelReactionAttackPayload }
+  | { type: "ReadiedActionTriggered"; payload: ReadiedActionTriggeredPayload };
 
 /** All valid event type strings — use for exhaustive switch checks or filtering. */
 export type GameEventType = GameEventInput["type"];

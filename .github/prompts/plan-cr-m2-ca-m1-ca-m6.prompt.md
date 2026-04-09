@@ -1,6 +1,6 @@
 # Plan: CR-M2 + CA-M1 + CA-M6 (Multiple Damage Types, Channel Divinity, Destroy Undead)
 ## Round: 1
-## Status: IN_PROGRESS
+## Status: COMPLETE
 ## Affected Flows: CombatRules, ClassAbilities, CombatOrchestration
 
 ## Objective

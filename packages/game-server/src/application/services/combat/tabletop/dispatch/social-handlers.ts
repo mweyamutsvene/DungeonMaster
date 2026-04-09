@@ -93,19 +93,27 @@ export class SocialHandlers {
     }
 
     // Store readied action in resources
-    const readiedAction = {
+    const readiedAction: Record<string, unknown> = {
       responseType,
       triggerType,
       triggerDescription,
       ...(parsed?.targetName ? { targetName: parsed.targetName } : {}),
+      ...(parsed?.spellName ? { spellName: parsed.spellName } : {}),
     };
 
+    // D&D 5e 2024: Readying a spell requires concentration until the trigger fires.
+    // If already concentrating on something else, that concentration breaks.
+    const updatedResources: Record<string, unknown> = {
+      ...resources,
+      actionSpent: true,
+      readiedAction,
+    };
+    if (parsed?.spellName) {
+      updatedResources.concentrationSpellName = `Ready: ${parsed.spellName}`;
+    }
+
     await this.deps.combatRepo.updateCombatantState(actorState.id, {
-      resources: {
-        ...resources,
-        actionSpent: true,
-        readiedAction,
-      } as any,
+      resources: updatedResources as any,
     });
 
     if (this.debugLogsEnabled) {

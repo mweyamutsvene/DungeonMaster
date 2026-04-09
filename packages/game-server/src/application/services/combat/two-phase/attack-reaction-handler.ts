@@ -38,6 +38,7 @@ import { detectAttackReactions, detectDamageReactions } from "../../../../domain
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { JsonValue } from "../../../types.js";
+import { resolveReadiedAttackTriggers, type ReadiedAttackTriggerResult } from "../helpers/readied-attack-trigger.js";
 
 /** Deps shared with TwoPhaseActionService for damage-reaction initiation */
 export interface DamageReactionInitiator {
@@ -355,6 +356,7 @@ export class AttackReactionHandler {
       hit: boolean;
       damage: number;
     }>;
+    readiedAttackTriggers?: ReadiedAttackTriggerResult[];
   }> {
     const pendingAction = await this.pendingActions.getById(input.pendingActionId);
     if (!pendingAction) {
@@ -892,6 +894,23 @@ export class AttackReactionHandler {
       }
     }
 
+    // --- Readied action triggers (creature_attacks) ---
+    // D&D 5e 2024: If any combatant has a readied action with "creature_attacks" trigger,
+    // fire it now that the attack has resolved.
+    const attackerState = findCombatantStateByRef(combatants, pendingAction.actor);
+    let readiedAttackTriggers: ReadiedAttackTriggerResult[] | undefined;
+    if (attackerState) {
+      const triggers = await resolveReadiedAttackTriggers(
+        sessionId,
+        encounter.id,
+        attackerState.id,
+        { combat: this.combat, combatants: this.combatants, events: this.events },
+      );
+      if (triggers.length > 0) {
+        readiedAttackTriggers = triggers;
+      }
+    }
+
     return {
       hit,
       shieldUsed,
@@ -901,6 +920,7 @@ export class AttackReactionHandler {
       redirect: redirectResult,
       damageReaction: damageReactionResult,
       sentinelAttacks: sentinelAttacks.length > 0 ? sentinelAttacks : undefined,
+      readiedAttackTriggers,
     };
   }
 }

@@ -22,12 +22,12 @@ import {
 
 describe("Movement and Positioning", () => {
   describe("calculateDistance", () => {
-    it("should calculate distance between two positions", () => {
+    it("should calculate Chebyshev (D&D grid) distance between two positions", () => {
       const from: Position = { x: 0, y: 0 };
       const to: Position = { x: 30, y: 40 };
 
       const distance = calculateDistance(from, to);
-      expect(distance).toBe(50); // 3-4-5 triangle
+      expect(distance).toBe(40); // D&D grid: max(30, 40) = 40ft
     });
 
     it("should handle same position", () => {
@@ -35,12 +35,28 @@ describe("Movement and Positioning", () => {
       expect(calculateDistance(pos, pos)).toBe(0);
     });
 
-    it("should handle diagonal movement", () => {
+    it("should handle diagonal movement as 5ft per diagonal (D&D grid standard)", () => {
       const from: Position = { x: 0, y: 0 };
       const to: Position = { x: 5, y: 5 };
 
       const distance = calculateDistance(from, to);
-      expect(distance).toBeCloseTo(7.07, 1); // sqrt(50) ≈ 7.07
+      expect(distance).toBe(5); // D&D grid: diagonal = 5ft (max(5, 5))
+    });
+
+    it("should handle two diagonals as 10ft", () => {
+      const from: Position = { x: 0, y: 0 };
+      const to: Position = { x: 10, y: 10 };
+
+      const distance = calculateDistance(from, to);
+      expect(distance).toBe(10); // 2 diagonal squares = 10ft
+    });
+
+    it("should handle purely horizontal movement", () => {
+      const from: Position = { x: 0, y: 0 };
+      const to: Position = { x: 15, y: 0 };
+
+      const distance = calculateDistance(from, to);
+      expect(distance).toBe(15); // 3 squares = 15ft
     });
   });
 
@@ -139,9 +155,9 @@ describe("Movement and Positioning", () => {
   describe("isWithinRange", () => {
     it("should return true when within range", () => {
       const from: Position = { x: 0, y: 0 };
-      const to: Position = { x: 3, y: 4 };
+      const to: Position = { x: 5, y: 5 };
 
-      expect(isWithinRange(from, to, 5)).toBe(true); // 5ft exactly
+      expect(isWithinRange(from, to, 5)).toBe(true); // Chebyshev: max(5,5) = 5ft
       expect(isWithinRange(from, to, 10)).toBe(true);
     });
 
@@ -149,26 +165,27 @@ describe("Movement and Positioning", () => {
       const from: Position = { x: 0, y: 0 };
       const to: Position = { x: 30, y: 40 };
 
-      expect(isWithinRange(from, to, 40)).toBe(false); // 50ft away
+      expect(isWithinRange(from, to, 35)).toBe(false); // Chebyshev: max(30,40) = 40ft > 35
+      expect(isWithinRange(from, to, 40)).toBe(true);  // 40ft = 40ft
     });
   });
 
   describe("isWithinMeleeReach", () => {
     it("should check standard 5ft reach", () => {
       const from: Position = { x: 0, y: 0 };
-      const nearby: Position = { x: 3, y: 4 };
+      const nearby: Position = { x: 5, y: 5 };
       const far: Position = { x: 10, y: 0 };
 
-      expect(isWithinMeleeReach(from, nearby)).toBe(true);
+      expect(isWithinMeleeReach(from, nearby)).toBe(true);  // Chebyshev: 5ft
       expect(isWithinMeleeReach(from, far)).toBe(false);
     });
 
     it("should support custom reach for polearms", () => {
       const from: Position = { x: 0, y: 0 };
-      const target: Position = { x: 8, y: 6 };
+      const target: Position = { x: 10, y: 5 };
 
-      expect(isWithinMeleeReach(from, target, 10)).toBe(true); // 10ft reach
-      expect(isWithinMeleeReach(from, target, 5)).toBe(false);  // 5ft reach
+      expect(isWithinMeleeReach(from, target, 10)).toBe(true); // Chebyshev: max(10,5) = 10ft
+      expect(isWithinMeleeReach(from, target, 5)).toBe(false);  // 10ft > 5ft reach
     });
   });
 

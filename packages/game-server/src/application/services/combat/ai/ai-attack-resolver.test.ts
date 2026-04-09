@@ -98,7 +98,6 @@ describe("AiAttackResolver flanking data preloading (AI-L2)", () => {
 
     expect(result.status).toBe("miss");
     expect(combat.getEncounterById).not.toHaveBeenCalled();
-    expect(combat.listCombatants).not.toHaveBeenCalled();
   });
 
   it("falls back to combat repo reads when preloaded values are not provided", async () => {

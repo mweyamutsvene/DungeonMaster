@@ -92,7 +92,7 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CR-M4: Grapple/Shove ignores natural 1/20 on attack roll.** Nat 1 should auto-miss, nat 20 should auto-hit the initial strike.
   - Files: `domain/rules/grapple-shove.ts`
 
-- [ ] **CR-M5: `attemptMovement()` uses Euclidean distance instead of alternating diagonal cost.** May be legacy — verify if still called.
+- [x] **CR-M5: `attemptMovement()` uses Euclidean distance instead of alternating diagonal cost.** Fixed: calculateDistance now uses Chebyshev (D&D grid standard).
   - Files: `domain/rules/movement.ts`
 
 - [ ] **CR-M6: Heavily/lightly obscured areas not implemented.** No obscuration terrain types. Heavy obscuration should grant Blinded condition.
@@ -107,14 +107,14 @@ Cross-domain deep dive across all 6 flows. Items grouped by priority tier, then 
 - [x] **CR-M9: `DamageEffect.apply()` bypasses damage defenses.** Calls `target.takeDamage()` directly without checking resistance/immunity/vulnerability.
   - Files: `domain/effects/damage-effect.ts`
 
-- [ ] **CR-M10: Dual distance functions in `rules/movement.ts` and `combat/movement.ts`.** Different signatures, maintenance risk.
+- [x] **CR-M10: Dual distance functions in `rules/movement.ts` and `combat/movement.ts`.** Fixed: removed dead `domain/combat/movement.ts`, consolidated to single canonical module.
   - Files: `domain/rules/movement.ts`, `domain/combat/movement.ts`
 
 - [x] **CR-M11: Tough feat HP bonus not applied in creature hydration (existing TODO).** (already implemented in domain — `computeToughBonusHP()` exists)
   - Files: `domain/rules/hit-points.ts`
 
 ### Combat Orchestration
-- [ ] **CO-M1: Readied action triggers only fire for `creature_moves_within_range`.** Other triggers (creature_attacks) silently ignored. Readied spell concentration not tracked.
+- [x] **CO-M1: Readied action triggers only fire for `creature_moves_within_range`.** Fixed: added `creature_attacks` trigger via readied-attack-trigger.ts helper (hooked into AttackReactionHandler + AiAttackResolver), readied spell concentration tracked in SocialHandlers + breakConcentration.
   - Files: `tabletop/dispatch/social-handlers.ts`, `two-phase/move-reaction-handler.ts`
 
 - [ ] **CO-M2: Legendary actions between turns not orchestrated.** Charges tracked but no trigger point for AI to spend them between turns.

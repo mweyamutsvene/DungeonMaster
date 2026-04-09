@@ -62,8 +62,18 @@ export async function breakConcentration(
   const casterId =
     combatant.characterId ?? combatant.monsterId ?? combatant.npcId ?? combatant.id;
 
-  // 1. Remove tracking field
+  // 1. Remove tracking field + discard readied spell if held via concentration
   delete resources.concentrationSpellName;
+  // D&D 5e 2024: If you Ready a spell, it uses concentration. If concentration
+  // breaks before the trigger, the spell is wasted and the readied action is lost.
+  const readiedAction = resources.readiedAction as {
+    responseType?: string;
+    spellName?: string;
+  } | undefined;
+  if (readiedAction?.spellName) {
+    delete resources.readiedAction;
+    debugLog?.(`Readied spell "${readiedAction.spellName}" lost — concentration broken`);
+  }
   await combatRepo.updateCombatantState(combatant.id, {
     resources: resources as JsonValue,
   });

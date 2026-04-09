@@ -230,14 +230,13 @@ describe("Pathfinding — findAdjacentPosition", () => {
     const result = findAdjacentPosition(map, { x: 20, y: 20 }, { x: 0, y: 20 }, 5);
 
     expect(result).not.toBeNull();
-    // Should be within 5ft of target
+    // Should be within 5ft of target (Chebyshev distance — D&D grid)
     const dx = Math.abs(result!.x - 20);
     const dy = Math.abs(result!.y - 20);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    expect(dist).toBeLessThanOrEqual(5.1); // small tolerance
-    // Should be the cell closest to approach direction (west side)
+    const dist = Math.max(dx, dy);
+    expect(dist).toBeLessThanOrEqual(5); // Chebyshev: diagonal = 5ft
+    // Should be on the west side of target (x < 20), adjacent
     expect(result!.x).toBe(15);
-    expect(result!.y).toBe(20);
   });
 
   it("should return approach position if already in range", () => {
@@ -258,11 +257,11 @@ describe("Pathfinding — findAdjacentPosition", () => {
     expect(result).not.toBeNull();
     // Should NOT be the blocked cell
     expect(result).not.toEqual({ x: 15, y: 20 });
-    // Should still be within 5ft of target
+    // Should still be within 5ft of target (Chebyshev distance)
     const dx = Math.abs(result!.x - 20);
     const dy = Math.abs(result!.y - 20);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    expect(dist).toBeLessThanOrEqual(7.1 + 0.1); // diagonal = ~7.07ft from center
+    const dist = Math.max(dx, dy);
+    expect(dist).toBeLessThanOrEqual(5.1); // Chebyshev: diagonal = 5ft
   });
 
   it("should return null when all adjacent cells are blocked", () => {
@@ -286,7 +285,7 @@ describe("Pathfinding — findAdjacentPosition", () => {
     expect(result).not.toBeNull();
     const dx = Math.abs(result!.x - 30);
     const dy = Math.abs(result!.y - 30);
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.max(dx, dy); // Chebyshev distance
     expect(dist).toBeLessThanOrEqual(15.1);
     // Should pick the cell closest to approach origin
     expect(result!.x).toBeLessThan(30);

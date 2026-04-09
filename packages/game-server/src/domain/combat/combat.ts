@@ -14,8 +14,8 @@ import {
 } from "../entities/combat/action-economy.js";
 import type { ActiveEffect } from "../entities/combat/effects.js";
 import { shouldRemoveAtEndOfTurn, shouldRemoveAtStartOfTurn } from "../entities/combat/effects.js";
-import type { Position, MovementState } from "./movement.js";
-import { createMovementState } from "./movement.js";
+import type { Position, MovementState } from "../rules/movement.js";
+import { createMovementState } from "../rules/movement.js";
 import type { DiceRoller } from "../rules/dice-roller.js";
 import { rollInitiative, type InitiativeEntry } from "./initiative.js";
 

@@ -196,6 +196,16 @@ export class TwoPhaseActionService {
       hit: boolean;
       damage: number;
     }>;
+    /** Readied actions triggered by this attack (creature_attacks trigger) */
+    readiedAttackTriggers?: Array<{
+      attackerId: string;
+      attackerName: string;
+      targetId: string;
+      attackRoll: number;
+      targetAC: number;
+      hit: boolean;
+      damage: number;
+    }>;
   }> {
     return this.attackHandler.complete(sessionId, input, this);
   }

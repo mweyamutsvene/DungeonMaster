@@ -35,6 +35,7 @@ import { detectDamageReactions } from "../../../../domain/entities/classes/comba
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { checkFlanking } from "../../../../domain/rules/flanking.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
+import { resolveReadiedAttackTriggers } from "../helpers/readied-attack-trigger.js";
 
 type AiLogger = (msg: string) => void;
 
@@ -263,6 +264,11 @@ export class AiAttackResolver {
 
       await combat.updateCombatantState(aiCombatant.id, {
         resources: spendAction(aiCombatant.resources),
+      });
+
+      // Readied action triggers: "creature_attacks" fires even on a miss
+      await resolveReadiedAttackTriggers(sessionId, encounterId, aiCombatant.id, {
+        combat, combatants: combatantResolver, events,
       });
 
       return { status: "miss" };
@@ -544,6 +550,11 @@ export class AiAttackResolver {
           }
         }
       }
+
+      // Readied action triggers: "creature_attacks" fires after attack resolves
+      await resolveReadiedAttackTriggers(sessionId, encounterId, aiCombatant.id, {
+        combat, combatants: combatantResolver, events,
+      });
 
       return { status: "hit", damageApplied };
     }

@@ -35,13 +35,47 @@ export interface MovementResult {
 }
 
 /**
- * Calculate straight-line distance between two positions (Euclidean distance).
- * D&D 5e uses various distance calculations, this is the most common.
+ * Movement tracking state for a creature in combat.
+ * Moved from domain/combat/movement.ts during consolidation (CR-M10).
+ */
+export interface MovementState {
+  readonly position: Position;
+  readonly movementUsed: number;
+  readonly movementAvailable: number;
+  readonly jumpDistanceMultiplier: number;
+  readonly difficultTerrain: boolean;
+}
+
+/**
+ * Create initial movement state.
+ */
+export function createMovementState(
+  position: Position,
+  speed: number,
+): MovementState {
+  return {
+    position,
+    movementUsed: 0,
+    movementAvailable: speed,
+    jumpDistanceMultiplier: 1,
+    difficultTerrain: false,
+  };
+}
+
+/**
+ * Calculate D&D 5e grid distance between two positions (Chebyshev distance).
+ *
+ * D&D 5e 2024 standard grid rule: each square costs 5 ft of movement,
+ * including diagonal squares. This maps to Chebyshev distance: max(|dx|, |dy|).
+ *
+ * Consistent with pathfinding (chebyshevHeuristic), flanking (isAdjacent),
+ * deterministic AI targeting, and lay-on-hands reach checks — all of which
+ * already use Chebyshev distance internally.
  */
 export function calculateDistance(from: Position, to: Position): number {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  return Math.sqrt(dx * dx + dy * dy);
+  const dx = Math.abs(to.x - from.x);
+  const dy = Math.abs(to.y - from.y);
+  return Math.max(dx, dy);
 }
 
 /**

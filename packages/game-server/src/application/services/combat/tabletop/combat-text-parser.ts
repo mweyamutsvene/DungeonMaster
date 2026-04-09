@@ -187,7 +187,7 @@ export function tryParseSimpleActionText(input: string): "dash" | "dodge" | "dis
 
 // ----- Ready action parser -----
 
-export type ReadyResponseType = "attack" | "dash" | "move" | "disengage";
+export type ReadyResponseType = "attack" | "dash" | "move" | "disengage" | "spell";
 export type ReadyTriggerType = "creature_moves_within_range" | "creature_attacks" | "custom";
 
 export interface ParsedReadyAction {
@@ -196,6 +196,8 @@ export interface ParsedReadyAction {
   triggerDescription: string;
   /** Target creature name extracted from text (e.g., "the goblin"). */
   targetName?: string;
+  /** Spell name if readying a spell (D&D 5e 2024: uses concentration until trigger). */
+  spellName?: string;
 }
 
 /**
