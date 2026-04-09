@@ -35,6 +35,13 @@ export type TerrainType =
 export type CoverLevel = "none" | "half" | "three-quarters" | "full";
 
 /**
+ * D&D 5e 2024 Obscured Areas:
+ * - Lightly Obscured: disadvantage on Perception checks relying on sight
+ * - Heavily Obscured: creatures effectively Blinded when trying to see into/through it
+ */
+export type ObscuredLevel = "none" | "lightly" | "heavily";
+
+/**
  * Map cell representing a 5ft x 5ft square.
  */
 export interface MapCell {
@@ -48,6 +55,12 @@ export interface MapCell {
   blocksLineOfSight: boolean;
   /** Whether creatures can move through */
   passable: boolean;
+  /**
+   * D&D 5e 2024 obscuration level for this cell.
+   * Lightly obscured: disadvantage on Perception checks relying on sight.
+   * Heavily obscured: creatures are effectively Blinded when seeing into/through.
+   */
+  obscured?: ObscuredLevel;
   /** Items or objects at this position */
   objects?: string[];
 }

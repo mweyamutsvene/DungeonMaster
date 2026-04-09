@@ -8,7 +8,7 @@
 
 import type { Position } from "./movement.js";
 import { calculateDistance, isWithinRange } from "./movement.js";
-import type { CombatMap, CoverLevel, TerrainType } from "./combat-map-types.js";
+import type { CombatMap, CoverLevel, TerrainType, ObscuredLevel } from "./combat-map-types.js";
 import { getCellAt, getEntity } from "./combat-map-core.js";
 import type { MapEntity } from "./combat-map-types.js";
 
@@ -252,4 +252,63 @@ export function getFactionsInRange(
   const enemies = inRange.filter(e => e.faction !== entity.faction);
 
   return { allies, enemies };
+}
+
+/**
+ * Get the obscuration level at a specific position on the map.
+ * Checks both the cell's own obscured property and any zone-based obscuration.
+ */
+export function getObscuredLevelAt(map: CombatMap, pos: Position): ObscuredLevel {
+  if (!map.cells) return "none";
+  const cell = getCellAt(map, pos);
+  return cell?.obscured ?? "none";
+}
+
+/**
+ * D&D 5e 2024 Obscuration: determine attack advantage/disadvantage adjustments.
+ *
+ * - Attacker in heavy obscuration, target NOT: attacker can't see → disadvantage
+ * - Target in heavy obscuration, attacker NOT: target unseen → attacker has disadvantage
+ *   (D&D 5e 2024: unseen target means disadvantage on attacks, but target gets advantage... 
+ *    simplified: both sides can't see = cancel out)
+ * - Both in heavy obscuration: both effectively Blinded, advantage and disadvantage cancel out
+ *
+ * Returns { advantage: number, disadvantage: number } to add to existing counts.
+ */
+export function getObscurationAttackModifiers(
+  map: CombatMap,
+  attackerPos: Position,
+  targetPos: Position,
+): { advantage: number; disadvantage: number } {
+  const attackerObscured = getObscuredLevelAt(map, attackerPos);
+  const targetObscured = getObscuredLevelAt(map, targetPos);
+
+  let advantage = 0;
+  let disadvantage = 0;
+
+  const attackerHeavy = attackerObscured === "heavily";
+  const targetHeavy = targetObscured === "heavily";
+
+  if (attackerHeavy && targetHeavy) {
+    // Both Blinded: advantage (target can't see you) + disadvantage (you can't see target) cancel out
+    // Net zero — no adjustment needed
+  } else if (attackerHeavy) {
+    // Attacker is Blinded (can't see target): disadvantage on attack
+    // But target also can't see attacker → advantage on attack
+    // D&D 5e 2024: Blinded gives disadvantage on attacks. Unseen attacker gets advantage.
+    // These cancel out for the attack roll itself.
+    // However, the attacker still can't see the target, so disadvantage applies.
+    disadvantage++;
+  } else if (targetHeavy) {
+    // Target is in heavy obscuration: effectively Blinded against attacker
+    // Attacker attacking a Blinded target: advantage
+    // But target is an unseen target → disadvantage
+    // D&D 5e 2024: attacking an unseen target = disadvantage. 
+    // Target being Blinded = advantage for attacks against it.
+    // These cancel... but the attacker CAN see (they're not in obscuration).
+    // They just can't see INTO the obscuration. So disadvantage.
+    disadvantage++;
+  }
+
+  return { advantage, disadvantage };
 }

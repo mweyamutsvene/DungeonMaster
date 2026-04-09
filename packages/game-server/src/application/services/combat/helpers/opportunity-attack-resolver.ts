@@ -31,6 +31,8 @@ import {
   getActiveEffects,
   getPosition,
 } from "./resource-utils.js";
+import { getObscurationAttackModifiers } from "../../../../domain/rules/combat-map-sight.js";
+import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
 import {
   calculateFlatBonusFromEffects,
   calculateBonusFromEffects,
@@ -218,6 +220,14 @@ export async function resolveOpportunityAttacks(
       const oaDistanceFt = oaAttackerPos && oaTargetPos
         ? Math.hypot(oaTargetPos.x - oaAttackerPos.x, oaTargetPos.y - oaAttackerPos.y)
         : 5; // Default to 5ft for OAs (they're leaving reach)
+
+      // D&D 5e 2024: Obscuration-based attack modifiers
+      const oaMapData = encounter.mapData as CombatMap | undefined;
+      if (oaMapData && oaAttackerPos && oaTargetPos) {
+        const obscMods = getObscurationAttackModifiers(oaMapData, oaAttackerPos, oaTargetPos);
+        effectAdv += obscMods.advantage;
+        effectDisadv += obscMods.disadvantage;
+      }
 
       const rollMode = deriveRollModeFromConditions(attackerCondNames, targetCondNames, attackKind, effectAdv, effectDisadv, oaDistanceFt);
 

@@ -35,6 +35,7 @@ import { detectDamageReactions } from "../../../../domain/entities/classes/comba
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { checkFlanking } from "../../../../domain/rules/flanking.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
+import { getObscurationAttackModifiers } from "../../../../domain/rules/combat-map-sight.js";
 import { resolveReadiedAttackTriggers } from "../helpers/readied-attack-trigger.js";
 
 type AiLogger = (msg: string) => void;
@@ -154,9 +155,17 @@ export class AiAttackResolver {
 
     // D&D 5e 2024 Flanking (optional rule): melee attacks gain advantage when flanking.
     // Prefer pre-loaded encounter/combatants from caller to avoid redundant DB queries.
+    const encounter = params.encounter ?? await combat.getEncounterById(encounterId);
+    const mapData = encounter?.mapData as unknown as CombatMap | undefined;
+
+    // D&D 5e 2024: Obscuration-based attack modifiers
+    if (mapData && aiPos && tgtPos) {
+      const obscMods = getObscurationAttackModifiers(mapData, aiPos, tgtPos);
+      effectAdvantage += obscMods.advantage;
+      effectDisadvantage += obscMods.disadvantage;
+    }
+
     if (attackKind === "melee" && aiPos && tgtPos) {
-      const encounter = params.encounter ?? await combat.getEncounterById(encounterId);
-      const mapData = encounter?.mapData as unknown as CombatMap | undefined;
       if (mapData?.flankingEnabled) {
         const allCombatants = params.allCombatants ?? await combat.listCombatants(encounterId);
         const attackerFaction = this.getActorFaction(aiCombatant);

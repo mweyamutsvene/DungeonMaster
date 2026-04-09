@@ -9,7 +9,8 @@
  *   combat-map-core.ts   � createCombatMap, getCellAt, setTerrainAt, entity CRUD,
  *                          isOnMap, isPositionPassable, getTerrainSpeedModifier
  *   combat-map-sight.ts  � hasLineOfSight, getCoverLevel, getCoverACBonus,
- *                          getCoverSaveBonus, getEntitiesInRadius, getFactionsInRange
+ *                          getCoverSaveBonus, getEntitiesInRadius, getFactionsInRange,
+ *                          getObscuredLevelAt, getObscurationAttackModifiers
  *   combat-map-zones.ts  � getMapZones, addZone, removeZone, updateZone, setMapZones
  *   combat-map-items.ts  � getGroundItems, addGroundItem, removeGroundItem,
  *                          getGroundItemsAtPosition, getGroundItemsNearPosition

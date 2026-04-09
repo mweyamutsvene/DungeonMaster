@@ -8,7 +8,7 @@
 import { ValidationError } from "../../../../errors.js";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
-import { getCoverLevel, getCoverACBonus, hasElevationAdvantage } from "../../../../../domain/rules/combat-map.js";
+import { getCoverLevel, getCoverACBonus, hasElevationAdvantage, getObscurationAttackModifiers } from "../../../../../domain/rules/combat-map.js";
 import {
   getPosition,
   normalizeResources,
@@ -798,6 +798,16 @@ export class AttackHandlers {
       extraAdvantage++;
       if (this.debugLogsEnabled) {
         console.log("[AttackHandlers] Higher ground detected -> advantage on attack roll");
+      }
+    }
+
+    // D&D 5e 2024: Obscuration-based attack modifiers
+    if (mapData && targetPos) {
+      const obscMods = getObscurationAttackModifiers(mapData as unknown as CombatMap, actorPos, targetPos);
+      extraAdvantage += obscMods.advantage;
+      extraDisadvantage += obscMods.disadvantage;
+      if (this.debugLogsEnabled && (obscMods.advantage > 0 || obscMods.disadvantage > 0)) {
+        console.log(`[AttackHandlers] Obscuration: +${obscMods.advantage} advantage, +${obscMods.disadvantage} disadvantage`);
       }
     }
 
