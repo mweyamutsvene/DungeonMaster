@@ -27,6 +27,7 @@ import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { getEntityIdFromRef } from "../helpers/combatant-ref.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
+import { applyDamageDefenses, extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
 import { readConditionNames, getConditionEffects } from "../../../../domain/entities/combat/conditions.js";
@@ -35,6 +36,7 @@ import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import type { LlmRoster } from "../../../commands/game-command.js";
 import type { TabletopCombatServiceDeps, ActionParseResult } from "./tabletop-types.js";
 import type { SessionCharacterRecord, JsonValue } from "../../../types.js";
+import type { CharacterSheet } from "../helpers/hydration-types.js";
 import {
   SpellAttackDeliveryHandler,
   HealingSpellDeliveryHandler,
@@ -105,7 +107,13 @@ export class SpellActionHandler {
 
     // Look up spell info from the caster's character sheet
     const character = characters.find((c) => c.id === actorId);
-    const sheet = character && typeof character.sheet === "object" ? character.sheet : null;
+    const sheet = (character && typeof character.sheet === "object" ? character.sheet : null) as CharacterSheet | null;
+
+    // Ensure sheet.level is populated from the character record (DB column is always set,
+    // but the sheet JSON blob may omit it — affects cantrip scaling and multi-attack count)
+    if (sheet && character && sheet.level == null) {
+      (sheet as Record<string, unknown>).level = character.level;
+    }
 
     // Find the spell by name (case-insensitive) using shared lookup helper
     const spellMatch = resolveSpell(castInfo.spellName, sheet);
@@ -120,6 +128,10 @@ export class SpellActionHandler {
     const effectiveCastLevel = castAtLevel ?? spellLevel;
     const targetRef = castInfo.targetName ? findCombatantByName(castInfo.targetName, roster) : undefined;
 
+    // Resolve encounter context once up front to avoid redundant DB round-trips.
+    // Later steps that modify combatant state will re-fetch combatants as needed.
+    const { encounter, combatants, actorCombatant } = await this.resolveEncounterContext(sessionId, actorId);
+
     // D&D 5e 2024: Spell component enforcement
     // Verbal component: blocked by any condition that sets cannotSpeak (Stunned, Paralyzed, Petrified, Unconscious)
     // TODO: SS-M9 — Check if caster is in a Silence zone effect (requires zone position lookup)
@@ -127,11 +139,10 @@ export class SpellActionHandler {
     // TODO: SS-M9 — Subtle Spell metamagic (Sorcerer) should bypass V/S requirements; no metamagic system yet
     {
       const canonical = getCanonicalSpell(castInfo.spellName);
-      const hasVerbalComponent = canonical?.components?.v ?? (spellMatch as any)?.components?.v ?? false;
+      const hasVerbalComponent = canonical?.components?.v ?? false;
       if (hasVerbalComponent) {
-        const { actorCombatant: componentCheckCombatant } = await this.resolveEncounterContext(sessionId, actorId);
-        if (componentCheckCombatant) {
-          const conditionNames = readConditionNames(componentCheckCombatant.conditions);
+        if (actorCombatant) {
+          const conditionNames = readConditionNames(actorCombatant.conditions);
           const cannotSpeak = conditionNames.some((name) => {
             const effects = getConditionEffects(name as Condition);
             return effects.cannotSpeak;
@@ -149,9 +160,8 @@ export class SpellActionHandler {
     // If a bonus action spell (leveled) was cast this turn, only cantrips as action spells.
     // If a leveled action spell was cast this turn, only cantrip bonus action spells allowed.
     {
-      const { actorCombatant: checkCombatant } = await this.resolveEncounterContext(sessionId, actorId);
-      if (checkCombatant) {
-        const res = normalizeResources(checkCombatant.resources);
+      if (actorCombatant) {
+        const res = normalizeResources(actorCombatant.resources);
         if (isBonusAction && !isCantrip && res.actionSpellCastThisTurn === true) {
           throw new ValidationError(
             "Cannot cast a leveled bonus action spell — a leveled action spell was already cast this turn.",
@@ -169,15 +179,13 @@ export class SpellActionHandler {
     // Validate that the target is within the spell's range before proceeding.
     // Self-range spells skip validation (they may affect other creatures via AoE).
     if (spellMatch?.range !== undefined && spellMatch.range !== 'self' && castInfo.targetName) {
-      const { combatants: rangeCombatants, actorCombatant: rangeActor } =
-        await this.resolveEncounterContext(sessionId, actorId);
-      if (rangeActor) {
+      if (actorCombatant) {
         const rangeTargetRef = findCombatantByName(castInfo.targetName, roster);
         if (rangeTargetRef) {
           const rangeTargetId = getEntityIdFromRef(rangeTargetRef);
-          const rangeTarget = findCombatantByEntityId(rangeCombatants, rangeTargetId);
+          const rangeTarget = findCombatantByEntityId(combatants, rangeTargetId);
           if (rangeTarget) {
-            const casterPos = getPosition(normalizeResources(rangeActor.resources ?? {}));
+            const casterPos = getPosition(normalizeResources(actorCombatant.resources ?? {}));
             const targetPos = getPosition(normalizeResources(rangeTarget.resources ?? {}));
             if (casterPos && targetPos) {
               const maxRange = spellMatch.range === 'touch' ? 5 : spellMatch.range;
@@ -205,7 +213,6 @@ export class SpellActionHandler {
     });
 
     if (initiateResult.status === "awaiting_reactions" && initiateResult.pendingActionId) {
-      const { encounter, actorCombatant } = await this.resolveEncounterContext(sessionId, actorId);
       const pendingSpellReaction = await this.deps.pendingActions.getById(initiateResult.pendingActionId);
 
       // Spell slot is consumed on cast attempt (even if counterspelled), same as AI flow.
@@ -280,7 +287,6 @@ export class SpellActionHandler {
     // Spend spell slot + manage concentration using shared helper
     // (shared with AI path in helpers/spell-slot-manager.ts)
     if (spellLevel > 0) {
-      const { encounter, actorCombatant } = await this.resolveEncounterContext(sessionId, actorId);
       if (actorCombatant) {
         await prepareSpellCast(
           actorCombatant.id,
@@ -312,11 +318,9 @@ export class SpellActionHandler {
     if (spellMatch) {
       const handler = this.deliveryHandlers.find((h) => h.canHandle(spellMatch));
       if (handler) {
-        // Resolve encounter context AFTER slot spending so resources reflect the deduction
-        const { encounter, combatants, actorCombatant } = await this.resolveEncounterContext(
-          sessionId,
-          actorId,
-        );
+        // Re-fetch combatants after slot spending so resources reflect the deduction
+        const freshCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
+        const freshActorCombatant = findCombatantByEntityId(freshCombatants, actorId);
         const ctx: SpellCastingContext = {
           sessionId,
           encounterId,
@@ -331,8 +335,8 @@ export class SpellActionHandler {
           actor,
           roster,
           encounter,
-          combatants,
-          actorCombatant,
+          combatants: freshCombatants,
+          actorCombatant: freshActorCombatant,
         };
         return handler.handle(ctx);
       }
@@ -346,7 +350,6 @@ export class SpellActionHandler {
     // --- Auto-hit spells (Magic Missile, etc.) — catalog-driven via autoHit + dartCount fields ---
     const resolvedSpell = spellMatch ?? getCanonicalSpell(castInfo.spellName);
     if (resolvedSpell?.autoHit && resolvedSpell.dartCount && resolvedSpell.damage && this.deps.diceRoller && castInfo.targetName) {
-      const { encounter, combatants } = await this.resolveEncounterContext(sessionId, actorId);
       const autoHitTargetRef = findCombatantByName(castInfo.targetName, roster);
       if (autoHitTargetRef) {
         const targetId = getEntityIdFromRef(autoHitTargetRef);
@@ -362,6 +365,26 @@ export class SpellActionHandler {
             const roll = this.deps.diceRoller.rollDie(diceSides, diceCount, modifier);
             dartRolls.push(roll.total);
             totalDamage += roll.total;
+          }
+
+          // Apply damage defenses (immunity/resistance/vulnerability)
+          const damageType = resolvedSpell.damageType ?? "force";
+          if (totalDamage > 0) {
+            const allMonsters = await this.deps.monsters.listBySession(sessionId);
+            const allNpcs = await this.deps.npcs.listBySession(sessionId);
+            const targetMonster = allMonsters.find(m => m.id === targetId);
+            const targetChar = characters.find((c) => c.id === targetId);
+            const targetNpc = allNpcs.find(n => n.id === targetId);
+            const targetStats =
+              targetMonster?.statBlock ??
+              targetChar?.sheet ??
+              targetNpc?.statBlock ??
+              {};
+            const defenses = extractDamageDefenses(targetStats);
+            if (defenses.damageResistances || defenses.damageImmunities || defenses.damageVulnerabilities) {
+              const defResult = applyDamageDefenses(totalDamage, damageType, defenses);
+              totalDamage = defResult.adjustedDamage;
+            }
           }
 
           const hpBefore = targetCombatant.hpCurrent;
@@ -385,7 +408,6 @@ export class SpellActionHandler {
             }
           }
 
-          const damageType = resolvedSpell.damageType ?? "force";
           const diceNotation = `${diceCount}d${diceSides}${modifier ? `+${modifier}` : ""}`;
           const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
           return {
