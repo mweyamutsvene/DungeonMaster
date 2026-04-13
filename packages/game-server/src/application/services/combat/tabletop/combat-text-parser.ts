@@ -180,6 +180,8 @@ export function tryParseMoveTowardText(
 /** Parse dash / dodge / disengage / ready from text. */
 export function tryParseSimpleActionText(input: string): "dash" | "dodge" | "disengage" | "ready" | null {
   const normalized = input.trim().toLowerCase();
+  // "cunning action dash/disengage/hide" should be handled by class ability parser, not here
+  if (/\bcunning\b/.test(normalized)) return null;
   // "dash toward goblin" / "dash to orc" / "dash at dragon" = movement, NOT the Dash action.
   // Only "dash", "use dash", "take the dash action" etc. should trigger the Dash action.
   if (/\bdash\b/.test(normalized) && !/\bdash\s+(toward|towards|to|at|near|up\s+to|next\s+to|closer\s+to)\s+/i.test(normalized)) return "dash";
@@ -512,7 +514,39 @@ export function tryParseEndTurnText(input: string): true | null {
   }
   return null;
 }
+// ----- Legendary action parser -----
 
+export interface ParsedLegendaryAction {
+  /** The specific legendary action name, if specified (e.g., "tail attack"). */
+  actionName?: string;
+}
+
+/**
+ * Parse "legendary <action>" commands.
+ *
+ * Matches patterns like:
+ *   "legendary attack", "legendary tail attack", "legendary move",
+ *   "use legendary action", "legendary action: wing attack",
+ *   "legendary multiattack"
+ *
+ * Returns { actionName? } if matched, null otherwise.
+ */
+export function tryParseLegendaryAction(input: string): ParsedLegendaryAction | null {
+  const normalized = input.trim().toLowerCase();
+  // "legendary <something>" or "use legendary action [: <name>]"
+  const match = normalized.match(
+    /^(?:use\s+)?legendary\s+(?:action\s*[:\-]?\s*)?(.+?)$/,
+  );
+  if (match) {
+    const actionName = match[1]!.trim();
+    // Filter out bare "action" so "legendary action" with no specifics works
+    if (actionName === "action" || actionName.length === 0) {
+      return {};
+    }
+    return { actionName };
+  }
+  return null;
+}
 // ----- Roster / ref helpers -----
 
 /** Look up an actor in the roster and return the combatant ref. */

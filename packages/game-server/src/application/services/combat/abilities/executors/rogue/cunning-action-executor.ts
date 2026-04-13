@@ -51,6 +51,18 @@ export class CunningActionExecutor implements AbilityExecutor {
       }
     }
 
+    // Infer from original text input (e.g., "cunning action hide")
+    if (!choice && params?.text) {
+      const textLower = String(params.text).toLowerCase();
+      if (textLower.includes('dash')) {
+        choice = 'dash';
+      } else if (textLower.includes('hide')) {
+        choice = 'hide';
+      } else if (textLower.includes('disengage')) {
+        choice = 'disengage';
+      }
+    }
+
     // Default to disengage if ambiguous (safest tactical choice)
     if (!choice || !['dash', 'disengage', 'hide'].includes(choice)) {
       choice = 'disengage';
