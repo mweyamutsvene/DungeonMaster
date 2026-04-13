@@ -30,7 +30,7 @@ import {
   getPosition,
   getActiveEffects,
 } from "../helpers/resource-utils.js";
-import { normalizeConditions, hasCondition } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, hasCondition, canTakeReactions } from "../../../../domain/entities/combat/conditions.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { calculateFlatBonusFromEffects } from "../../../../domain/entities/combat/effects.js";
@@ -123,8 +123,10 @@ export class AttackReactionHandler {
     }
 
     // Check if target can use any defensive reactions
+    // Target must be alive and not incapacitated/unconscious/stunned to react
+    const targetConditions = normalizeConditions(target.conditions as unknown[]);
     const targetIsCharacter = target.combatantType === "Character";
-    if (!targetIsCharacter) {
+    if (!targetIsCharacter || target.hpCurrent <= 0 || !canTakeReactions(targetConditions)) {
       return {
         status: "hit",
         attackRoll: input.attackRoll,
