@@ -230,7 +230,12 @@ describe("AI Reaction Decision (aiDecideReaction)", () => {
       const decider = getDecider();
       const combatant = makeCombatant({
         id: "m-1",
-        resources: { spellSlots: { "1": 1, "2": 1 } },
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_1", current: 1, max: 2 },
+            { name: "spellSlot_2", current: 1, max: 1 },
+          ],
+        },
       });
       const result = await decider(combatant, "counterspell", { spellName: "Magic Missile", spellLevel: 1 });
       expect(result).toBe(true);
@@ -240,7 +245,11 @@ describe("AI Reaction Decision (aiDecideReaction)", () => {
       const decider = getDecider();
       const combatant = makeCombatant({
         id: "m-1",
-        resources: { spellSlots: { "1": 1 } },
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_1", current: 1, max: 2 },
+          ],
+        },
       });
       const result = await decider(combatant, "counterspell", { spellName: "Magic Missile", spellLevel: 1 });
       expect(result).toBe(false);
@@ -250,7 +259,11 @@ describe("AI Reaction Decision (aiDecideReaction)", () => {
       const decider = getDecider();
       const combatant = makeCombatant({
         id: "m-1",
-        resources: { spellSlots: { "2": 1 } },
+        resources: {
+          resourcePools: [
+            { name: "spellSlot_2", current: 1, max: 1 },
+          ],
+        },
       });
       const result = await decider(combatant, "counterspell", { spellName: "Hold Person", spellLevel: 2 });
       expect(result).toBe(false);

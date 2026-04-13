@@ -24,6 +24,8 @@ import type { ZoneEffect } from "../../../../../domain/entities/combat/zones.js"
 import { addZone } from "../../../../../domain/rules/combat-map-zones.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map-types.js";
 import type { JsonValue } from "../../../../types.js";
+import { getCreaturesInArea, computeDirection } from "../../../../../domain/rules/area-of-effect.js";
+import type { AreaOfEffect, AreaTarget } from "../../../../../domain/rules/area-of-effect.js";
 import { nanoid } from "nanoid";
 
 /** Look up a spell from character preparedSpells or monster spells array. */
@@ -133,7 +135,7 @@ export class AiSpellDelivery {
     const saveAbility = spellDef.saveAbility!;
     const dc = this.getSpellSaveDC(casterSource);
     const casterId = this.getEntityId(caster);
-    const targets = this.resolveTargets(caster, combatants, targetCombatant, !!spellDef.area);
+    const targets = this.resolveTargets(caster, combatants, targetCombatant, !!spellDef.area, spellDef.area);
     if (targets.length === 0) return { applied: true, summary: "No valid targets in range" };
 
     let sharedDmg = 0;
@@ -513,7 +515,7 @@ export class AiSpellDelivery {
     const saveSummaries: string[] = [];
     if (spellDef.saveAbility && spellDef.damage) {
       const dc = this.getSpellSaveDC(casterSource);
-      const targets = this.resolveTargets(caster, combatants, null, true);
+      const targets = this.resolveTargets(caster, combatants, null, true, spellDef.area);
 
       let sharedDmg = 0;
       let dice = spellDef.damage.diceCount;
@@ -645,12 +647,74 @@ export class AiSpellDelivery {
     combatants: CombatantStateRecord[],
     target: CombatantStateRecord | null,
     isAoE: boolean,
+    area?: AreaOfEffect,
   ): CombatantStateRecord[] {
     if (isAoE) {
       const isMonster = caster.combatantType === "Monster";
-      return combatants.filter(
+      const enemies = combatants.filter(
         (c) => c.id !== caster.id && c.hpCurrent > 0 && (c.combatantType === "Monster") !== isMonster,
       );
+      const allies = combatants.filter(
+        (c) => c.id !== caster.id && c.hpCurrent > 0 && (c.combatantType === "Monster") === isMonster,
+      );
+
+      // AI2-M3: If we have area info and positioned combatants, filter by AoE geometry
+      if (area) {
+        const casterPos = getPosition(caster.resources);
+        const positionedEnemies = enemies.filter((e) => getPosition(e.resources) != null);
+
+        if (positionedEnemies.length > 0) {
+          // Build AreaTarget arrays for checking
+          const allTargets: AreaTarget[] = combatants
+            .filter((c) => c.id !== caster.id && c.hpCurrent > 0)
+            .map((c) => {
+              const pos = getPosition(c.resources);
+              return pos ? { id: c.id, position: { x: pos.x * 5, y: pos.y * 5 } } : null;
+            })
+            .filter((t): t is AreaTarget => t !== null);
+
+          const enemyIds = new Set(enemies.map((e) => e.id));
+          const allyIds = new Set(allies.map((a) => a.id));
+
+          // Find optimal AoE center: try each enemy position and pick the one hitting the most enemies and fewest allies
+          let bestCenter = positionedEnemies[0]!;
+          let bestScore = -Infinity;
+
+          for (const candidate of positionedEnemies) {
+            const candidatePos = getPosition(candidate.resources)!;
+            const origin = { x: candidatePos.x * 5, y: candidatePos.y * 5 };
+            const direction = casterPos
+              ? computeDirection({ x: casterPos.x * 5, y: casterPos.y * 5 }, origin)
+              : null;
+            const hitIds = getCreaturesInArea(origin, area, direction, allTargets, new Set([caster.id]));
+            const enemiesHit = hitIds.filter((id) => enemyIds.has(id)).length;
+            const alliesHit = hitIds.filter((id) => allyIds.has(id)).length;
+            // Score: maximize enemies hit, penalize ally hits
+            const score = enemiesHit * 2 - alliesHit * 3;
+            if (score > bestScore) {
+              bestScore = score;
+              bestCenter = candidate;
+            }
+          }
+
+          // Resolve using the best center position
+          const centerPos = getPosition(bestCenter.resources)!;
+          const origin = { x: centerPos.x * 5, y: centerPos.y * 5 };
+          const direction = casterPos
+            ? computeDirection({ x: casterPos.x * 5, y: casterPos.y * 5 }, origin)
+            : null;
+          const hitIds = new Set(
+            getCreaturesInArea(origin, area, direction, allTargets, new Set([caster.id])),
+          );
+
+          // Only return enemies that are inside the AoE
+          const result = enemies.filter((e) => hitIds.has(e.id));
+          return result.length > 0 ? result : [bestCenter]; // Fallback: at least hit the center target
+        }
+      }
+
+      // Fallback: no area info or no positioned enemies — hit all enemies
+      return enemies;
     }
     if (target) return [target];
     const isMonster = caster.combatantType === "Monster";

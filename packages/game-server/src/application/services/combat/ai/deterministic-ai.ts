@@ -1,13 +1,18 @@
 /**
- * DeterministicAiDecisionMaker — Heuristic-based AI that plays reasonable turns
+ * DeterministicAiDecisionMaker -- Heuristic-based AI that plays reasonable turns
  * without requiring an LLM.
  *
  * Layer: Application (AI module)
  * Implements: IAiDecisionMaker
  *
+ * Thin orchestrator that delegates to focused modules:
+ * - ai-spell-evaluator.ts -- spell selection, slot evaluation, cantrip picks
+ * - ai-bonus-action-picker.ts -- bonus action selection, class features, triage
+ * - ai-movement-planner.ts -- movement, positioning, cover-seeking, flanking
+ *
  * Decision priority per step:
  * 1. Stand up from Prone (move to current position)
- * 1b. Triage — heal dying allies (0 HP with death saves) before attacking
+ * 1b. Triage -- heal dying allies (0 HP with death saves) before attacking
  * 2. Evaluate and select a target via scoreTargets()
  * 3. Move to reach target (melee) or maintain range (ranged)
  * 3b. Disengage before retreat if low HP and enemies adjacent
@@ -20,793 +25,83 @@
 
 import type { IAiDecisionMaker, AiDecision, AiCombatContext } from "./ai-types.js";
 import { scoreTargets } from "./ai-target-scorer.js";
-import type { ScoredTarget } from "./ai-target-scorer.js";
-import { getCoverLevel, hasLineOfSight } from "../../../../domain/rules/combat-map-sight.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
-import { calculateDistance } from "../../../../domain/rules/movement.js";
-import type { Position } from "../../../../domain/rules/movement.js";
-import { isPositionPassable } from "../../../../domain/rules/combat-map-core.js";
-import { isFlanking } from "../../../../domain/rules/flanking.js";
+
+// Extracted modules
+import { pickSpell, isBonusActionSpellCast } from "./ai-spell-evaluator.js";
+import {
+  pickBonusAction,
+  pickFeatureAction,
+  findDyingAlly,
+  pickHealingForDyingAlly,
+  hasBonusDisengage,
+} from "./ai-bonus-action-picker.js";
+import {
+  isRangedCreature,
+  pickBestAttack,
+  hasAdjacentEnemy,
+  findCoverPosition,
+  findFlankingPosition,
+} from "./ai-movement-planner.js";
 
 /**
- * Determine if a creature is primarily ranged based on its available attacks.
- * Checks for "ranged" keyword in attack descriptions, or common ranged attack names.
- */
-function isRangedCreature(combatant: AiCombatContext["combatant"]): boolean {
-  const attacks = (combatant.attacks ?? []) as Array<{ name?: string; type?: string; kind?: string; reach?: number; range?: number | string }>;
-  if (attacks.length === 0) return false;
-
-  // If ALL attacks are ranged, it's a ranged creature
-  const rangedCount = attacks.filter(a => {
-    const kind = (a.kind ?? a.type ?? "").toLowerCase();
-    const name = (a.name ?? "").toLowerCase();
-    return kind.includes("ranged") ||
-      name.includes("longbow") || name.includes("shortbow") ||
-      name.includes("crossbow") || name.includes("javelin") ||
-      name.includes("sling") || name.includes("dart") ||
-      name.includes("ray") || name.includes("bolt") ||
-      name.includes("blast");
-  }).length;
-
-  // If more than half attacks are ranged, treat as ranged
-  return rangedCount > attacks.length / 2;
-}
-
-/**
- * Find the best attack from available attacks array.
- * Prefers higher damage output. Falls back to first available.
- */
-function pickBestAttack(
-  attacks: Array<{ name?: string; damage?: string; toHit?: number }>,
-): string | undefined {
-  if (attacks.length === 0) return undefined;
-
-  // Simple heuristic: pick attack with highest toHit, or just the first one
-  let best = attacks[0];
-  for (const atk of attacks) {
-    if (atk.toHit !== undefined && best?.toHit !== undefined && atk.toHit > best.toHit) {
-      best = atk;
-    }
-  }
-  return best?.name;
-}
-
-/**
- * Check if any living enemy is within melee reach (5ft) of the combatant.
- */
-function hasAdjacentEnemy(
-  combatantPos: { x: number; y: number } | undefined,
-  enemies: AiCombatContext["enemies"],
-): boolean {
-  if (!combatantPos) return false;
-  return enemies.some(
-    e => e.hp.current > 0 && e.distanceFeet !== undefined && e.distanceFeet <= 5,
-  );
-}
-
-/**
- * Check if the creature has a bonus-action Disengage ability (Cunning Action or Nimble Escape).
- * Returns the bonus action identifier string, or undefined.
- */
-function hasBonusDisengage(combatant: AiCombatContext["combatant"]): string | undefined {
-  const classAbilities = combatant.classAbilities ?? [];
-  // Rogue: Cunning Action
-  if (classAbilities.some(a => a.name.toLowerCase().includes("cunning action"))) {
-    return "cunningAction:disengage";
-  }
-  // Monster: Nimble Escape (may appear in bonusActions or traits)
-  const checkName = (item: unknown): boolean => {
-    if (!item || typeof item !== "object") return false;
-    const name = (item as Record<string, unknown>).name;
-    return typeof name === "string" && name.toLowerCase().includes("nimble escape");
-  };
-  if ((combatant.bonusActions ?? []).some(checkName) || (combatant.traits ?? []).some(checkName)) {
-    return "nimble_escape_disengage";
-  }
-  return undefined;
-}
-
-/**
- * Find the most critical dying ally (0 HP, death saves in progress).
- * Prioritizes allies with more death save failures.
- */
-function findDyingAlly(allies: AiCombatContext["allies"]): AiCombatContext["allies"][number] | undefined {
-  return allies
-    .filter(a => a.hp.current === 0 && a.deathSaves &&
-      a.deathSaves.failures < 3 && a.deathSaves.successes < 3)
-    .sort((a, b) => (b.deathSaves?.failures ?? 0) - (a.deathSaves?.failures ?? 0))[0];
-}
-
-/**
- * Pick a healing action to save a dying ally (0 HP with active death saves).
- * Prefers bonus-action heals (Healing Word) to leave the main action free.
- */
-function pickHealingForDyingAlly(
-  combatant: AiCombatContext["combatant"],
-  dyingAlly: AiCombatContext["allies"][number],
-  combatantName: string,
-): AiDecision | undefined {
-  const resourcePools = combatant.resourcePools ?? [];
-  const classAbilities = combatant.classAbilities ?? [];
-
-  // Check for healing spells
-  const rawSpells = combatant.spells as unknown[] | undefined;
-  if (rawSpells && rawSpells.length > 0) {
-    const spells = parseSpells(rawSpells);
-    const healingSpells = spells
-      .filter(s => s.healing && hasAvailableSlot(resourcePools, s.level))
-      .sort((a, b) => {
-        // Prefer bonus-action spells (Healing Word) for efficiency
-        if (a.isBonusAction && !b.isBonusAction) return -1;
-        if (!a.isBonusAction && b.isBonusAction) return 1;
-        return a.level - b.level; // Prefer lower level slots
-      });
-
-    if (healingSpells.length > 0) {
-      const spell = healingSpells[0]!;
-      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
-      return {
-        action: "castSpell",
-        spellName: spell.name,
-        spellLevel: slotLevel,
-        target: dyingAlly.name,
-        endTurn: !spell.isBonusAction,
-        intentNarration: `${combatantName} casts ${spell.name} on ${dyingAlly.name} to save them!`,
-      };
-    }
-  }
-
-  // Check for Lay on Hands
-  const hasLayOnHands = classAbilities.some(a => a.name.toLowerCase().includes("lay on hands"));
-  if (hasLayOnHands) {
-    const pool = resourcePools.find(p => {
-      const name = p.name.toLowerCase();
-      return name === "layonhands" || name.includes("lay on hands") || name === "lay_on_hands";
-    });
-    if (pool && pool.current > 0) {
-      return {
-        action: "useFeature",
-        featureId: "layOnHands",
-        target: dyingAlly.name,
-        endTurn: false,
-        intentNarration: `${combatantName} uses Lay on Hands on ${dyingAlly.name} to stabilize them!`,
-      };
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Check if a bonus action is available and beneficial.
- * Returns the bonus action name to use, or undefined.
- */
-function pickBonusAction(
-  combatant: AiCombatContext["combatant"],
-  enemies: AiCombatContext["enemies"],
-  allies?: AiCombatContext["allies"],
-): string | undefined {
-  const economy = combatant.economy;
-  if (economy?.bonusActionSpent) return undefined;
-
-  const classAbilities = combatant.classAbilities ?? [];
-  const resourcePools = combatant.resourcePools ?? [];
-  const hpPercent = combatant.hp.percentage;
-
-  // 1. Second Wind (Fighter) — use when below 50% HP
-  const hasSecondWind = classAbilities.some(a => a.name.toLowerCase().includes("second wind"));
-  if (hasSecondWind && hpPercent < 50) {
-    const secondWindPool = resourcePools.find(p => p.name.toLowerCase().includes("second wind") || p.name.toLowerCase() === "secondwind");
-    if (secondWindPool && secondWindPool.current > 0) {
-      return "secondWind";
-    }
-  }
-
-  // 2. Rage (Barbarian) — rage at start of combat if not already raging
-  const hasRage = classAbilities.some(a => a.name.toLowerCase().includes("rage"));
-  const isRaging = (combatant.activeBuffs ?? []).some(b => b.toLowerCase() === "raging");
-  if (hasRage && !isRaging) {
-    const ragePool = resourcePools.find(p => p.name.toLowerCase() === "rage");
-    if (ragePool && ragePool.current > 0) {
-      return "rage";
-    }
-  }
-
-  // Helper: find ki / focus points pool (Monk resource)
-  const findKiPool = () => resourcePools.find(p => {
-    const name = p.name.toLowerCase();
-    return name === "ki" || name === "focuspoints" || name === "focus points";
-  });
-
-  // 3. Patient Defense (Monk) — defensive when low HP or surrounded
-  const hasPatientDefense = classAbilities.some(a => a.name.toLowerCase().includes("patient defense"));
-  if (hasPatientDefense) {
-    const kiPool = findKiPool();
-    if (kiPool && kiPool.current > 0) {
-      const livingEnemies = enemies.filter(e => !e.hp || e.hp.current > 0);
-      if (hpPercent < 20 || (hpPercent < 40 && livingEnemies.length >= 2)) {
-        return "patientDefense";
-      }
-    }
-  }
-
-  // 4. Flurry of Blows (Monk) — use when ki available and in melee
-  const hasFlurry = classAbilities.some(a => a.name.toLowerCase().includes("flurry"));
-  if (hasFlurry) {
-    const kiPool = findKiPool();
-    if (kiPool && kiPool.current > 0) {
-      return "flurryOfBlows";
-    }
-  }
-
-  // 5. Step of the Wind (Monk) — tactical retreat when low HP
-  const hasStepOfTheWind = classAbilities.some(a => a.name.toLowerCase().includes("step of the wind"));
-  if (hasStepOfTheWind) {
-    const kiPool = findKiPool();
-    if (kiPool && kiPool.current > 0 && hpPercent < 30) {
-      return "stepOfTheWind";
-    }
-  }
-
-  // 6. Cunning Action (Rogue) — disengage if surrounded / low HP
-  const hasCunning = classAbilities.some(a => a.name.toLowerCase().includes("cunning action"));
-  if (hasCunning && hpPercent < 30) {
-    return "cunningAction:disengage";
-  }
-
-  // 7. Bonus-action healing spells (Healing Word) — heal ally below 50% HP
-  if (allies && allies.length > 0) {
-    const rawSpells = combatant.spells as unknown[] | undefined;
-    if (rawSpells && rawSpells.length > 0) {
-      const spells = parseSpells(rawSpells);
-      const baHealingSpells = spells.filter(
-        s => s.isBonusAction && s.healing && hasAvailableSlot(resourcePools, s.level),
-      );
-      if (baHealingSpells.length > 0) {
-        const hurtAlly = allies.find(a => a.hp.current > 0 && a.hp.percentage < 50);
-        if (hurtAlly) {
-          // Return a special token so the caller knows to cast a BA healing spell
-          return `castSpell:${baHealingSpells[0]!.name}:${hurtAlly.name}`;
-        }
-      }
-    }
-  }
-
-  // 8. Spiritual Weapon attack — if Spiritual Weapon is active (concentration)
-  if (combatant.concentrationSpell?.toLowerCase() === "spiritual weapon") {
-    return "spiritualWeaponAttack";
-  }
-
-  return undefined;
-}
-
-/**
- * Check if a bonus action token represents a spell cast (e.g., "castSpell:Healing Word:Ally").
- */
-function isBonusActionSpellCast(token: string): boolean {
-  return token.startsWith("castSpell:");
-}
-
-/**
- * Estimate the number of enemies that would be hit by an AoE spell.
- * Uses Chebyshev distance (D&D grid diagonal = 5ft) to approximate targeting.
- * For each enemy position as potential AoE center, counts enemies within radius.
- */
-function estimateAoETargets(
-  spell: AiSpellInfo,
-  combatantPos: { x: number; y: number } | undefined,
-  enemies: AiCombatContext["enemies"],
-): number {
-  const area = spell.area as { type?: string; size?: number } | undefined;
-  if (!area || typeof area.size !== "number") return 1;
-
-  const radiusFeet = area.size;
-  const positionedEnemies = enemies.filter(e => e.position && e.hp.current > 0);
-  if (positionedEnemies.length <= 1) return positionedEnemies.length || 1;
-
-  // For each enemy position as potential AoE center, count enemies within radius
-  let maxTargets = 1;
-  for (const center of positionedEnemies) {
-    let count = 0;
-    for (const e of positionedEnemies) {
-      // Grid positions: 1 cell = 5 feet. Use Chebyshev distance (D&D diagonal = 5ft).
-      const dx = Math.abs(e.position!.x - center.position!.x) * 5;
-      const dy = Math.abs(e.position!.y - center.position!.y) * 5;
-      const dist = Math.max(dx, dy);
-      if (dist <= radiusFeet) count++;
-    }
-    if (count > maxTargets) maxTargets = count;
-  }
-
-  return maxTargets;
-}
-
-// ── Spell type for AI evaluation (parsed from unknown[] spells) ──
-
-interface AiSpellInfo {
-  name: string;
-  level: number;
-  damage?: { diceCount: number; diceSides: number; modifier?: number };
-  damageType?: string;
-  healing?: { diceCount: number; diceSides: number; modifier?: number };
-  saveAbility?: string;
-  attackType?: string;
-  concentration?: boolean;
-  isBonusAction?: boolean;
-  area?: unknown;
-  /** Spell is a buff (Bless, Shield of Faith, etc.) — target self or ally */
-  isBuff?: boolean;
-  /** Spell is a debuff (Hold Person, Cause Fear, etc.) — target enemy */
-  isDebuff?: boolean;
-}
-
-// ── Well-known buff/debuff spell classification ──
-
-const BUFF_SPELLS = new Set([
-  "bless", "shield of faith", "mage armor", "heroism", "longstrider",
-  "aid", "protection from evil and good", "sanctuary", "haste",
-  "protection from energy", "freedom of movement", "stoneskin",
-  "death ward", "beacon of hope",
-]);
-
-const DEBUFF_SPELLS = new Set([
-  "hold person", "cause fear", "bane", "command", "entangle",
-  "faerie fire", "hex", "hunter's mark", "hold monster",
-  "blindness/deafness", "ray of enfeeblement", "bestow curse",
-  "slow", "fear", "hypnotic pattern", "banishment",
-]);
-
-/**
- * Parse the untyped spells array into typed spell info for evaluation.
- */
-function parseSpells(rawSpells: unknown[]): AiSpellInfo[] {
-  const parsed: AiSpellInfo[] = [];
-  for (const raw of rawSpells) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
-    const s = raw as Record<string, unknown>;
-    const name = typeof s.name === "string" ? s.name : undefined;
-    const level = typeof s.level === "number" ? s.level : undefined;
-    if (!name || level === undefined) continue;
-    parsed.push({
-      name,
-      level,
-      damage: s.damage && typeof s.damage === "object" ? s.damage as AiSpellInfo["damage"] : undefined,
-      damageType: typeof s.damageType === "string" ? s.damageType : undefined,
-      healing: s.healing && typeof s.healing === "object" ? s.healing as AiSpellInfo["healing"] : undefined,
-      saveAbility: typeof s.saveAbility === "string" ? s.saveAbility : undefined,
-      attackType: typeof s.attackType === "string" ? s.attackType : undefined,
-      concentration: typeof s.concentration === "boolean" ? s.concentration : undefined,
-      isBonusAction: typeof s.isBonusAction === "boolean" ? s.isBonusAction : undefined,
-      area: s.area,
-      isBuff: BUFF_SPELLS.has(name.toLowerCase()),
-      isDebuff: DEBUFF_SPELLS.has(name.toLowerCase()),
-    });
-  }
-  return parsed;
-}
-
-/**
- * Check if the creature has an available spell slot at or above the given spell level.
- * Spell slot pools are named `spellSlot_N`.
- */
-function hasAvailableSlot(
-  resourcePools: Array<{ name: string; current: number; max: number }>,
-  minLevel: number,
-): boolean {
-  // Cantrips (level 0) don't need a slot
-  if (minLevel === 0) return true;
-  return resourcePools.some(p => {
-    const match = /^spellSlot_(\d+)$/i.exec(p.name);
-    if (!match) return false;
-    const slotLevel = parseInt(match[1]!, 10);
-    return slotLevel >= minLevel && p.current > 0;
-  });
-}
-
-/**
- * Get the lowest available slot level at or above the spell's level.
- */
-function getLowestAvailableSlotLevel(
-  resourcePools: Array<{ name: string; current: number; max: number }>,
-  minLevel: number,
-): number {
-  if (minLevel === 0) return 0;
-  let best = Infinity;
-  for (const p of resourcePools) {
-    const match = /^spellSlot_(\d+)$/i.exec(p.name);
-    if (!match) continue;
-    const slotLevel = parseInt(match[1]!, 10);
-    if (slotLevel >= minLevel && p.current > 0 && slotLevel < best) {
-      best = slotLevel;
-    }
-  }
-  return best === Infinity ? minLevel : best;
-}
-
-/**
- * Estimate average damage from a spell's damage dice.
- */
-function estimateSpellDamage(dmg: AiSpellInfo["damage"]): number {
-  if (!dmg) return 0;
-  const count = typeof dmg.diceCount === "number" ? dmg.diceCount : 0;
-  const sides = typeof dmg.diceSides === "number" ? dmg.diceSides : 0;
-  const mod = typeof dmg.modifier === "number" ? dmg.modifier : 0;
-  return count * ((sides + 1) / 2) + mod;
-}
-
-/**
- * Pick the best spell to cast given the combat situation.
- * Returns a castSpell decision or undefined to fall through to attack logic.
+ * AI2-M2: Consider grapple or shove as tactical alternatives to a regular attack.
  *
- * Priorities:
- * 1. Healing spells if allies are below 50% HP
- * 1b. Debuff spells on high-value threats
- * 1c. Buff spells on self/allies in early combat
- * 2. Damage cantrips (free, no slot cost) against enemies
- * 3. Damage spells if we have slots and no strong melee attacks
- * 4. Skip if creature has good physical attacks (prefer attacking)
+ * Heuristics:
+ * - **Shove (prone)**: When the creature has multiattack and good STR (mod >= +3).
+ *   Shoving prone grants advantage on subsequent melee attacks this turn.
+ * - **Grapple**: When the creature has multiattack, good STR, and the target has
+ *   high speed (escape risk) or is a caster worth pinning down.
+ *
+ * Only attempts against targets of similar or smaller size.
+ * Returns an AiDecision for grapple/shove, or undefined to fall through to regular attack.
  */
-function pickSpell(
+function considerGrappleOrShove(
   combatant: AiCombatContext["combatant"],
-  primaryTarget: ScoredTarget,
-  allies: AiCombatContext["allies"],
+  target: { name: string; enemy: AiCombatContext["enemies"][number] },
+  attacksPerAction: number,
   combatantName: string,
-  round?: number,
-  options?: { cantripsOnly?: boolean; enemies?: AiCombatContext["enemies"] },
 ): AiDecision | undefined {
-  const rawSpells = combatant.spells as unknown[] | undefined;
-  if (!rawSpells || rawSpells.length === 0) return undefined;
+  // Only consider grapple/shove for creatures with multiattack (can shove + attack)
+  if (attacksPerAction < 2) return undefined;
 
-  const resourcePools = combatant.resourcePools ?? [];
-  const spells = parseSpells(rawSpells);
-  if (spells.length === 0) return undefined;
+  const selfStr = combatant.abilityScores?.strength ?? 10;
+  const selfStrMod = Math.floor((selfStr - 10) / 2);
 
-  // Don't cast if already concentrating — keep it simple, don't replace
-  if (combatant.concentrationSpell) {
-    // Filter out concentration spells, can still cast non-concentration
-    const nonConcentration = spells.filter(s => !s.concentration);
-    if (nonConcentration.length === 0) return undefined;
-    return pickFromCandidates(nonConcentration, combatant, primaryTarget, allies, resourcePools, combatantName, round, options);
-  }
+  // Need decent STR to attempt grapple/shove (Athletics contest)
+  if (selfStrMod < 3) return undefined;
 
-  return pickFromCandidates(spells, combatant, primaryTarget, allies, resourcePools, combatantName, round, options);
-}
+  // Size check: can only grapple/shove creatures within one size category
+  const sizeOrder = ["tiny", "small", "medium", "large", "huge", "gargantuan"];
+  const selfSizeIdx = sizeOrder.indexOf((combatant.size ?? "medium").toLowerCase());
+  const targetSizeIdx = sizeOrder.indexOf((target.enemy.size ?? "medium").toLowerCase());
+  if (targetSizeIdx > selfSizeIdx + 1) return undefined; // Target is too large
 
-function pickFromCandidates(
-  spells: AiSpellInfo[],
-  combatant: AiCombatContext["combatant"],
-  primaryTarget: ScoredTarget,
-  allies: AiCombatContext["allies"],
-  resourcePools: Array<{ name: string; current: number; max: number }>,
-  combatantName: string,
-  round?: number,
-  options?: { cantripsOnly?: boolean; enemies?: AiCombatContext["enemies"] },
-): AiDecision | undefined {
-  const cantripsOnly = options?.cantripsOnly ?? false;
-  const enemies = options?.enemies ?? [];
+  const targetConditions = (target.enemy.conditions ?? []).map(c => c.toLowerCase());
+  const targetAlreadyProne = targetConditions.includes("prone");
+  const targetAlreadyGrappled = targetConditions.includes("grappled");
 
-  // When cantripsOnly is set (D&D 5e 2024: BA spell restricts action to cantrips),
-  // skip healing, debuffs, buffs, and leveled damage — jump straight to cantrips.
-  if (!cantripsOnly) {
-    // 1. Healing: check if any ally (including self) is below 50% HP
-    // Skip BA healing spells here — reserve them for bonus action alongside an attack
-    const hurtAllies = allies.filter(a => a.hp.percentage < 50 && a.hp.current > 0);
-    if (hurtAllies.length > 0 || combatant.hp.percentage < 50) {
-      const healingSpells = spells
-        .filter(s => s.healing && !s.isBonusAction && hasAvailableSlot(resourcePools, s.level))
-        .sort((a, b) => estimateSpellDamage(b.healing) - estimateSpellDamage(a.healing));
-
-      if (healingSpells.length > 0) {
-        const spell = healingSpells[0]!;
-        // Heal self if we're hurt, otherwise heal the most hurt ally
-        const healTarget = combatant.hp.percentage < 50
-          ? combatantName
-          : (hurtAllies.sort((a, b) => a.hp.percentage - b.hp.percentage)[0]?.name ?? combatantName);
-        const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
-      return {
-        action: "castSpell",
-        spellName: spell.name,
-        spellLevel: slotLevel,
-        target: healTarget,
-        endTurn: !spell.isBonusAction,
-        intentNarration: `${combatantName} casts ${spell.name} on ${healTarget}.`,
-      };
-    }
-  }
-
-  // 1b. Debuff spells — prioritize disabling high-value threats
-  const debuffSpells = spells
-    .filter(s => s.isDebuff && hasAvailableSlot(resourcePools, s.level))
-    .sort((a, b) => b.level - a.level); // Prefer stronger debuffs
-
-  if (debuffSpells.length > 0) {
-    // Find a high-value target: prefer concentration casters and low-WIS enemies
-    const highValueTarget = primaryTarget; // Target scorer already prioritizes threats
-    const spell = debuffSpells[0]!;
-    const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
+  // Prefer shove (prone) when target isn't already prone — grants advantage on remaining attacks
+  if (!targetAlreadyProne) {
     return {
-      action: "castSpell",
-      spellName: spell.name,
-      spellLevel: slotLevel,
-      target: highValueTarget.name,
-      endTurn: true,
-      intentNarration: `${combatantName} casts ${spell.name} on ${highValueTarget.name}!`,
+      action: "shove",
+      target: target.name,
+      endTurn: false,
+      intentNarration: `${combatantName} attempts to shove ${target.name} prone!`,
     };
   }
 
-  // 1c. Buff spells — cast on self or allies early in combat
-  const isEarlyCombat = (round ?? 1) <= 2;
-  if (isEarlyCombat) {
-    const activeBuffs = (combatant.activeBuffs ?? []).map(b => b.toLowerCase());
-    const buffSpells = spells
-      .filter(s => s.isBuff && hasAvailableSlot(resourcePools, s.level))
-      .filter(s => !activeBuffs.includes(s.name.toLowerCase())) // Don't re-cast active buffs
-      .sort((a, b) => b.level - a.level); // Prefer stronger buffs
-
-    if (buffSpells.length > 0) {
-      const spell = buffSpells[0]!;
-      const slotLevel = spell.level === 0 ? undefined : getLowestAvailableSlotLevel(resourcePools, spell.level);
-      // Multi-target buffs (Bless) prefer allies; single-target (Shield of Faith, Mage Armor) prefer self
-      const isMultiTarget = spell.name.toLowerCase() === "bless" || spell.name.toLowerCase() === "aid";
-      const target = isMultiTarget && allies.length > 0
-        ? allies[0]!.name
-        : combatantName;
-      return {
-        action: "castSpell",
-        spellName: spell.name,
-        spellLevel: slotLevel,
-        target,
-        endTurn: !spell.isBonusAction,
-        intentNarration: `${combatantName} casts ${spell.name}${target !== combatantName ? ` on ${target}` : ""}!`,
-      };
-    }
-  }
-  } // end if (!cantripsOnly)
-
-  // 2. Damage cantrips — free to cast, always a good option
-  // AI-M2: Weight AoE cantrips by estimated number of targets hit
-  const cantrips = spells
-    .filter(s => s.level === 0 && s.damage)
-    .sort((a, b) => {
-      const aTargets = a.area ? estimateAoETargets(a, combatant.position, enemies) : 1;
-      const bTargets = b.area ? estimateAoETargets(b, combatant.position, enemies) : 1;
-      return (estimateSpellDamage(b.damage) * bTargets) - (estimateSpellDamage(a.damage) * aTargets);
-    });
-
-  if (cantrips.length > 0) {
-    const cantrip = cantrips[0]!;
+  // Consider grapple when target isn't already grappled and has high speed (escape risk)
+  const targetSpeed = target.enemy.speed ?? 30;
+  if (!targetAlreadyGrappled && targetSpeed >= 30) {
     return {
-      action: "castSpell",
-      spellName: cantrip.name,
-      spellLevel: 0,
-      target: primaryTarget.name,
-      endTurn: true,
-      intentNarration: `${combatantName} casts ${cantrip.name} at ${primaryTarget.name}!`,
+      action: "grapple",
+      target: target.name,
+      endTurn: false,
+      intentNarration: `${combatantName} tries to grapple ${target.name}!`,
     };
   }
 
-  // cantripsOnly guard: leveled damage spells are not allowed when BA spell restricts action
-  if (cantripsOnly) return undefined;
-
-  // 3. Leveled damage spells — only if creature has weak/no physical attacks
-  const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number }>;
-  const hasStrongAttacks = attacks.length >= 2 || attacks.some(a =>
-    typeof a.toHit === "number" && a.toHit >= 5,
-  );
-
-  // If creature has strong physical attacks, prefer those over spending slots
-  if (hasStrongAttacks) return undefined;
-
-  // AI-M2: Weight AoE damage spells by estimated number of targets hit
-  const damageSpells = spells
-    .filter(s => s.level > 0 && s.damage && hasAvailableSlot(resourcePools, s.level))
-    .sort((a, b) => {
-      const aTargets = a.area ? estimateAoETargets(a, combatant.position, enemies) : 1;
-      const bTargets = b.area ? estimateAoETargets(b, combatant.position, enemies) : 1;
-      return (estimateSpellDamage(b.damage) * bTargets) - (estimateSpellDamage(a.damage) * aTargets);
-    });
-
-  if (damageSpells.length > 0) {
-    const spell = damageSpells[0]!;
-    const slotLevel = getLowestAvailableSlotLevel(resourcePools, spell.level);
-    return {
-      action: "castSpell",
-      spellName: spell.name,
-      spellLevel: slotLevel,
-      target: primaryTarget.name,
-      endTurn: true,
-      intentNarration: `${combatantName} casts ${spell.name} at ${primaryTarget.name}!`,
-    };
-  }
-
-  return undefined;
-}
-
-/**
- * Evaluate class features that should be used as the primary action (useFeature).
- * Focused on action-cost healing abilities when HP is low.
- * Bonus-action abilities (Second Wind, Patient Defense, Flurry) are handled
- * separately by pickBonusAction.
- *
- * Priorities:
- * 1. Wholeness of Body (Monk) — if below 50% HP and has resource
- * 2. Lay on Hands (Paladin) — if below 50% HP and has resource
- */
-function pickFeatureAction(
-  combatant: AiCombatContext["combatant"],
-  combatantName: string,
-): AiDecision | undefined {
-  const classAbilities = combatant.classAbilities ?? [];
-  const resourcePools = combatant.resourcePools ?? [];
-  const hpPercent = combatant.hp.percentage;
-
-  // Only consider healing features when hurt
-  if (hpPercent >= 50) return undefined;
-
-  // Wholeness of Body (Monk)
-  const hasWholenessOfBody = classAbilities.some(a => a.name.toLowerCase().includes("wholeness of body"));
-  if (hasWholenessOfBody) {
-    const pool = resourcePools.find(p => {
-      const name = p.name.toLowerCase();
-      return name === "wholeness_of_body" || name.includes("wholeness");
-    });
-    if (pool && pool.current > 0) {
-      return {
-        action: "useFeature",
-        featureId: "wholenessOfBody",
-        endTurn: false,
-        intentNarration: `${combatantName} uses Wholeness of Body to heal!`,
-      };
-    }
-  }
-
-  // Lay on Hands (Paladin)
-  const hasLayOnHands = classAbilities.some(a => a.name.toLowerCase().includes("lay on hands"));
-  if (hasLayOnHands) {
-    const pool = resourcePools.find(p => {
-      const name = p.name.toLowerCase();
-      return name === "layonhands" || name.includes("lay on hands") || name === "lay_on_hands";
-    });
-    if (pool && pool.current > 0) {
-      return {
-        action: "useFeature",
-        featureId: "layOnHands",
-        endTurn: false,
-        intentNarration: `${combatantName} uses Lay on Hands!`,
-      };
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * AI-M7: Find the best cover-seeking position for a ranged combatant.
- *
- * Among reachable cells within attack range of the primary target,
- * prefer positions that provide cover from the most enemies while
- * maintaining line of sight to the target.
- *
- * Returns a position to move to, or undefined if no meaningful cover is available.
- */
-function findCoverPosition(
-  currentPos: { x: number; y: number },
-  primaryTarget: ScoredTarget,
-  enemies: AiCombatContext["enemies"],
-  speed: number,
-  map: CombatMap,
-): { x: number; y: number } | undefined {
-  const targetPos = primaryTarget.enemy.position;
-  if (!targetPos) return undefined;
-
-  const gridSize = map.gridSize || 5;
-  const maxRange = 60; // Standard ranged attack range
-  const searchRadius = Math.floor(speed / gridSize); // Grid cells we can reach
-
-  // Generate candidate positions within movement range
-  const candidates: Array<{
-    pos: { x: number; y: number };
-    coverScore: number;
-    distToTarget: number;
-  }> = [];
-
-  for (let dx = -searchRadius; dx <= searchRadius; dx++) {
-    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
-      const pos = {
-        x: currentPos.x + dx * gridSize,
-        y: currentPos.y + dy * gridSize,
-      };
-
-      // Skip current position
-      if (pos.x === currentPos.x && pos.y === currentPos.y) continue;
-
-      // Must be within movement speed
-      const moveDist = calculateDistance(currentPos, pos);
-      if (moveDist > speed) continue;
-
-      // Must be on the map and passable
-      if (!isPositionPassable(map, pos)) continue;
-
-      // Must have line of sight to primary target
-      const los = hasLineOfSight(map, pos, targetPos);
-      if (!los.visible) continue;
-
-      // Must be within attack range of target
-      const distToTarget = calculateDistance(pos, targetPos);
-      if (distToTarget > maxRange) continue;
-
-      // Too close to target (ranged combatants want distance)
-      if (distToTarget < 10) continue;
-
-      // Score: count how many enemies this position provides cover from
-      let coverScore = 0;
-      for (const enemy of enemies) {
-        if (!enemy.position || enemy.hp.current <= 0) continue;
-        const cover = getCoverLevel(map, enemy.position, pos);
-        if (cover === "half") coverScore += 1;
-        else if (cover === "three-quarters") coverScore += 2;
-        else if (cover === "full") coverScore += 3;
-      }
-
-      if (coverScore > 0) {
-        candidates.push({ pos, coverScore, distToTarget });
-      }
-    }
-  }
-
-  if (candidates.length === 0) return undefined;
-
-  // Pick the best: highest cover score, break ties by preferring moderate distance
-  candidates.sort((a, b) => {
-    if (b.coverScore !== a.coverScore) return b.coverScore - a.coverScore;
-    // Prefer 20-40ft range for ranged attackers
-    const aRangePenalty = Math.abs(a.distToTarget - 30);
-    const bRangePenalty = Math.abs(b.distToTarget - 30);
-    return aRangePenalty - bRangePenalty;
-  });
-
-  return candidates[0]!.pos;
-}
-
-/**
- * AI-L1: Find a flanking position adjacent to the target.
- *
- * For each living ally adjacent to the target, compute the opposite (flanking) cell.
- * Return the first such cell that is within movement range and passable.
- * This is a secondary tiebreaker — the AI uses it only when it needs to move toward a target.
- */
-function findFlankingPosition(
-  currentPos: Position,
-  targetPos: Position,
-  allyPositions: readonly Position[],
-  speed: number,
-  map?: CombatMap,
-  gridSize: number = 5,
-): Position | undefined {
-  for (const allyPos of allyPositions) {
-    // Ally must be adjacent to target
-    const dx = Math.abs(allyPos.x - targetPos.x);
-    const dy = Math.abs(allyPos.y - targetPos.y);
-    if (Math.max(dx, dy) === 0 || Math.max(dx, dy) > gridSize) continue;
-
-    // Compute the flanking cell (reflection of ally through target)
-    const flankPos: Position = {
-      x: 2 * targetPos.x - allyPos.x,
-      y: 2 * targetPos.y - allyPos.y,
-    };
-
-    // Verify actual flanking geometry
-    if (!isFlanking(flankPos, targetPos, allyPos, gridSize)) continue;
-
-    // Must be reachable
-    const dist = calculateDistance(currentPos, flankPos);
-    if (dist > speed) continue;
-
-    // Must be passable on the map (if map available)
-    if (map && !isPositionPassable(map, flankPos)) continue;
-
-    return flankPos;
-  }
   return undefined;
 }
 
@@ -913,8 +208,14 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const speed = combatant.speed ?? 30;
 
     // Determine what attacks we have
-    const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number; kind?: string; type?: string; reach?: number }>;
-    const attackName = pickBestAttack(attacks);
+    // AI2-M5: Pass target defenses to pickBestAttack for damage-type-aware selection
+    const attacks = (combatant.attacks ?? []) as Array<{ name?: string; damage?: string; toHit?: number; kind?: string; type?: string; reach?: number; damageType?: string }>;
+    const targetDefenses = {
+      damageImmunities: primaryTarget.enemy.damageImmunities,
+      damageResistances: primaryTarget.enemy.damageResistances,
+      damageVulnerabilities: primaryTarget.enemy.damageVulnerabilities,
+    };
+    const attackName = pickBestAttack(attacks, primaryTarget.enemy.ac, targetDefenses);
 
     // Determine effective melee reach (default 5ft)
     const meleeReach = 5;
@@ -922,7 +223,7 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const preferredRange = ranged ? 30 : meleeReach;
 
     // Step 3: Movement — get to a useful position
-    if (!movementSpent && !hasMoved) {
+    if (!movementSpent && !hasMoved && speed > 0) {
       const distToTarget = primaryTarget.distanceFeet;
 
       if (ranged) {
@@ -1026,6 +327,34 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       }
     }
 
+    // Step 3c: Dodge — take defensive posture when attacking isn't viable
+    // Heuristics: low HP with no good targets in range, or multiple adjacent enemies and no attack
+    if (!actionSpent) {
+      const adjacentEnemyCount = livingEnemies.filter(
+        e => e.hp.current > 0 && e.distanceFeet !== undefined && e.distanceFeet <= 5,
+      ).length;
+      const hasTargetInRange = scoredTargets.some(t => {
+        if (ranged) return t.distanceFeet <= 60;
+        return t.distanceFeet <= meleeReach;
+      });
+
+      const shouldDodge =
+        // Low HP and no reachable targets — hunker down
+        (hpPercent < 25 && !hasTargetInRange) ||
+        // Surrounded by multiple enemies with nothing useful to attack
+        (adjacentEnemyCount >= 2 && !attackName && !hasTargetInRange);
+
+      if (shouldDodge) {
+        const bonusAction = !bonusActionSpent ? pickBonusAction(combatant, livingEnemies, ctx.allies) : undefined;
+        return {
+          action: "dodge",
+          bonusAction,
+          endTurn: true,
+          intentNarration: `${input.combatantName} takes the Dodge action, bracing for attacks!`,
+        };
+      }
+    }
+
     // Step 4: Use healing potion if low HP, available, and action not spent
     if (!actionSpent && ctx.hasPotions && combatant.hp.percentage < 40) {
       return {
@@ -1094,6 +423,15 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
     const attacksMade = turnResults.filter(r => r.action === "attack").length;
     const attacksPerAction = combatant.attacksPerAction ?? 1;
     const hasAttacksRemaining = attacksMade < attacksPerAction;
+
+    // Step 4d: Grapple/Shove — consider as tactical options for melee creatures
+    // Only on the first attack (before any attacks made), when adjacent to target
+    if (!actionSpent && attacksMade === 0 && !ranged && primaryTarget.distanceFeet <= meleeReach) {
+      const grappleShoveDecision = considerGrappleOrShove(
+        combatant, primaryTarget, attacksPerAction, input.combatantName,
+      );
+      if (grappleShoveDecision) return grappleShoveDecision;
+    }
 
     if (!actionSpent && attackName && hasAttacksRemaining) {
       // AI-M8: Re-evaluate targets between Extra Attack swings.

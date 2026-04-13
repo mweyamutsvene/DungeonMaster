@@ -5,7 +5,7 @@
  * Responsibility: Build rich context including battlefield, allies, enemies, and state.
  */
 
-import type { CombatantStateRecord, CombatEncounterRecord } from "../../../types.js";
+import type { CombatantStateRecord, CombatEncounterRecord, SessionCharacterRecord } from "../../../types.js";
 import type { ICharacterRepository, IMonsterRepository, INPCRepository } from "../../../repositories/index.js";
 import type { FactionService } from "../helpers/faction-service.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
@@ -18,6 +18,7 @@ import { getResourcePools } from "../helpers/resource-utils.js";
 import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import { parseMultiattackCount } from "./ai-multiattack-parser.js";
 import type { TurnStepResult, AiCombatContext } from "./ai-types.js";
 import { getInventory } from "../helpers/resource-utils.js";
 import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
@@ -28,6 +29,11 @@ export class AiContextBuilder {
     process.env.DM_AI_DEBUG === "true" ||
     process.env.DM_AI_DEBUG === "yes";
 
+  // Per-encounter entity caches to avoid redundant DB lookups within the same turn cycle
+  private characterCache = new Map<string, SessionCharacterRecord | null>();
+  private monsterCache = new Map<string, Awaited<ReturnType<IMonsterRepository["getById"]>>>();
+  private npcCache = new Map<string, Awaited<ReturnType<INPCRepository["getById"]>>>();
+
   constructor(
     private readonly characters: ICharacterRepository,
     private readonly monsters: IMonsterRepository,
@@ -35,6 +41,36 @@ export class AiContextBuilder {
     private readonly factionService: FactionService,
     private readonly combatantResolver: ICombatantResolver,
   ) {}
+
+  /**
+   * Clear cached entity lookups. Call at the start of each new encounter turn cycle.
+   */
+  clearCache(): void {
+    this.characterCache.clear();
+    this.monsterCache.clear();
+    this.npcCache.clear();
+  }
+
+  private async getCachedCharacter(id: string): Promise<SessionCharacterRecord | null> {
+    if (this.characterCache.has(id)) return this.characterCache.get(id)!;
+    const result = await this.characters.getById(id);
+    this.characterCache.set(id, result);
+    return result;
+  }
+
+  private async getCachedMonster(id: string): Promise<Awaited<ReturnType<IMonsterRepository["getById"]>>> {
+    if (this.monsterCache.has(id)) return this.monsterCache.get(id)!;
+    const result = await this.monsters.getById(id);
+    this.monsterCache.set(id, result);
+    return result;
+  }
+
+  private async getCachedNPC(id: string): Promise<Awaited<ReturnType<INPCRepository["getById"]>>> {
+    if (this.npcCache.has(id)) return this.npcCache.get(id)!;
+    const result = await this.npcs.getById(id);
+    this.npcCache.set(id, result);
+    return result;
+  }
 
   /**
    * Extract position from combatant resources.
@@ -100,8 +136,8 @@ export class AiContextBuilder {
     const effects = Array.isArray(resources.activeEffects) ? resources.activeEffects : [];
     const effectSources = new Set<string>();
     for (const eff of effects) {
-      if (typeof eff === "object" && eff !== null && typeof (eff as any).source === "string") {
-        effectSources.add((eff as any).source);
+      if (typeof eff === "object" && eff !== null && typeof (eff as Record<string, unknown>).source === "string") {
+        effectSources.add((eff as Record<string, unknown>).source as string);
       }
     }
     for (const src of effectSources) {
@@ -161,7 +197,7 @@ export class AiContextBuilder {
         let entityDefenses: ReturnType<typeof extractDamageDefenses> = {};
 
         if (a.combatantType === "Character" && a.characterId) {
-          const char = await this.characters.getById(a.characterId);
+          const char = await this.getCachedCharacter(a.characterId);
           if (char) {
             className = char.className || undefined;
             level = char.level;
@@ -181,7 +217,7 @@ export class AiContextBuilder {
             }
           }
         } else if (a.combatantType === "NPC" && a.npcId) {
-          const npc = await this.npcs.getById(a.npcId);
+          const npc = await this.getCachedNPC(a.npcId);
           if (npc) {
             const statBlock = npc.statBlock as Record<string, unknown>;
             className = statBlock?.className as string | undefined;
@@ -201,7 +237,7 @@ export class AiContextBuilder {
             }
           }
         } else if (a.combatantType === "Monster" && a.monsterId) {
-          const monster = await this.monsters.getById(a.monsterId);
+          const monster = await this.getCachedMonster(a.monsterId);
           if (monster) {
             const statBlock = monster.statBlock as Record<string, unknown>;
             armorClass = statBlock?.armorClass as number | undefined;
@@ -269,7 +305,7 @@ export class AiContextBuilder {
         let spellSaveDC: number | undefined;
 
         if (e.combatantType === "Character" && e.characterId) {
-          const char = await this.characters.getById(e.characterId);
+          const char = await this.getCachedCharacter(e.characterId);
           if (char) {
             className = char.className || undefined;
             level = char.level;
@@ -290,7 +326,7 @@ export class AiContextBuilder {
             }
           }
         } else if (e.combatantType === "NPC" && e.npcId) {
-          const npc = await this.npcs.getById(e.npcId);
+          const npc = await this.getCachedNPC(e.npcId);
           if (npc) {
             const statBlock = npc.statBlock as Record<string, unknown>;
             className = statBlock?.className as string | undefined;
@@ -311,7 +347,7 @@ export class AiContextBuilder {
             }
           }
         } else if (e.combatantType === "Monster" && e.monsterId) {
-          const monster = await this.monsters.getById(e.monsterId);
+          const monster = await this.getCachedMonster(e.monsterId);
           if (monster) {
             const statBlock = monster.statBlock as Record<string, unknown>;
             armorClass = statBlock?.armorClass as number | undefined;
@@ -413,30 +449,6 @@ export class AiContextBuilder {
   }
 
   /**
-   * Parse the number of attacks from a monster's Multiattack action description.
-   * Returns the count if a Multiattack action is found, otherwise 1.
-   */
-  private parseMultiattackCount(actions: unknown[]): number {
-    if (!Array.isArray(actions)) return 1;
-    const multiattack = actions.find(
-      (a: any) => typeof a?.name === "string" && a.name.toLowerCase() === "multiattack",
-    ) as { description?: string } | undefined;
-    if (!multiattack?.description) return 1;
-
-    const desc = multiattack.description.toLowerCase();
-    const wordMap: Record<string, number> = {
-      two: 2, three: 3, four: 4, five: 5, six: 6,
-    };
-    for (const [word, count] of Object.entries(wordMap)) {
-      if (desc.includes(word)) return count;
-    }
-    // Try numeric: "makes 2 attacks"
-    const numMatch = desc.match(/(\d+)\s*(?:attacks|strikes)/);
-    if (numMatch) return parseInt(numMatch[1], 10);
-    return 1;
-  }
-
-  /**
    * Build entity info for the AI combatant itself.
    */
   private buildEntityInfo(
@@ -498,7 +510,7 @@ export class AiContextBuilder {
         abilities: (statBlock.abilities as unknown[]) || [],
         features: (statBlock.features as unknown[]) || [],
         ...(classAbilities ? { classAbilities } : {}),
-        attacksPerAction: this.parseMultiattackCount((statBlock.actions as unknown[]) || []),
+        attacksPerAction: parseMultiattackCount((statBlock.actions as unknown[]) || []),
       };
     } else if (aiCombatant.combatantType === "NPC") {
       const statBlock = entityData.statBlock as Record<string, unknown>;

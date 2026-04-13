@@ -707,11 +707,19 @@ export class AiTurnOrchestrator {
     const prevIndex = (enc0.turn - 1 + combatants0.length) % combatants0.length;
     const justEndedCombatant = combatants0[prevIndex];
     if (justEndedCombatant) {
-      await this.processLegendaryActionsAfterTurn(sessionId, encounterId, justEndedCombatant.id);
+      try {
+        await this.processLegendaryActionsAfterTurn(sessionId, encounterId, justEndedCombatant.id);
+      } catch (err) {
+        console.error("[processAllMonsterTurns] Legendary action processing failed, continuing:", err);
+      }
     }
 
     // Lair actions trigger at initiative count 20 (start of round).
-    await this.processLairActionsIfNeeded(sessionId, encounterId);
+    try {
+      await this.processLairActionsIfNeeded(sessionId, encounterId);
+    } catch (err) {
+      console.error("[processAllMonsterTurns] Lair action processing failed, continuing:", err);
+    }
 
     let processed = true;
     // Guard against infinite loops (e.g., all remaining combatants are stabilized/dead)
@@ -730,7 +738,11 @@ export class AiTurnOrchestrator {
 
       // After an AI turn completes, fire legendary actions for the combatant that just ended
       if (processed && aboutToAct) {
-        await this.processLegendaryActionsAfterTurn(sessionId, encounterId, aboutToAct.id);
+        try {
+          await this.processLegendaryActionsAfterTurn(sessionId, encounterId, aboutToAct.id);
+        } catch (err) {
+          console.error("[processAllMonsterTurns] Post-turn legendary action failed, continuing:", err);
+        }
       }
     }
   }

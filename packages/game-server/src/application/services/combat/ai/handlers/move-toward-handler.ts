@@ -83,6 +83,14 @@ export class MoveTowardHandler implements AiActionHandler {
     }
 
     const speed = getEffectiveSpeed(aiCombatant.resources);
+    if (speed <= 0) {
+      return {
+        action: decision.action,
+        ok: true,
+        summary: `Cannot move (speed is 0)`,
+        data: { movedFeet: 0, speedZero: true },
+      };
+    }
     const hasDashed = (resources.dashed as boolean) ?? false;
     let effectiveSpeed = hasDashed ? speed * 2 : speed;
 

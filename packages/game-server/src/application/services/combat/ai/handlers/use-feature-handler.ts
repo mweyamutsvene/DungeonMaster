@@ -117,6 +117,14 @@ export class UseFeatureHandler implements AiActionHandler {
         services: {
           attack: async (params: any) =>
             deps.actionService.attack(sessionId, params),
+          disengage: async (params: any) =>
+            deps.actionService.disengage(sessionId, { ...params, skipActionCheck: true }),
+          dash: async (params: any) =>
+            deps.actionService.dash(sessionId, { ...params, skipActionCheck: true }),
+          dodge: async (params: any) =>
+            deps.actionService.dodge(sessionId, { ...params, skipActionCheck: true }),
+          hide: async (params: any) =>
+            deps.actionService.hide(sessionId, { ...params, isBonusAction: true, skipActionCheck: true }),
         },
       });
 

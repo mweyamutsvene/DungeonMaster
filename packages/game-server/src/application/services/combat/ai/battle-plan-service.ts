@@ -251,10 +251,10 @@ export class BattlePlanService {
       focusTarget = lowestHp.name;
     }
 
-    // Assign simple roles to each creature
+    // Assign varied roles based on creature capabilities
     const creatureRoles: Record<string, string> = {};
     for (const c of factionCreatures) {
-      creatureRoles[c.name] = "Attack the nearest enemy";
+      creatureRoles[c.name] = this.assignRoleFromCapabilities(c, factionCreatures.length);
     }
 
     return {
@@ -268,6 +268,56 @@ export class BattlePlanService {
         : "Engage the nearest enemy.",
       retreatCondition: "Below 25% HP and outnumbered",
     };
+  }
+
+  /**
+   * Assign a tactical role to a creature based on its abilities, stats, and party composition.
+   */
+  private assignRoleFromCapabilities(
+    creature: { name: string; hp: { current: number; max: number }; ac?: number; speed?: number; abilities?: string[] },
+    partySize: number,
+  ): string {
+    const abilities = creature.abilities ?? [];
+    const abilitiesLower = abilities.map(a => a.toLowerCase());
+
+    const hasSpellSlots = abilitiesLower.some(a => a.includes("spell slot"));
+    const hasHealingAbility = abilitiesLower.some(a =>
+      a.includes("lay on hands") || a.includes("wholeness"),
+    );
+    const hasRage = abilitiesLower.some(a => a === "rage");
+    const ac = creature.ac ?? 10;
+    const hpMax = creature.hp.max;
+    const speed = creature.speed ?? 30;
+
+    // Caster/support: has spell slots
+    if (hasSpellSlots) {
+      if (hasHealingAbility) {
+        return "Support allies with healing and spells. Stay behind front-liners.";
+      }
+      return "Maintain distance and target clustered enemies with spells.";
+    }
+
+    // Tank/defender: high AC and high HP
+    if (ac >= 16 && hpMax >= 30) {
+      return "Hold the front line and draw enemy attacks away from weaker allies.";
+    }
+
+    // Brute with Rage
+    if (hasRage) {
+      return "Rage and engage the most dangerous enemy in melee.";
+    }
+
+    // Fast striker/harasser: high speed
+    if (speed >= 40) {
+      return "Use mobility to harass priority targets and avoid getting pinned down.";
+    }
+
+    // In a larger group (3+), assign variety: some focus, some flank
+    if (partySize >= 3 && hpMax < 20) {
+      return "Flank enemies and focus fire on the faction's primary target.";
+    }
+
+    return "Attack the nearest enemy.";
   }
 
   /**

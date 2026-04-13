@@ -21,6 +21,7 @@ import { normalizeResources, getActiveEffects, readBoolean, spendAction, getPosi
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
+import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import {
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
@@ -31,14 +32,29 @@ import {
 import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain/entities/combat/conditions.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
-import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
+import { detectDamageReactions, getEligibleOnHitEnhancements } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { checkFlanking } from "../../../../domain/rules/flanking.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
 import { getObscurationAttackModifiers } from "../../../../domain/rules/combat-map-sight.js";
 import { resolveReadiedAttackTriggers } from "../helpers/readied-attack-trigger.js";
+import { divineSmiteDice } from "../../../../domain/entities/classes/paladin.js";
+import { getResourcePools } from "../helpers/resource-utils.js";
 
 type AiLogger = (msg: string) => void;
+
+/** Shape of a monster attack entry from the stat block. */
+interface MonsterAttackSpec {
+  name: string;
+  attackBonus?: number;
+  kind?: "melee" | "ranged";
+  damageType?: string;
+  damage?: {
+    diceCount: number;
+    diceSides: number;
+    modifier: number;
+  } | null;
+}
 
 export interface AiAttackResolverDeps {
   combat: ICombatRepository;
@@ -102,8 +118,11 @@ export class AiAttackResolver {
     // Find the chosen attack in the monster's stat block
     const desiredName = (attackName ?? "").trim().toLowerCase();
     const picked = monsterAttacks.find(
-      (a: any) => typeof a?.name === "string" && a.name.trim().toLowerCase() === desiredName,
-    ) as Record<string, unknown> | undefined;
+      (a: unknown) => {
+        const entry = a as Record<string, unknown>;
+        return typeof entry?.name === "string" && entry.name.trim().toLowerCase() === desiredName;
+      },
+    ) as MonsterAttackSpec | undefined;
 
     if (!picked) {
       return { status: "not_applicable" };
@@ -111,9 +130,7 @@ export class AiAttackResolver {
 
     // ── Extract attack spec from picked attack ──
     const attackBonusBase = typeof picked.attackBonus === "number" ? picked.attackBonus : 0;
-    const dmg = typeof picked.damage === "object" && picked.damage !== null
-      ? picked.damage as Record<string, unknown>
-      : null;
+    const dmg = picked.damage ?? null;
     const diceCount = dmg && typeof dmg.diceCount === "number" ? dmg.diceCount : 1;
     const diceSides = dmg && typeof dmg.diceSides === "number" ? dmg.diceSides : 6;
     const modifier = dmg && typeof dmg.modifier === "number" ? dmg.modifier : 0;
@@ -121,7 +138,7 @@ export class AiAttackResolver {
     // ── ActiveEffect integration: advantage/disadvantage + attack bonus + AC bonus ──
     const attackerActiveEffects = getActiveEffects(aiCombatant.resources ?? {});
     const targetActiveEffects = getActiveEffects(targetCombatant.resources ?? {});
-    const attackKind: "melee" | "ranged" = (picked as any).kind === "ranged" ? "ranged" : "melee";
+    const attackKind: "melee" | "ranged" = picked.kind === "ranged" ? "ranged" : "melee";
 
     let effectAdvantage = 0;
     let effectDisadvantage = 0;
@@ -242,7 +259,7 @@ export class AiAttackResolver {
       const atkRes = normalizeResources(aiCombatant.resources);
       if (atkRes.raging === true) {
         await combat.updateCombatantState(aiCombatant.id, {
-          resources: { ...atkRes, rageAttackedThisTurn: true } as any,
+          resources: { ...atkRes, rageAttackedThisTurn: true },
         });
       }
     }
@@ -289,9 +306,9 @@ export class AiAttackResolver {
 
       const pendingAction = await pendingActions.getById(initiateResult.pendingActionId);
       if (pendingAction) {
-        const attackData = pendingAction.data as any;
-        const shieldDmgType = typeof (picked as any).damageType === "string"
-          ? (picked as any).damageType
+        const attackData = pendingAction.data as unknown as Record<string, unknown>;
+        const shieldDmgType = typeof picked.damageType === "string"
+          ? picked.damageType
           : undefined;
         attackData.damageSpec = { diceCount, diceSides, modifier, damageType: shieldDmgType };
         attackData.critical = critical;
@@ -355,13 +372,71 @@ export class AiAttackResolver {
         }
       }
 
+      // AI2-M7: Divine Smite / on-hit enhancements for AI paladins (and other classes)
+      // Check if the attacker has on-hit enhancements available (Divine Smite, etc.)
+      if (attackKind === "melee") {
+        try {
+          const attackerStats = await combatantResolver.getCombatStats(actorRef as CombatantRef);
+          const className = attackerStats.className?.toLowerCase() ?? "";
+          const level = attackerStats.level ?? 1;
+          const attackerRes = normalizeResources(aiCombatant.resources);
+          const pools = getResourcePools(aiCombatant.resources);
+
+          // Check for Divine Smite eligibility (Paladin level 2+)
+          if (className === "paladin" && level >= 2) {
+            // Find the highest spell slot available (use highest on crits, lowest otherwise)
+            const spellSlots = pools
+              .filter(p => /^spellSlot_\d+$/i.test(p.name) && p.current > 0)
+              .map(p => ({
+                pool: p,
+                level: parseInt(p.name.replace(/^spellSlot_/i, ""), 10),
+              }))
+              .sort((a, b) => critical ? b.level - a.level : a.level - b.level);
+
+            if (spellSlots.length > 0) {
+              const chosen = spellSlots[0]!;
+              const smiteDiceCount = divineSmiteDice(chosen.level);
+              const effectiveDice = critical ? smiteDiceCount * 2 : smiteDiceCount;
+              const smiteDamage = diceRoller.rollDie(8, effectiveDice).total;
+              damageApplied += smiteDamage;
+              aiLog(`[AiAttackResolver] Divine Smite (L${chosen.level} slot): ${effectiveDice}d8 = ${smiteDamage} radiant damage${critical ? " (crit!)" : ""}`);
+
+              // Spend the spell slot
+              const updatedPools = pools.map(p =>
+                p.name === chosen.pool.name ? { ...p, current: p.current - 1 } : p,
+              );
+              await combat.updateCombatantState(aiCombatant.id, {
+                resources: { ...attackerRes, resourcePools: updatedPools },
+              });
+            }
+          }
+
+          // Check other on-hit enhancements via combat text profiles
+          const eligible = getEligibleOnHitEnhancements(
+            attackKind,
+            className,
+            level,
+            attackerRes,
+            pools,
+            getAllCombatTextProfiles(),
+            undefined, // bonusAction
+            undefined, // subclass — CombatantCombatStats doesn't carry subclass
+          );
+          for (const enh of eligible) {
+            if (enh.keyword === "divine-smite") continue; // Already handled above
+            aiLog(`[AiAttackResolver] On-hit enhancement available: ${enh.displayName} (not auto-applied — requires player choice)`);
+          }
+        } catch {
+          /* proceed without enhancements if stats unavailable */
+        }
+      }
+
       // Apply damage resistance / immunity / vulnerability (stat-block + ActiveEffects)
-      const pickedDmgType =
-        typeof (picked as any).damageType === "string" ? (picked as any).damageType : undefined;
+      const pickedDmgType = picked.damageType;
       if (damageApplied > 0 && pickedDmgType) {
         try {
           const tgtStats = await combatantResolver.getCombatStats(targetRef as CombatantRef);
-          const defenses = tgtStats.damageDefenses ? { ...tgtStats.damageDefenses } : ({} as any);
+          const defenses: DamageDefenses = tgtStats.damageDefenses ? { ...tgtStats.damageDefenses } : {};
 
           const effDef = getDamageDefenseEffects(targetActiveEffects, pickedDmgType);
           if (effDef.resistances) {
@@ -417,7 +492,7 @@ export class AiAttackResolver {
           const tgtRes = normalizeResources(targetCombatant.resources);
           if (tgtRes.raging === true) {
             await combat.updateCombatantState(targetCombatant.id, {
-              resources: { ...tgtRes, rageDamageTakenThisTurn: true } as any,
+              resources: { ...tgtRes, rageDamageTakenThisTurn: true },
             });
           }
         }
@@ -503,12 +578,16 @@ export class AiAttackResolver {
             .find((c) => c.id === targetCombatant.id)?.resources ?? targetCombatant.resources,
         );
         const stillHasReaction =
-          hasReactionAvailable({ reactionUsed: false, ...freshTargetResources } as any) &&
+          hasReactionAvailable({ reactionUsed: readBoolean(freshTargetResources, "reactionUsed") ?? false }) &&
           !readBoolean(freshTargetResources, "reactionUsed");
 
         if (stillHasReaction && targetCombatant.hpCurrent - damageApplied > 0) {
           try {
             const tgtStats = await combatantResolver.getCombatStats(targetRef as CombatantRef);
+            const attackerEntityId =
+              actorRef.type === "Monster" ? actorRef.monsterId
+              : actorRef.type === "Character" ? actorRef.characterId
+              : actorRef.npcId;
             const dmgInput = {
               className: tgtStats.className?.toLowerCase() ?? "",
               level: tgtStats.level ?? 1,
@@ -518,10 +597,7 @@ export class AiAttackResolver {
               isCharacter: true,
               damageType: pickedDmgType,
               damageAmount: damageApplied,
-              attackerId:
-                actorRef.type === "Monster"
-                  ? (actorRef as any).monsterId
-                  : (actorRef as any).characterId ?? "",
+              attackerId: attackerEntityId,
             };
 
             const dmgReactions = detectDamageReactions(dmgInput, getAllCombatTextProfiles());
@@ -579,7 +655,7 @@ export class AiAttackResolver {
     if (char?.faction) return char.faction;
     if (mon?.faction) return mon.faction;
     if (npc?.faction) return npc.faction;
-    const resFaction = (combatant.resources as any)?.faction;
+    const resFaction = (combatant.resources as Record<string, unknown> | null)?.faction;
     if (typeof resFaction === "string") return resFaction;
     if (combatant.combatantType === "Character") return "party";
     if (combatant.combatantType === "NPC") return "party";

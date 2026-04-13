@@ -96,7 +96,7 @@ export function chooseLegendaryAction(
   const bossPos = bossRes.position as Position | undefined;
 
   // Find enemies (different faction than boss)
-  const bossFaction = boss.monster?.faction ?? boss.npc?.faction ?? "enemy";
+  const bossFaction = boss.monster?.faction ?? boss.npc?.faction ?? boss.character?.faction ?? "enemy";
   const enemies = allCombatants.filter(c => {
     if (c.id === boss.id) return false;
     if (c.hpCurrent <= 0) return false;
