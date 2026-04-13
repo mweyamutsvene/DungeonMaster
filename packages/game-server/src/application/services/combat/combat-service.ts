@@ -8,7 +8,7 @@ import type { INPCRepository } from "../../repositories/npc-repository.js";
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
 import type { PendingActionRepository } from "../../repositories/pending-action-repository.js";
-import type { CombatEncounterRecord, CombatantType, JsonValue } from "../../types.js";
+import type { CombatEncounterRecord, CombatantStateRecord, CombatantType, JsonValue } from "../../types.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import { createCombatMap, type CombatMap, getMapZones, setMapZones } from "../../../domain/rules/combat-map.js";
 import type { Position } from "../../../domain/rules/movement.js";
@@ -32,6 +32,7 @@ import {
   type ActiveEffect,
 } from "../../../domain/entities/combat/effects.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../domain/rules/ability-checks.js";
+import { isSavingThrowSuccess } from "../../../domain/rules/advantage.js";
 import type { Ability } from "../../../domain/entities/core/ability-scores.js";
 import { hydrateCombat, extractCombatState, extractActionEconomy } from "./helpers/combat-hydration.js";
 import { hydrateCharacter, hydrateMonster, hydrateNPC } from "./helpers/creature-hydration.js";
@@ -47,7 +48,7 @@ import {
   type CombatZone,
   type ZoneEffect,
 } from "../../../domain/entities/combat/zones.js";
-import { applyDamageDefenses } from "../../../domain/rules/damage-defenses.js";
+import { applyDamageDefenses, extractDamageDefenses, type DamageDefenses } from "../../../domain/rules/damage-defenses.js";
 import { applyEvasion, creatureHasEvasion } from "../../../domain/rules/evasion.js";
 import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
 
@@ -216,7 +217,7 @@ export class CombatService {
         }
 
         // Assign default starting position if not provided
-        let resources = c.resources ? { ...(c.resources as any) } : {};
+        let resources = normalizeResources(c.resources);
         
         if (!resources.position) {
           const friendlyIndex = friendlies.findIndex(f => f.index === combatantIndex);
@@ -321,7 +322,7 @@ export class CombatService {
 
     const mapDataRaw = existingEncounter.mapData;
     if (mapDataRaw && typeof mapDataRaw === "object" && mapDataRaw !== null) {
-      const md = mapDataRaw as any;
+      const md = mapDataRaw as Record<string, unknown>;
       if (typeof md.width === "number") mapWidth = md.width;
       if (typeof md.height === "number") mapHeight = md.height;
       if (typeof md.gridSize === "number") gridSize = md.gridSize;
@@ -397,9 +398,7 @@ export class CombatService {
         }
 
         // Default resources, speed, and starting position.
-        const resources = c.resources && typeof c.resources === "object" && c.resources !== null
-          ? { ...(c.resources as any) }
-          : {};
+        const resources = normalizeResources(c.resources);
 
         if (resources.speed === undefined) {
           resources.speed = 30;
@@ -562,7 +561,7 @@ export class CombatService {
   /**
    * Hydrate creatures from combatant records into a Map<combatantId, Creature>.
    */
-  private async hydrateCreatures(combatantRecords: any[]): Promise<Map<string, Creature>> {
+  private async hydrateCreatures(combatantRecords: CombatantStateRecord[]): Promise<Map<string, Creature>> {
     const creatures = new Map<string, Creature>();
     for (const record of combatantRecords) {
       if (record.characterId && this.characters) {
@@ -594,7 +593,7 @@ export class CombatService {
   private async processEndOfTurnEffects(
     encounter: CombatEncounterRecord,
     combat: ReturnType<typeof hydrateCombat>,
-    combatantRecords: any[],
+    combatantRecords: CombatantStateRecord[],
   ): Promise<void> {
     const outgoingCreatureId = combat.getActiveCreature().getId();
     const outgoingRecord = combatantRecords.find(c => c.id === outgoingCreatureId);
@@ -606,7 +605,7 @@ export class CombatService {
       const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId);
       if (removed.length > 0) {
         await this.combat.updateCombatantState(record.id, {
-          conditions: remaining as any,
+          conditions: remaining as JsonValue,
         });
         console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at end of ${outgoingEntityId}'s turn`);
       }
@@ -622,7 +621,7 @@ export class CombatService {
   private async advanceTurnOrder(
     encounter: CombatEncounterRecord,
     combat: ReturnType<typeof hydrateCombat>,
-    combatantRecords: any[],
+    combatantRecords: CombatantStateRecord[],
   ): Promise<{ round: number; turn: number; updated: CombatEncounterRecord }> {
     combat.endTurn();
 
@@ -656,7 +655,7 @@ export class CombatService {
   private async processIncomingCombatantEffects(
     encounter: CombatEncounterRecord,
     combat: ReturnType<typeof hydrateCombat>,
-    freshRecords: any[],
+    freshRecords: CombatantStateRecord[],
   ): Promise<void> {
     const incomingCreatureId = combat.getActiveCreature().getId();
     const incomingRecord = freshRecords.find(c => c.id === incomingCreatureId);
@@ -670,11 +669,11 @@ export class CombatService {
         const isUnconscious = incomingRecord.hpCurrent <= 0;
         if (shouldRageEnd(attacked, tookDamage, isUnconscious)) {
           const effects = getActiveEffects(incomingRecord.resources ?? {});
-          const nonRageEffects = effects.filter((e: any) => e.source !== "Rage");
-          let updatedRes = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
-          updatedRes = setActiveEffects(updatedRes, nonRageEffects) as any;
-          await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
-          (incomingRecord as any).resources = updatedRes;
+          const nonRageEffects = effects.filter((e) => e.source !== "Rage");
+          let updatedRes: JsonValue = { ...inRes, raging: false, rageAttackedThisTurn: false, rageDamageTakenThisTurn: false };
+          updatedRes = setActiveEffects(updatedRes, nonRageEffects);
+          await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes });
+          incomingRecord.resources = updatedRes;
           console.log(`[CombatService] Rage ended for combatant ${incomingRecord.id} (attacked=${attacked}, tookDamage=${tookDamage}, unconscious=${isUnconscious})`);
         }
       }
@@ -683,8 +682,8 @@ export class CombatService {
     // Legendary Action Charge Reset
     if (incomingRecord && isLegendaryCreature(incomingRecord.resources)) {
       const updatedRes = resetLegendaryActions(incomingRecord.resources);
-      await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as any });
-      (incomingRecord as any).resources = updatedRes;
+      await this.combat.updateCombatantState(incomingRecord.id, { resources: updatedRes as JsonValue });
+      incomingRecord.resources = updatedRes as JsonValue;
       console.log(`[CombatService] Legendary action charges reset for combatant ${incomingRecord.id}`);
     }
 
@@ -712,7 +711,7 @@ export class CombatService {
   private async processStartOfTurnEffects(
     encounter: CombatEncounterRecord,
     combat: ReturnType<typeof hydrateCombat>,
-    combatantRecords: any[],
+    combatantRecords: CombatantStateRecord[],
   ): Promise<void> {
     const activeCreatureId = combat.getActiveCreature().getId();
     const activeRecord = combatantRecords.find((c) => c.id === activeCreatureId);
@@ -726,7 +725,7 @@ export class CombatService {
       const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId);
       if (removed.length > 0) {
         await this.combat.updateCombatantState(record.id, {
-          conditions: remaining as any,
+          conditions: remaining as JsonValue,
         });
         console.log(`[CombatService] Removed expired conditions [${removed.join(", ")}] from combatant ${record.id} at start of ${activeEntityId}'s turn`);
       }
@@ -735,8 +734,14 @@ export class CombatService {
       if (recordEntityId === activeEntityId) {
         if (structuredConditions.some(c => c.condition === "StunningStrikePartial")) {
           const updatedConditions = removeCondition(structuredConditions, "StunningStrikePartial" as Condition);
+          // Also clear speedModifier that was set alongside the condition
+          const res = typeof record.resources === "object" && record.resources !== null
+            ? { ...(record.resources as Record<string, unknown>) }
+            : {};
+          delete res.speedModifier;
           await this.combat.updateCombatantState(record.id, {
-            conditions: updatedConditions as any,
+            conditions: updatedConditions as JsonValue,
+            resources: res as JsonValue,
           });
           console.log(`[CombatService] Removed StunningStrikePartial from active combatant ${record.id}`);
         }
@@ -761,8 +766,8 @@ export class CombatService {
     const activeCombatant = postAdvanceCombatants.find((c) => c.id === activeCombatantId);
     if (!activeCombatant || !activeCombatant.characterId) return;
 
-    const resources = (activeCombatant.resources as any) || {};
-    const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
+    const resources = normalizeResources(activeCombatant.resources);
+    const currentDeathSaves: DeathSaves = (resources.deathSaves as DeathSaves) || { successes: 0, failures: 0 };
     const isStabilized = resources.stabilized === true;
 
     if (!needsDeathSave(activeCombatant.hpCurrent, currentDeathSaves, isStabilized)) return;
@@ -783,7 +788,7 @@ export class CombatService {
       resultType = 'stabilized';
       updatedStabilized = true;
       updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-    } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
+    } else if (saveResult.outcome === 'success' && saveResult.criticalSuccess) {
       resultType = 'revived';
       updatedHp = 1;
       updatedDeathSaves = { successes: 0, failures: 0 };
@@ -902,8 +907,8 @@ export class CombatService {
     }
 
     // Parse current death saves from resources
-    const resources = (combatant.resources as any) || {};
-    const currentDeathSaves: DeathSaves = resources.deathSaves || { successes: 0, failures: 0 };
+    const resources = normalizeResources(combatant.resources);
+    const currentDeathSaves: DeathSaves = (resources.deathSaves as DeathSaves) || { successes: 0, failures: 0 };
     const isStabilized = resources.stabilized === true;
 
     // Check if death save is needed
@@ -928,7 +933,7 @@ export class CombatService {
       resultType = 'stabilized';
       updatedStabilized = true;
       updatedDeathSaves = applyDeathSaveResult(currentDeathSaves, saveResult);
-    } else if (saveResult.outcome === 'success' && (saveResult as any).criticalSuccess) {
+    } else if (saveResult.outcome === 'success' && saveResult.criticalSuccess) {
       resultType = 'revived';
       updatedHp = 1; // Regain 1 HP
       updatedDeathSaves = { successes: 0, failures: 0 }; // Reset
@@ -983,7 +988,7 @@ export class CombatService {
    * Phase B: Clean up expired effects for all combatants.
    */
   private async processActiveEffectsAtTurnEvent(
-    combatantRecords: any[],
+    combatantRecords: CombatantStateRecord[],
     event: "start_of_turn" | "end_of_turn",
     activeEntityId: string,
     encounter: CombatEncounterRecord,
@@ -1054,7 +1059,7 @@ export class CombatService {
             const currentTempHp = typeof res.tempHp === "number" ? res.tempHp : 0;
             // Temp HP doesn't stack — only apply if higher
             if (tempHp > currentTempHp) {
-              currentResources = { ...res, tempHp } as any;
+              currentResources = { ...res, tempHp } as JsonValue;
               resourcesChanged = true;
               console.log(`[CombatService] Recurring temp HP (${eff.source ?? "effect"}): ${tempHp} to ${record.id}`);
             }
@@ -1075,8 +1080,10 @@ export class CombatService {
           if (!eff.triggerAt && event !== "end_of_turn") continue;
 
           // Look up real ability score from sheet/statBlock
+          // TODO: type properly — record may carry hydrated .sheet/.statBlock from Prisma includes
           const saveAbility = eff.saveToEnd.ability as Ability;
-          const sheetOrStatBlock = (record as any).sheet ?? (record as any).statBlock ?? {};
+          const recordAny = record as unknown as Record<string, unknown>;
+          const sheetOrStatBlock = (recordAny.sheet ?? recordAny.statBlock ?? {}) as Record<string, unknown>;
           const abilityScoresRaw = (typeof sheetOrStatBlock === "object" && sheetOrStatBlock !== null)
             ? (sheetOrStatBlock as Record<string, unknown>).abilityScores ?? {}
             : {};
@@ -1147,7 +1154,7 @@ export class CombatService {
 
           const totalMod = abilityMod + profMod + effectBonus;
           const total = roll.total + totalMod;
-          const success = total >= eff.saveToEnd.dc;
+          const success = isSavingThrowSuccess(roll.total, total, eff.saveToEnd.dc);
 
           console.log(`[CombatService] Save-to-end (${eff.source ?? "effect"}): d20(${roll.total}) + ${totalMod} (${saveAbility} ${abilityMod}${profMod ? ` + prof ${profMod}` : ""}${effectBonus ? ` + effects ${effectBonus}` : ""}) = ${total} vs DC ${eff.saveToEnd.dc} → ${success ? "SUCCESS (removed)" : "FAILURE (persists)"}`);
 
@@ -1163,9 +1170,9 @@ export class CombatService {
                 console.log(`[CombatService] Save-to-end success: removed condition "${condName}" from ${record.id}`);
               }
               await this.combat.updateCombatantState(record.id, {
-                conditions: conditions as any,
+                conditions: conditions as JsonValue,
               });
-              record.conditions = conditions as any; // Update local copy
+              record.conditions = conditions as JsonValue; // Update local copy
             }
           }
         }
@@ -1202,7 +1209,7 @@ export class CombatService {
       if (resourcesChanged) {
         const finalResources = setActiveEffects(currentResources, cleanedEffects);
         await this.combat.updateCombatantState(record.id, {
-          resources: finalResources as any,
+          resources: finalResources,
         });
       }
     }
@@ -1241,7 +1248,7 @@ export class CombatService {
    */
   private async processZoneTurnTriggers(
     encounter: CombatEncounterRecord,
-    combatantRecords: any[],
+    combatantRecords: CombatantStateRecord[],
     trigger: "on_start_turn" | "on_end_turn",
     combatantId: string,
     entityId: string | undefined,
@@ -1254,7 +1261,7 @@ export class CombatService {
     if (zones.length === 0) return;
 
     // Find the combatant's position
-    const record = combatantRecords.find((c: any) => c.id === combatantId);
+    const record = combatantRecords.find((c) => c.id === combatantId);
     if (!record) return;
     const resources = normalizeResources(record.resources);
     const position = getPosition(resources);
@@ -1287,12 +1294,18 @@ export class CombatService {
     };
     const passiveSaveBonus = getPassiveZoneSaveBonus(zones, position, entityId, isSameFactionFn);
 
-    // Check Evasion for the combatant (character class feature only)
+    // Look up creature data for Evasion and damage defenses
     let hasEvasion = false;
+    let damageDefenses: DamageDefenses = {};
     if (record.characterId) {
       const char = await this.characters.getById(record.characterId);
       if (char) {
         hasEvasion = creatureHasEvasion(char.className ?? undefined, char.level);
+      }
+    } else if (record.monsterId) {
+      const mon = await this.monsters.getById(record.monsterId);
+      if (mon?.statBlock) {
+        damageDefenses = extractDamageDefenses(mon.statBlock);
       }
     }
 
@@ -1305,7 +1318,7 @@ export class CombatService {
       if (effect.saveAbility && effect.saveDC !== undefined && this.diceRoller) {
         const saveRoll = this.diceRoller.d20();
         const saveTotal = saveRoll.total + passiveSaveBonus;
-        saveSuccess = saveTotal >= effect.saveDC;
+        saveSuccess = isSavingThrowSuccess(saveRoll.total, saveTotal, effect.saveDC);
         console.log(
           `[CombatService] Zone ${zone.source} ${trigger} save: ${saveRoll.total}${passiveSaveBonus ? ` + ${passiveSaveBonus} (aura)` : ""} = ${saveTotal} vs DC ${effect.saveDC} → ${saveSuccess ? "save" : "fail"}`,
         );
@@ -1332,12 +1345,8 @@ export class CombatService {
         rawDamage = effect.halfDamageOnSave ? Math.floor(rawDamage / 2) : 0;
       }
 
-      // Apply damage defenses
-      const defenseResult = applyDamageDefenses(rawDamage, effect.damageType, {
-        damageResistances: [],
-        damageImmunities: [],
-        damageVulnerabilities: [],
-      });
+      // Apply damage defenses (immunities/resistances from creature stat block)
+      const defenseResult = applyDamageDefenses(rawDamage, effect.damageType, damageDefenses);
       totalDamage += defenseResult.adjustedDamage;
 
       console.log(

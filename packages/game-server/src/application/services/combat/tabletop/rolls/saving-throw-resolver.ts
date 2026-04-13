@@ -19,6 +19,7 @@ import {
   type ConditionDuration,
 } from "../../../../../domain/entities/combat/conditions.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
+import { isSavingThrowSuccess } from "../../../../../domain/rules/advantage.js";
 import { normalizeResources, getPosition, setPosition, getActiveEffects, isConditionImmuneByEffects, removeActiveEffectById } from "../../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
@@ -342,7 +343,7 @@ export class SavingThrowResolver {
     }
     const rawRoll = roll.total;
     const total = rawRoll + totalModifier;
-    const success = total >= action.dc;
+    const success = isSavingThrowSuccess(rawRoll, total, action.dc);
 
     if (this.debugLogsEnabled) {
       console.log(
@@ -402,6 +403,23 @@ export class SavingThrowResolver {
             await breakConcentration(targetCombatant, encounterId, this.combatRepo);
           }
         }
+      }
+    }
+
+    // Apply speed modifier (e.g., Stunning Strike partial — speed halved)
+    if (outcome.speedModifier !== undefined) {
+      const combatants = outcome.conditions
+        ? [] // already fetched above, reuse targetCombatant
+        : await this.combatRepo.listCombatants(encounterId);
+      const targetCombatant = outcome.conditions
+        ? findCombatantByEntityId(await this.combatRepo.listCombatants(encounterId), action.actorId)
+        : findCombatantByEntityId(combatants, action.actorId);
+      if (targetCombatant) {
+        const res = normalizeResources(targetCombatant.resources);
+        (res as Record<string, unknown>).speedModifier = outcome.speedModifier;
+        await this.combatRepo.updateCombatantState(targetCombatant.id, {
+          resources: res as any,
+        });
       }
     }
 
