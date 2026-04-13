@@ -43,15 +43,24 @@ function movementLeavesReach(
   return crossesThroughReach({ from, to }, observerPosition, observerReach);
 }
 
+function getCombatantFaction(c: CombatantStateRecord): string | null {
+  return c.character?.faction ?? c.monster?.faction ?? c.npc?.faction ?? null;
+}
+
 export function detectOpportunityAttacks(input: DetectOpportunityAttacksInput): OpportunityAttackDetection[] {
   const actorResources = normalizeResources(input.actor.resources);
   const isDisengaged = readBoolean(actorResources, "disengaged") ?? false;
+  const actorFaction = getCombatantFaction(input.actor);
 
   const detections: OpportunityAttackDetection[] = [];
 
   for (const other of input.combatants) {
     if (other.id === input.actor.id) continue;
     if (other.hpCurrent <= 0) continue;
+
+    // D&D 5e 2024: OAs only trigger from hostile creatures — skip same-faction allies
+    const otherFaction = getCombatantFaction(other);
+    if (actorFaction && otherFaction && actorFaction === otherFaction) continue;
 
     const otherResources = normalizeResources(other.resources);
     const otherPosition = getPosition(otherResources);

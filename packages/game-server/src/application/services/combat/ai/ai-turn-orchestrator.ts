@@ -191,10 +191,10 @@ export class AiTurnOrchestrator {
 
       // For low-level spells (1-2), counter if creature has 2+ spell slots remaining
       const resources = combatantState.resources as Record<string, unknown> | undefined;
-      const spellSlots = resources?.spellSlots as Record<string, number> | undefined;
-      const totalSlotsRemaining = spellSlots
-        ? Object.values(spellSlots).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0)
-        : 0;
+      const resourcePools = (resources?.resourcePools ?? []) as Array<{ name: string; current: number; max: number }>;
+      const totalSlotsRemaining = resourcePools
+        .filter((p) => p.name.startsWith("spellSlot_") || p.name === "pactMagic")
+        .reduce((sum, p) => sum + (typeof p.current === "number" ? p.current : 0), 0);
 
       if (totalSlotsRemaining >= 2) {
         this.aiLog(
