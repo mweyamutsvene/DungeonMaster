@@ -1,3 +1,4 @@
+import { CopilotProvider } from "./copilot-provider.js";
 import { GitHubModelsProvider } from "./github-models-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
 import { OpenAiProvider } from "./openai-provider.js";
@@ -44,6 +45,12 @@ export function createLlmProviderFromEnv(): LlmProvider | undefined {
     });
   }
 
+  if (provider === "copilot") {
+    return new CopilotProvider({
+      defaultTimeoutMs: Number(process.env.DM_LLM_TIMEOUT_MS ?? 60000),
+    });
+  }
+
   return undefined;
 }
 
@@ -51,5 +58,6 @@ export function getDefaultModelFromEnv(): string | undefined {
   const provider = (process.env.DM_LLM_PROVIDER ?? "ollama").toLowerCase();
   if (provider === "github-models") return process.env.DM_GITHUB_MODELS_MODEL;
   if (provider === "openai") return process.env.DM_OPENAI_MODEL;
+  if (provider === "copilot") return process.env.DM_COPILOT_MODEL ?? "gpt-4.1";
   return process.env.DM_OLLAMA_MODEL;
 }

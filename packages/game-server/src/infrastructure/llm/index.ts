@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./ollama-provider.js";
+export * from "./copilot-provider.js";
 export * from "./github-models-provider.js";
 export * from "./factory.js";
 export * from "./debug.js";
