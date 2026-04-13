@@ -422,7 +422,7 @@ export class AiTurnOrchestrator {
 
     // Set up attacksAllowedThisTurn for Extra Attack / Multiattack
     const attacksPerAction = this.computeAttacksPerAction(aiCombatant, entityData);
-    if (attacksPerAction > 1) {
+    {
       const updatedResources = setAttacksAllowed(currentAiCombatant.resources, attacksPerAction);
       await this.combat.updateCombatantState(currentAiCombatant.id, { resources: updatedResources });
       currentAiCombatant = { ...currentAiCombatant, resources: updatedResources };

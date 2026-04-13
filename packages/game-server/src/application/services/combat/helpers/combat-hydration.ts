@@ -127,6 +127,7 @@ export function extractActionEconomy(
     dashed: isFreshEconomy ? false : (resources as any).dashed ?? false,
     disengaged: isFreshEconomy ? false : (resources as any).disengaged ?? false,
     attacksUsedThisTurn: isFreshEconomy ? 0 : (resources as any).attacksUsedThisTurn ?? 0,
+    attacksAllowedThisTurn: isFreshEconomy ? 1 : (resources as any).attacksAllowedThisTurn ?? 1,
     sneakAttackUsedThisTurn: isFreshEconomy ? false : (resources as any).sneakAttackUsedThisTurn ?? false,
     stunningStrikeUsedThisTurn: isFreshEconomy ? false : (resources as any).stunningStrikeUsedThisTurn ?? false,
     rageAttackedThisTurn: isFreshEconomy ? false : (resources as any).rageAttackedThisTurn ?? false,

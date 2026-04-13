@@ -209,7 +209,8 @@ export function resetTurnResources(resources: JsonValue): JsonValue {
     // Bonus action spell restriction (D&D 5e 2024): reset each turn
     bonusActionSpellCastThisTurn: false,
     actionSpellCastThisTurn: false,
-    // Note: attacksAllowedThisTurn should be set separately based on character features
+    // Reset attacks allowed to default 1; lazy-init in attack handlers re-derives from class features
+    attacksAllowedThisTurn: 1,
   } as JsonValue;
 }
 
