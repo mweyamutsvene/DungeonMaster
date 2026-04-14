@@ -866,6 +866,31 @@ export class RollStateMachine {
       }
     }
 
+    // Append active effect damage bonuses (Rage, Hex, etc.) to displayed formula
+    {
+      const attackerEffects = getActiveEffects(actorCombatantForEnhancements?.resources ?? {});
+      const isMelee = action.weaponSpec?.kind === "melee";
+      const isRanged = action.weaponSpec?.kind === "ranged";
+      const dmgEffects = attackerEffects.filter(
+        e => (e.type === 'bonus' || e.type === 'penalty')
+          && (e.target === 'damage_rolls'
+            || (e.target === 'melee_damage_rolls' && isMelee)
+            || (e.target === 'ranged_damage_rolls' && isRanged))
+          && (!e.targetCombatantId || e.targetCombatantId === targetId)
+      );
+      for (const eff of dmgEffects) {
+        const label = eff.source ?? "effect";
+        if (eff.value && eff.value > 0) {
+          const sign = eff.type === 'penalty' ? '-' : '+';
+          baseDamageFormula += `${sign}${eff.value}[${label}]`;
+        }
+        if (eff.diceValue) {
+          const sign = eff.type === 'penalty' ? '-' : '+';
+          baseDamageFormula += `${sign}${eff.diceValue.count}d${eff.diceValue.sides}[${label}]`;
+        }
+      }
+    }
+
     // On critical hit, double ALL damage dice (weapon + sneak attack per 5e 2024)
     const damageFormula = isCritical ? doubleDiceInFormula(baseDamageFormula) : baseDamageFormula;
 
