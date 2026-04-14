@@ -70,7 +70,7 @@ export function resetChannelDivinityOnShortRest(
  * D&D 5e 2024: 2d8 for 1st-level slot, +1d8 per slot level above 1st.
  */
 export function divineSmiteDice(slotLevel: number): number {
-  return Math.min(1 + slotLevel, 6); // 2d8 at 1st, 3d8 at 2nd, ... 6d8 at 5th
+  return Math.min(1 + slotLevel, 5); // 2d8 at 1st, 3d8 at 2nd, ... 5d8 at 4th+ (max 5d8 per 2024 rules)
 }
 
 /**
@@ -128,10 +128,10 @@ export const PALADIN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       displayName: "Divine Smite",
       patterns: [/\bdivine\s*smite\b/],
       minLevel: 2,
-      // No resourceCost here — spell slot validation is done in the roll-state-machine
-      // because Divine Smite can use ANY available spell slot level (1-5).
       requiresMelee: true,
       trigger: "onHit",
+      requiresBonusActionAvailable: true,
+      requiresAnySpellSlot: true,
     },
   ],
 };
@@ -164,18 +164,7 @@ export const Paladin: CharacterClassDefinition = {
 
     return pools;
   },
-  // resourcePoolFactory preserves original switch-case order: CD first, then LoH.
-  resourcePoolFactory: (level) => {
-    const pools: ResourcePool[] = [];
 
-    const cd = createChannelDivinityState(level);
-    if (cd.pool.max > 0) pools.push(cd.pool);
-
-    const loh = createLayOnHandsState(level);
-    if (loh.pool.max > 0) pools.push(loh.pool);
-
-    return pools;
-  },
   restRefreshPolicy: [
     { poolKey: "layOnHands", refreshOn: "long", computeMax: (level) => layOnHandsPoolForLevel(level) },
     { poolKey: "channelDivinity:paladin", refreshOn: "both", computeMax: (level) => paladinChannelDivinityUsesForLevel(level) },

@@ -95,13 +95,38 @@ import { HitRiderResolver } from "./rolls/hit-rider-resolver.js";
 import { DamageResolver } from "./rolls/damage-resolver.js";
 
 /**
+ * Resolve the effective d20 roll value considering advantage/disadvantage.
+ * When 2 values are provided and rollMode is advantage → take higher; disadvantage → take lower.
+ * Falls back to the first value when only 1 is provided (backward-compatible with single-roll submissions).
+ */
+export function resolveD20Roll(
+  command: RollResultCommand,
+  rollMode: "normal" | "advantage" | "disadvantage" | undefined,
+): { effective: number; rolls: number[] } {
+  const values: number[] = command.values
+    ? command.values.slice(0, 2)
+    : command.value != null
+      ? [command.value]
+      : [0];
+  if (values.length === 0) return { effective: 0, rolls: [0] };
+  const mode = rollMode ?? "normal";
+  if (mode === "advantage" && values.length >= 2) {
+    return { effective: Math.max(values[0]!, values[1]!), rolls: values };
+  }
+  if (mode === "disadvantage" && values.length >= 2) {
+    return { effective: Math.min(values[0]!, values[1]!), rolls: values };
+  }
+  return { effective: values[0]!, rolls: values };
+}
+
+/**
  * Load session entities and build an LlmRoster.
  * Shared by TabletopCombatService, RollStateMachine, and ActionDispatcher.
  */
 export async function loadRoster(
   deps: Pick<TabletopCombatServiceDeps, "characters" | "monsters" | "npcs">,
   sessionId: string,
-) {
+): Promise<LoadRosterResult> {
   const characters = await deps.characters.listBySession(sessionId);
   const monsters = await deps.monsters.listBySession(sessionId);
   const npcs = await deps.npcs.listBySession(sessionId);
@@ -114,6 +139,14 @@ export async function loadRoster(
 
   return { characters, monsters, npcs, roster };
 }
+
+/** Return type of loadRoster — reused to pass pre-loaded data downstream. */
+export type LoadRosterResult = {
+  characters: SessionCharacterRecord[];
+  monsters: SessionMonsterRecord[];
+  npcs: SessionNPCRecord[];
+  roster: LlmRoster;
+};
 
 // ----- RollStateMachine -----
 
@@ -193,13 +226,16 @@ export class RollStateMachine {
    * Process a roll result (initiative, attack, damage, death save, or saving throw).
    * Routes to the appropriate handler based on the pending action type.
    * SAVING_THROW actions are auto-resolved (no player roll needed).
+   *
+   * @param preloadedRoster - Optional pre-loaded roster to avoid redundant DB queries.
    */
   async processRollResult(
     sessionId: string,
     text: string,
     actorId: string,
+    preloadedRoster?: LoadRosterResult,
   ): Promise<CombatStartedResult | AttackResult | DamageResult | DeathSaveResult | SavingThrowAutoResult> {
-    const { characters, monsters, npcs, roster } = await loadRoster(this.deps, sessionId);
+    const { characters, monsters, npcs, roster } = preloadedRoster ?? await loadRoster(this.deps, sessionId);
 
     // Get pending action
     const encounters = await this.deps.combatRepo.listEncountersBySession(sessionId);
@@ -258,28 +294,48 @@ export class RollStateMachine {
   private async parseRollValue(text: string, expectedRollType: string, roster: LlmRoster): Promise<RollResultCommand> {
     const D20_ROLL_TYPES = new Set(["attack", "initiative", "deathSave"]);
 
-    const numberFromText = (() => {
-      const m = text.match(/\b(\d{1,3})\b/);
-      if (!m) return null;
-      const n = Number(m[1]);
-      return Number.isFinite(n) ? n : null;
+    // Extract ALL d20-range numbers from text (supports "15 and 8", "15, 8", "15 8")
+    const d20NumbersFromText = (() => {
+      const matches = text.match(/\b(\d{1,3})\b/g);
+      if (!matches) return [];
+      return matches.map(Number).filter((n) => Number.isFinite(n));
     })();
+    const numberFromText = d20NumbersFromText.length > 0 ? d20NumbersFromText[0]! : null;
 
     if (numberFromText !== null && D20_ROLL_TYPES.has(expectedRollType) && (numberFromText < 1 || numberFromText > 20)) {
       throw new ValidationError(
         `Invalid d20 roll: ${numberFromText}. A d20 roll must be between 1 and 20.`,
       );
     }
+    // Validate second value for advantage/disadvantage rolls
+    if (d20NumbersFromText.length >= 2 && D20_ROLL_TYPES.has(expectedRollType)) {
+      const second = d20NumbersFromText[1]!;
+      if (second < 1 || second > 20) {
+        throw new ValidationError(
+          `Invalid d20 roll: ${second}. A d20 roll must be between 1 and 20.`,
+        );
+      }
+    }
 
     const looksLikeARoll = /\broll(?:ed)?\b/i.test(text);
 
     if (looksLikeARoll && numberFromText !== null) {
-      return { kind: "rollResult" as const, value: numberFromText, rollType: expectedRollType as RollResultCommand["rollType"] };
+      return {
+        kind: "rollResult" as const,
+        value: numberFromText,
+        values: d20NumbersFromText.length >= 2 ? d20NumbersFromText.slice(0, 2) : undefined,
+        rollType: expectedRollType as RollResultCommand["rollType"],
+      };
     }
 
     if (!this.deps.intentParser) {
       if (numberFromText !== null) {
-        return { kind: "rollResult" as const, value: numberFromText, rollType: expectedRollType as RollResultCommand["rollType"] };
+        return {
+          kind: "rollResult" as const,
+          value: numberFromText,
+          values: d20NumbersFromText.length >= 2 ? d20NumbersFromText.slice(0, 2) : undefined,
+          rollType: expectedRollType as RollResultCommand["rollType"],
+        };
       }
       throw new ValidationError("Could not parse roll value from text and LLM is not configured");
     }
@@ -350,7 +406,12 @@ export class RollStateMachine {
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],
   ): Promise<AttackResult> {
-    const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
+    const { effective: rollValue, rolls: d20Rolls } = resolveD20Roll(command, action.rollMode);
+    const showBothRolls = d20Rolls.length >= 2 && action.rollMode && action.rollMode !== "normal";
+    // Format prefix showing both dice when advantage/disadvantage: "[15, 8] → 15"
+    const rollPrefix = showBothRolls
+      ? `[${d20Rolls[0]}, ${d20Rolls[1]}] → ${rollValue}`
+      : `${rollValue}`;
 
     const targetId = action.targetId || action.target;
     const target =
@@ -537,7 +598,7 @@ export class RollStateMachine {
           targetHpRemaining: (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0,
           requiresPlayerInput: true,
           actionComplete: false,
-          message: `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Spend 1 Luck Point to reroll?`,
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Spend 1 Luck Point to reroll?`,
           pendingActionId,
           luckyPrompt: {
             pendingActionId,
@@ -562,10 +623,12 @@ export class RollStateMachine {
           weaponSpec: action.weaponSpec,
           bonusAction: "flurry-of-blows",
           flurryStrike: 2,
+          rollMode: action.rollMode,
         };
 
         await this.deps.combatRepo.setPendingAction(encounter.id, pendingAction2);
 
+        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
         return {
           rollType: "attack",
           rawRoll: rollValue,
@@ -577,8 +640,8 @@ export class RollStateMachine {
           requiresPlayerInput: true,
           actionComplete: false,
           type: "REQUEST_ROLL",
-          diceNeeded: "d20",
-          message: `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Second strike: Roll a d20.`,
+          diceNeeded: followUpDice,
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Second strike: Roll a ${followUpDice}.`,
         };
       }
 
@@ -595,10 +658,12 @@ export class RollStateMachine {
           weaponSpec: action.weaponSpec,
           spellStrike: nextStrike,
           spellStrikeTotal: action.spellStrikeTotal,
+          rollMode: action.rollMode,
         };
 
         await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
+        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
         return {
           rollType: "attack",
           rawRoll: rollValue,
@@ -610,8 +675,8 @@ export class RollStateMachine {
           requiresPlayerInput: true,
           actionComplete: false,
           type: "REQUEST_ROLL",
-          diceNeeded: "d20",
-          message: `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20.`,
+          diceNeeded: followUpDice,
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
         };
       }
 
@@ -661,7 +726,7 @@ export class RollStateMachine {
 
       const missMessage = isCriticalMiss
         ? `Natural 1! Critical Miss!`
-        : `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss!${grazeSuffix}`;
+        : `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss!${grazeSuffix}`;
 
       // Drop thrown weapon on the ground at target position (miss)
       if (action.weaponSpec?.isThrownAttack) {
@@ -759,6 +824,7 @@ export class RollStateMachine {
           getAllCombatTextProfiles(),
           action.bonusAction,
           (actorChar?.sheet as any)?.subclass ?? "",
+          actorResForEnhancements.bonusActionUsed === true,
         )
       : [];
 
@@ -776,9 +842,12 @@ export class RollStateMachine {
       isCritical,
       bonusAction: action.bonusAction,
       flurryStrike: action.flurryStrike,
+      rollMode: action.rollMode,
       sneakAttackDice: sneakAttackDiceCount > 0 ? sneakAttackDiceCount : undefined,
       spellStrike: action.spellStrike,
       spellStrikeTotal: action.spellStrikeTotal,
+      // Carry on-hit spell effects from attack action (e.g. Guiding Bolt)
+      spellOnHitEffects: action.spellOnHitEffects,
       // Enhancements are built at damage time from player opt-in keywords, not here
     };
 
@@ -812,7 +881,7 @@ export class RollStateMachine {
 
     const hitMessage = isCritical
       ? `Natural 20! Critical Hit! Roll ${damageFormula} for damage.`
-      : `${rollValue} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Hit! Roll ${damageFormula} for damage.`;
+      : `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Hit! Roll ${damageFormula} for damage.`;
 
     return {
       rollType: "damage",

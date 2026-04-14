@@ -12,7 +12,34 @@
  *   3. Done — the text parser and action dispatcher use profiles automatically.
  */
 
+import type { ResourcePool } from "../combat/resource-pool.js";
+
 // ----- Types -----
+
+/**
+ * Typed combat resources available to reaction detectors.
+ * Contains resource pools + boolean flags for prepared spells / equipment.
+ * The index signature preserves extensibility for ad-hoc properties.
+ */
+export interface ReactionResources {
+  /** Resource pools (spell slots, ki, pact magic, etc.). */
+  resourcePools?: readonly ResourcePool[];
+  /** Pact Magic slot level (warlock). */
+  pactSlotLevel?: number;
+  /** Spell-prepared flags set by buildCombatResources. */
+  hasShieldPrepared?: boolean;
+  hasSilveryBarbsPrepared?: boolean;
+  hasAbsorbElementsPrepared?: boolean;
+  hasCounterspellPrepared?: boolean;
+  hasHellishRebukePrepared?: boolean;
+  /** Equipment/fighting-style flags for ally-protection reactions. */
+  hasProtectionStyle?: boolean;
+  hasInterceptionStyle?: boolean;
+  hasShieldEquipped?: boolean;
+  hasWeaponEquipped?: boolean;
+  /** Allow additional flags for extensibility. */
+  [key: string]: unknown;
+}
 
 /** Action economy categories that determine which handler receives the action. */
 export type CombatActionCategory = "bonusAction" | "classAction";
@@ -46,7 +73,7 @@ export interface AttackReactionInput {
   /** Target's ability scores. */
   abilityScores: Record<string, number>;
   /** Target's combat resources (resource pools, flags, etc.). */
-  resources: Record<string, unknown>;
+  resources: ReactionResources;
   /** Whether the target has their reaction available. */
   hasReaction: boolean;
   /** Whether the target is a player character. */
@@ -106,7 +133,7 @@ export interface DamageReactionInput {
   /** Target's ability scores. */
   abilityScores: Record<string, number>;
   /** Target's combat resources (resource pools, flags, etc.). */
-  resources: Record<string, unknown>;
+  resources: ReactionResources;
   /** Whether the target has their reaction available. */
   hasReaction: boolean;
   /** Whether the target is a player character. */
@@ -162,7 +189,7 @@ export interface SpellReactionInput {
   /** Reactor's ability scores. */
   abilityScores: Record<string, number>;
   /** Reactor's combat resources (resource pools, flags, etc.). */
-  resources: Record<string, unknown>;
+  resources: ReactionResources;
   /** Whether the reactor has their reaction available. */
   hasReaction: boolean;
   /** Whether the reactor is a player character. */
@@ -293,6 +320,10 @@ export interface AttackEnhancementDef {
   requiresBonusAction?: string;
   /** If set, enhancement requires the character to have this subclass (e.g. "open-hand"). */
   requiresSubclass?: string;
+  /** If true, enhancement requires bonus action to be available this turn (e.g. Divine Smite). */
+  requiresBonusActionAvailable?: boolean;
+  /** If true, enhancement requires at least one spell slot (levels 1-5) to be available. */
+  requiresAnySpellSlot?: boolean;
 }
 
 /**
@@ -438,6 +469,7 @@ export function getEligibleOnHitEnhancements(
   profiles: readonly ClassCombatTextProfile[],
   bonusAction?: string,
   subclass?: string,
+  bonusActionUsed?: boolean,
 ): EligibleOnHitEnhancement[] {
   const matchingProfiles = profiles.filter((p) => p.classId === classId.toLowerCase());
   if (matchingProfiles.length === 0) return [];
@@ -462,6 +494,17 @@ export function getEligibleOnHitEnhancements(
       if (enhancement.resourceCost) {
         const pool = resourcePools.find((p) => p.name === enhancement.resourceCost!.pool);
         if (!pool || pool.current < enhancement.resourceCost.amount) continue;
+      }
+      // Bonus action economy gate (e.g. Divine Smite costs a BA)
+      if (enhancement.requiresBonusActionAvailable && bonusActionUsed) continue;
+      // Spell slot gate (e.g. Divine Smite needs at least 1 spell slot)
+      if (enhancement.requiresAnySpellSlot) {
+        let hasSlot = false;
+        for (let sl = 1; sl <= 5; sl++) {
+          const pool = resourcePools.find((p) => p.name === `spellSlot_${sl}`);
+          if (pool && pool.current > 0) { hasSlot = true; break; }
+        }
+        if (!hasSlot) continue;
       }
 
       results.push({

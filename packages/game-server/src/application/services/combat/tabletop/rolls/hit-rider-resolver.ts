@@ -92,12 +92,20 @@ export class HitRiderResolver {
     const eligibleDefs = onHitDefs.filter((def) => {
       if (actorLevel < def.minLevel) return false;
       if (def.requiresSubclass && normalizeId(def.requiresSubclass) !== normalizeId(actorSubclass ?? "")) return false;
-      if (def.requiresMelee && weaponSpec?.kind !== "melee") return false;
+      if (def.requiresMelee && (weaponSpec?.kind ?? "melee") !== "melee") return false;
       if (def.requiresBonusAction && bonusAction !== def.requiresBonusAction) return false;
       if (def.turnTrackingKey && actorRes[def.turnTrackingKey] === true) return false;
       if (def.resourceCost) {
         const pool = actorResourcePools.find((p) => p.name === def.resourceCost!.pool);
         if (!pool || pool.current < def.resourceCost.amount) return false;
+      }
+      if (def.requiresBonusActionAvailable && !hasBonusActionAvailable(actorRes)) return false;
+      if (def.requiresAnySpellSlot) {
+        let hasSlot = false;
+        for (let sl = 1; sl <= 5; sl++) {
+          if (hasResourceAvailable(actorRes, `spellSlot_${sl}`, 1)) { hasSlot = true; break; }
+        }
+        if (!hasSlot) return false;
       }
       return true;
     });
