@@ -102,7 +102,18 @@ export class LayOnHandsExecutor implements AbilityExecutor {
         };
       }
 
-      const healAmount = Math.min(missingHP, poolRemaining);
+      // Parse player-specified amount from text (e.g. "lay on hands 10", "heal 15 hp")
+      let requestedAmount: number | undefined;
+      const text = (params?.text as string) ?? "";
+      const amountMatch = text.match(/\b(\d+)\s*(?:hp|hit\s*points?)?\b/i);
+      if (amountMatch) {
+        const parsed = parseInt(amountMatch[1], 10);
+        if (parsed > 0) requestedAmount = parsed;
+      }
+
+      // Heal the requested amount (if specified), capped by missing HP and pool remaining
+      const maxHeal = Math.min(missingHP, poolRemaining);
+      const healAmount = requestedAmount ? Math.min(requestedAmount, maxHeal) : maxHeal;
       const newHP = currentHP + healAmount;
       const targetLabel = isSelf ? "" : ` on ${healTarget.getName()}`;
 
