@@ -173,7 +173,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   const sessions = new GameSessionService(deps.sessionsRepo, deps.eventsRepo);
-  const characters = new CharacterService(deps.sessionsRepo, deps.charactersRepo, deps.eventsRepo, deps.diceRoller);
+  const diceRoller = deps.diceRoller ?? new RandomDiceRoller();
+  const characters = new CharacterService(deps.sessionsRepo, deps.charactersRepo, deps.eventsRepo, diceRoller);
   const defaultItemDefinitionsRepo: IItemDefinitionRepository = {
     findById: async () => null,
     findByName: async () => null,
@@ -192,7 +193,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     npcs: deps.npcsRepo,
   });
   const victoryPolicy = new BasicCombatVictoryPolicy(factionService);
-  const diceRoller = deps.diceRoller ?? new RandomDiceRoller();
 
   // Two-phase action service for reactions (moved up so CombatService can use it for cleanup)
   const pendingActionsRepo: PendingActionRepository = deps.prismaClient
@@ -290,7 +290,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     abilityRegistry,
     twoPhaseActions,
     pendingActionsRepo,
-    deps.diceRoller,
+    diceRoller,
     aiDecisionMaker,
     deps.eventsRepo,
     battlePlanService,
@@ -321,7 +321,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     narrativeGenerator: deps.narrativeGenerator,
     victoryPolicy,
     abilityRegistry,
-    diceRoller: deps.diceRoller,
+    diceRoller,
   });
 
   registerHealthRoutes(app);
@@ -333,7 +333,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     combatants,
     twoPhaseActions,
     aiOrchestrator,
-    diceRoller: deps.diceRoller,
+    diceRoller,
   });
   registerSessionRoutes(app, {
     sessions,
@@ -356,11 +356,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     intentParser: deps.intentParser,
     narrativeGenerator: deps.narrativeGenerator,
     characterGenerator: deps.characterGenerator,
-    diceRoller: deps.diceRoller,
+    diceRoller,
     itemLookup,
     createServicesForRepos: (repos) => {
       const sessionsService = new GameSessionService(repos.sessionsRepo, repos.eventsRepo);
-      const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo, deps.diceRoller);
+      const diceRollerInner = deps.diceRoller ?? new RandomDiceRoller();
+      const charactersService = new CharacterService(repos.sessionsRepo, repos.charactersRepo, repos.eventsRepo, diceRollerInner);
       const factionServiceInner = new FactionService({
         combat: repos.combatRepo,
         characters: repos.charactersRepo,
@@ -368,7 +369,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         npcs: repos.npcsRepo,
       });
       const victoryPolicyInner = new BasicCombatVictoryPolicy(factionServiceInner);
-      const diceRollerInner = deps.diceRoller ?? new RandomDiceRoller();
       const pendingActionsRepoInner = repos.pendingActionsRepo;
       const combatService = new CombatService(
         repos.sessionsRepo,
@@ -458,7 +458,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         abilityRegistryInner,
         twoPhaseService,
         pendingActionsRepoInner,
-        deps.diceRoller,
+        diceRollerInner,
         aiDecisionMakerInner,
         repos.eventsRepo,
         battlePlanServiceInner,
