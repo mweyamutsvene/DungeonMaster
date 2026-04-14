@@ -366,6 +366,17 @@ export class AiSpellDelivery {
         }
       }
       for (const tid of ids) {
+        // Detect caster-side damage riders (Hex, Hunter's Mark):
+        // Route to caster's resources with targetCombatantId scoped to victim.
+        const targetEntityId = (() => {
+          const c = combatants.find(x => x.id === tid);
+          return c?.characterId ?? c?.monsterId ?? c?.npcId ?? tid;
+        })();
+        const isCasterDamageRider =
+          appliesTo === 'target' &&
+          (ed.target === 'damage_rolls' || ed.target === 'melee_damage_rolls' || ed.target === 'ranged_damage_rolls') &&
+          (ed.type === 'bonus' || ed.type === 'penalty');
+
         const effect = createEffect(
           nanoid(),
           ed.type,
@@ -394,12 +405,14 @@ export class AiSpellDelivery {
                 }
               : undefined,
             triggerConditions: ed.triggerConditions,
+            targetCombatantId: isCasterDamageRider ? targetEntityId : undefined,
           },
         );
-        const tc = combatants.find((c) => c.id === tid);
-        if (tc) {
-          await this.deps.combat.updateCombatantState(tid, {
-            resources: addActiveEffectsToResources(tc.resources ?? {}, effect) as any,
+        const recipientId = isCasterDamageRider ? caster.id : tid;
+        const rc = combatants.find((c) => c.id === recipientId);
+        if (rc) {
+          await this.deps.combat.updateCombatantState(recipientId, {
+            resources: addActiveEffectsToResources(rc.resources ?? {}, effect) as any,
           });
           count++;
         }

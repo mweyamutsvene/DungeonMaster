@@ -9,10 +9,13 @@ import { findCombatantByName } from '../combat-text-parser.js';
 import { createEffect } from '../../../../../domain/entities/combat/effects.js';
 import { addActiveEffectsToResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
+import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
+import type { Ability } from '../../../../../domain/entities/core/ability-scores.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
+import type { JsonValue } from '../../../../types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 
 export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
@@ -68,10 +71,7 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
         if (castInfo.targetName) {
           const targetRef = findCombatantByName(castInfo.targetName, roster);
           if (targetRef) {
-            const tid =
-              (targetRef as any).characterId ??
-              (targetRef as any).monsterId ??
-              (targetRef as any).npcId;
+            const tid = getEntityIdFromRef(targetRef);
             const targetC = findCombatantByEntityId(combatants, tid);
             if (targetC) targetCombatantIds.push(targetC.id);
           }
@@ -100,9 +100,18 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       // Create ActiveEffect for each target
       for (const targetCId of targetCombatantIds) {
         const entityId = (() => {
-          const c = combatants.find((x: any) => x.id === targetCId);
+          const c = combatants.find(x => x.id === targetCId);
           return c?.characterId ?? c?.monsterId ?? c?.npcId ?? targetCId;
         })();
+
+        // Detect caster-side damage riders (Hex, Hunter's Mark):
+        // These spells target an enemy but the extra damage is dealt BY the caster.
+        // Route the effect to the caster's resources with targetCombatantId pointing
+        // to the victim so damage resolvers can scope the bonus per-target.
+        const isCasterDamageRider =
+          appliesTo === 'target' &&
+          (effDef.target === 'damage_rolls' || effDef.target === 'melee_damage_rolls' || effDef.target === 'ranged_damage_rolls') &&
+          (effDef.type === 'bonus' || effDef.type === 'penalty');
 
         // Resolve dynamic value sources (e.g., Heroism's temp HP = caster's spellcasting modifier)
         let resolvedValue = effDef.value;
@@ -127,37 +136,42 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
             description: `${castInfo.spellName} (${effDef.type} on ${effDef.target})`,
             triggerAt: effDef.triggerAt,
             saveToEnd: effDef.saveToEnd
-              ? { ability: effDef.saveToEnd.ability as any, dc: effDef.saveToEnd.dc }
+              ? { ability: effDef.saveToEnd.ability as Ability, dc: effDef.saveToEnd.dc }
               : undefined,
             conditionName: effDef.conditionName,
             triggerSave: effDef.triggerSave
               ? {
-                  ability: effDef.triggerSave.ability as any,
+                  ability: effDef.triggerSave.ability as Ability,
                   dc: effDef.triggerSave.dc,
                   halfDamageOnSave: effDef.triggerSave.halfDamageOnSave,
                 }
               : undefined,
             triggerConditions: effDef.triggerConditions,
             // For effects that target "attacks against this creature" (e.g., Dodge, Faerie Fire)
+            // OR caster-side damage riders scoped to a specific target (Hex, Hunter's Mark)
             targetCombatantId:
-              effDef.target === "attack_rolls" &&
-              (effDef.type === "advantage" || effDef.type === "disadvantage") &&
-              appliesTo === "enemies"
+              isCasterDamageRider
                 ? entityId
-                : undefined,
+                : effDef.target === "attack_rolls" &&
+                  (effDef.type === "advantage" || effDef.type === "disadvantage") &&
+                  appliesTo === "enemies"
+                  ? entityId
+                  : undefined,
           },
         );
 
-        const targetC = combatants.find((c: any) => c.id === targetCId);
-        if (targetC) {
-          const updatedResources = addActiveEffectsToResources(targetC.resources ?? {}, effect);
-          await deps.combatRepo.updateCombatantState(targetCId, {
-            resources: updatedResources as any,
+        // Caster-side damage riders go on the CASTER's resources (not the target's)
+        const recipientCId = isCasterDamageRider ? actorCombatant?.id : targetCId;
+        const recipientC = recipientCId ? combatants.find(c => c.id === recipientCId) : undefined;
+        if (recipientC) {
+          const updatedResources = addActiveEffectsToResources(recipientC.resources ?? {}, effect);
+          await deps.combatRepo.updateCombatantState(recipientC.id, {
+            resources: updatedResources as JsonValue,
           });
           if (!appliedTo.includes(entityId)) appliedTo.push(entityId);
           if (debugLogsEnabled)
             console.log(
-              `[BuffDebuffSpellDeliveryHandler] Applied effect "${effDef.type}→${effDef.target}" to ${targetCId} from ${castInfo.spellName}`,
+              `[BuffDebuffSpellDeliveryHandler] Applied effect "${effDef.type}→${effDef.target}" to ${recipientC.id}${isCasterDamageRider ? ' (caster, scoped to ' + entityId + ')' : ''} from ${castInfo.spellName}`,
             );
         }
       }
