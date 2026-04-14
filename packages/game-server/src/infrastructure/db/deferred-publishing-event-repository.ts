@@ -41,4 +41,11 @@ export class DeferredPublishingEventRepository implements IEventRepository {
   ): Promise<GameEventRecord[]> {
     return this.inner.listBySession(sessionId, input);
   }
+
+  async listByEncounter(
+    encounterId: string,
+    input?: { limit?: number; round?: number },
+  ): Promise<GameEventRecord[]> {
+    return this.inner.listByEncounter(encounterId, input);
+  }
 }

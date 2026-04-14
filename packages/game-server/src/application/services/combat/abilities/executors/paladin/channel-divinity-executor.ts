@@ -22,9 +22,7 @@ export class ChannelDivinityExecutor implements AbilityExecutor {
     const normalized = abilityId.toLowerCase().replace(/[^a-z0-9]+/g, "");
     return (
       normalized === "classpaladinchanneldivinity" ||
-      normalized === "classpaladinidivinesense" ||
-      normalized === "classpaladinidivinesense" ||
-      normalized === "classpaladinidivinesense" ||
+      normalized === "classpaladindivinesense" ||
       normalized === "divinesense"
     );
   }

@@ -94,10 +94,6 @@ export const Cleric: CharacterClassDefinition = {
     const cd = createChannelDivinityState(level);
     return cd.pool.max > 0 ? [cd.pool] : [];
   },
-  resourcePoolFactory: (level) => {
-    const cd = createChannelDivinityState(level);
-    return cd.pool.max > 0 ? [cd.pool] : [];
-  },
   restRefreshPolicy: [
     { poolKey: "channelDivinity:cleric", refreshOn: "both", computeMax: (level) => clericChannelDivinityUsesForLevel(level) },
   ],

@@ -16,30 +16,42 @@ describe('Death Saves', () => {
       const current: DeathSaves = { successes: 0, failures: 0 };
       const result = makeDeathSave(10, current);
       expect(result.outcome).toBe('success');
-      expect((result as any).criticalSuccess).toBe(false);
+      if (result.outcome === 'success') {
+        expect(result.criticalSuccess).toBe(false);
+      }
     });
 
     it('should fail on roll < 10', () => {
       const current: DeathSaves = { successes: 0, failures: 0 };
       const result = makeDeathSave(9, current);
       expect(result.outcome).toBe('failure');
-      expect((result as any).criticalFailure).toBe(false);
+      if (result.outcome === 'failure') {
+        expect(result.criticalFailure).toBe(false);
+      }
     });
 
     it('should critical success on natural 20 (regain 1 HP)', () => {
       const current: DeathSaves = { successes: 2, failures: 2 };
       const result = makeDeathSave(20, current);
       expect(result.outcome).toBe('success');
-      expect((result as any).criticalSuccess).toBe(true);
-      expect((result as any).hpRestored).toBe(1);
+      if (result.outcome === 'success') {
+        expect(result.criticalSuccess).toBe(true);
+        if (result.criticalSuccess === true) {
+          expect(result.hpRestored).toBe(1);
+        }
+      }
     });
 
     it('should critical fail on natural 1 (2 failures)', () => {
       const current: DeathSaves = { successes: 1, failures: 0 };
       const result = makeDeathSave(1, current);
       expect(result.outcome).toBe('failure');
-      expect((result as any).criticalFailure).toBe(true);
-      expect((result as any).failuresAdded).toBe(2);
+      if (result.outcome === 'failure') {
+        expect(result.criticalFailure).toBe(true);
+        if (result.criticalFailure === true) {
+          expect(result.failuresAdded).toBe(2);
+        }
+      }
     });
 
     it('should stabilize on 3rd success', () => {

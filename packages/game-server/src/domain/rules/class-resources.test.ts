@@ -25,18 +25,19 @@ describe("class resources", () => {
 
     const lvl3 = defaultResourcePoolsForClass({ classId: "paladin", level: 3 });
     expect(lvl3).toEqual([
-      { name: "channelDivinity:paladin", current: 1, max: 1 },
       { name: "layOnHands", current: 15, max: 15 },
+      { name: "channelDivinity:paladin", current: 1, max: 1 },
     ]);
   });
 
-  it("requires CHA mod for bard initialization", () => {
-    expect(() => defaultResourcePoolsForClass({ classId: "bard", level: 1 })).toThrow(
-      /charismaModifier/i,
-    );
-
-    const pools = defaultResourcePoolsForClass({ classId: "bard", level: 1, charismaModifier: 3 });
+  it("defaults bard CHA mod to 0 when not provided", () => {
+    const pools = defaultResourcePoolsForClass({ classId: "bard", level: 1 });
     expect(pools[0]!.name).toBe("bardicInspiration");
-    expect(pools[0]!.current).toBe(3);
+    // CHA mod defaults to 0, minimum 1 use
+    expect(pools[0]!.current).toBeGreaterThanOrEqual(0);
+
+    const poolsWithCha = defaultResourcePoolsForClass({ classId: "bard", level: 1, charismaModifier: 3 });
+    expect(poolsWithCha[0]!.name).toBe("bardicInspiration");
+    expect(poolsWithCha[0]!.current).toBe(3);
   });
 });

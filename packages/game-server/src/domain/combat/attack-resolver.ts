@@ -147,8 +147,7 @@ export function resolveAttack(
       : inferredDefault);
 
   // Compute feat modifiers early so they can influence the attack roll mode
-  const maybeFeatIds = (attacker as unknown as { getFeatIds?: () => readonly string[] }).getFeatIds;
-  const featIds = typeof maybeFeatIds === "function" ? maybeFeatIds.call(attacker) : [];
+  const featIds = attacker.getFeatIds();
   const featMods = computeFeatModifiers(featIds);
 
   let baseMode: RollMode = spec.mode ?? "normal";
@@ -171,17 +170,12 @@ export function resolveAttack(
 
   // Champion Fighter: expanded critical range (Improved Critical 19+, Superior Critical 18+)
   if (!critical) {
-    const maybeClassId = (attacker as unknown as { getClassId?: () => string | undefined }).getClassId;
-    const maybeSubclass = (attacker as unknown as { getSubclass?: () => string | undefined }).getSubclass;
-    const maybeLevel = (attacker as unknown as { getLevel?: () => number }).getLevel;
-    if (typeof maybeClassId === "function" && typeof maybeLevel === "function") {
-      const classId = maybeClassId.call(attacker);
-      const subclassId = typeof maybeSubclass === "function" ? maybeSubclass.call(attacker) : undefined;
-      const charLevel = maybeLevel.call(attacker);
-      if (classId && charLevel) {
-        const critThreshold = getCriticalHitThreshold(classId, charLevel, subclassId);
-        if (d20 >= critThreshold) critical = true;
-      }
+    const classId = attacker.getClassId();
+    const subclassId = attacker.getSubclass();
+    const charLevel = attacker.getLevel();
+    if (classId && charLevel) {
+      const critThreshold = getCriticalHitThreshold(classId, charLevel, subclassId);
+      if (d20 >= critThreshold) critical = true;
     }
   }
 

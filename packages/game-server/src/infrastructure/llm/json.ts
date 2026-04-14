@@ -1,12 +1,46 @@
 export function extractFirstJsonObject(text: string): unknown {
   const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
+  if (start === -1) {
     throw new Error("LLM output did not contain a JSON object");
   }
 
-  const candidate = text.slice(start, end + 1);
-  return JSON.parse(candidate);
+  // Track string state to handle braces inside JSON string values
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!;
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      if (inString) escaped = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        const candidate = text.slice(start, i + 1);
+        return JSON.parse(candidate);
+      }
+    }
+  }
+
+  throw new Error("LLM output did not contain a complete JSON object");
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

@@ -62,10 +62,9 @@ export const Wizard: CharacterClassDefinition = {
   },
   features: {
     "spellcasting": 1,
-    "arcane-recovery": 2,
+    "arcane-recovery": 1,
   },
   resourcesAtLevel: (level) => [createArcaneRecoveryState(level).pool],
-  resourcePoolFactory: (level) => [createArcaneRecoveryState(level).pool],
   restRefreshPolicy: [
     { poolKey: "arcaneRecovery", refreshOn: "long", computeMax: (level) => arcaneRecoveryUsesForLevel(level) },
   ],
@@ -95,9 +94,9 @@ const SHIELD_REACTION: AttackReactionDef = {
     if (input.resources.hasShieldPrepared !== true) return null;
 
     // Check level 1+ spell slot or Pact Magic availability
-    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
-    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    const pools = input.resources.resourcePools ?? [];
+    const hasSpellSlot = pools.some(p => p.name === "spellSlot_1" && p.current > 0);
+    const hasPactSlot = pools.some(p => p.name === "pactMagic" && p.current > 0);
     if (!hasSpellSlot && !hasPactSlot) return null;
 
     const newAC = input.targetAC + 5;
@@ -135,12 +134,12 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
     if (input.distance > 60) return null;
 
     // Check level 3+ spell slot or Pact Magic availability
-    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
+    const pools = input.resources.resourcePools ?? [];
     let bestSlotLevel = 0;
     let slotToSpend: string | undefined;
     for (const p of pools) {
-      const match = typeof (p as any).name === "string" ? (p as any).name.match(/^spellSlot_(\d+)$/) : null;
-      if (match && (p as any).current > 0) {
+      const match = p.name.match(/^spellSlot_(\d+)$/);
+      if (match && p.current > 0) {
         const slotLevel = parseInt(match[1], 10);
         if (slotLevel >= 3 && slotLevel > bestSlotLevel) {
           bestSlotLevel = slotLevel;
@@ -151,7 +150,7 @@ const COUNTERSPELL_REACTION: SpellReactionDef = {
     // Warlock Pact Magic fallback: use pact slot if no standard slot >= 3 qualifies
     if (bestSlotLevel === 0) {
       const pactSlotLevel = typeof input.resources.pactSlotLevel === "number" ? input.resources.pactSlotLevel : undefined;
-      const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+      const hasPactSlot = pools.some(p => p.name === "pactMagic" && p.current > 0);
       if (hasPactSlot && pactSlotLevel !== undefined && pactSlotLevel >= 3) {
         bestSlotLevel = pactSlotLevel;
         slotToSpend = "pactMagic";
@@ -207,9 +206,9 @@ const ABSORB_ELEMENTS_REACTION: DamageReactionDef = {
     if (!ABSORB_ELEMENTS_TYPES.has(input.damageType.toLowerCase())) return null;
 
     // Check level 1+ spell slot or Pact Magic availability
-    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
-    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    const pools = input.resources.resourcePools ?? [];
+    const hasSpellSlot = pools.some(p => p.name === "spellSlot_1" && p.current > 0);
+    const hasPactSlot = pools.some(p => p.name === "pactMagic" && p.current > 0);
     if (!hasSpellSlot && !hasPactSlot) return null;
 
     return {
@@ -251,9 +250,9 @@ const SILVERY_BARBS_REACTION: AttackReactionDef = {
     if (input.attackRoll < input.targetAC) return null;
 
     // Check level 1+ spell slot or Pact Magic availability
-    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
-    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    const pools = input.resources.resourcePools ?? [];
+    const hasSpellSlot = pools.some(p => p.name === "spellSlot_1" && p.current > 0);
+    const hasPactSlot = pools.some(p => p.name === "pactMagic" && p.current > 0);
     if (!hasSpellSlot && !hasPactSlot) return null;
 
     return {

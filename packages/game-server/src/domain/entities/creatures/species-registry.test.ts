@@ -86,9 +86,9 @@ describe("species-registry", () => {
   });
 
   describe("getAllSpecies", () => {
-    it("returns all 8 base species", () => {
+    it("returns all 10 base species", () => {
       const all = getAllSpecies();
-      expect(all.length).toBe(8);
+      expect(all.length).toBe(10);
       const names = all.map((s) => s.name);
       expect(names).toContain("Human");
       expect(names).toContain("Elf");
@@ -98,6 +98,8 @@ describe("species-registry", () => {
       expect(names).toContain("Gnome");
       expect(names).toContain("Orc");
       expect(names).toContain("Tiefling");
+      expect(names).toContain("Aasimar");
+      expect(names).toContain("Goliath");
     });
   });
 });

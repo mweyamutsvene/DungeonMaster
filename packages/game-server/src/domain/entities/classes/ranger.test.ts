@@ -6,10 +6,10 @@ import { tryMatchClassAction } from "./combat-text-profile.js";
 
 describe("Ranger features", () => {
   it("gates major features by level (up to 5) via features map", () => {
-    expect(classHasFeature("ranger", "spellcasting", 1)).toBe(false);
+    // D&D 5e 2024: Rangers get Spellcasting at level 1 (unlike 2014 which was level 2)
+    expect(classHasFeature("ranger", "spellcasting", 1)).toBe(true);
     expect(classHasFeature("ranger", "extra-attack", 1)).toBe(false);
 
-    expect(classHasFeature("ranger", "spellcasting", 2)).toBe(true);
     expect(classHasFeature("ranger", "extra-attack", 2)).toBe(false);
 
     expect(classHasFeature("ranger", "extra-attack", 4)).toBe(false);
@@ -31,8 +31,9 @@ describe("Ranger capabilitiesForLevel", () => {
     const names = caps.map(c => c.name);
     expect(names).toContain("Favored Enemy");
     expect(names).toContain("Weapon Mastery");
+    // D&D 5e 2024: Rangers get Spellcasting at level 1
+    expect(names).toContain("Spellcasting");
     expect(names).not.toContain("Fighting Style");
-    expect(names).not.toContain("Spellcasting");
     expect(names).not.toContain("Extra Attack");
   });
 

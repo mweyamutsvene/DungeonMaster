@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "dev": "tsx src/main.ts",
+    "agent:setup": "tsx src/agent-setup.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

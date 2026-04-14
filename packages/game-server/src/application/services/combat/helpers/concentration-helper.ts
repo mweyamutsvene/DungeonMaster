@@ -140,25 +140,6 @@ export function computeConSaveModifier(
 }
 
 // ──────── Conditions that break concentration (D&D 5e 2024) ─────────
-
-/**
- * Conditions that automatically end concentration.
- *
- * In D&D 5e 2024, concentration ends if the caster is Incapacitated.
- * The following conditions include the Incapacitated condition:
- *   Incapacitated, Paralyzed, Petrified, Stunned, Unconscious
- */
-const CONCENTRATION_BREAKING_CONDITIONS: ReadonlySet<string> = new Set([
-  "Incapacitated",
-  "Paralyzed",
-  "Petrified",
-  "Stunned",
-  "Unconscious",
-]);
-
-/**
- * Returns true if the given condition should automatically break concentration.
- */
-export function isConcentrationBreakingCondition(condition: string): boolean {
-  return CONCENTRATION_BREAKING_CONDITIONS.has(condition);
-}
+// Re-exported from domain for backward compatibility.
+// Use the canonical domain version: domain/rules/concentration.ts
+export { isConcentrationBreakingCondition } from "../../../../domain/rules/concentration.js";

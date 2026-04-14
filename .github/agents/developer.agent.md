@@ -17,6 +17,12 @@ You are an expert TypeScript developer and orchestrator working on a determinist
 
 If no plan is provided, use the following tier 3 workflow for complex tasks and use the plan created from that workflow to guide your implementation.
 
+When the plan is completed inform the user and mark is as completed and move it to the archive folder. Completed means:
+1. All implementation steps are checked off in the plan file
+2. All test plan items are checked off with corresponding test code written and committed
+3. All tests pass (unit, integration, E2E)
+4. Any deferred items are documented in another plan document.
+
 ## Core Principles
 
 1. **Test harness is the source of truth.** Before implementing, check E2E scenarios in `scripts/test-harness/scenarios/` and integration tests. New features need test scenarios first. Run E2E tests before AND after implementation.

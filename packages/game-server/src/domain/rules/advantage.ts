@@ -63,3 +63,34 @@ export function d20Test(
     natural1: outcome.chosen === 1,
   };
 }
+
+/**
+ * Determine saving throw success with D&D 5e 2024 auto-success/auto-fail rules.
+ * - Natural 20 on the d20 = automatic success regardless of total vs DC.
+ * - Natural 1 on the d20 = automatic failure regardless of total vs DC.
+ * - Otherwise, success = total >= dc.
+ *
+ * Use this for saving throws instead of plain `total >= dc` comparison.
+ */
+export function isSavingThrowSuccess(rawRoll: number, total: number, dc: number): boolean {
+  if (rawRoll === 20) return true;
+  if (rawRoll === 1) return false;
+  return total >= dc;
+}
+
+/**
+ * Wrapper around d20Test() for saving throws that applies D&D 5e 2024
+ * natural 20 auto-success and natural 1 auto-fail rules.
+ */
+export function savingThrowTest(
+  diceRoller: DiceRoller,
+  dc: number,
+  modifier = 0,
+  mode: RollMode = "normal",
+): D20TestResult {
+  const result = d20Test(diceRoller, dc, modifier, mode);
+  return {
+    ...result,
+    success: isSavingThrowSuccess(result.chosen, result.total, dc),
+  };
+}

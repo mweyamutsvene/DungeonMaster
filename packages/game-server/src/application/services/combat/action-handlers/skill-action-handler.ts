@@ -12,7 +12,6 @@ import {
 } from "../../../../domain/entities/combat/conditions.js";
 import {
   normalizeResources,
-  hasSpentAction,
   spendAction,
 } from "../helpers/resource-utils.js";
 
@@ -20,11 +19,10 @@ import { NotFoundError, ValidationError } from "../../../errors.js";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
 import type { IEventRepository } from "../../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../../repositories/game-session-repository.js";
-import type { CombatEncounterRecord, CombatantStateRecord } from "../../../types.js";
+import type { CombatantStateRecord } from "../../../types.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { CombatantRef } from "../helpers/combatant-ref.js";
-import { findCombatantStateByRef } from "../helpers/combatant-ref.js";
-import { resolveEncounterOrThrow } from "../helpers/encounter-resolver.js";
+
 import {
   type HideActionInput,
   type SearchActionInput,
@@ -32,6 +30,7 @@ import {
   hashStringToInt32,
   abilityCheckEffectMods,
 } from "../helpers/combat-utils.js";
+import { resolveActiveActorOrThrow } from "../helpers/active-actor-resolver.js";
 
 export class SkillActionHandler {
   constructor(
@@ -44,35 +43,8 @@ export class SkillActionHandler {
   private async resolveActiveActorOrThrow(
     sessionId: string,
     input: { encounterId?: string; actor: CombatantRef; skipActionCheck?: boolean },
-  ): Promise<{
-    encounter: CombatEncounterRecord;
-    combatants: CombatantStateRecord[];
-    active: CombatantStateRecord;
-    actorState: CombatantStateRecord;
-  }> {
-    const encounter = await resolveEncounterOrThrow(this.sessions, this.combat, sessionId, input.encounterId);
-    const combatants = await this.combat.listCombatants(encounter.id);
-
-    const active = combatants[encounter.turn] ?? null;
-    if (!active) {
-      throw new ValidationError(
-        `Encounter turn index out of range: turn=${encounter.turn} combatants=${combatants.length}`,
-      );
-    }
-
-    const actorState = findCombatantStateByRef(combatants, input.actor);
-    if (!actorState) throw new NotFoundError("Actor not found in encounter");
-
-    if (actorState.id !== active.id) {
-      throw new ValidationError("It is not the actor's turn");
-    }
-
-    // Skip action check for bonus action abilities like Patient Defense
-    if (!input.skipActionCheck && hasSpentAction(actorState.resources)) {
-      throw new ValidationError("Actor has already spent their action this turn");
-    }
-
-    return { encounter, combatants, active, actorState };
+  ) {
+    return resolveActiveActorOrThrow(this.sessions, this.combat, sessionId, input);
   }
 
   async hide(sessionId: string, input: HideActionInput): Promise<{

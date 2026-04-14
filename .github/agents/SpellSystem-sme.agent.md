@@ -1,6 +1,6 @@
 ---
 name: SpellSystem-SME
-description: "Use when researching or reviewing changes to the spell system: spell casting pipeline, spell delivery modes, zone effects, concentration mechanics, spell entity definitions. Subject matter expert for spell-related combat flow."
+description: "Use when researching or reviewing changes to the spell system: spell casting pipeline, spell delivery modes, zone effects, concentration mechanics. Subject matter expert for spell-related combat flow. NOTE: Spell entity definitions/catalog → SpellCatalog-SME."
 tools: [read, search, edit]
 user-invocable: false
 agents: []
@@ -39,9 +39,39 @@ The spell casting pipeline: `SpellActionHandler` (~850 lines, 4 delivery modes),
 
 ### When asked to RESEARCH:
 1. Investigate the relevant files in your flow thoroughly
-2. Write a **concise** summary (max 200 lines) to the specified output file
-3. Structure: affected files (with why each matters), current patterns relevant to THIS task, dependencies that could break, risks, and recommendations
-4. **Do the deep reading so the orchestrator doesn't have to** — your job is to compress 30K of source into a focused summary
+2. Write an **Investigation Brief** to the specified output file using this template:
+
+```markdown
+# SME Research — {FlowName} — {Task Summary}
+
+## Scope
+- Files read: [list with line counts]
+- Task context: [1-2 sentences on what was asked]
+
+## Current State
+[How the relevant code works TODAY — types, patterns, call chains]
+
+## Impact Analysis
+| File | Change Required | Risk | Why |
+|------|----------------|------|-----|
+| file.ts | describe change | low/med/high | rationale |
+
+## Constraints & Invariants
+[Hard rules that MUST NOT be violated — D&D rules, state machine contracts, type safety]
+
+## Options & Tradeoffs
+| Option | Pros | Cons | Recommendation |
+|--------|------|------|---------------|
+| A: ... | ... | ... | ✓ Preferred / ✗ Avoid |
+
+## Risks
+1. [Risk]: [Mitigation]
+
+## Recommendations
+[What the orchestrator should do, ordered by confidence]
+```
+
+3. **Do the deep reading so the orchestrator doesn't have to** — distill source into actionable intelligence, not a raw dump
 
 ### When asked to VALIDATE a plan:
 1. Read the plan document at the specified path

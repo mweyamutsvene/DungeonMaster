@@ -331,6 +331,29 @@ export abstract class Creature {
     this.conditions.clear();
   }
 
+  // === Optional subclass-provided methods ===
+  // These return safe defaults here; Character overrides them with real data.
+
+  /** Feat IDs for this creature (empty for non-characters). */
+  getFeatIds(): readonly string[] {
+    return [];
+  }
+
+  /** Class identifier (undefined for non-characters). */
+  getClassId(): string | undefined {
+    return undefined;
+  }
+
+  /** Subclass identifier (undefined for non-characters). */
+  getSubclass(): string | undefined {
+    return undefined;
+  }
+
+  /** Character level (0 for non-characters). */
+  getLevel(): number {
+    return 0;
+  }
+
   // === Combat ===
 
   /**

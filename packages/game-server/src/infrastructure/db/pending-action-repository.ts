@@ -6,6 +6,7 @@ import type {
   PendingActionStatus,
   ReactionOpportunity,
   ReactionResponse,
+  ReactionResult,
 } from "../../domain/entities/combat/pending-action.js";
 
 /**
@@ -126,7 +127,7 @@ export class PrismaPendingActionRepository implements PendingActionRepository {
     return action;
   }
 
-  async updateReactionResult(actionId: string, opportunityId: string, result: any): Promise<void> {
+  async updateReactionResult(actionId: string, opportunityId: string, result: ReactionResult): Promise<void> {
     const row = await this.prisma.pendingAction.findUnique({ where: { id: actionId } });
     if (!row) throw new Error(`Pending action not found: ${actionId}`);
 

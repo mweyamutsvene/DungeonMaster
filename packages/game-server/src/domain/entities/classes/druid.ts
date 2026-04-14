@@ -7,25 +7,86 @@ export interface WildShapeState {
   pool: ResourcePool;
 }
 
+/**
+ * D&D 5e 2024: Wild Shape uses three standardized beast stat blocks
+ * that scale with druid level instead of CR-based beast forms.
+ */
+export type WildShapeBeastForm = "Beast of the Land" | "Beast of the Sea" | "Beast of the Sky";
+
+/**
+ * Stat block template for a Wild Shape beast form at a given druid level.
+ * HP, AC, attack bonus, and damage scale with druid level.
+ */
+export interface WildShapeBeastStatBlock {
+  form: WildShapeBeastForm;
+  ac: number;
+  hp: number;
+  speed: string;
+  attackBonus: number;
+  damage: string;
+  multiattack: boolean;
+}
+
+/**
+ * Available beast forms at each druid level tier.
+ * - Level 2: Beast of the Land
+ * - Level 4: Beast of the Sea
+ * - Level 8: Beast of the Sky (flight)
+ */
+export function availableBeastForms(level: number): readonly WildShapeBeastForm[] {
+  if (level < 2) return [];
+  if (level < 4) return ["Beast of the Land"];
+  if (level < 8) return ["Beast of the Land", "Beast of the Sea"];
+  return ["Beast of the Land", "Beast of the Sea", "Beast of the Sky"];
+}
+
+/**
+ * Get the stat block for a beast form at the given druid level.
+ * All forms scale identically per the 2024 rules; they differ in movement type.
+ */
+export function getBeastFormStatBlock(form: WildShapeBeastForm, level: number): WildShapeBeastStatBlock {
+  if (level < 2) {
+    throw new Error("Wild Shape not available below level 2");
+  }
+
+  // Temp HP in beast form = 5 × druid level (2024 rules)
+  const hp = 5 * level;
+  // AC = 10 + WIS mod is handled at runtime; base AC scales by tier
+  const ac = level < 5 ? 13 : level < 9 ? 14 : level < 13 ? 15 : level < 17 ? 16 : 17;
+  const attackBonus = level < 5 ? 5 : level < 9 ? 6 : level < 13 ? 7 : level < 17 ? 8 : 9;
+  const damageDice = level < 5 ? "1d8" : level < 9 ? "2d6" : level < 13 ? "2d8" : level < 17 ? "3d6" : "3d8";
+  const multiattack = level >= 5;
+
+  const speedMap: Record<WildShapeBeastForm, string> = {
+    "Beast of the Land": `${30 + (level >= 9 ? 10 : 0)} ft., climb ${30 + (level >= 9 ? 10 : 0)} ft.`,
+    "Beast of the Sea": `10 ft., swim ${30 + (level >= 9 ? 10 : 0)} ft.`,
+    "Beast of the Sky": `10 ft., fly ${60 + (level >= 9 ? 10 : 0)} ft.`,
+  };
+
+  return {
+    form,
+    ac,
+    hp,
+    speed: speedMap[form],
+    attackBonus,
+    damage: damageDice,
+    multiattack,
+  };
+}
+
 export function wildShapeUsesForLevel(level: number): number {
   if (!Number.isInteger(level) || level < 1 || level > 20) {
     throw new Error(`Invalid level: ${level}`);
   }
 
-  // Wild Shape gained at level 2; 2 uses.
-  return level < 2 ? 0 : 2;
-}
-
-export function wildShapeMaxCRForLevel(level: number): number {
-  if (!Number.isInteger(level) || level < 1 || level > 20) {
-    throw new Error(`Invalid level: ${level}`);
-  }
-
-  // 5e druid: max CR starts at 1/4, then 1/2 at 4, then 1 at 8.
+  // 2024: Wild Shape gained at level 2; uses = proficiency bonus (scales with level).
   if (level < 2) return 0;
-  if (level < 4) return 0.25;
-  if (level < 8) return 0.5;
-  return 1;
+  // Proficiency bonus: 2 at level 1-4, 3 at 5-8, 4 at 9-12, 5 at 13-16, 6 at 17-20
+  if (level < 5) return 2;
+  if (level < 9) return 3;
+  if (level < 13) return 4;
+  if (level < 17) return 5;
+  return 6;
 }
 
 export function createWildShapeState(level: number): WildShapeState {
@@ -58,21 +119,18 @@ export const Druid: CharacterClassDefinition = {
     const ws = createWildShapeState(level);
     return ws.pool.max > 0 ? [ws.pool] : [];
   },
-  resourcePoolFactory: (level) => {
-    const ws = createWildShapeState(level);
-    return ws.pool.max > 0 ? [ws.pool] : [];
-  },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Spellcasting", economy: "action", effect: "Cast druid spells using WIS" },
     ];
     if (level >= 2) {
-      const maxCR = wildShapeMaxCRForLevel(level);
+      const forms = availableBeastForms(level);
+      const formList = forms.join(", ");
       caps.push({
         name: "Wild Shape",
         economy: "bonusAction",
-        cost: "1 use (2/short rest)",
-        effect: `Transform into beast of CR ${maxCR} or lower`,
+        cost: `1 use (${wildShapeUsesForLevel(level)}/long rest, regain 1 on short rest)`,
+        effect: `Transform into a standardized beast form: ${formList}`,
         abilityId: "class:druid:wild-shape",
         resourceCost: { pool: "wildShape", amount: 1 },
       });

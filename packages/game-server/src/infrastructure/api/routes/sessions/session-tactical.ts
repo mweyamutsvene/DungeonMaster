@@ -79,10 +79,13 @@ export function registerSessionTacticalRoutes(app: FastifyInstance, deps: Sessio
       "Return a single JSON object with this shape:",
       '{\n  "answer": string\n}',
       "Rules:",
+      "- ONLY use information present in the context JSON below. Do NOT invent, assume, or hallucinate features, abilities, attacks, or numbers that are not explicitly listed.",
+      "- If asked about attacks/actions/features, check actor.capabilities.classFeatures and actor.attackOptions EXHAUSTIVELY. If a feature is not listed there, the character DOES NOT have it.",
+      "- Check actor.resources.attacksPerAction for how many attacks per Attack action (Extra Attack). If it says 2, the character HAS Extra Attack.",
+      "- Check actor.resources.actionAvailable and actor.resources.bonusActionAvailable for what economy slots remain this turn.",
+      "- Use only the exact numbers from the context (HP, AC, distances, attack bonuses, damage formulas). Never estimate or recall from memory.",
       "- Be concise and tactical.",
-      "- Use only numbers provided in the context JSON.",
-      "- If asked about attacks/actions/features, use actor.attackOptions and actor.capabilities; do not invent new ones.",
-      "- If the question asks for something missing (e.g. unknown destination), say what input is needed.",
+      "- If the question asks for something not in the context (e.g. unknown destination), say what input is needed.",
     ].join("\n");
 
     const llmText = [

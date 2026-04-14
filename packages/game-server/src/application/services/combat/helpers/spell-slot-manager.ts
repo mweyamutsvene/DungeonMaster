@@ -25,6 +25,7 @@ import { ValidationError } from "../../../errors.js";
 import { hasResourceAvailable, spendResourceFromPool, normalizeResources, getResourcePools } from "./resource-utils.js";
 import { breakConcentration } from "./concentration-helper.js";
 import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
+import type { CanonicalSpell } from "../../../../domain/entities/spells/catalog/types.js";
 import type { ICombatRepository } from "../../../repositories/combat-repository.js";
 import type { PreparedSpellDefinition } from "../../../../domain/entities/spells/prepared-spell-definition.js";
 import type { JsonValue } from "../../../types.js";
@@ -136,9 +137,12 @@ export function validateUpcast(spellLevel: number, castAtLevel: number | undefin
  * @param combatRepo        Combat repository for state reads/writes
  * @param log               Optional debug logger
  * @param castAtLevel       Optional slot level to spend (for upcasting). Must be >= spellLevel and <= 9.
+ * @param castAsRitual      If true, skip spell slot consumption (ritual casting, 10 min casting time).
+ *                          Only valid for spells with `ritual: true` in the catalog and outside of combat.
  *
  * @throws {ValidationError} If no slot of the required level is available,
- *         or if castAtLevel is invalid (below spell level or above 9)
+ *         or if castAtLevel is invalid (below spell level or above 9),
+ *         or if castAsRitual is true but the spell is not a ritual spell
  */
 export async function prepareSpellCast(
   actorCombatantId: string,
@@ -149,8 +153,41 @@ export async function prepareSpellCast(
   combatRepo: ICombatRepository,
   log?: (msg: string) => void,
   castAtLevel?: number,
+  castAsRitual?: boolean,
 ): Promise<void> {
   if (spellLevel <= 0) return; // Cantrips have no slot cost
+
+  // Ritual casting: skip slot consumption entirely, but validate the spell is ritualable.
+  // Per D&D 5e 2024: Ritual casting takes 10 minutes longer than normal.
+  // In active combat this is effectively impossible, but the caller is responsible for that gate.
+  if (castAsRitual) {
+    const canonical = getCanonicalSpell(spellName) as (CanonicalSpell | null);
+    if (!canonical?.ritual) {
+      throw new ValidationError(`${spellName} cannot be cast as a ritual — it does not have the ritual tag.`);
+    }
+    log?.(`[SpellSlotManager] ${spellName} cast as ritual — no spell slot consumed`);
+
+    // Still handle concentration even for ritual casting
+    if (isConcentration) {
+      const combatants = await combatRepo.listCombatants(encounterId);
+      const actorCombatant = combatants.find((c) => c.id === actorCombatantId);
+      if (actorCombatant) {
+        const normalized = normalizeResources(actorCombatant.resources);
+        if (normalized.concentrationSpellName) {
+          log?.(`[SpellSlotManager] Concentration on "${normalized.concentrationSpellName}" ended (replaced by ${spellName})`);
+          await breakConcentration(actorCombatant, encounterId, combatRepo, log);
+        }
+        const freshCombatants = await combatRepo.listCombatants(encounterId);
+        const freshCombatant = freshCombatants.find((c) => c.id === actorCombatantId);
+        const updatedResources = freshCombatant?.resources ?? actorCombatant.resources;
+        const normalizedAfter = normalizeResources(updatedResources);
+        await combatRepo.updateCombatantState(actorCombatantId, {
+          resources: { ...normalizedAfter, concentrationSpellName: spellName } as JsonValue,
+        });
+      }
+    }
+    return;
+  }
 
   // Determine the effective slot level to spend
   const effectiveLevel = castAtLevel ?? spellLevel;

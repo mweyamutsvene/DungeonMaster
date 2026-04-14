@@ -1,6 +1,6 @@
 ---
 name: CombatRules-Implementer
-description: "Use when implementing approved changes to combat rules: movement, pathfinding, damage, grapple, conditions, death saves, attack resolution, initiative, concentration. Executes plans validated by CombatRules-SME."
+description: "Use when implementing approved changes to combat rules: movement, damage, grapple, conditions, death saves, attack resolution, initiative, concentration. Grid/pathfinding → CombatMap-Implementer; action economy → ActionEconomy-Implementer. Executes plans validated by CombatRules-SME."
 tools: [read, edit, search, execute]
 user-invocable: false
 agents: []

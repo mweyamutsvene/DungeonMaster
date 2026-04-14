@@ -1,0 +1,5 @@
+{
+  "id": "wizard-smoke",
+  "scenario": "solo-wizard",
+  "goal": "Test Wizard level 5 spell pipeline against Skeleton Warrior and Zombie. Must confirm: (1) Cast Fire Bolt (cantrip, spell attack roll): verify no spell slot consumed, 2d10 damage dice at level 5 cantrip scaling, (2) Cast Magic Missile at a target: no attack roll required, damage auto-applies, (3) Cast Burning Hands (level 1): verify it asks for DEX saving throw for each target, (4) Shield reaction: if hit by an enemy attack, check if the server offers Shield as a reaction and applying it grants +5 AC. Track spell slots before and after each cast. Flag if cantrip scaling is wrong, if concentration is not tracked when a concentration spell is active, or if Shield does not appear as a reaction option."
+}

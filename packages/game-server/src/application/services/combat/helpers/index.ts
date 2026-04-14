@@ -19,3 +19,4 @@ export * from "./spell-slot-manager.js";
 export * from "./opportunity-attack-resolver.js";
 export * from "./oa-detection.js";
 export * from "./combatant-lookup.js";
+export * from "./active-actor-resolver.js";

@@ -11,6 +11,8 @@ import { CANTRIP_CATALOG } from './cantrips.js';
 import { LEVEL_1_CATALOG } from './level-1.js';
 import { LEVEL_2_CATALOG } from './level-2.js';
 import { LEVEL_3_CATALOG } from './level-3.js';
+import { LEVEL_4_CATALOG } from './level-4.js';
+import { LEVEL_5_CATALOG } from './level-5.js';
 import type { CanonicalSpell } from './types.js';
 
 const ALL_SPELLS: readonly CanonicalSpell[] = [
@@ -18,6 +20,8 @@ const ALL_SPELLS: readonly CanonicalSpell[] = [
   ...LEVEL_1_CATALOG,
   ...LEVEL_2_CATALOG,
   ...LEVEL_3_CATALOG,
+  ...LEVEL_4_CATALOG,
+  ...LEVEL_5_CATALOG,
 ];
 
 const SPELL_BY_NAME = new Map<string, CanonicalSpell>(

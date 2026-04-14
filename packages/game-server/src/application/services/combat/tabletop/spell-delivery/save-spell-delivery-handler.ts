@@ -15,6 +15,7 @@
 import { ValidationError } from '../../../../errors.js';
 import { normalizeResources, getPosition, addActiveEffectsToResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
+import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { applyKoEffectsIfNeeded } from '../../helpers/ko-handler.js';
 import { findCombatantByName } from '../combat-text-parser.js';
 import { applyDamageDefenses, extractDamageDefenses } from '../../../../../domain/rules/damage-defenses.js';
@@ -25,10 +26,12 @@ import type { AreaTarget } from '../../../../../domain/rules/area-of-effect.js';
 import type { Position } from '../../../../../domain/rules/movement.js';
 import type { CombatMap } from '../../../../../domain/rules/combat-map.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
-import { getUpcastBonusDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
+import { getUpcastBonusDice, getCantripDamageDice } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { createEffect } from '../../../../../domain/entities/combat/effects.js';
+import { nanoid } from 'nanoid';
 import type { Ability } from '../../../../../domain/entities/core/ability-scores.js';
 import type { ActionParseResult } from '../tabletop-types.js';
+import type { JsonValue } from '../../../../types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 
@@ -95,8 +98,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       throw new ValidationError(`Target "${targetName}" not found`);
     }
 
-    const targetId =
-      (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
+    const targetId = getEntityIdFromRef(targetRef);
     const spellSaveDC = computeSpellSaveDC(sheet);
     const saveAbility = spellMatch.saveAbility!;
 
@@ -107,9 +109,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const targetChar = characters.find((c) => c.id === targetId);
     const targetNpc = allNpcs.find((n) => n.id === targetId);
     const targetStats =
-      (targetMonster as any)?.statBlock ??
-      (targetChar as any)?.sheet ??
-      (targetNpc as any)?.statBlock ??
+      targetMonster?.statBlock ??
+      targetChar?.sheet ??
+      targetNpc?.statBlock ??
       {};
 
     // D&D 5e 2024: DEX saving throw cover bonus
@@ -174,8 +176,8 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       saveAction,
       encounter.id,
       characters,
-      allMonsters as any[],
-      allNpcs as any[],
+      allMonsters,
+      allNpcs,
     );
     const saveSuccess = resolution.success;
 
@@ -188,13 +190,28 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const spellDamage = spellMatch.damage;
     let damageMessage = "";
     if (spellDamage) {
+      // Cantrip damage scaling (Sacred Flame, Toll the Dead, etc.)
+      const characterLevel: number = typeof sheet?.level === "number" && sheet.level >= 1 ? sheet.level : 1;
+      let diceCount = spellMatch.level === 0
+        ? getCantripDamageDice(spellDamage.diceCount, characterLevel)
+        : spellDamage.diceCount;
+
       // Upcast scaling: add bonus dice per slot level above base
-      let diceCount = spellDamage.diceCount;
       const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
       if (upcastBonus) {
         diceCount += upcastBonus.bonusDiceCount;
       }
-      const damageRoll = deps.diceRoller!.rollDie(spellDamage.diceSides, diceCount);
+
+      // Toll the Dead: use d12 instead of d8 if target is already damaged
+      let diceSides = spellDamage.diceSides;
+      if (spellMatch.damageDiceSidesOnDamaged) {
+        const targetCombatantForDmg = findCombatantByEntityId(combatants, targetId);
+        if (targetCombatantForDmg && targetCombatantForDmg.hpCurrent < targetCombatantForDmg.hpMax) {
+          diceSides = spellMatch.damageDiceSidesOnDamaged;
+        }
+      }
+
+      const damageRoll = deps.diceRoller!.rollDie(diceSides, diceCount);
       let totalDamage = damageRoll.total + (spellDamage.modifier ?? 0);
 
       // Half damage on save (D&D 5e standard for many save spells)
@@ -236,7 +253,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
             actorId,
             targetId,
             characters,
-            allMonsters as any,
+            allMonsters,
             totalDamage,
             hpAfter,
           );
@@ -290,8 +307,34 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
           trackingEffect,
         );
         await deps.combatRepo.updateCombatantState(targetCombatant.id, {
-          resources: updatedRes as any,
+          resources: updatedRes as JsonValue,
         });
+      }
+    }
+
+    // Apply spell effects (e.g., Faerie Fire advantage on attacks) to target on failed save
+    if (!saveSuccess && spellMatch.effects?.length) {
+      // Re-read to get latest resources after potential damage/condition/turn-end-save updates
+      const freshList = await deps.combatRepo.listCombatants(encounter.id);
+      let freshTarget = freshList.find(c => c.id === findCombatantByEntityId(combatants, targetId)?.id);
+      if (freshTarget) {
+        for (const effDef of spellMatch.effects) {
+          if (effDef.appliesTo && effDef.appliesTo !== 'target') continue;
+          const effect = createEffect(
+            nanoid(),
+            effDef.type,
+            effDef.target,
+            spellMatch.concentration ? 'concentration' : effDef.duration,
+            {
+              source: castInfo.spellName,
+              sourceCombatantId: actorId,
+              description: `${castInfo.spellName} (${effDef.type} on ${effDef.target})`,
+            },
+          );
+          const updatedResources = addActiveEffectsToResources(freshTarget.resources ?? {}, effect);
+          await deps.combatRepo.updateCombatantState(freshTarget.id, { resources: updatedResources as JsonValue });
+          freshTarget = { ...freshTarget, resources: updatedResources as JsonValue };
+        }
       }
     }
 
@@ -367,13 +410,12 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     // --- Optionally resolve named target to set direction / center ---
     const targetName = castInfo.targetName;
     let targetEntityId: string | null = null;
-    let targetCombatant: any | null = null;
+    let targetCombatant: typeof combatants[number] | null = null;
     if (targetName) {
       const targetRef = findCombatantByName(targetName, roster);
       if (targetRef) {
-        targetEntityId =
-          (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
-        targetCombatant = findCombatantByEntityId(combatants, targetEntityId!);
+        targetEntityId = getEntityIdFromRef(targetRef);
+        targetCombatant = findCombatantByEntityId(combatants, targetEntityId!) ?? null;
       }
     }
     const targetPos: Position | null = targetCombatant
@@ -407,9 +449,9 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const areaTargets: AreaTarget[] = [];
     for (const c of combatants) {
       const entityId: string | undefined =
-        (c as any).characterId ?? (c as any).monsterId ?? (c as any).npcId;
+        c.characterId ?? c.monsterId ?? c.npcId ?? undefined;
       if (!entityId || entityId === actorId) continue; // Exclude caster
-      const pos = getPosition(normalizeResources((c as any).resources ?? {}));
+      const pos = getPosition(normalizeResources(c.resources ?? {}));
       if (pos) {
         areaTargets.push({ id: entityId, position: pos });
       }
@@ -426,8 +468,8 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     } else {
       // No positions AND no named target: apply to all non-caster combatants
       creaturesInArea = combatants
-        .map((c: any) => (c as any).characterId ?? (c as any).monsterId ?? (c as any).npcId)
-        .filter((id: string | undefined): id is string => !!id && id !== actorId);
+        .map(c => c.characterId ?? c.monsterId ?? c.npcId)
+        .filter((id): id is string => !!id && id !== actorId);
     }
 
     // --- Spend action (slot already spent by SpellActionHandler) ---
@@ -450,7 +492,11 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const spellDamage = spellMatch.damage;
     let sharedBaseDamage = 0;
     if (spellDamage) {
-      let diceCount = spellDamage.diceCount;
+      // Cantrip damage scaling for AoE cantrips
+      const characterLevel: number = typeof sheet?.level === "number" && sheet.level >= 1 ? sheet.level : 1;
+      let diceCount = spellMatch.level === 0
+        ? getCantripDamageDice(spellDamage.diceCount, characterLevel)
+        : spellDamage.diceCount;
       const upcastBonus = getUpcastBonusDice(spellMatch, castAtLevel);
       if (upcastBonus) diceCount += upcastBonus.bonusDiceCount;
       const roll = deps.diceRoller!.rollDie(spellDamage.diceSides, diceCount);
@@ -466,16 +512,16 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
 
       // Resolve display name
       const rosterEntry =
-        roster.characters.find((c: any) => c.id === entityId) ??
-        roster.monsters.find((m: any) => m.id === entityId) ??
-        (roster.npcs ?? []).find((n: any) => n.id === entityId);
+        roster.characters.find(c => c.id === entityId) ??
+        roster.monsters.find(m => m.id === entityId) ??
+        (roster.npcs ?? []).find(n => n.id === entityId);
       const displayName: string = rosterEntry?.name ?? entityId;
 
       // --- Per-target cover check for DEX saves (D&D 5e 2024) ---
       // Sacred Flame and similar spells explicitly ignore cover.
       let coverBonus = 0;
       if (saveAbility === 'dexterity' && hasMap && originIsReal && !spellMatch.ignoresCover) {
-        const tPos = getPosition(normalizeResources((targetComb as any).resources ?? {}));
+        const tPos = getPosition(normalizeResources(targetComb.resources ?? {}));
         if (tPos) {
           const coverLevel = getCoverLevel(map!, origin, tPos);
           if (coverLevel === 'full') {
@@ -499,13 +545,13 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       }
 
       // Look up stats for damage defenses
-      const tMonster = allMonsters.find((m: any) => m.id === entityId);
-      const tChar = characters.find((c: any) => c.id === entityId);
-      const tNpc = allNpcs.find((n: any) => n.id === entityId);
+      const tMonster = allMonsters.find(m => m.id === entityId);
+      const tChar = characters.find(c => c.id === entityId);
+      const tNpc = allNpcs.find(n => n.id === entityId);
       const tStats =
-        (tMonster as any)?.statBlock ??
-        (tChar as any)?.sheet ??
-        (tNpc as any)?.statBlock ??
+        tMonster?.statBlock ??
+        tChar?.sheet ??
+        tNpc?.statBlock ??
         {};
 
       // Independent saving throw per creature
@@ -531,8 +577,8 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
         saveAction,
         encounter.id,
         characters,
-        allMonsters as any[],
-        allNpcs as any[],
+        allMonsters,
+        allNpcs,
       );
       const saveSuccess = resolution.success;
 
@@ -570,7 +616,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
             actorId,
             entityId,
             characters,
-            allMonsters as any,
+            allMonsters,
             totalDamage,
             hpAfter,
           );
@@ -601,8 +647,33 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
           trackingEffect,
         );
         await deps.combatRepo.updateCombatantState(targetComb.id, {
-          resources: updatedRes as any,
+          resources: updatedRes as JsonValue,
         });
+      }
+
+      // Apply spell effects (e.g., Faerie Fire advantage on attacks) to targets that fail save
+      if (!saveSuccess && spellMatch.effects?.length) {
+        const freshList = await deps.combatRepo.listCombatants(encounter.id);
+        let freshTargetComb = freshList.find(c => c.id === targetComb.id);
+        if (freshTargetComb) {
+          for (const effDef of spellMatch.effects) {
+            if (effDef.appliesTo && effDef.appliesTo !== 'target') continue;
+            const effect = createEffect(
+              nanoid(),
+              effDef.type,
+              effDef.target,
+              spellMatch.concentration ? 'concentration' : effDef.duration,
+              {
+                source: castInfo.spellName,
+                sourceCombatantId: actorId,
+                description: `${castInfo.spellName} (${effDef.type} on ${effDef.target})`,
+              },
+            );
+            const res = addActiveEffectsToResources(freshTargetComb.resources ?? {}, effect);
+            await deps.combatRepo.updateCombatantState(freshTargetComb.id, { resources: res as JsonValue });
+            freshTargetComb = { ...freshTargetComb, resources: res as JsonValue };
+          }
+        }
       }
 
       targetResults.push({

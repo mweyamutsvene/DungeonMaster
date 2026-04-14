@@ -23,6 +23,7 @@ import { ValidationError, NotFoundError } from "../../../errors.js";
 import { normalizeResources, spendResourceFromPool } from "../helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { applyEvasion, creatureHasEvasion } from "../../../../domain/rules/evasion.js";
+import { isSavingThrowSuccess } from "../../../../domain/rules/advantage.js";
 import type { JsonValue } from "../../../types.js";
 
 export class DamageReactionHandler {
@@ -224,7 +225,7 @@ export class DamageReactionHandler {
         } catch { /* default 0 */ }
         const saveRoll = input.diceRoller.rollDie(20);
         const saveTotal = saveRoll.total + dexSaveMod;
-        retaliationSaved = saveTotal >= spellSaveDC;
+        retaliationSaved = isSavingThrowSuccess(saveRoll.total, saveTotal, spellSaveDC);
 
         // Apply Evasion for DEX saves (Hellish Rebuke is always DEX save, half on save)
         totalDamage = applyEvasion(totalDamage, retaliationSaved, attackerHasEvasion, true);

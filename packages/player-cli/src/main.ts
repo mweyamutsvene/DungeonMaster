@@ -15,6 +15,7 @@ import { GameClient } from "./game-client.js";
 import { listScenarios, loadScenario, setupFromScenario } from "./scenario-loader.js";
 import { CombatREPL, type CombatContext } from "./combat-repl.js";
 import type { CLIOptions, CliScenario } from "./types.js";
+import { startAgentControl, type AgentControl } from "./agent-control.js";
 import {
   print,
   printColored,
@@ -53,6 +54,10 @@ function parseArgs(): CLIOptions {
         break;
       case "--no-narration":
         opts.noNarration = true;
+        break;
+      case "--control-port":
+      case "-p":
+        opts.controlPort = parseInt(args[++i] ?? "3002", 10);
         break;
       case "--help":
       case "-h":
@@ -410,7 +415,13 @@ function getQuickMonsterStatBlock(name: string): Record<string, unknown> {
 async function main(): Promise<void> {
   const opts = parseArgs();
   const client = new GameClient(opts.serverUrl, { verbose: opts.verbose });
-  const rl = createInterface({ input: stdin, output: stdout, historySize: 100 });
+
+  let agentControl: AgentControl | undefined;
+  const inputStream = opts.controlPort
+    ? (agentControl = startAgentControl(opts.controlPort)).stream
+    : stdin;
+
+  const rl = createInterface({ input: inputStream, output: stdout, historySize: 100 });
 
   try {
     // If --scenario was provided, jump straight to it
@@ -432,6 +443,7 @@ async function main(): Promise<void> {
     }
   } finally {
     rl.close();
+    agentControl?.close();
   }
 }
 

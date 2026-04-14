@@ -1,6 +1,6 @@
 ---
 name: AIBehavior-Implementer
-description: "Use when implementing approved changes to AI combat behavior: AI turn orchestration, battle plan generation, tactical context building, AI decision making, LLM provider adapters. Executes plans validated by AIBehavior-SME."
+description: "Use when implementing approved changes to AI combat behavior: AI turn orchestration, battle plan generation, tactical context building, LLM provider adapters. AI spell evaluation → AISpellEvaluation-Implementer. Executes plans validated by AIBehavior-SME."
 tools: [read, edit, search, execute]
 user-invocable: false
 agents: []

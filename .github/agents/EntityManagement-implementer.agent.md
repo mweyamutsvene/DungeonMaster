@@ -1,6 +1,6 @@
 ---
 name: EntityManagement-Implementer
-description: "Use when implementing approved changes to entity management: character/monster/NPC lifecycle, session management, inventory, creature hydration, repository implementations. Executes plans validated by EntityManagement-SME."
+description: "Use when implementing approved changes to entity management: character/monster/NPC lifecycle, session management, repository implementations. Hydration → CreatureHydration-Implementer; inventory → InventorySystem-Implementer. Executes plans validated by EntityManagement-SME."
 tools: [read, edit, search, execute]
 user-invocable: false
 agents: []

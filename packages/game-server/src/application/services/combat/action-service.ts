@@ -45,6 +45,8 @@ import { detectOpportunityAttacks } from "./helpers/oa-detection.js";
 import { resolveOpportunityAttacks, type ResolveOAInput } from "./helpers/opportunity-attack-resolver.js";
 
 
+import { resolveActiveActorOrThrow } from "./helpers/active-actor-resolver.js";
+
 import { AttackActionHandler } from "./action-handlers/attack-action-handler.js";
 import { GrappleActionHandler } from "./action-handlers/grapple-action-handler.js";
 import { SkillActionHandler } from "./action-handlers/skill-action-handler.js";
@@ -75,35 +77,8 @@ export class ActionService {
   private async resolveActiveActorOrThrow(
     sessionId: string,
     input: { encounterId?: string; actor: CombatantRef; skipActionCheck?: boolean },
-  ): Promise<{
-    encounter: CombatEncounterRecord;
-    combatants: CombatantStateRecord[];
-    active: CombatantStateRecord;
-    actorState: CombatantStateRecord;
-  }> {
-    const encounter = await resolveEncounterOrThrow(this.sessions, this.combat, sessionId, input.encounterId);
-    const combatants = await this.combat.listCombatants(encounter.id);
-
-    const active = combatants[encounter.turn] ?? null;
-    if (!active) {
-      throw new ValidationError(
-        `Encounter turn index out of range: turn=${encounter.turn} combatants=${combatants.length}`,
-      );
-    }
-
-    const actorState = findCombatantStateByRef(combatants, input.actor);
-    if (!actorState) throw new NotFoundError("Actor not found in encounter");
-
-    if (actorState.id !== active.id) {
-      throw new ValidationError("It is not the actor's turn");
-    }
-
-    // Skip action check for bonus action abilities like Patient Defense
-    if (!input.skipActionCheck && hasSpentAction(actorState.resources)) {
-      throw new ValidationError("Actor has already spent their action this turn");
-    }
-
-    return { encounter, combatants, active, actorState };
+  ) {
+    return resolveActiveActorOrThrow(this.sessions, this.combat, sessionId, input);
   }
 
   private async performSimpleAction(

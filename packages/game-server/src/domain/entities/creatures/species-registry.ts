@@ -14,10 +14,12 @@ import {
   GNOME,
   ORC,
   TIEFLING,
+  AASIMAR,
+  GOLIATH,
 } from "./species.js";
 
 const SPECIES_MAP: ReadonlyMap<string, SpeciesDefinition> = new Map(
-  [HUMAN, ELF, DWARF, HALFLING, DRAGONBORN, GNOME, ORC, TIEFLING].map(
+  [HUMAN, ELF, DWARF, HALFLING, DRAGONBORN, GNOME, ORC, TIEFLING, AASIMAR, GOLIATH].map(
     (s) => [s.name.toLowerCase(), s] as const,
   ),
 );

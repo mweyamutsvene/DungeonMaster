@@ -13,8 +13,10 @@ import type { ZoneEffect } from '../../../../../domain/entities/combat/zones.js'
 import { addZone } from '../../../../../domain/rules/combat-map.js';
 import { getPosition } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
+import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
+import type { Ability } from '../../../../../domain/entities/core/ability-scores.js';
 import type { CombatMap } from '../../../../../domain/rules/combat-map.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { ActionParseResult } from '../tabletop-types.js';
@@ -68,10 +70,7 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
       // Placed zone at target location — use target's position
       const targetRef = findCombatantByName(castInfo.targetName, roster);
       if (targetRef) {
-        const tid =
-          (targetRef as any).characterId ??
-          (targetRef as any).monsterId ??
-          (targetRef as any).npcId;
+        const tid = getEntityIdFromRef(targetRef);
         const pos = getEntityPosition(tid);
         if (pos) zoneCenter = pos;
       }
@@ -90,7 +89,7 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
         trigger: eff.trigger,
         damage: eff.damage,
         damageType: eff.damageType,
-        saveAbility: eff.saveAbility as any,
+        saveAbility: eff.saveAbility as Ability | undefined,
         saveDC: eff.saveDC ?? (eff.saveAbility ? casterSpellSaveDC : undefined),
         halfDamageOnSave: eff.halfDamageOnSave,
         conditions: eff.conditions,

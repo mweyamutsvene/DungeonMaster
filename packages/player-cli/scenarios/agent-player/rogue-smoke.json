@@ -1,0 +1,5 @@
+{
+  "id": "rogue-smoke",
+  "scenario": "solo-rogue",
+  "goal": "Test Rogue level 5 core abilities against two cultist enemies. Must confirm: (1) Sneak Attack triggers on attack when enemy is adjacent or you have advantage — expect 3d6 extra damage in the roll response, (2) Cunning Action: use Hide or Disengage as a bonus action at least once, (3) Uncanny Dodge: if hit by an enemy you can see, verify the server prompts for or auto-applies halved damage via reaction. Flag if Sneak Attack is missing from a turn where conditions are met, or if the bonus action is not offered after attacking."
+}

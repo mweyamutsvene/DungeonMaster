@@ -1,0 +1,120 @@
+{
+  "name": "Solo Wizard vs Undead Patrol",
+  "description": "A level 5 Wizard faces a Skeleton Warrior and a Zombie. Tests spell slots (Fire Bolt cantrip, Magic Missile, Burning Hands), Shield reaction (when hit), concentration tracking, and spell attack rolls vs saves.",
+  "setup": {
+    "character": {
+      "name": "Elara the Wise",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 32,
+        "currentHp": 32,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Shield", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Arcane Recovery", "description": "Once per short rest, recover spell slots totaling level/2 (rounded up)." },
+          { "name": "Shield", "description": "Reaction: +5 AC until start of your next turn when hit by an attack or targeted by Magic Missile." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Warrior",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 26,
+          "hp": 26,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320 ft",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Zombie",
+        "position": { "x": 25, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 6,
+            "constitution": 16,
+            "intelligence": 3,
+            "wisdom": 6,
+            "charisma": 5
+          },
+          "maxHp": 22,
+          "hp": 22,
+          "armorClass": 8,
+          "speed": 20,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

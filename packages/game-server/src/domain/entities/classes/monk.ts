@@ -95,6 +95,8 @@ export const OpenHandSubclass: SubclassDefinition = {
   features: {
     "open-hand-technique": 3,
     "wholeness-of-body": 6,
+    "quivering-palm": 11,
+    "perfect-focus": 17,
   },
   combatTextProfile: {
     classId: "monk",
@@ -134,17 +136,19 @@ export const Monk: CharacterClassDefinition = {
     "stunning-strike": 5,
     "extra-attack": 5,
     "evasion": 7,
+    "acrobatic-movement": 9,
+    "self-restoration": 10,
+    "deflect-energy": 13,
+    "tongue-of-sun-and-moon": 13,
+    "diamond-soul": 14,
+    "empty-body": 18,
+    "perfect-self": 20,
   },
   resourcesAtLevel: (level, abilityModifiers, subclassId) => {
     const wisdomModifier = abilityModifiers?.wisdom ?? 0;
     return getMonkResourcePools(level, wisdomModifier, subclassId);
   },
-  // resourcePoolFactory intentionally returns only ki — matching the character-sheet default.
-  // Combat initialization uses getMonkResourcePools() directly for all monk pools.
-  resourcePoolFactory: (level) => {
-    const ki = createKiState(level);
-    return ki.pool.max > 0 ? [ki.pool] : [];
-  },
+
   restRefreshPolicy: [
     { poolKey: "ki", refreshOn: "both", computeMax: (level) => kiPointsForLevel(level) },
     { poolKey: "uncanny_metabolism", refreshOn: "long", computeMax: (level) => uncannyMetabolismUsesForLevel(level) },
@@ -162,6 +166,7 @@ export const Monk: CharacterClassDefinition = {
       caps.push({ name: "Deflect Attacks", economy: "reaction", requires: "Hit by a melee or ranged attack", effect: "Reduce damage by 1d10 + DEX mod + Monk level", abilityId: "class:monk:deflect-attacks" });
     }
     if (level >= 5) {
+      caps.push({ name: "Extra Attack", economy: "action", requires: "Attack action", effect: "Attack twice per Attack action" });
       caps.push({ name: "Stunning Strike", economy: "free", cost: "1 ki", requires: "Hit with a melee attack", effect: "Target must CON save or be Stunned", abilityId: "class:monk:stunning-strike", resourceCost: { pool: "ki", amount: 1 } });
     }
     if (level >= 6) {

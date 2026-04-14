@@ -280,9 +280,10 @@ describe("SavingThrowResolver", () => {
     });
   });
 
-  describe("nat-20 / nat-1 do NOT auto-succeed/fail saving throws (D&D 5e 2024)", () => {
-    it("nat-20 should NOT auto-succeed when total is below DC", async () => {
-      // Goblin DEX 14 (+2 mod), d20 = 20, total = 22 vs DC 25 → FAIL
+  describe("nat-20 / nat-1 auto-succeed/fail saving throws (D&D 5e 2024)", () => {
+    it("nat-20 auto-succeeds even when total is below DC", async () => {
+      // D&D 5e 2024: All d20 tests have nat-20 auto-success.
+      // Goblin DEX 14 (+2 mod), d20 = 20, total = 22 vs DC 25 → SUCCESS (auto)
       const diceRoller = new FixedDiceRoller(20);
       const resolver = new SavingThrowResolver(combatRepo, diceRoller);
 
@@ -298,11 +299,12 @@ describe("SavingThrowResolver", () => {
 
       expect(resolution.rawRoll).toBe(20);
       expect(resolution.total).toBe(22); // 20 + 2
-      expect(resolution.success).toBe(false); // nat-20 does NOT auto-succeed saves
+      expect(resolution.success).toBe(true); // nat-20 DOES auto-succeed saves in 5e 2024
     });
 
-    it("nat-1 should NOT auto-fail when total meets DC", async () => {
-      // Goblin DEX 14 (+2 mod), d20 = 1, total = 3 vs DC 3 → SUCCESS
+    it("nat-1 auto-fails even when total meets DC", async () => {
+      // D&D 5e 2024: All d20 tests have nat-1 auto-fail.
+      // Goblin DEX 14 (+2 mod), d20 = 1, total = 3 vs DC 3 → FAIL (auto)
       const diceRoller = new FixedDiceRoller(1);
       const resolver = new SavingThrowResolver(combatRepo, diceRoller);
 
@@ -318,7 +320,7 @@ describe("SavingThrowResolver", () => {
 
       expect(resolution.rawRoll).toBe(1);
       expect(resolution.total).toBe(3); // 1 + 2
-      expect(resolution.success).toBe(true); // nat-1 does NOT auto-fail saves
+      expect(resolution.success).toBe(false); // nat-1 DOES auto-fail saves in 5e 2024
     });
   });
 

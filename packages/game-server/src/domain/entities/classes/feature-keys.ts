@@ -22,6 +22,7 @@ export const PRIMAL_CHAMPION = "primal-champion";
 export const FRENZY = "frenzy";
 export const MINDLESS_RAGE = "mindless-rage";
 export const INTIMIDATING_PRESENCE = "intimidating-presence";
+export const RETALIATION = "retaliation";
 
 // ── Fighter ─────────────────────────────────────────────────
 export const ACTION_SURGE = "action-surge";
@@ -33,7 +34,9 @@ export const THREE_EXTRA_ATTACKS = "three-extra-attacks";
 export const IMPROVED_CRITICAL = "improved-critical";
 export const REMARKABLE_ATHLETE = "remarkable-athlete";
 export const ADDITIONAL_FIGHTING_STYLE = "additional-fighting-style";
+export const HEROIC_WARRIOR = "heroic-warrior";
 export const SUPERIOR_CRITICAL = "superior-critical";
+export const SURVIVOR = "survivor";
 
 // ── Monk ────────────────────────────────────────────────────
 export const MARTIAL_ARTS = "martial-arts";
@@ -45,6 +48,16 @@ export const DEFLECT_ATTACKS = "deflect-attacks";
 export const UNCANNY_METABOLISM = "uncanny-metabolism";
 export const WHOLENESS_OF_BODY = "wholeness-of-body";
 export const OPEN_HAND_TECHNIQUE = "open-hand-technique";
+export const ACROBATIC_MOVEMENT = "acrobatic-movement";
+export const SELF_RESTORATION = "self-restoration";
+export const DEFLECT_ENERGY = "deflect-energy";
+export const TONGUE_OF_SUN_AND_MOON = "tongue-of-sun-and-moon";
+export const DIAMOND_SOUL = "diamond-soul";
+export const EMPTY_BODY = "empty-body";
+export const PERFECT_SELF = "perfect-self";
+// Way of the Open Hand subclass
+export const QUIVERING_PALM = "quivering-palm";
+export const PERFECT_FOCUS = "perfect-focus";
 
 // ── Rogue ───────────────────────────────────────────────────
 export const SNEAK_ATTACK = "sneak-attack";
@@ -55,6 +68,8 @@ export const EVASION = "evasion";
 export const FAST_HANDS = "fast-hands";
 export const SECOND_STORY_WORK = "second-story-work";
 export const SUPREME_SNEAK = "supreme-sneak";
+export const USE_MAGIC_DEVICE = "use-magic-device";
+export const THIEFS_REFLEXES = "thiefs-reflexes";
 
 // ── Paladin ─────────────────────────────────────────────────
 export const DIVINE_SMITE = "divine-smite";
@@ -69,6 +84,14 @@ export const DESTROY_UNDEAD = "destroy-undead";
 
 // ── Ranger ──────────────────────────────────────────────────
 export const FAVORED_ENEMY = "favored-enemy";
+export const DEFT_EXPLORER = "deft-explorer";
+export const ROVING = "roving";
+export const TIRELESS = "tireless";
+export const RELENTLESS_HUNTER = "relentless-hunter";
+export const NATURES_VEIL = "natures-veil";
+export const PRECISE_HUNTER = "precise-hunter";
+export const FERAL_SENSES = "feral-senses";
+export const FOE_SLAYER = "foe-slayer";
 
 // ── Cross-class (martial) ───────────────────────────────────
 export const EXTRA_ATTACK = "extra-attack";

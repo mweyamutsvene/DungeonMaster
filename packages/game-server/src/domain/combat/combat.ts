@@ -163,25 +163,20 @@ export class Combat {
         turnIndex: 0,
       };
 
-      // Reset action economy and movement for all combatants
+      // Reset jump multiplier at end of round for all combatants (per-round reset)
       for (const combatant of this.combatants.values()) {
-        combatant.actionEconomy = freshActionEconomy(combatant.creature.getSpeed());
-        // Reset jump multiplier at end of round
         const creatureId = combatant.creature.getId();
         const movState = this.movementStates.get(creatureId);
         if (movState) {
-          // Create new state with reset multiplier (immutable)
           this.movementStates.set(creatureId, {
             ...movState,
             jumpDistanceMultiplier: 1,
           });
         }
       }
-
-      return;
+    } else {
+      this.state = { ...this.state, turnIndex: nextIndex };
     }
-
-    this.state = { ...this.state, turnIndex: nextIndex };
 
     // Reset action economy for the new active creature
     const active = this.getActiveCreature();

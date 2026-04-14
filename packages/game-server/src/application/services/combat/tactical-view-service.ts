@@ -98,11 +98,18 @@ export interface CombatQueryContext {
     name: string;
     character: { id: string; name: string; className: string | null; level: number } | null;
     capabilities: { classFeatures: ReadonlyArray<{ name: string; economy: string; cost?: string; requires?: string; effect: string }> };
-    attackOptions: Array<{ name: string; kind: string; reachFeet: number; attackBonus: number; damageFormula: string }>;
+    attackOptions: Array<{ name: string; kind: string; reachFeet?: number; range?: string; attackBonus?: number; damageFormula?: string; damageType?: string }>;
     position: { x: number; y: number };
     speed: number;
     movementRemainingFeet: number;
-    resources: { resourcePools: Array<{ name: string; current: number; max: number }> };
+    resources: {
+      resourcePools: Array<{ name: string; current: number; max: number }>;
+      attacksPerAction?: number;
+      attacksUsed?: number;
+      attacksAllowed?: number;
+      actionAvailable?: boolean;
+      bonusActionAvailable?: boolean;
+    };
     sheet: unknown | null;
   };
   encounter: {
@@ -423,6 +430,8 @@ export class TacticalViewService {
 
     const unarmedStats = ClassFeatureResolver.getUnarmedStrikeStats(actorSheet, actorClassName, actorLevel);
     const classCapabilities = ClassFeatureResolver.getClassCapabilities(actorSheet, actorClassName, actorLevel);
+    const attacksPerAction = ClassFeatureResolver.getAttacksPerAction(actorSheet, actorClassName, actorLevel);
+    const actionEconomy = this.parseActionEconomy(actorCombatant.resources);
 
     return {
       actor: {
@@ -440,6 +449,21 @@ export class TacticalViewService {
           classFeatures: classCapabilities,
         },
         attackOptions: [
+          ...(Array.isArray(actorSheet.attacks)
+            ? (actorSheet.attacks as Array<{ name: string; kind?: string; range?: string; attackBonus?: number; damage?: { diceCount?: number; diceSides?: number; modifier?: number }; damageType?: string }>)
+                .filter((a) => a.name?.toLowerCase() !== "unarmed strike")
+                .map((a) => ({
+                  name: a.name,
+                  kind: a.kind ?? "melee",
+                  reachFeet: a.kind === "ranged" ? undefined : 5,
+                  range: a.range,
+                  attackBonus: a.attackBonus,
+                  damageFormula: a.damage
+                    ? `${a.damage.diceCount ?? 1}d${a.damage.diceSides ?? 4}+${a.damage.modifier ?? 0}`
+                    : undefined,
+                  damageType: a.damageType,
+                }))
+            : []),
           {
             name: "Unarmed Strike",
             kind: "melee",
@@ -453,6 +477,11 @@ export class TacticalViewService {
         movementRemainingFeet: actorMovementRemainingFeet,
         resources: {
           resourcePools: getResourcePools(actorResourcesRaw),
+          attacksPerAction,
+          attacksUsed: actionEconomy.attacksUsed,
+          attacksAllowed: actionEconomy.attacksAllowed,
+          actionAvailable: actionEconomy.actionAvailable,
+          bonusActionAvailable: actionEconomy.bonusActionAvailable,
         },
         sheet: actorChar?.sheet ?? null,
       },

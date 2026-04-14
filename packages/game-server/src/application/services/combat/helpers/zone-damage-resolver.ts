@@ -23,6 +23,7 @@ import {
 import { applyDamageDefenses, type DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyEvasion } from "../../../../domain/rules/evasion.js";
+import { isSavingThrowSuccess } from "../../../../domain/rules/advantage.js";
 import { applyKoEffectsIfNeeded } from "./ko-handler.js";
 import type { CombatantStateRecord, JsonValue } from "../../../types.js";
 
@@ -235,7 +236,7 @@ async function applyZoneEffectsForTrigger(
       const roll = deps.rollD20();
       saveRoll = roll.rolls[0] ?? roll.total;
       saveTotal = roll.total + (deps.passiveZoneSaveBonus ?? 0);
-      saveSuccess = saveTotal >= effect.saveDC;
+      saveSuccess = isSavingThrowSuccess(saveRoll, saveTotal, effect.saveDC);
     }
 
     // Roll damage

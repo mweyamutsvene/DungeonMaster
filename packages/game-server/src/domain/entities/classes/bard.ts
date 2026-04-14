@@ -89,14 +89,6 @@ export const Bard: CharacterClassDefinition = {
     const chaMod = abilityModifiers?.charisma ?? 0;
     return [createBardicInspirationState(level, chaMod).pool];
   },
-  // Requires CHA mod; caller can use createBardicInspirationState instead.
-  resourcePoolFactory: (level, abilityModifiers) => {
-    const chaMod = abilityModifiers?.["charisma"];
-    if (chaMod === undefined) {
-      throw new Error("charismaModifier is required to initialize bard resource pools");
-    }
-    return [createBardicInspirationState(level, chaMod).pool];
-  },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Spellcasting", economy: "action", effect: "Cast bard spells using CHA" },
@@ -118,10 +110,7 @@ export const Bard: CharacterClassDefinition = {
       poolKey: "bardicInspiration",
       refreshOn: (rest, level) => rest === "long" || (rest === "short" && level >= 5),
       computeMax: (level, abilityModifiers) => {
-        const chaMod = abilityModifiers?.["charisma"];
-        if (chaMod === undefined) {
-          throw new Error("charismaModifier is required to refresh bardicInspiration");
-        }
+        const chaMod = abilityModifiers?.["charisma"] ?? 0;
         return bardicInspirationUsesForLevel(level, chaMod);
       },
     },

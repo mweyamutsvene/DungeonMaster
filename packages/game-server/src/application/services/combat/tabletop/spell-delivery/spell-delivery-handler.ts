@@ -12,6 +12,7 @@ import type { TabletopEventEmitter } from '../tabletop-event-emitter.js';
 import type { SavingThrowResolver } from '../rolls/saving-throw-resolver.js';
 import type { SessionCharacterRecord, CombatEncounterRecord, CombatantStateRecord } from '../../../../types.js';
 import type { CombatantRef } from '../../helpers/combatant-ref.js';
+import type { CharacterSheet } from '../../helpers/hydration-types.js';
 
 /**
  * All data needed for a spell cast, resolved once by SpellActionHandler before dispatch.
@@ -27,9 +28,8 @@ export interface SpellCastingContext {
   /** The effective slot level consumed (equals castAtLevel if upcasting, else spellLevel). */
   castAtLevel?: number;
   isConcentration: boolean;
-  /** Character sheet — untyped JSON from database. TODO: Create a proper CharacterSheet interface. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sheet: any;
+  /** Character sheet — typed from the raw JSON stored in SQLite. */
+  sheet: CharacterSheet | null;
   characters: SessionCharacterRecord[];
   actor: CombatantRef;
   roster: LlmRoster;

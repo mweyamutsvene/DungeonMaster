@@ -1,0 +1,5 @@
+{
+  "id": "barbarian-smoke",
+  "scenario": "solo-barbarian",
+  "goal": "Test Barbarian level 5 Rage and Reckless Attack loop against two Orc enemies. Must confirm: (1) Rage activates via bonus action at the start of combat — verify rage resource pool decrements from 3 to 2, (2) While raging, melee damage rolls include +2 rage bonus, (3) Reckless Attack: declare it on first melee attack this turn, look for advantage indicator or two-roll prompt in the server response, (4) Extra Attack: confirm 2 attacks per Attack action. Flag if Rage does not grant B/P/S resistance, if rage damage bonus is missing from roll results, or if Reckless Attack grants more than 2 attacks."
+}

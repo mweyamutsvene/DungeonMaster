@@ -9,6 +9,8 @@ import { ValidationError } from "../../../errors.js";
 import {
   normalizeResources,
 } from "../helpers/resource-utils.js";
+import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
+import { normalizeConditions, canTakeActions } from "../../../../domain/entities/combat/conditions.js";
 import { tryMatchClassAction } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import {
@@ -60,12 +62,13 @@ import {
   tryParseUseItemText,
   tryParseAttackText,
   tryParseEndTurnText,
+  tryParseLegendaryAction,
   inferActorRef,
 } from "./combat-text-parser.js";
 
 import { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import { SpellActionHandler } from "./spell-action-handler.js";
-import { loadRoster } from "./roll-state-machine.js";
+import { loadRoster, type LoadRosterResult } from "./roll-state-machine.js";
 import { GrappleHandlers } from "./dispatch/grapple-handlers.js";
 import { InteractionHandlers } from "./dispatch/interaction-handlers.js";
 import { SocialHandlers } from "./dispatch/social-handlers.js";
@@ -108,13 +111,38 @@ export class ActionDispatcher {
   // Public entry point – replaces TabletopCombatService.parseCombatAction body
   // ----------------------------------------------------------------
 
+  /**
+   * @param preloadedRoster - Optional pre-loaded roster to avoid redundant DB queries.
+   */
   async dispatch(
     sessionId: string,
     text: string,
     actorId: string,
     encounterId: string,
+    preloadedRoster?: LoadRosterResult,
   ): Promise<ActionParseResult> {
-    const { characters, monsters, npcs, roster } = await loadRoster(this.deps, sessionId);
+    const { characters, monsters, npcs, roster } = preloadedRoster ?? await loadRoster(this.deps, sessionId);
+
+    // CO2-M5: Block actions from incapacitated creatures (stunned, paralyzed, unconscious, petrified).
+    // "end turn" is still allowed so players/AI can advance the turn order.
+    const isEndTurn = tryParseEndTurnText(text) !== null;
+    if (!isEndTurn) {
+      const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+      const actorCombatant = findCombatantByEntityId(combatants, actorId);
+      if (actorCombatant) {
+        const conditions = normalizeConditions(actorCombatant.conditions);
+        if (!canTakeActions(conditions)) {
+          const condNames = conditions.filter(c => {
+            const n = c.condition;
+            return n === "Incapacitated" || n === "Stunned" || n === "Paralyzed" || n === "Unconscious" || n === "Petrified";
+          }).map(c => c.condition);
+          throw new ValidationError(
+            `${actorId} cannot take actions while ${condNames.join(", ")}. Only "end turn" is allowed.`,
+          );
+        }
+      }
+    }
+
     const ctx: DispatchContext = { sessionId, encounterId, actorId, text, characters, monsters, npcs, roster };
 
     // Try each parser in priority order; first match wins.
@@ -469,7 +497,74 @@ export class ActionDispatcher {
           this.interactionHandlers.handleUseItemAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.itemName, ctx.roster),
       },
 
-      // 19. End turn / pass / done / skip
+      // 19. Legendary action ("legendary attack", "legendary tail attack", etc.)
+      {
+        id: "legendaryAction",
+        tryParse: (text) => tryParseLegendaryAction(text),
+        handle: async (parsed, ctx) => {
+          // Verify the actor is a monster with legendary actions
+          const combatants = await this.deps.combatRepo.listCombatants(ctx.encounterId);
+          const actorCombatant = findCombatantByEntityId(combatants, ctx.actorId);
+          if (!actorCombatant || actorCombatant.combatantType !== "Monster") {
+            throw new ValidationError("Only monsters with legendary actions can use legendary actions.");
+          }
+          const monster = ctx.monsters.find(m => m.id === ctx.actorId);
+          const statBlock = (monster as any)?.statBlock ?? (monster as any)?.sheet ?? {};
+          const legendaryActions = statBlock.legendaryActions as Array<{ name: string; cost: number; actionType: string; attackName?: string }> | undefined;
+          if (!legendaryActions || legendaryActions.length === 0) {
+            throw new ValidationError(`${monster?.name ?? "This creature"} does not have legendary actions.`);
+          }
+
+          // Check remaining charges
+          const resources = (actorCombatant.resources ?? {}) as Record<string, unknown>;
+          const charges = typeof resources.legendaryActionCharges === "number" ? resources.legendaryActionCharges : 0;
+          if (charges <= 0) {
+            throw new ValidationError("No legendary action charges remaining this round.");
+          }
+
+          // Match the requested action to available legendary actions
+          let selectedAction = legendaryActions[0]!;
+          if (parsed.actionName) {
+            const requested = parsed.actionName.toLowerCase();
+            const found = legendaryActions.find(la =>
+              la.name.toLowerCase().includes(requested) || requested.includes(la.name.toLowerCase()),
+            );
+            if (found) selectedAction = found;
+          }
+
+          if (selectedAction.cost > charges) {
+            throw new ValidationError(
+              `"${selectedAction.name}" costs ${selectedAction.cost} charges but only ${charges} remaining.`,
+            );
+          }
+
+          // Route based on action type
+          if (selectedAction.actionType === "attack" && selectedAction.attackName) {
+            // Route to attack handler
+            const command = {
+              kind: "attack" as const,
+              attacker: inferActorRef(ctx.actorId, ctx.roster),
+              target: undefined as any, // Let attack handler pick nearest
+            };
+            return this.attackHandlers.handleAttackAction(
+              ctx.sessionId, ctx.encounterId, ctx.actorId,
+              `attack with ${selectedAction.attackName}`,
+              command, ctx.characters, ctx.monsters, ctx.npcs,
+            );
+          }
+
+          // For move/special legendary actions, return as a simple action notification
+          return {
+            requiresPlayerInput: false,
+            actionComplete: true,
+            type: "SIMPLE_ACTION_COMPLETE" as const,
+            action: `Legendary: ${selectedAction.name}`,
+            message: `Used legendary action: ${selectedAction.name} (${selectedAction.cost} charge${selectedAction.cost > 1 ? "s" : ""}).`,
+          };
+        },
+      },
+
+      // 21. End turn / pass / done / skip
       {
         id: "endTurn",
         tryParse: (text) => tryParseEndTurnText(text),
@@ -486,7 +581,7 @@ export class ActionDispatcher {
         },
       },
 
-      // 20. Attack (last because it's the broadest text match)
+      // 22. Attack (last because it's the broadest text match)
       {
         id: "attack",
         tryParse: (text, roster) => tryParseAttackText(text, roster),

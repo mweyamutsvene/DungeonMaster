@@ -59,24 +59,38 @@ export class BasicCombatVictoryPolicy implements CombatVictoryPolicy {
       factions.set(faction, stats);
     }
 
-    const allies = ["player", "party"].reduce(
-      (sum, faction) => {
-        const stats = factions.get(faction);
-        if (!stats) return sum;
-        return { alive: sum.alive + stats.alive, total: sum.total + stats.total };
-      },
-      { alive: 0, total: 0 },
-    );
+    // Generic faction-based victory: group factions into opposing sides using
+    // FactionService.getRelationship(). Pick the first faction as the "reference"
+    // faction for the player side (characters default to "party"). All factions
+    // that are allies of the reference are grouped together; all enemy factions
+    // form the opposing side. Neutral factions are ignored for victory checks.
+    const factionNames = Array.from(factions.keys()).filter(f => f !== "unknown");
+    if (factionNames.length < 2) return null; // Need at least 2 factions for a fight
 
-    const enemies = Array.from(factions.entries())
-      .filter(([faction]) => faction === "enemy" || faction === "hostile")
-      .reduce((sum, [, stats]) => sum + stats.alive, 0);
+    // Find the reference faction: first character's faction, or first faction alphabetically
+    const firstCharFaction = input.combatants
+      .filter(c => c.combatantType === "Character")
+      .map(c => factionMap.get(c.id))
+      .find(f => f !== undefined);
+    const referenceFaction = firstCharFaction ?? factionNames[0]!;
 
-    const totalEnemies = Array.from(factions.entries())
-      .filter(([faction]) => faction === "enemy" || faction === "hostile")
-      .reduce((sum, [, stats]) => sum + stats.total, 0);
+    const allies = { alive: 0, total: 0 };
+    const enemies = { alive: 0, total: 0 };
 
-    if (totalEnemies > 0 && enemies === 0) return "Victory";
+    for (const [faction, stats] of factions) {
+      if (faction === "unknown") continue;
+      const rel = this.factionService.getRelationship(referenceFaction, faction);
+      if (rel === "ally") {
+        allies.alive += stats.alive;
+        allies.total += stats.total;
+      } else if (rel === "enemy") {
+        enemies.alive += stats.alive;
+        enemies.total += stats.total;
+      }
+      // "neutral" factions are ignored for victory/defeat
+    }
+
+    if (enemies.total > 0 && enemies.alive === 0) return "Victory";
     if (allies.total > 0 && allies.alive === 0) return "Defeat";
 
     return null;

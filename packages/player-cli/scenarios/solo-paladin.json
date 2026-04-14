@@ -1,0 +1,117 @@
+{
+  "name": "Solo Paladin vs Fiends",
+  "description": "A level 5 Oath of Devotion Paladin battles a Hell Hound and an Abishai. Tests Divine Smite (post-hit spell slot opt-in), Lay on Hands (HP pool), Extra Attack (2/action), and Aura of Protection (CHA to saves).",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric the Just",
+      "className": "Paladin",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 16
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 20,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Cure Wounds", "level": 1 },
+          { "name": "Divine Favor", "level": 1 },
+          { "name": "Shield of Faith", "level": 1 },
+          { "name": "Bless", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Divine Smite", "description": "After hitting with a melee weapon, expend a spell slot to deal 2d8 radiant damage per slot level (max 5d8), +1d8 vs undead/fiends." },
+          { "name": "Lay on Hands", "description": "Healing pool of 25 HP. Action: restore HP or cure disease/poison." },
+          { "name": "Extra Attack", "description": "Attack twice when taking the Attack action." },
+          { "name": "Aura of Protection", "description": "Allies and you within 10 ft add your CHA modifier to saving throws." }
+        ],
+        "resourcePools": [
+          { "name": "layOnHands", "current": 25, "max": 25 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hell Hound",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 17,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 6,
+            "wisdom": 13,
+            "charisma": 6
+          },
+          "maxHp": 45,
+          "hp": 45,
+          "armorClass": 15,
+          "speed": 50,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Fiend Scout",
+        "position": { "x": 15, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 14,
+            "constitution": 13,
+            "intelligence": 10,
+            "wisdom": 11,
+            "charisma": 12
+          },
+          "maxHp": 33,
+          "hp": 33,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Claws",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -30,10 +30,6 @@ export function getCreatureCellFootprint(size: CreatureSize): number {
   }
 }
 
-// TODO: CR-L1 — integrate getCreatureCellFootprint into pathfinding/movement
-// validation so Large+ creatures check ALL occupied cells for passability.
-// See isCellWalkable() in pathfinding.ts and isPositionPassable() here.
-
 /**
  * Create a new combat map with default terrain.
  */

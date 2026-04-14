@@ -18,6 +18,11 @@ export class HealingEffect extends Effect {
   }
 
   public apply(target: Creature): EffectResult {
+    // NOTE: Per D&D 5e 2024, healing from 0 HP resets death saves.
+    // Death saves are tracked at the combat/application layer (combatant resources),
+    // not on the Creature entity. Callers (e.g. HealingSpellDeliveryHandler,
+    // RollStateMachine, ko-handler) are responsible for resetting death saves
+    // when healing revives a creature from 0 HP.
     target.heal(this.amount);
     return { kind: "healing" };
   }

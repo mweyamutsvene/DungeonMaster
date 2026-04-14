@@ -7,6 +7,7 @@ import { ValidationError } from '../../../../errors.js';
 import { normalizeConditions } from '../../../../../domain/entities/combat/conditions.js';
 import { getCantripDamageDice, getUpcastBonusDice, getSpellAttackCount } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import { deriveRollModeFromConditions, findCombatantByName } from '../combat-text-parser.js';
+import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
@@ -34,8 +35,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       throw new ValidationError(`Target "${targetName}" not found`);
     }
 
-    const targetId =
-      (targetRef as any).characterId ?? (targetRef as any).monsterId ?? (targetRef as any).npcId;
+    const targetId = getEntityIdFromRef(targetRef);
     const spellAttackBonus = computeSpellAttackBonus(sheet);
 
     const spellDamage = spellMatch.damage ?? { diceCount: 1, diceSides: 10, modifier: 0 };
@@ -88,6 +88,9 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       spellMatch.attackType === "melee_spell" ? ("melee" as const) : ("ranged" as const);
     const rollMode = deriveRollModeFromConditions(actorConditions, [], inferredKind);
 
+    // Collect on-hit spell effects to apply to target after damage (e.g. Guiding Bolt)
+    const onHitEffects = (spellMatch.effects ?? []).filter(e => e.appliesTo === 'target');
+
     const pendingAction: AttackPendingAction = {
       type: "ATTACK",
       timestamp: new Date(),
@@ -98,6 +101,8 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       weaponSpec: spellWeaponSpec,
       rollMode,
       ...(isMultiAttack ? { spellStrike: 1, spellStrikeTotal: totalStrikes } : {}),
+      // Carry on-hit spell effects (e.g. Guiding Bolt advantage on next attack)
+      ...(onHitEffects.length > 0 ? { spellOnHitEffects: onHitEffects } : {}),
     };
 
     await this.handlerDeps.deps.combatRepo.setPendingAction(encounter.id, pendingAction);
@@ -111,7 +116,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       actionComplete: false,
       type: "REQUEST_ROLL",
       rollType: "attack",
-      diceNeeded: "d20",
+      diceNeeded: rollMode !== "normal" ? "2d20" : "d20",
       advantage: rollMode === "advantage",
       disadvantage: rollMode === "disadvantage",
       message: `Casting ${castInfo.spellName} at ${targetName}${slotNote}${rollModeNote}${strikeNote}. Roll a d20 for spell attack.`,

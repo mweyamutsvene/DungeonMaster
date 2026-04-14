@@ -17,7 +17,7 @@ Always start by reading this file fully. You should always start with a prompt "
 
 Always use DnD 5e 2024 rules unless explicitly told otherwise.
 
-CRITICAL: The test harness "packages\game-server\scripts\test-harness" is the source of truth. When adding functionality to the cli, we need to make sure it follows the test harness capabilities and tests.
+***CRITICAL***: The test harness "packages\game-server\scripts\test-harness" is the source of truth. When adding functionality to the cli, we need to make sure it follows the test harness capabilities and tests.
 
 Whenever you write a TODO comment, make sure you create a plan markdown file in the .github/prompts/ folder describing the plan to implement the feature.
 
@@ -29,7 +29,7 @@ When you need to make changes to the codebase, always follow the instructions in
 
 There is no such thing as breaking changes, as this isn't a public API. Refactor and improve the codebase as needed to keep it clean and maintainable.
 
-IMPORTANT!!  if you run into unexpected behavior during testing and implementation for items outside the currently worked on feature or bug, or what you would expect from D&D 5e rules, please flag it immediately. This plan is based on our current understanding of the rules and existing codebase, but we may discover new edge cases or necessary changes as we go. Document TODOs and open issues for any gaps or unexpected behaviors you encounter, even if they fall outside the scope of the currently worked on specific scenarios. The goal is to ensure a comprehensive and accurate combat system, and your feedback is crucial to achieving that.
+***IMPORTANT!!***  if you run into unexpected behavior during testing and implementation for items outside the currently worked on feature or bug, or what you would expect from D&D 5e rules, please flag it immediately. This plan is based on our current understanding of the rules and existing codebase, but we may discover new edge cases or necessary changes as we go. Document TODOs and open issues for any gaps or unexpected behaviors you encounter, even if they fall outside the scope of the currently worked on specific scenarios. The goal is to ensure a comprehensive and accurate combat system, and your feedback is crucial to achieving that.
 
 ## Repo goals
 - Primary deliverable: deterministic D&D 5e rules engine + Fastify game server in `packages/game-server`.
@@ -46,8 +46,10 @@ IMPORTANT!!  if you run into unexpected behavior during testing and implementati
 
 ## Repo map (folder responsibilities)
 - `.github/`: repo automation + AI agent guidance.
-  - `.github/agents/`: Copilot agent definitions (`developer.agent.md`, `TestingAgent.agent.md`).
+  - `.github/agents/`: Copilot agent definitions — 13 SME/Implementer pairs + developer + testing + challenger + metrics + E2E/Vitest writers.
   - `.github/prompts/`: plan prompt files for TODO-driven features.
+  - `.github/instructions/`: 14 instruction files with `applyTo` globs for auto-loading domain context.
+  - `.github/SME-Architecture-Flows/`: Architecture flow docs (Mermaid UML + data flow + user journey) for all 13 flows.
   - `.github/API_REFERENCE.md`: API reference documentation.
 - `.vscode/`: VS Code tasks (e.g. `game-server: test (faction full transcript)`).
 - `packages/`:
@@ -305,6 +307,26 @@ Data-driven system for **boolean feature checks** — "does this class have Rage
 - `src/infrastructure/llm/spy-provider.ts`: `SpyLlmProvider` — transparent wrapper that records LLM calls for snapshot testing.
 - `scripts/import-rulebook.ts` / `scripts/import-monsters.ts`: rulebook content importers.
 - `scripts/run-vitest-with-env.ts`: vitest wrapper with environment variable injection.
+
+## SME Domain Map (13 flows)
+
+| # | Flow | SME Agent | Instruction File | Architecture Doc |
+|---|------|-----------|-----------------|-----------------|
+| 1 | **CombatRules** | CombatRules-SME | `combat-rules.instructions.md` | `SME-Architecture-Flows/CombatRules.md` |
+| 2 | **ClassAbilities** | ClassAbilities-SME | `class-abilities.instructions.md` | `SME-Architecture-Flows/ClassAbilities.md` |
+| 3 | **SpellSystem** | SpellSystem-SME | `spell-system.instructions.md` | `SME-Architecture-Flows/SpellSystem.md` |
+| 4 | **CombatOrchestration** | CombatOrchestration-SME | `combat-orchestration.instructions.md` | `SME-Architecture-Flows/CombatOrchestration.md` |
+| 5 | **AIBehavior** | AIBehavior-SME | `ai-behavior.instructions.md` | `SME-Architecture-Flows/AIBehavior.md` |
+| 6 | **EntityManagement** | EntityManagement-SME | `entity-management.instructions.md` | `SME-Architecture-Flows/EntityManagement.md` |
+| 7 | **CombatMap** | CombatMap-SME | `combat-map.instructions.md` | `SME-Architecture-Flows/CombatMap.md` |
+| 8 | **SpellCatalog** | SpellCatalog-SME | `spell-catalog.instructions.md` | `SME-Architecture-Flows/SpellCatalog.md` |
+| 9 | **ReactionSystem** | ReactionSystem-SME | `reaction-system.instructions.md` | `SME-Architecture-Flows/ReactionSystem.md` |
+| 10 | **ActionEconomy** | ActionEconomy-SME | `action-economy.instructions.md` | `SME-Architecture-Flows/ActionEconomy.md` |
+| 11 | **CreatureHydration** | CreatureHydration-SME | `creature-hydration.instructions.md` | `SME-Architecture-Flows/CreatureHydration.md` |
+| 12 | **AISpellEvaluation** | AISpellEvaluation-SME | `ai-spell-evaluation.instructions.md` | `SME-Architecture-Flows/AISpellEvaluation.md` |
+| 13 | **InventorySystem** | InventorySystem-SME | `inventory-system.instructions.md` | `SME-Architecture-Flows/InventorySystem.md` |
+
+Each flow has a paired Implementer agent (e.g., `CombatRules-Implementer`). Flows 7-13 are sub-domains carved from flows 1-6.
 
 ## Standards that matter here
 - Explicit `.js` extensions in TS imports (NodeNext ESM). Preserve this style.

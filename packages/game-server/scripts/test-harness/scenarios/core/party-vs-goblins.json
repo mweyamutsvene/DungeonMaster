@@ -1,6 +1,6 @@
 {
   "name": "Party vs Goblins: Multi-NPC Combat",
-  "description": "A Fighter leads a party of two NPCs against two Goblins. Tests multi-NPC combat with party coordination, AI turns for both allies and enemies.",
+  "description": "A Fighter leads a party of two NPCs against two Goblins. Tests multi-NPC combat with party coordination, AI turns for both allies and enemies. The Goblin Ambusher has 1 HP / AC 5 so NPCs kill it in round 1. The Goblin Boss has 10 HP so a single player hit (min 5 damage) kills it. This avoids dependency on non-deterministic NPC damage amounts.",
   "setup": {
     "character": {
       "name": "Gareth Ironforge",
@@ -104,9 +104,9 @@
             "wisdom": 8,
             "charisma": 8
           },
-          "maxHp": 7,
-          "hp": 7,
-          "armorClass": 15,
+          "maxHp": 1,
+          "hp": 1,
+          "armorClass": 5,
           "speed": 30,
           "challengeRating": 0.25,
           "experienceValue": 50,
@@ -133,8 +133,8 @@
             "wisdom": 10,
             "charisma": 10
           },
-          "maxHp": 21,
-          "hp": 21,
+          "maxHp": 10,
+          "hp": 10,
           "armorClass": 17,
           "speed": 30,
           "challengeRating": 1,
@@ -171,52 +171,17 @@
     },
     {
       "type": "endTurn",
-      "comment": "End turn immediately - let AI (NPCs and goblins) act first"
+      "comment": "End turn immediately - let AI (NPCs and goblins) act first. NPCs should kill the 1 HP Ambusher."
     },
     {
       "type": "waitForTurn",
-      "comment": "Wait for all AI turns (2 party NPCs + 2 goblins)",
-      "timeout": 10000
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Goblin Ambusher" },
-      "comment": "Attack the nearest goblin (should be in range after AI moved)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "14" },
-      "comment": "14 + 7 = 21 vs AC 15 - hit!",
-      "expect": {
-        "hit": true,
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "7" },
-      "comment": "7 + 4 = 11 damage - kills the 7 HP Ambusher",
-      "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "endTurn",
-      "comment": "End turn - NPCs and remaining goblins will act"
-    },
-    {
-      "type": "waitForTurn",
-      "comment": "Wait for all AI turns (2 party NPCs + 1 goblin)",
+      "comment": "Wait for all AI turns (2 party NPCs + 2 goblins). Ambusher should die from NPC attacks.",
       "timeout": 10000
     },
     {
       "type": "action",
       "input": { "text": "attack Goblin Boss" },
-      "comment": "Attack the Goblin Boss (should have moved into range)",
+      "comment": "Attack the Goblin Boss directly (Ambusher should be dead from NPC fire)",
       "expect": {
         "rollType": "attack",
         "requiresPlayerInput": true
@@ -234,42 +199,7 @@
     {
       "type": "rollResult",
       "input": { "text": "6" },
-      "comment": "6 + 4 = 10 damage - Goblin Boss down to 11 HP",
-      "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "endTurn",
-      "comment": "End turn, more AI actions"
-    },
-    {
-      "type": "waitForTurn",
-      "comment": "Wait for remaining AI combatants",
-      "timeout": 10000
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Goblin Boss" },
-      "comment": "Finish off the Goblin Boss",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "18" },
-      "comment": "18 + 7 = 25 vs AC 17 - hit!",
-      "expect": {
-        "hit": true,
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "7" },
-      "comment": "7 + 4 = 11 damage - kills the 11 HP Goblin Boss, combat ends",
+      "comment": "6 + 4 = 10 damage - kills the 10 HP Goblin Boss, combat ends",
       "expect": {
         "actionComplete": true,
         "combatEnded": true

@@ -1,0 +1,5 @@
+{
+  "id": "warlock-smoke",
+  "scenario": "solo-warlock",
+  "goal": "Test Warlock level 5 Eldritch Blast multi-beam pipeline against Shadow Construct and Spectral Guard. Must confirm: (1) Casting Eldritch Blast produces exactly 2 separate attack roll prompts (beams) at level 5 — each beam is 1d10 force, NOT 2d10. Verify 2 roll cycles happen before action completes, (2) Each beam resolves independently — a miss on beam 1 should still chain to beam 2, (3) Pact Magic: only level-3 slots are available. Verify slot count is 2 and decrements when casting a leveled spell, (4) Cast Hex (concentration): verify server confirms concentration tracking. Attack the hexed target and check if 1d6 necrotic bonus appears in the damage response. Flag if Eldritch Blast shows only 1 beam, if beams show 2d10 instead of 1d10, or if pact magic slots appear at wrong level."
+}

@@ -1,5 +1,5 @@
 ---
-description: "Architecture and conventions for the AIBehavior flow: AI turn orchestration, battle planning, tactical context building, LLM provider adapters, intent parsing, narration generation."
+description: "Architecture and conventions for the AIBehavior flow: AI turn orchestration, battle planning, tactical context building, LLM provider adapters, intent parsing, narration generation. NOTE: AI spell evaluation/casting → ai-spell-evaluation.instructions.md."
 applyTo: "packages/game-server/src/application/services/combat/ai/**,packages/game-server/src/infrastructure/llm/**"
 ---
 

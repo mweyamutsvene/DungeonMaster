@@ -53,10 +53,6 @@ export const Sorcerer: CharacterClassDefinition = {
     const sp = createSorceryPointsState(level);
     return sp.pool.max > 0 ? [sp.pool] : [];
   },
-  resourcePoolFactory: (level) => {
-    const sp = createSorceryPointsState(level);
-    return sp.pool.max > 0 ? [sp.pool] : [];
-  },
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Spellcasting", economy: "action", effect: "Cast sorcerer spells using CHA" },

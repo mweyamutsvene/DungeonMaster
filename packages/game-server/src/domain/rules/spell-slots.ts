@@ -1,5 +1,8 @@
 export type SpellSlotLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
+/** All valid spell slot levels as a typed const array. */
+export const SPELL_SLOT_LEVELS: readonly SpellSlotLevel[] = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+
 export type SpellSlotsState = Record<SpellSlotLevel, { current: number; max: number }>;
 
 export function createSpellSlotsState(init?: Partial<SpellSlotsState>): SpellSlotsState {
@@ -17,7 +20,7 @@ export function createSpellSlotsState(init?: Partial<SpellSlotsState>): SpellSlo
 
   if (!init) return base;
 
-  for (const level of Object.keys(init) as unknown as SpellSlotLevel[]) {
+  for (const level of SPELL_SLOT_LEVELS) {
     const v = init[level];
     if (!v) continue;
     base[level] = { current: v.current, max: v.max };
@@ -47,7 +50,7 @@ export function spendSpellSlot(slots: SpellSlotsState, level: SpellSlotLevel): S
 
 export function restoreAllSpellSlots(slots: SpellSlotsState): SpellSlotsState {
   const next = { ...slots } as SpellSlotsState;
-  for (const level of Object.keys(next) as unknown as SpellSlotLevel[]) {
+  for (const level of SPELL_SLOT_LEVELS) {
     next[level] = { ...next[level], current: next[level].max };
   }
   return next;

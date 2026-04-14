@@ -223,3 +223,53 @@ export function getWeaponMagicBonuses(
 
   return result;
 }
+
+// ─── Weight / Encumbrance (D&D 5e 2024) ─────────────────────────────────
+
+export interface ItemWeight {
+  /** Display name for the item. */
+  name: string;
+  /** Weight in pounds per unit. 0 or undefined = negligible. */
+  weightLb?: number;
+  /** Quantity carried. */
+  quantity: number;
+}
+
+/**
+ * Sum the total weight of items.
+ *
+ * Accepts any array of objects with `weightLb` and `quantity`.
+ * CharacterItemInstance doesn't have a weight field itself — callers
+ * should map inventory entries to resolved weights from the catalogs.
+ */
+export function getTotalWeight(items: readonly ItemWeight[]): number {
+  return items.reduce((sum, i) => sum + (i.weightLb ?? 0) * i.quantity, 0);
+}
+
+/**
+ * Carrying capacity = Strength score × 15  (PHB 2024, p. 18).
+ */
+export function getCarryingCapacity(strengthScore: number): number {
+  return strengthScore * 15;
+}
+
+/**
+ * D&D 5e 2024 encumbrance thresholds:
+ * - Normal: weight ≤ capacity / 3
+ * - Encumbered: weight > capacity / 3  (speed −10 ft)
+ * - Heavily encumbered: weight > capacity × 2/3  (speed −20 ft, disadvantage on STR/DEX/CON checks/saves/attacks)
+ */
+export type EncumbranceLevel = "normal" | "encumbered" | "heavily-encumbered";
+
+export function getEncumbranceLevel(totalWeight: number, carryingCapacity: number): EncumbranceLevel {
+  if (totalWeight > (carryingCapacity * 2) / 3) return "heavily-encumbered";
+  if (totalWeight > carryingCapacity / 3) return "encumbered";
+  return "normal";
+}
+
+/**
+ * Convenience: check if the character is encumbered at all.
+ */
+export function isEncumbered(totalWeight: number, carryingCapacity: number): boolean {
+  return getEncumbranceLevel(totalWeight, carryingCapacity) !== "normal";
+}

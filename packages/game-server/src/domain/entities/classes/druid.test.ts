@@ -5,22 +5,40 @@ import {
   createWildShapeState,
   resetWildShapeOnShortRest,
   spendWildShape,
-  wildShapeMaxCRForLevel,
   wildShapeUsesForLevel,
+  availableBeastForms,
+  getBeastFormStatBlock,
 } from "./druid.js";
 
 describe("Druid wild shape", () => {
-  it("gates uses by level", () => {
+  it("gates uses by level (scales with proficiency bonus in 2024)", () => {
     expect(wildShapeUsesForLevel(1)).toBe(0);
     expect(wildShapeUsesForLevel(2)).toBe(2);
-    expect(wildShapeUsesForLevel(5)).toBe(2);
+    expect(wildShapeUsesForLevel(5)).toBe(3);
+    expect(wildShapeUsesForLevel(9)).toBe(4);
+    expect(wildShapeUsesForLevel(13)).toBe(5);
+    expect(wildShapeUsesForLevel(17)).toBe(6);
   });
 
-  it("computes max CR by level (up to 5)", () => {
-    expect(wildShapeMaxCRForLevel(1)).toBe(0);
-    expect(wildShapeMaxCRForLevel(2)).toBe(0.25);
-    expect(wildShapeMaxCRForLevel(4)).toBe(0.5);
-    expect(wildShapeMaxCRForLevel(5)).toBe(0.5);
+  it("unlocks beast forms by level", () => {
+    expect(availableBeastForms(1)).toEqual([]);
+    expect(availableBeastForms(2)).toEqual(["Beast of the Land"]);
+    expect(availableBeastForms(4)).toEqual(["Beast of the Land", "Beast of the Sea"]);
+    expect(availableBeastForms(8)).toEqual(["Beast of the Land", "Beast of the Sea", "Beast of the Sky"]);
+  });
+
+  it("scales beast form stat blocks with druid level", () => {
+    const land2 = getBeastFormStatBlock("Beast of the Land", 2);
+    expect(land2.hp).toBe(10); // 5 * 2
+    expect(land2.multiattack).toBe(false);
+
+    const land5 = getBeastFormStatBlock("Beast of the Land", 5);
+    expect(land5.hp).toBe(25); // 5 * 5
+    expect(land5.multiattack).toBe(true);
+
+    const sky10 = getBeastFormStatBlock("Beast of the Sky", 10);
+    expect(sky10.hp).toBe(50); // 5 * 10
+    expect(sky10.speed).toContain("fly");
   });
 
   it("spends and resets on short rest", () => {
@@ -52,17 +70,17 @@ describe("Druid capabilitiesForLevel", () => {
     expect(ws.economy).toBe("bonusAction");
     expect(ws.abilityId).toBe("class:druid:wild-shape");
     expect(ws.resourceCost).toEqual({ pool: "wildShape", amount: 1 });
-    expect(ws.effect).toContain("CR 0.25");
+    expect(ws.effect).toContain("Beast of the Land");
   });
 
-  it("reflects CR scaling at level 4 and 8", () => {
+  it("reflects beast form availability at level 4 and 8", () => {
     const capsL4 = Druid.capabilitiesForLevel!(4);
     const wsL4 = capsL4.find(c => c.name === "Wild Shape")!;
-    expect(wsL4.effect).toContain("CR 0.5");
+    expect(wsL4.effect).toContain("Beast of the Sea");
 
     const capsL8 = Druid.capabilitiesForLevel!(8);
     const wsL8 = capsL8.find(c => c.name === "Wild Shape")!;
-    expect(wsL8.effect).toContain("CR 1");
+    expect(wsL8.effect).toContain("Beast of the Sky");
   });
 });
 

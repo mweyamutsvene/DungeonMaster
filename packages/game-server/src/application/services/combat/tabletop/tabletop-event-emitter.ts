@@ -52,7 +52,9 @@ export class TabletopEventEmitter {
    */
   async markActionSpent(encounterId: string, actorId: string): Promise<void> {
     const combatantStates = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatantStates.find((c: any) => c.characterId === actorId);
+    const actorCombatant = combatantStates.find(
+      (c: any) => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+    );
     if (actorCombatant) {
       const updatedResources = useAttack(actorCombatant.resources ?? {});
       await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {

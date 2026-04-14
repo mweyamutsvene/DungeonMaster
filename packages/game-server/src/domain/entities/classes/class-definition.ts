@@ -109,17 +109,9 @@ export interface CharacterClassDefinition {
    * Kept explicit and deterministic.
    * `abilityModifiers` is a map of ability names to their MODIFIERS (not scores),
    * for classes whose resource pools depend on ability scores (e.g. Monk's
-   * Wholeness of Body uses = WIS modifier). Matches `resourcePoolFactory` convention.
+   * Wholeness of Body uses = WIS modifier).
    */
   resourcesAtLevel?: (level: number, abilityModifiers?: Record<string, number>, subclassId?: string) => readonly ResourcePool[];
-
-  /**
-   * Factory that builds the default resource pools for character initialization and leveling.
-   * `abilityModifiers` is a map of ability names to their MODIFIERS (not scores).
-   * Currently only `charisma` is used (by Bard's bardic inspiration).
-   * Optional — classes without resources omit this field.
-   */
-  resourcePoolFactory?: (level: number, abilityModifiers?: Record<string, number>, subclassId?: string) => readonly ResourcePool[];
 
   /**
    * Declares how each class resource pool refreshes on short/long rest.

@@ -13,12 +13,32 @@ import type { CanonicalSpell } from './types.js';
 export const ABSORB_ELEMENTS = {
   name: 'Absorb Elements',
   level: 1,
+  effects: [
+    {
+      type: 'resistance' as const,
+      target: 'hit_points' as const,
+      // Damage type is resolved at cast time from the triggering damage
+      damageType: 'triggering',
+      duration: 'until_start_of_next_turn' as const,
+      appliesTo: 'self' as const,
+    },
+    {
+      type: 'bonus' as const,
+      target: 'melee_damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      // Damage type matches the triggering element, resolved at cast time
+      damageType: 'triggering',
+      duration: 'until_triggered' as const,
+      appliesTo: 'self' as const,
+    },
+  ],
+  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 6 } },
   school: 'abjuration',
   castingTime: 'reaction',
   range: 'self',
   components: { s: true },
   classLists: ['Druid', 'Ranger', 'Sorcerer', 'Wizard'],
-  description: 'Grants resistance to triggering elemental damage type and adds 1d6 of that type to your next melee attack.',
+  description: 'Grants resistance to triggering elemental damage type until start of your next turn and adds 1d6 of that type to your next melee attack. +1d6 per slot level above 1st.',
 } as const satisfies CanonicalSpell;
 
 export const BLESS = {
@@ -31,14 +51,14 @@ export const BLESS = {
       target: 'attack_rolls' as const,
       diceValue: { count: 1, sides: 4 },
       duration: 'concentration' as const,
-      appliesTo: 'self' as const,
+      appliesTo: 'allies' as const,
     },
     {
       type: 'bonus' as const,
       target: 'saving_throws' as const,
       diceValue: { count: 1, sides: 4 },
       duration: 'concentration' as const,
-      appliesTo: 'self' as const,
+      appliesTo: 'allies' as const,
     },
   ],
   school: 'enchantment',
@@ -257,7 +277,9 @@ export const MAGIC_MISSILE = {
   damageType: 'force',
   autoHit: true,
   dartCount: 3,
-  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 4 } },
+  // No upcastScaling — Magic Missile upcasting adds +1 dart per slot level above 1st,
+  // not additional dice. Dart scaling is handled by the auto-hit delivery path:
+  //   dartCount + (castAtLevel - spell.level)
   school: 'evocation',
   castingTime: 'action',
   range: 120,
@@ -269,6 +291,15 @@ export const MAGIC_MISSILE = {
 export const SHIELD_SPELL = {
   name: 'Shield',
   level: 1,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'armor_class' as const,
+      value: 5,
+      duration: 'until_start_of_next_turn' as const,
+      appliesTo: 'self' as const,
+    },
+  ],
   school: 'abjuration',
   castingTime: 'reaction',
   range: 'self',
@@ -280,6 +311,22 @@ export const SHIELD_SPELL = {
 export const SILVERY_BARBS = {
   name: 'Silvery Barbs',
   level: 1,
+  effects: [
+    {
+      type: 'disadvantage' as const,
+      target: 'custom' as const,
+      // Forces the triggering creature to reroll and use the lower result
+      duration: 'instant' as const,
+      appliesTo: 'target' as const,
+    },
+    {
+      type: 'advantage' as const,
+      target: 'next_attack' as const,
+      // Grants advantage on the next d20 roll to an ally of your choice
+      duration: 'until_triggered' as const,
+      appliesTo: 'allies' as const,
+    },
+  ],
   school: 'enchantment',
   castingTime: 'reaction',
   range: 60,

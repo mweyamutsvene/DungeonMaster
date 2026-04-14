@@ -405,4 +405,6 @@ export interface CLIOptions {
   scenarioName?: string;
   verbose: boolean;
   noNarration: boolean;
+  /** If set, starts an HTTP control server on this port for agent-driven play. */
+  controlPort?: number;
 }

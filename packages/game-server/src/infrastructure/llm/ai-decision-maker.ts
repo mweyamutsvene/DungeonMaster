@@ -16,6 +16,13 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     process.env.DM_AI_DEBUG === "true" ||
     process.env.DM_AI_DEBUG === "yes";
 
+  private readonly compactPrompt: boolean;
+
+  /** Model name substrings that indicate a small model needing compact prompts */
+  private static readonly SMALL_MODEL_PATTERNS = [
+    "phi", "gemma", "tinyllama", "qwen-0.5", "qwen-1.5", "qwen2-0.5", "qwen2-1.5",
+  ];
+
   constructor(
     private readonly llm: LlmProvider,
     private readonly config: {
@@ -23,8 +30,15 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
       temperature?: number;
       seed?: number;
       timeoutMs?: number;
+      compactPrompt?: boolean;
     },
-  ) {}
+  ) {
+    // Auto-detect compact mode for small models unless explicitly set
+    this.compactPrompt = config.compactPrompt ??
+      LlmAiDecisionMaker.SMALL_MODEL_PATTERNS.some(p =>
+        config.model.toLowerCase().includes(p)
+      );
+  }
 
   private aiLog(...args: unknown[]): void {
     if (this.aiDebugEnabled) console.log(...args);
@@ -80,7 +94,9 @@ export class LlmAiDecisionMaker implements IAiDecisionMaker {
     const { battlefield: _bf2, ...truncatedWithoutBattlefield } = truncatedContext;
 
     const prompt = new PromptBuilder('v1')
-      .addSection('system', this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable, hasSpells))
+      .addSection('system', this.compactPrompt
+        ? this.buildCompactSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable, hasSpells)
+        : this.buildSystemPrompt(input.combatantName, input.combatantType, useObjectAvailable, hasSpells))
       .addSectionIf(!!bf, 'battlefield', battlefieldContent)
       .addSectionIf(!!bp, 'battle-plan', battlePlanContent)
       .addSectionIf(hasNarrative, 'narrative', narrativeContent)
@@ -484,6 +500,56 @@ Second response (after you are asked again):
   "action": "endTurn",
   "intentNarration": "The goblin holds its ground, circling warily.",
   "reasoning": "Low on HP, waiting for ally to engage first. No good targets in range."
+}`;
+  }
+
+  /**
+   * Compact system prompt (~2000 chars) for small models (Phi-3, Gemma, TinyLlama, etc.)
+   * Strips examples, long explanations, and detailed mechanics — keeps only essentials.
+   */
+  private buildCompactSystemPrompt(actorName: string, actorType: string, useObjectAvailable: boolean, hasSpells: boolean): string {
+    const actions = [
+      '"attack" (target + attackName from context.combatant.actions)',
+      '"move" (destination: {x,y})',
+      '"moveToward" (target + desiredRange)',
+      '"moveAwayFrom" (target)',
+      '"dash", "disengage", "dodge", "help", "hide", "search"',
+      '"grapple", "shove", "escapeGrapple" (target)',
+      useObjectAvailable ? '"useObject" (drink healing potion)' : null,
+      hasSpells ? '"castSpell" (spellName + target)' : null,
+      '"useFeature" (featureId from classAbilities)',
+      '"endTurn"',
+    ].filter(Boolean).join('\n- ');
+
+    return `You are ${actorName} (${actorType}) in D&D combat. Pick the best tactical action.
+
+RULES:
+- 1 action, 1 bonus action, 1 reaction per turn. Movement is free.
+- Check context.combatant.economy — if actionSpent=true, only "move" or "endTurn".
+- Check context.combatant.conditions for current status effects.
+- Check context.combatant.resourcePools before using abilities (current > 0).
+- Leaving enemy melee range (5ft) provokes opportunity attacks unless you used Disengage.
+- "dash" doubles movement but you must follow with "move" to relocate.
+- Set endTurn: false if you want to take more steps this turn.
+
+ACTIONS:
+- ${actions}
+
+BONUS ACTIONS: Check context.combatant.bonusActions and classAbilities (economy: "bonus").
+
+OUTPUT: Respond with ONLY a JSON object:
+{
+  "action": string,
+  "target": string,
+  "attackName": string,
+  "destination": {x, y},
+  "desiredRange": number,
+  "spellName": string,
+  "featureId": string,
+  "bonusAction": string,
+  "intentNarration": string,
+  "reasoning": string,
+  "endTurn": boolean
 }`;
   }
 

@@ -194,6 +194,17 @@ export interface ReactionOpportunity {
 }
 
 /**
+ * Result of executing a reaction (e.g. opportunity attack roll outcomes).
+ */
+export interface ReactionResult {
+  attackRoll?: number;
+  totalAttack?: number;
+  hit?: boolean;
+  damageRoll?: number;
+  totalDamage?: number;
+}
+
+/**
  * A combatant's response to a reaction opportunity.
  */
 export interface ReactionResponse {
@@ -210,13 +221,7 @@ export interface ReactionResponse {
   respondedAt: Date;
   
   /** Result of executing the reaction (if used) */
-  result?: {
-    attackRoll?: number;     // d20 result from player
-    attackTotal?: number;    // Roll + modifiers
-    hit?: boolean;           // Whether attack hit
-    damageRoll?: number;     // Damage die result from player
-    damageTotal?: number;    // Total damage applied
-  };
+  result?: ReactionResult;
 }
 
 /**

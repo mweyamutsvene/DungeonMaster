@@ -41,6 +41,14 @@ export class GameSessionService {
     // Verify session exists before deleting
     await this.getSessionOrThrow(id);
     await this.sessions.delete(id);
+
+    if (this.events) {
+      await this.events.append(id, {
+        id: nanoid(),
+        type: "SessionDeleted",
+        payload: { sessionId: id },
+      });
+    }
   }
 
   async listSessions(input?: { limit?: number; offset?: number }): Promise<{ items: GameSessionRecord[]; total: number }> {

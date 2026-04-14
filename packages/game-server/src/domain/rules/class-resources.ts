@@ -15,10 +15,10 @@ export interface DefaultResourcePoolsOptions {
 export function defaultResourcePoolsForClass(options: DefaultResourcePoolsOptions): ResourcePool[] {
   const { classId, level } = options;
   const def = getClassDefinition(classId);
-  if (!def.resourcePoolFactory) return [];
+  if (!def.resourcesAtLevel) return [];
 
   const abilityModifiers: Record<string, number> | undefined =
     options.charismaModifier !== undefined ? { charisma: options.charismaModifier } : undefined;
 
-  return [...def.resourcePoolFactory(level, abilityModifiers)];
+  return [...def.resourcesAtLevel(level, abilityModifiers)];
 }

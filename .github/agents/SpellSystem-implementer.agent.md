@@ -1,6 +1,6 @@
 ---
 name: SpellSystem-Implementer
-description: "Use when implementing approved changes to the spell system: SpellActionHandler delivery modes, zone effects, concentration mechanics, spell entity definitions. Executes plans validated by SpellSystem-SME."
+description: "Use when implementing approved changes to the spell system: SpellActionHandler delivery modes, zone effects, concentration mechanics. Spell catalog definitions → SpellCatalog-Implementer. Executes plans validated by SpellSystem-SME."
 tools: [read, edit, search, execute]
 user-invocable: false
 agents: []

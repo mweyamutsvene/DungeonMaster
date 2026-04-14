@@ -1,0 +1,5 @@
+{
+  "id": "boss-smoke",
+  "scenario": "boss-fight",
+  "goal": "Test Fighter level 5 resource abilities vs Ogre. Must exercise: (1) Normal 2-attack round (Extra Attack), (2) Second Wind bonus action when HP < 50% (heals 1d10+5, replaces with bonus action), (3) Action Surge for a 4-attack round (2 extra actions). Verify action surge gives 2 additional attack prompts and second wind resource pool is consumed. Flag if action economy allows more attacks than it should."
+}

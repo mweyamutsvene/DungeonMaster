@@ -77,7 +77,10 @@ export type CreatureAdapter = {
   getAC(): number;
   getAbilityModifier(ability: Ability): number;
   takeDamage(amount: number): void;
-  getFeatIds?: () => readonly string[];
+  getFeatIds(): readonly string[];
+  getClassId(): string | undefined;
+  getSubclass(): string | undefined;
+  getLevel(): number | undefined;
   getD20TestModeForAbility?: (
     ability: Ability,
     baseMode: "normal" | "advantage" | "disadvantage",
@@ -88,6 +91,9 @@ export function buildCreatureAdapter(params: {
   armorClass: number;
   abilityScores: AbilityScoresData;
   featIds?: readonly string[];
+  classId?: string;
+  subclass?: string;
+  level?: number;
   hpCurrent: number;
 }): { creature: CreatureAdapter; getHpCurrent: () => number } {
   let hpCurrent = params.hpCurrent;
@@ -99,11 +105,11 @@ export function buildCreatureAdapter(params: {
       const a = Number.isFinite(amount) ? amount : 0;
       hpCurrent = Math.max(0, hpCurrent - Math.max(0, a));
     },
+    getFeatIds: () => params.featIds ?? [],
+    getClassId: () => params.classId,
+    getSubclass: () => params.subclass,
+    getLevel: () => params.level,
   };
-
-  if (params.featIds) {
-    creature.getFeatIds = () => params.featIds ?? [];
-  }
 
   return { creature, getHpCurrent: () => hpCurrent };
 }

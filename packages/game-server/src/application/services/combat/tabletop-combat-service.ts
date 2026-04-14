@@ -62,7 +62,8 @@ import type {
 } from "./tabletop/tabletop-types.js";
 
 import { TabletopEventEmitter } from "./tabletop/tabletop-event-emitter.js";
-import { RollStateMachine, loadRoster } from "./tabletop/roll-state-machine.js";
+import { combatantRefFromState } from "./helpers/combatant-ref.js";
+import { RollStateMachine, loadRoster, type LoadRosterResult } from "./tabletop/roll-state-machine.js";
 import { SpellActionHandler } from "./tabletop/spell-action-handler.js";
 import { ActionDispatcher } from "./tabletop/action-dispatcher.js";
 import { computeInitiativeModifiers } from "./tabletop/tabletop-utils.js";
@@ -302,7 +303,8 @@ export class TabletopCombatService {
     text: string,
     actorId: string,
   ): Promise<CombatStartedResult | AttackResult | DamageResult | DeathSaveResult | SavingThrowAutoResult> {
-    return this.rollStateMachine.processRollResult(sessionId, text, actorId);
+    const preloaded = await loadRoster(this.deps, sessionId);
+    return this.rollStateMachine.processRollResult(sessionId, text, actorId, preloaded);
   }
 
   /**
@@ -315,7 +317,8 @@ export class TabletopCombatService {
     actorId: string,
     encounterId: string,
   ): Promise<ActionParseResult> {
-    return this.actionDispatcher.dispatch(sessionId, text, actorId, encounterId);
+    const preloaded = await loadRoster(this.deps, sessionId);
+    return this.actionDispatcher.dispatch(sessionId, text, actorId, encounterId, preloaded);
   }
 
   /**
@@ -360,43 +363,29 @@ export class TabletopCombatService {
 
       if (roll !== undefined) {
         if (rollType === "opportunity_attack" && !needsDamage) {
-          // Process attack roll
-          const target = combatants.find((c) =>
-            (pendingAction.actor.type === "Character" && c.characterId === (pendingAction.actor as any).characterId) ||
-            (pendingAction.actor.type === "Monster" && c.monsterId === (pendingAction.actor as any).monsterId) ||
-            (pendingAction.actor.type === "NPC" && c.npcId === (pendingAction.actor as any).npcId),
-          );
+          // Process attack roll — resolve stats via combatantRefFromState
+          const target = combatants.find((c) => {
+            const ref = combatantRefFromState(c);
+            if (!ref) return false;
+            const actorRef = pendingAction.actor as any;
+            return (
+              (actorRef.type === "Character" && ref.type === "Character" && ref.characterId === actorRef.characterId) ||
+              (actorRef.type === "Monster" && ref.type === "Monster" && ref.monsterId === actorRef.monsterId) ||
+              (actorRef.type === "NPC" && ref.type === "NPC" && ref.npcId === actorRef.npcId)
+            );
+          });
 
           const attacker = combatants.find((c) => c.id === nextOA.combatantId);
-          let attackMod = 0;
-
-          if (attacker?.characterId) {
-            const charStats = await this.deps.combatants.getCombatStats({ type: "Character", characterId: attacker.characterId });
-            const strMod = Math.floor((charStats.abilityScores.strength - 10) / 2);
-            const dexMod = Math.floor((charStats.abilityScores.dexterity - 10) / 2);
-            attackMod = charStats.proficiencyBonus + Math.max(strMod, dexMod);
-          } else if (attacker?.monsterId) {
-            const monStats = await this.deps.combatants.getCombatStats({ type: "Monster", monsterId: attacker.monsterId });
-            const strMod = Math.floor((monStats.abilityScores.strength - 10) / 2);
-            const dexMod = Math.floor((monStats.abilityScores.dexterity - 10) / 2);
-            attackMod = monStats.proficiencyBonus + Math.max(strMod, dexMod);
-          } else if (attacker?.npcId) {
-            const npcStats = await this.deps.combatants.getCombatStats({ type: "NPC", npcId: attacker.npcId });
-            const strMod = Math.floor((npcStats.abilityScores.strength - 10) / 2);
-            const dexMod = Math.floor((npcStats.abilityScores.dexterity - 10) / 2);
-            attackMod = npcStats.proficiencyBonus + Math.max(strMod, dexMod);
-          }
+          const attackMod = await this.resolveOAAttackModifier(attacker);
 
           const totalAttack = roll + attackMod;
           let targetAC = 10;
           if (target) {
-            const targetRef = target.characterId
-              ? { type: "Character" as const, characterId: target.characterId }
-              : target.monsterId
-              ? { type: "Monster" as const, monsterId: target.monsterId }
-              : { type: "NPC" as const, npcId: target.npcId! };
-            const targetStats = await this.deps.combatants.getCombatStats(targetRef);
-            targetAC = targetStats.armorClass;
+            const targetRef = combatantRefFromState(target);
+            if (targetRef) {
+              const targetStats = await this.deps.combatants.getCombatStats(targetRef);
+              targetAC = targetStats.armorClass;
+            }
           }
           const hit = totalAttack >= targetAC;
 
@@ -419,14 +408,7 @@ export class TabletopCombatService {
         } else if (rollType === "opportunity_attack_damage" && needsDamage) {
           // Process damage roll
           const attacker = combatants.find((c) => c.id === nextOA.combatantId);
-          let damageMod = 0;
-
-          if (attacker?.characterId) {
-            const charStats = await this.deps.combatants.getCombatStats({ type: "Character", characterId: attacker.characterId });
-            const strMod = Math.floor((charStats.abilityScores.strength - 10) / 2);
-            const dexMod = Math.floor((charStats.abilityScores.dexterity - 10) / 2);
-            damageMod = Math.max(strMod, dexMod);
-          }
+          const damageMod = await this.resolveOADamageModifier(attacker);
 
           const totalDamage = roll + damageMod;
           nextOA.result = { ...nextOA.result, damageRoll: roll, totalDamage };
@@ -464,12 +446,16 @@ export class TabletopCombatService {
     await this.deps.combatRepo.clearPendingAction(pendingAction.encounterId);
 
     // Handle monster/NPC turn advancement
-    const actorCombatant = combatants.find(
-      (c) =>
-        (pendingAction.actor.type === "Character" && c.characterId === (pendingAction.actor as any).characterId) ||
-        (pendingAction.actor.type === "Monster" && c.monsterId === (pendingAction.actor as any).monsterId) ||
-        (pendingAction.actor.type === "NPC" && c.npcId === (pendingAction.actor as any).npcId),
-    );
+    const actorCombatant = combatants.find((c) => {
+      const ref = combatantRefFromState(c);
+      if (!ref) return false;
+      const actorRef = pendingAction.actor as any;
+      return (
+        (actorRef.type === "Character" && ref.type === "Character" && ref.characterId === actorRef.characterId) ||
+        (actorRef.type === "Monster" && ref.type === "Monster" && ref.monsterId === actorRef.monsterId) ||
+        (actorRef.type === "NPC" && ref.type === "NPC" && ref.npcId === actorRef.npcId)
+      );
+    });
 
     const isMonsterOrNpc = actorCombatant && (actorCombatant.combatantType === "Monster" || actorCombatant.combatantType === "NPC");
 
@@ -489,5 +475,37 @@ export class TabletopCombatService {
       movedTo: result.to,
       message: `Movement complete. Now at (${result.to.x}, ${result.to.y}).`,
     };
+  }
+
+  /**
+   * Compute attack modifier for a player opportunity attack.
+   * Uses proficiency + max(STR, DEX) from full combat stats.
+   */
+  private async resolveOAAttackModifier(
+    attacker: { combatantType?: string; characterId?: string | null; monsterId?: string | null; npcId?: string | null } | undefined,
+  ): Promise<number> {
+    if (!attacker) return 0;
+    const ref = combatantRefFromState(attacker as any);
+    if (!ref) return 0;
+    const stats = await this.deps.combatants.getCombatStats(ref);
+    const strMod = Math.floor((stats.abilityScores.strength - 10) / 2);
+    const dexMod = Math.floor((stats.abilityScores.dexterity - 10) / 2);
+    return stats.proficiencyBonus + Math.max(strMod, dexMod);
+  }
+
+  /**
+   * Compute damage modifier for a player opportunity attack.
+   * Uses max(STR, DEX) from full combat stats.
+   */
+  private async resolveOADamageModifier(
+    attacker: { combatantType?: string; characterId?: string | null; monsterId?: string | null; npcId?: string | null } | undefined,
+  ): Promise<number> {
+    if (!attacker) return 0;
+    const ref = combatantRefFromState(attacker as any);
+    if (!ref) return 0;
+    const stats = await this.deps.combatants.getCombatStats(ref);
+    const strMod = Math.floor((stats.abilityScores.strength - 10) / 2);
+    const dexMod = Math.floor((stats.abilityScores.dexterity - 10) / 2);
+    return Math.max(strMod, dexMod);
   }
 }

@@ -8,3 +8,9 @@ export function proficiencyBonusForLevel(level: number): number {
   if (level <= 16) return 5;
   return 6;
 }
+
+/**
+ * Alias for {@link proficiencyBonusForLevel}.
+ * Canonical implementation — ability-checks.ts re-exports this.
+ */
+export const getProficiencyBonus = proficiencyBonusForLevel;

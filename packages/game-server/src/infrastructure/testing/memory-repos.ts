@@ -9,6 +9,7 @@
 
 import type {
   ICharacterRepository,
+  CharacterUpdateData,
   ICombatRepository,
   IEventRepository,
   GameEventInput,
@@ -85,7 +86,7 @@ export class MemoryCharacterRepository implements ICharacterRepository {
 
   async createInSession(
     sessionId: string,
-    input: { id: string; name: string; level: number; className: string | null; sheet: JsonValue },
+    input: { id: string; name: string; level: number; className: string | null; sheet: JsonValue; faction?: string; aiControlled?: boolean },
   ): Promise<SessionCharacterRecord> {
     const created: SessionCharacterRecord = {
       id: input.id,
@@ -94,8 +95,8 @@ export class MemoryCharacterRepository implements ICharacterRepository {
       level: input.level,
       className: input.className,
       sheet: input.sheet,
-      faction: "party",
-      aiControlled: false,
+      faction: input.faction ?? "party",
+      aiControlled: input.aiControlled ?? false,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -119,6 +120,23 @@ export class MemoryCharacterRepository implements ICharacterRepository {
     const existing = this.characters.get(id);
     if (!existing) throw new Error("Character not found: " + id);
     const updated: SessionCharacterRecord = { ...existing, sheet, updatedAt: now() };
+    this.characters.set(id, updated);
+    return updated;
+  }
+
+  async update(id: string, data: Partial<CharacterUpdateData>): Promise<SessionCharacterRecord> {
+    const existing = this.characters.get(id);
+    if (!existing) throw new Error("Character not found: " + id);
+    const updated: SessionCharacterRecord = {
+      ...existing,
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.level !== undefined ? { level: data.level } : {}),
+      ...(data.className !== undefined ? { className: data.className } : {}),
+      ...(data.sheet !== undefined ? { sheet: data.sheet } : {}),
+      ...(data.faction !== undefined ? { faction: data.faction } : {}),
+      ...(data.aiControlled !== undefined ? { aiControlled: data.aiControlled } : {}),
+      updatedAt: now(),
+    };
     this.characters.set(id, updated);
     return updated;
   }
@@ -158,6 +176,17 @@ export class MemoryMonsterRepository implements IMonsterRepository {
     return created;
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; monsterDefinitionId: string | null; statBlock: JsonValue }>,
+  ): Promise<SessionMonsterRecord[]> {
+    const results: SessionMonsterRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionMonsterRecord | null> {
     return this.monsters.get(id) ?? null;
   }
@@ -172,6 +201,16 @@ export class MemoryMonsterRepository implements IMonsterRepository {
 
   async delete(id: string): Promise<void> {
     this.monsters.delete(id);
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionMonsterRecord> {
+    const existing = this.monsters.get(id);
+    if (!existing) throw new Error("Monster not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionMonsterRecord = { ...existing, statBlock: merged, updatedAt: now() };
+    this.monsters.set(id, updated);
+    return updated;
   }
 
   clear(): void {
@@ -448,6 +487,18 @@ export class MemoryEventRepository implements IEventRepository {
     return filtered.slice(-limit);
   }
 
+  async listByEncounter(
+    encounterId: string,
+    input?: { limit?: number; round?: number },
+  ): Promise<GameEventRecord[]> {
+    const filtered = this.events
+      .filter((e) => e.encounterId === encounterId)
+      .filter((e) => (input?.round !== undefined ? e.round === input.round : true));
+
+    const limit = input?.limit ?? 200;
+    return filtered.slice(-limit);
+  }
+
   clear(): void {
     this.events.length = 0;
   }
@@ -504,8 +555,9 @@ export class MemoryItemDefinitionRepository implements IItemDefinitionRepository
   }
 
   async findByName(name: string): Promise<ItemDefinitionRecord | null> {
+    const lowerName = name.toLowerCase();
     for (const item of this.itemsById.values()) {
-      if (item.name === name) {
+      if (item.name.toLowerCase() === lowerName) {
         return item;
       }
     }
@@ -566,6 +618,17 @@ export class MemoryNPCRepository implements INPCRepository {
     return created;
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean }>,
+  ): Promise<SessionNPCRecord[]> {
+    const results: SessionNPCRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionNPCRecord | null> {
     return this.npcs.get(id) ?? null;
   }
@@ -582,6 +645,16 @@ export class MemoryNPCRepository implements INPCRepository {
     this.npcs.delete(id);
   }
 
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
+    const existing = this.npcs.get(id);
+    if (!existing) throw new Error("NPC not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionNPCRecord = { ...existing, statBlock: merged, updatedAt: now() };
+    this.npcs.set(id, updated);
+    return updated;
+  }
+
   clear(): void {
     this.npcs.clear();
   }
@@ -592,7 +665,7 @@ export class MemoryNPCRepository implements INPCRepository {
 // ============================================================================
 
 import type { PendingActionRepository } from "../../application/repositories/pending-action-repository.js";
-import type { PendingAction, PendingActionStatus, ReactionResponse, ReactionOpportunity } from "../../domain/entities/combat/pending-action.js";
+import type { PendingAction, PendingActionStatus, ReactionResponse, ReactionOpportunity, ReactionResult } from "../../domain/entities/combat/pending-action.js";
 
 export class InMemoryPendingActionRepository implements PendingActionRepository {
   private actions = new Map<string, PendingAction>();
@@ -664,7 +737,7 @@ export class InMemoryPendingActionRepository implements PendingActionRepository 
     return action;
   }
 
-  async updateReactionResult(actionId: string, opportunityId: string, result: any): Promise<void> {
+  async updateReactionResult(actionId: string, opportunityId: string, result: ReactionResult): Promise<void> {
     const action = this.actions.get(actionId);
     if (!action) {
       throw new Error(`Pending action not found: ${actionId}`);

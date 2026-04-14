@@ -86,7 +86,6 @@ export const Warlock: CharacterClassDefinition = {
     return caps;
   },
   resourcesAtLevel: (level) => [createPactMagicState(level).pool],
-  resourcePoolFactory: (level) => [createPactMagicState(level).pool],
   restRefreshPolicy: [
     { poolKey: "pactMagic", refreshOn: "both", computeMax: (level) => pactMagicSlotsForLevel(level).slots },
   ],
@@ -111,9 +110,9 @@ const HELLISH_REBUKE_REACTION: DamageReactionDef = {
     if (input.resources.hasHellishRebukePrepared !== true) return null;
 
     // Check level 1+ spell slot OR pact magic slot
-    const pools = Array.isArray(input.resources.resourcePools) ? input.resources.resourcePools as any[] : [];
-    const hasSpellSlot = pools.some((p: any) => p.name === "spellSlot_1" && (p as any).current > 0);
-    const hasPactSlot = pools.some((p: any) => p.name === "pactMagic" && (p as any).current > 0);
+    const pools = input.resources.resourcePools ?? [];
+    const hasSpellSlot = pools.some(p => p.name === "spellSlot_1" && p.current > 0);
+    const hasPactSlot = pools.some(p => p.name === "pactMagic" && p.current > 0);
     if (!hasSpellSlot && !hasPactSlot) return null;
 
     const chaScore = input.abilityScores.charisma ?? 10;

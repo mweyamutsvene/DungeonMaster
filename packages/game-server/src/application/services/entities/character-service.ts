@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from "../../errors.js";
 import type { ICharacterRepository } from "../../repositories/character-repository.js";
 import type { IEventRepository } from "../../repositories/event-repository.js";
 import type { IGameSessionRepository } from "../../repositories/game-session-repository.js";
+import type { CharacterUpdateData } from "../../repositories/character-repository.js";
 import type { JsonValue, SessionCharacterRecord } from "../../types.js";
 import { refreshClassResourcePools, spendHitDice, recoverHitDice, detectRestInterruption, type RestType, type RestInterruptionReason } from "../../../domain/rules/rest.js";
 import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
@@ -12,6 +13,7 @@ import { isCharacterClassId, type CharacterClassId } from "../../../domain/entit
 import { getClassDefinition } from "../../../domain/entities/classes/registry.js";
 import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalog.js";
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
+import type { AbilityScoresData } from "../../../domain/entities/core/ability-scores.js";
 
 /**
  * Character CRUD for a given game session.
@@ -96,6 +98,54 @@ export class CharacterService {
     return character;
   }
 
+  async updateCharacter(
+    sessionId: string,
+    characterId: string,
+    data: CharacterUpdateData,
+  ): Promise<SessionCharacterRecord> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
+
+    const character = await this.characters.getById(characterId);
+    if (!character) throw new NotFoundError(`Character not found: ${characterId}`);
+    if (character.sessionId !== sessionId) {
+      throw new ValidationError(`Character ${characterId} does not belong to session ${sessionId}`);
+    }
+
+    const updated = await this.characters.update(characterId, data);
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "CharacterUpdated",
+        payload: { characterId, name: updated.name },
+      });
+    }
+
+    return updated;
+  }
+
+  async deleteCharacter(sessionId: string, characterId: string): Promise<void> {
+    const session = await this.sessions.getById(sessionId);
+    if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
+
+    const character = await this.characters.getById(characterId);
+    if (!character) throw new NotFoundError(`Character not found: ${characterId}`);
+    if (character.sessionId !== sessionId) {
+      throw new ValidationError(`Character ${characterId} does not belong to session ${sessionId}`);
+    }
+
+    await this.characters.delete(characterId);
+
+    if (this.events) {
+      await this.events.append(sessionId, {
+        id: nanoid(),
+        type: "CharacterDeleted",
+        payload: { characterId, name: character.name },
+      });
+    }
+  }
+
   /**
    * Begin a rest for a session. Records the start time via a `RestStarted` event
    * so that interruptions (combat, damage) can be detected when the rest completes.
@@ -173,9 +223,10 @@ export class CharacterService {
         : [];
 
       // Refresh class resource pools
-      const charismaScore = (sheet.abilityScores as any)?.charisma ?? 10;
+      const abilityScores = sheet.abilityScores as Partial<AbilityScoresData> | undefined;
+      const charismaScore = abilityScores?.charisma ?? 10;
       const charismaMod = Math.floor((charismaScore - 10) / 2);
-      const wisdomScore = (sheet.abilityScores as any)?.wisdom ?? 10;
+      const wisdomScore = abilityScores?.wisdom ?? 10;
       const wisdomMod = Math.floor((wisdomScore - 10) / 2);
       const beforePools = pools.map(p => ({ ...p }));
       const refreshedPools = refreshClassResourcePools({
@@ -216,7 +267,7 @@ export class CharacterService {
       if (restType === "short" && hitDiceSpending && hitDiceSpending[char.id] && this.diceRoller) {
         // Short rest: spend Hit Dice to recover HP
         const count = hitDiceSpending[char.id];
-        const conScore = (sheet.abilityScores as any)?.constitution ?? 10;
+        const conScore = (sheet.abilityScores as Partial<AbilityScoresData> | undefined)?.constitution ?? 10;
         const conMod = Math.floor((conScore - 10) / 2);
         const currentHp = (sheet.currentHp as number) ?? (sheet.maxHp as number) ?? 10;
         const maxHp = (sheet.maxHp as number) ?? currentHp;

@@ -148,6 +148,7 @@ describe("BasicCombatVictoryPolicy with fled status", () => {
         }
         return m;
       },
+      getRelationship: (a: string, b: string) => a === b ? "ally" as const : a === "neutral" || b === "neutral" ? "neutral" as const : "enemy" as const,
     };
 
     const policy = new BasicCombatVictoryPolicy(mockFactionService as any);
@@ -194,6 +195,7 @@ describe("BasicCombatVictoryPolicy with fled status", () => {
         }
         return m;
       },
+      getRelationship: (a: string, b: string) => a === b ? "ally" as const : a === "neutral" || b === "neutral" ? "neutral" as const : "enemy" as const,
     };
 
     const policy = new BasicCombatVictoryPolicy(mockFactionService as any);
@@ -233,10 +235,11 @@ describe("BasicCombatVictoryPolicy with fled status", () => {
     const mockFactionService = {
       getFactions: async () =>
         new Map<string, string>([
-          ["player-1", "player"],
+          ["player-1", "party"],
           ["party-1", "party"],
           ["enemy-1", "enemy"],
         ]),
+      getRelationship: (a: string, b: string) => a === b ? "ally" as const : a === "neutral" || b === "neutral" ? "neutral" as const : "enemy" as const,
     };
 
     const policy = new BasicCombatVictoryPolicy(mockFactionService as any);
@@ -288,10 +291,11 @@ describe("BasicCombatVictoryPolicy with fled status", () => {
     const mockFactionService = {
       getFactions: async () =>
         new Map<string, string>([
-          ["player-1", "player"],
+          ["player-1", "party"],
           ["party-1", "party"],
           ["enemy-1", "enemy"],
         ]),
+      getRelationship: (a: string, b: string) => a === b ? "ally" as const : a === "neutral" || b === "neutral" ? "neutral" as const : "enemy" as const,
     };
 
     const policy = new BasicCombatVictoryPolicy(mockFactionService as any);

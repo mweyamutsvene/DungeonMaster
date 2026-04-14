@@ -27,6 +27,7 @@ import { getMartialArtsDieSize } from "../../../../../domain/rules/martial-arts-
 import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
 import { parseLegendaryTraits } from "../../../../../domain/entities/creatures/legendary-actions.js";
 import { computeInitiativeRollMode } from "../tabletop-utils.js";
+import { resolveD20Roll } from "../roll-state-machine.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import { assertValidTransition } from "../pending-action-state-machine.js";
 import type {
@@ -161,9 +162,19 @@ export class InitiativeHandler {
     monsters: any[],
     npcs: any[],
   ): Promise<CombatStartedResult> {
-    const rollValue = command.value ?? (Array.isArray(command.values) ? command.values[0] : 0);
-
     const character = characters.find((c) => c.id === actorId);
+
+    // Compute the player's initiative roll mode so we can resolve 2d20 correctly
+    const charSheet = character?.sheet as any;
+    const charClassName = (charSheet?.className ?? "") as string;
+    const charLevel = (charSheet?.level ?? 0) as number;
+    const playerRollMode = computeInitiativeRollMode(
+      actorId, action.surprise, "party",
+      charSheet?.conditions,
+      charClassName ? { className: charClassName, level: charLevel } : undefined,
+    );
+    const { effective: rollValue } = resolveD20Roll(command, playerRollMode);
+
     let dexModifier = 0;
 
     if (character && typeof character.sheet === "object" && character.sheet !== null) {

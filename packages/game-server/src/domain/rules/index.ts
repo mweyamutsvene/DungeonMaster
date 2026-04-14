@@ -25,3 +25,4 @@ export * from "./weapon-mastery.js";
 export * from "./martial-arts-die.js";
 export * from "./evasion.js";
 export * from "./flanking.js";
+export * from "./exhaustion.js";

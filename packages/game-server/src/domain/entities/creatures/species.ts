@@ -140,3 +140,29 @@ export const TIEFLING: SpeciesDefinition = {
   damageResistances: ["fire"],
   saveAdvantages: [],
 };
+
+// ── Aasimar ───────────────────────────────────────────────
+// D&D 2024: Celestial heritage grants necrotic + radiant resistance,
+// darkvision 60 ft, Healing Hands (touch heal = level HP, 1/long rest),
+// Light Bearer (Light cantrip), Celestial Revelation at level 3.
+export const AASIMAR: SpeciesDefinition = {
+  name: "Aasimar",
+  size: "Medium",
+  speed: 30,
+  darkvisionRange: 60,
+  damageResistances: ["necrotic", "radiant"],
+  saveAdvantages: [],
+};
+
+// ── Goliath ───────────────────────────────────────────────
+// D&D 2024: Powerful Build (count as Large for carrying/push/drag/lift),
+// Stone's Endurance (reaction: reduce damage by 1d12 + CON mod, PB/long rest),
+// Giant's Foundry subtraits (Cloud, Fire, Frost, Hill, Stone, Storm).
+export const GOLIATH: SpeciesDefinition = {
+  name: "Goliath",
+  size: "Medium",
+  speed: 35,
+  darkvisionRange: 0,
+  damageResistances: [],
+  saveAdvantages: [],
+};

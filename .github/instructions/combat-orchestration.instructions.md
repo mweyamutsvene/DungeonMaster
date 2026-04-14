@@ -1,6 +1,6 @@
 ---
-description: "Architecture and conventions for the CombatOrchestration flow: three facade services (TabletopCombatService, ActionService, TwoPhaseActionService), ActionDispatcher parser chain, RollStateMachine, reaction handlers, programmatic action handlers."
-applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packages/game-server/src/application/services/combat/tabletop-combat-service.ts,packages/game-server/src/application/services/combat/combat-service.ts,packages/game-server/src/application/services/combat/action-service.ts,packages/game-server/src/application/services/combat/action-handlers/**,packages/game-server/src/application/services/combat/two-phase-action-service.ts,packages/game-server/src/application/services/combat/two-phase/**,packages/game-server/src/application/services/combat/tactical-view-service.ts,packages/game-server/src/application/services/combat/combat-victory-policy.ts"
+description: "Architecture and conventions for the CombatOrchestration flow: TabletopCombatService + ActionService facades, ActionDispatcher parser chain, RollStateMachine, programmatic action handlers. NOTE: TwoPhaseActionService/reactions → reaction-system.instructions.md."
+applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packages/game-server/src/application/services/combat/tabletop-combat-service.ts,packages/game-server/src/application/services/combat/combat-service.ts,packages/game-server/src/application/services/combat/action-service.ts,packages/game-server/src/application/services/combat/action-handlers/**,packages/game-server/src/application/services/combat/tactical-view-service.ts,packages/game-server/src/application/services/combat/combat-victory-policy.ts"
 ---
 
 # CombatOrchestration Flow

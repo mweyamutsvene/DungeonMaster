@@ -1,0 +1,5 @@
+{
+  "id": "fighter-smoke",
+  "scenario": "solo-fighter",
+  "goal": "Test Fighter level 5 core loop: Extra Attack (2 attacks per action) against Goblin Warriors. Verify both attacks resolve, damage applies, and AI counter-attacks on goblin turns. Use Second Wind if HP drops below 50%."
+}

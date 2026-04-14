@@ -12,5 +12,6 @@
   },
   "[markdown]": {
     "editor.wordWrap": "on"
-  }
+  },
+  "chat.subagents.allowInvocationsFromSubagents": true
 }

@@ -16,9 +16,10 @@
 import type { Position } from "./movement.js";
 import { calculateDistance, snapToGrid } from "./movement.js";
 import type { CombatMap, TerrainType } from "./combat-map.js";
-import { getCellAt, isPositionPassable, isOnMap } from "./combat-map.js";
+import { getCellAt, isPositionPassable, isOnMap, getCreatureCellFootprint } from "./combat-map.js";
 import type { CombatZone } from "../entities/combat/zones.js";
 import { isPositionInZone } from "../entities/combat/zones.js";
+import type { CreatureSize } from "../entities/core/types.js";
 
 // ----------------------------------------------------------------
 // Types
@@ -35,6 +36,8 @@ export interface PathOptions {
   zones?: CombatZone[];
   /** Cost penalty (in feet) added per cell inside a damaging zone (default: 15). */
   zoneCostPenalty?: number;
+  /** Size of the moving creature — Large+ creatures occupy multiple cells. */
+  creatureSize?: CreatureSize;
 }
 
 /**
@@ -177,9 +180,9 @@ function chebyshevHeuristic(from: Position, to: Position, gridSize: number): num
 }
 
 /**
- * Check if a cell is walkable given options.
+ * Check if a single cell is walkable given options.
  */
-function isCellWalkable(
+function isSingleCellWalkable(
   map: CombatMap,
   pos: Position,
   avoidHazards: boolean,
@@ -192,6 +195,35 @@ function isCellWalkable(
   if (IMPASSABLE_TERRAINS.has(cell.terrain)) return false;
   if (avoidHazards && HAZARD_TERRAINS.has(cell.terrain)) return false;
   if (occupiedSet.has(posKey(pos))) return false;
+  return true;
+}
+
+/**
+ * Check if a creature can stand at `pos` given its footprint size.
+ * For single-cell creatures (Tiny/Small/Medium) this is the same as isSingleCellWalkable.
+ * For Large+ creatures, checks all cells the creature would occupy.
+ * A Large creature at (x,y) occupies (x,y), (x+g,y), (x,y+g), (x+g,y+g) where g=gridSize.
+ */
+function isCellWalkable(
+  map: CombatMap,
+  pos: Position,
+  avoidHazards: boolean,
+  occupiedSet: Set<string>,
+  footprint: number = 1,
+  gridSize: number = 5,
+): boolean {
+  if (footprint <= 1) {
+    return isSingleCellWalkable(map, pos, avoidHazards, occupiedSet);
+  }
+  // Large+ creature: check all cells in the NxN footprint
+  for (let dx = 0; dx < footprint; dx++) {
+    for (let dy = 0; dy < footprint; dy++) {
+      const cellPos: Position = { x: pos.x + dx * gridSize, y: pos.y + dy * gridSize };
+      if (!isSingleCellWalkable(map, cellPos, avoidHazards, occupiedSet)) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -220,6 +252,9 @@ export function findPath(
   const avoidHazards = options.avoidHazards ?? true;
   const maxCost = options.maxCostFeet ?? Infinity;
 
+  // Creature footprint: Large=2x2, Huge=3x3, Gargantuan=4x4, else 1x1
+  const footprint = options.creatureSize ? getCreatureCellFootprint(options.creatureSize) : 1;
+
   const occupiedSet = new Set<string>();
   if (options.occupiedPositions) {
     for (const op of options.occupiedPositions) {
@@ -236,7 +271,7 @@ export function findPath(
   }
 
   // Goal itself impassable?
-  if (!isCellWalkable(map, goal, avoidHazards, occupiedSet)) {
+  if (!isCellWalkable(map, goal, avoidHazards, occupiedSet, footprint, gridSize)) {
     return {
       path: [],
       cells: [],
@@ -295,15 +330,15 @@ export function findPath(
       const nKey = posKey(neighbor);
 
       if (closedSet.has(nKey)) continue;
-      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet)) continue;
+      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet, footprint, gridSize)) continue;
 
       // Diagonal corner-cutting check: both adjacent orthogonal cells must be passable
       const diag = isDiagonal(dir.x, dir.y);
       if (diag) {
         const adj1: Position = { x: current.pos.x + dir.x, y: current.pos.y };
         const adj2: Position = { x: current.pos.x, y: current.pos.y + dir.y };
-        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet) ||
-            !isCellWalkable(map, adj2, avoidHazards, occupiedSet)) {
+        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet, footprint, gridSize) ||
+            !isCellWalkable(map, adj2, avoidHazards, occupiedSet, footprint, gridSize)) {
           continue; // Can't cut corners around walls
         }
       }
@@ -454,6 +489,9 @@ export function getReachableCells(
   const start = snapToGrid(from, gridSize);
   const avoidHazards = options.avoidHazards ?? true;
 
+  // Creature footprint for Large+ creatures
+  const footprint = options.creatureSize ? getCreatureCellFootprint(options.creatureSize) : 1;
+
   const occupiedSet = new Set<string>();
   if (options.occupiedPositions) {
     for (const op of options.occupiedPositions) {
@@ -496,15 +534,15 @@ export function getReachableCells(
       const nKey = posKey(neighbor);
 
       if (closedSet.has(nKey)) continue;
-      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet)) continue;
+      if (!isCellWalkable(map, neighbor, avoidHazards, occupiedSet, footprint, gridSize)) continue;
 
       // Diagonal corner-cutting check: both orthogonal neighbours must be passable
       const diag = isDiagonal(dir.x, dir.y);
       if (diag) {
         const adj1: Position = { x: current.pos.x + dir.x, y: current.pos.y };
         const adj2: Position = { x: current.pos.x, y: current.pos.y + dir.y };
-        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet) ||
-            !isCellWalkable(map, adj2, avoidHazards, occupiedSet)) {
+        if (!isCellWalkable(map, adj1, avoidHazards, occupiedSet, footprint, gridSize) ||
+            !isCellWalkable(map, adj2, avoidHazards, occupiedSet, footprint, gridSize)) {
           continue;
         }
       }

@@ -14,14 +14,8 @@ export function getAbilityModifier(abilityScore: number): number {
   return Math.floor((abilityScore - 10) / 2);
 }
 
-/**
- * Calculate proficiency bonus based on character level.
- * @param level - Character level (1-20)
- * @returns Proficiency bonus (+2 to +6)
- */
-export function getProficiencyBonus(level: number): number {
-  return Math.floor((level - 1) / 4) + 2;
-}
+// Canonical getProficiencyBonus lives in proficiency.ts — re-exported here for convenience.
+export { getProficiencyBonus } from "./proficiency.js";
 
 /**
  * Jack of All Trades (Bard): add half proficiency bonus to any ability check

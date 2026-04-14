@@ -110,7 +110,8 @@ export interface FeatModifiers {
 
   /**
    * Sentinel: OA hits reduce target speed to 0; OA still triggers even if target Disengaged.
-   * TODO: reaction attack when enemy within 5ft attacks a target other than you (effect #3)
+   * Effect #3 (reaction attack when enemy within 5ft attacks a target other than you) is
+   * wired via canMakeSentinelReaction() in opportunity-attack.ts → AttackReactionHandler.initiate().
    */
   sentinelEnabled: boolean;
 }
@@ -191,4 +192,21 @@ export function shouldApplyDueling(params: {
   if (hands === 2) return false;
   if (props.has("two-handed")) return false;
   return true;
+}
+
+/**
+ * D&D 5e 2024 War Caster: somatic component exception.
+ *
+ * War Caster allows performing somatic spell components even when both hands
+ * are occupied (e.g., holding a weapon + shield). This is a boolean gate for
+ * when somatic component enforcement is eventually implemented.
+ *
+ * Other War Caster benefits (not yet enforced, tracked here for future work):
+ * - Advantage on Constitution saving throws to maintain concentration
+ *   (see warCasterEnabled in FeatModifiers — used by saving-throw-resolver)
+ * - Can cast a spell as an opportunity attack reaction (instead of a melee weapon attack)
+ */
+export function hasWarCasterSomaticException(creature: { featIds?: string[] }): boolean {
+  if (!creature.featIds) return false;
+  return creature.featIds.includes(FEAT_WAR_CASTER);
 }

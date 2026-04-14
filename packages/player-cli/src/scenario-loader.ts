@@ -59,7 +59,14 @@ async function scanDir(dir: string, prefix: string, names: string[]): Promise<vo
 export async function loadScenario(name: string): Promise<CliScenario> {
   const scenarioPath = join(SCENARIOS_DIR, `${name}.json`);
   const content = await readFile(scenarioPath, "utf-8");
-  return JSON.parse(content) as CliScenario;
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+
+  // Agent-player wrapper format: { id, scenario, goal } — redirect to base scenario
+  if (typeof parsed.scenario === "string" && !parsed.setup) {
+    return loadScenario(parsed.scenario);
+  }
+
+  return parsed as unknown as CliScenario;
 }
 
 // ============================================================================

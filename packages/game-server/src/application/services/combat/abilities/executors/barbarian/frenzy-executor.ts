@@ -20,7 +20,9 @@ import {
   hasBonusActionAvailable,
   getActiveEffects,
 } from "../../../helpers/resource-utils.js";
-import { requireActor, requireSheet, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
+import type { CombatantRef } from "../../../helpers/combatant-ref.js";
+import { getEntityIdFromRef } from "../../../helpers/combatant-ref.js";
+import { requireActor, requireSheet, requireClassFeature, extractClassInfo, extractSubclassId } from "../executor-helpers.js";
 
 export class FrenzyExecutor implements AbilityExecutor {
   canExecute(abilityId: string): boolean {
@@ -48,14 +50,9 @@ export class FrenzyExecutor implements AbilityExecutor {
 
     // Validate Berserker subclass
     const sheet = params!.sheet as Record<string, unknown>;
-    const actorRef = params!.actor as any;
-    const subclass =
-      (sheet?.subclass as string) ||
-      (typeof actorRef?.getSubclass === "function"
-        ? (actorRef.getSubclass() as string)
-        : undefined) ||
-      (params?.subclass as string | undefined);
-    if (subclass && !subclass.toLowerCase().includes("berserker")) {
+    const actorRef = params!.actor as Record<string, unknown>;
+    const subclass = extractSubclassId(params);
+    if (subclass && !subclass.includes("berserker")) {
       return {
         success: false,
         summary: "Frenzy requires the Path of the Berserker subclass",
@@ -107,11 +104,11 @@ export class FrenzyExecutor implements AbilityExecutor {
 
     // TABLETOP MODE: Return pending action for player dice rolls
     if (params?.tabletopMode) {
-      return this.executeTabletopMode(context, actorRef, targetRef, params);
+      return this.executeTabletopMode(context, actorRef as CombatantRef, targetRef as CombatantRef, params);
     }
 
     // AI MODE: Auto-roll attack
-    return this.executeAiMode(context, actorRef, targetRef, services, params);
+    return this.executeAiMode(context, actorRef as CombatantRef, targetRef as CombatantRef, services, params);
   }
 
   /**
@@ -120,27 +117,24 @@ export class FrenzyExecutor implements AbilityExecutor {
    */
   private async executeTabletopMode(
     context: AbilityExecutionContext,
-    actorRef: any,
-    targetRef: any,
+    actorRef: CombatantRef,
+    targetRef: CombatantRef,
     params: Record<string, unknown> | undefined,
   ): Promise<AbilityExecutionResult> {
-    const actorId = actorRef.characterId || actorRef.monsterId || actorRef.npcId;
-    const targetId =
-      (targetRef as any).monsterId ||
-      (targetRef as any).characterId ||
-      (targetRef as any).npcId;
+    const actorId = getEntityIdFromRef(actorRef);
+    const targetId = getEntityIdFromRef(targetRef);
     const targetName = params?.targetName || "target";
 
     // Get weapon stats from character sheet
-    const sheet = params?.sheet as any;
-    const attacks: Array<{
+    const sheet = params?.sheet as Record<string, unknown> | undefined;
+    const attacks = (Array.isArray(sheet?.attacks) ? sheet.attacks : []) as Array<{
       name: string;
       kind: string;
       attackBonus: number;
       damage: { diceCount: number; diceSides: number; modifier: number };
       properties?: string[];
       mastery?: string;
-    }> = sheet?.attacks ?? [];
+    }>;
 
     // Pick the first melee weapon available
     const meleeWeapon = attacks.find((a) => a.kind === "melee");
@@ -199,8 +193,8 @@ export class FrenzyExecutor implements AbilityExecutor {
    */
   private async executeAiMode(
     context: AbilityExecutionContext,
-    actorRef: any,
-    targetRef: any,
+    actorRef: CombatantRef,
+    targetRef: CombatantRef,
     services: AbilityExecutionContext["services"],
     params: Record<string, unknown> | undefined,
   ): Promise<AbilityExecutionResult> {

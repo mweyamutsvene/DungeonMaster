@@ -2,7 +2,8 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile, AttackReactionDef, AttackReactionInput, DetectedAttackReaction } from "./combat-text-profile.js";
-import { REMARKABLE_ATHLETE, ADDITIONAL_FIGHTING_STYLE } from "./feature-keys.js";
+import { REMARKABLE_ATHLETE, ADDITIONAL_FIGHTING_STYLE, HEROIC_WARRIOR, SURVIVOR } from "./feature-keys.js";
+import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 
 export interface ActionSurgeState {
   pool: ResourcePool;
@@ -103,7 +104,9 @@ export const ChampionSubclass: SubclassDefinition = {
     "improved-critical": 3,
     [REMARKABLE_ATHLETE]: 3,
     [ADDITIONAL_FIGHTING_STYLE]: 7,
+    [HEROIC_WARRIOR]: 10,
     "superior-critical": 15,
+    [SURVIVOR]: 18,
   },
 };
 
@@ -133,19 +136,6 @@ export const Fighter: CharacterClassDefinition = {
     const secondWind = createSecondWindState(level);
     if (secondWind.pool.max > 0) pools.push(secondWind.pool);
 const indomitable = createIndomitableState(level);
-    if (indomitable.pool.max > 0) pools.push(indomitable.pool);
-
-    return pools;
-  },
-  resourcePoolFactory: (level) => {
-    const pools: ResourcePool[] = [];
-    const actionSurge = createActionSurgeState(level);
-    if (actionSurge.pool.max > 0) pools.push(actionSurge.pool);
-
-    const secondWind = createSecondWindState(level);
-    if (secondWind.pool.max > 0) pools.push(secondWind.pool);
-
-    const indomitable = createIndomitableState(level);
     if (indomitable.pool.max > 0) pools.push(indomitable.pool);
 
     return pools;
@@ -198,10 +188,22 @@ const PROTECTION_REACTION: AttackReactionDef = {
   reactionType: "protection",
   classId: "fighter",
   detect(input: AttackReactionInput): DetectedAttackReaction | null {
-    // Protection is detected on nearby allies, not the target itself.
-    // This stub returns null — full implementation requires ally-scan extension.
-    // See canUseProtection() in domain/rules/ for eligibility logic.
-    return null;
+    if (!input.hasReaction || !input.isCharacter) return null;
+
+    // Must have Protection fighting style selected
+    if (input.resources.hasProtectionStyle !== true) return null;
+
+    // Must have a shield equipped
+    if (input.resources.hasShieldEquipped !== true) return null;
+
+    return {
+      reactionType: "protection",
+      context: {
+        attackerId: input.attackerId,
+        attackRoll: input.attackRoll,
+        effect: "disadvantage",
+      },
+    };
   },
 };
 
@@ -222,9 +224,25 @@ const INTERCEPTION_REACTION: AttackReactionDef = {
   reactionType: "interception",
   classId: "fighter",
   detect(input: AttackReactionInput): DetectedAttackReaction | null {
-    // Interception is detected on nearby allies, not the target itself.
-    // This stub returns null — full implementation requires ally-scan extension.
-    return null;
+    if (!input.hasReaction || !input.isCharacter) return null;
+
+    // Must have Interception fighting style selected
+    if (input.resources.hasInterceptionStyle !== true) return null;
+
+    // Must have a shield or weapon equipped
+    if (input.resources.hasShieldEquipped !== true && input.resources.hasWeaponEquipped !== true) return null;
+
+    const profBonus = proficiencyBonusForLevel(input.level);
+
+    return {
+      reactionType: "interception",
+      context: {
+        attackerId: input.attackerId,
+        attackRoll: input.attackRoll,
+        profBonus,
+        damageReduction: `1d10+${profBonus}`,
+      },
+    };
   },
 };
 

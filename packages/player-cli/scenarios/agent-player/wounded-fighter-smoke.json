@@ -1,0 +1,5 @@
+{
+  "id": "wounded-fighter-smoke",
+  "scenario": "wounded-fighter",
+  "goal": "Test Fighter level 5 survival under pressure: starts at 18/42 HP (below 50%). Must exercise: (1) Second Wind immediately on first turn (bonus action, heals 1d10+5), (2) Extra Attack (2 attacks per action), (3) Action Surge for a 4-attack burst round to thin the horde. With 4 Goblins (7 HP each, AC 15), resource management is critical. Flag if Second Wind is not prompted/available at low HP, if action economy allows too many attacks, or if dead goblins are still targeted."
+}

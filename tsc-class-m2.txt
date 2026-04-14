@@ -1,8 +1,0 @@
-src/domain/entities/classes/fighter.ts(160,112): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(160,155): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(160,198): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(160,229): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(173,49): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(173,92): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(173,131): error TS1005: ';' expected.
-src/domain/entities/classes/fighter.ts(173,148): error TS1128: Declaration or statement expected.

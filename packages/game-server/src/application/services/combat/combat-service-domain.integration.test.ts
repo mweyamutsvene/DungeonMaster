@@ -294,6 +294,31 @@ class MemoryMonsterRepository implements IMonsterRepository {
   async listBySession(sessionId: string): Promise<SessionMonsterRecord[]> {
     return Array.from(this.monsters.values()).filter((m) => m.sessionId === sessionId);
   }
+
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; monsterDefinitionId: string | null; statBlock: JsonValue }>,
+  ): Promise<SessionMonsterRecord[]> {
+    const results: SessionMonsterRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionMonsterRecord> {
+    const existing = this.monsters.get(id);
+    if (!existing) throw new Error("Monster not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionMonsterRecord = { ...existing, statBlock: merged, updatedAt: new Date() };
+    this.monsters.set(id, updated);
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.monsters.delete(id);
+  }
 }
 
 class MemoryNPCRepository implements INPCRepository {
@@ -332,6 +357,27 @@ class MemoryNPCRepository implements INPCRepository {
     return Array.from(this.npcs.values()).filter((n) => n.sessionId === sessionId);
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean }>,
+  ): Promise<SessionNPCRecord[]> {
+    const results: SessionNPCRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
+    const existing = this.npcs.get(id);
+    if (!existing) throw new Error("NPC not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionNPCRecord = { ...existing, statBlock: merged, updatedAt: new Date() };
+    this.npcs.set(id, updated);
+    return updated;
+  }
+
   async delete(id: string): Promise<void> {
     this.npcs.delete(id);
   }
@@ -348,6 +394,10 @@ class MockFactionService {
       }
     }
     return map;
+  }
+  getRelationship(a: string, b: string): "ally" | "enemy" | "neutral" {
+    if (a === b) return "ally";
+    return "enemy";
   }
   async getPlayerAllegiance() {
     return ["c1"];

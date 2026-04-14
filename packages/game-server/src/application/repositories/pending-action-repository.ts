@@ -2,7 +2,7 @@
  * Repository for managing pending actions awaiting reaction resolution.
  */
 
-import type { PendingAction, PendingActionStatus, ReactionResponse } from "../../domain/entities/combat/pending-action.js";
+import type { PendingAction, PendingActionStatus, ReactionResponse, ReactionResult } from "../../domain/entities/combat/pending-action.js";
 
 export interface PendingActionRepository {
   /**
@@ -53,7 +53,7 @@ export interface PendingActionRepository {
   /**
    * Update the result of a specific reaction in a pending action.
    */
-  updateReactionResult(actionId: string, opportunityId: string, result: any): Promise<void>;
+  updateReactionResult(actionId: string, opportunityId: string, result: ReactionResult): Promise<void>;
   
   /**
    * Clean up expired pending actions.

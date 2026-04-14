@@ -2,7 +2,7 @@ import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
-import { MINDLESS_RAGE, INTIMIDATING_PRESENCE, RELENTLESS_RAGE, PERSISTENT_RAGE, INDOMITABLE_MIGHT, PRIMAL_CHAMPION } from "./feature-keys.js";
+import { MINDLESS_RAGE, INTIMIDATING_PRESENCE, RETALIATION, RELENTLESS_RAGE, PERSISTENT_RAGE, INDOMITABLE_MIGHT, PRIMAL_CHAMPION } from "./feature-keys.js";
 
 export interface RageState {
   pool: ResourcePool;
@@ -14,6 +14,8 @@ export function rageUsesForLevel(level: number): number {
     throw new Error(`Invalid level: ${level}`);
   }
 
+  // Primal Champion (level 20): unlimited rages
+  if (level >= 20) return Infinity;
   if (level <= 2) return 2;
   if (level <= 5) return 3;
   if (level <= 11) return 4;
@@ -128,7 +130,7 @@ export const BARBARIAN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     },
     {
       keyword: "brutal-strike",
-      normalizedPatterns: [/brutalstrike|hamstringblow|hamstringblow|forcefulblow|staggeringblow/],
+      normalizedPatterns: [/brutalstrike|hamstringblow|forcefulblow|staggeringblow/],
       abilityId: "class:barbarian:brutal-strike",
       category: "classAction",
     },
@@ -153,6 +155,7 @@ export const BerserkerSubclass: SubclassDefinition = {
     "frenzy": 3,
     [MINDLESS_RAGE]: 6,
     [INTIMIDATING_PRESENCE]: 10,
+    [RETALIATION]: 14,
   },
 };
 
@@ -179,7 +182,6 @@ export const Barbarian: CharacterClassDefinition = {
     [PRIMAL_CHAMPION]: 20,
   },
   resourcesAtLevel: (level) => [createRageState(level).pool],
-  resourcePoolFactory: (level) => [createRageState(level).pool],
   restRefreshPolicy: [
     { poolKey: "rage", refreshOn: "long", computeMax: (level) => rageUsesForLevel(level) },
   ],

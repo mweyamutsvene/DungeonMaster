@@ -1,0 +1,5 @@
+{
+  "id": "monk-vs-monk-smoke",
+  "scenario": "monk-vs-monk",
+  "goal": "Test Monk mirror-match mechanics in a ki-heavy tactical duel against Vex Nightthorn. Must confirm: (1) Flurry of Blows: after an unarmed hit, spend 1 ki for 2 bonus unarmed strikes — verify ki decrements and 2 extra attack prompts appear, (2) Stunning Strike: after a successful unarmed hit, spend 1 ki — server should ask the enemy for a CON saving throw. If the enemy fails, confirm Stunned condition is applied and they lose their action on their next turn, (3) Patient Defense: spend 1 ki for Dodge — verify ki decrements and Dodge status is reflected, (4) Deflect Attacks reaction: if Vex Nightthorn lands a hit, check if server offers Deflect Attacks as a reaction option. Note both combatants have ki; flag turns where ki is not properly tracked separately per combatant."
+}

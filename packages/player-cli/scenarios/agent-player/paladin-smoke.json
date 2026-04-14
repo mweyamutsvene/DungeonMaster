@@ -1,0 +1,5 @@
+{
+  "id": "paladin-smoke",
+  "scenario": "solo-paladin",
+  "goal": "Test Paladin level 5 Divine Smite and Lay on Hands against Hell Hound and Fiend Scout. Must confirm: (1) After landing a melee hit, server response includes eligibleEnhancements with divine-smite — then opt in by including 'divine smite' in the damage roll text, (2) Verify the spell slot is consumed after Divine Smite and radiant damage dice are added (2d8 for 1st-level slot, +1d8 vs fiend), (3) Use Lay on Hands if HP drops below 50% — verify the healing pool decrements, (4) Extra Attack: confirm 2 attacks per Attack action. Flag if divine smite does not appear in eligibleEnhancements on a hit, if spell slots do not decrement, or if Lay on Hands heals more than remaining pool allows."
+}

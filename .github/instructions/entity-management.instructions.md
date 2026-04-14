@@ -1,6 +1,6 @@
 ---
-description: "Architecture and conventions for the EntityManagement flow: character/monster/NPC lifecycle, session management, inventory, items & equipment catalogs, event system, Unit of Work, creature hydration, repository pattern, spell lookups."
-applyTo: "packages/game-server/src/application/services/entities/**,packages/game-server/src/domain/entities/creatures/**,packages/game-server/src/domain/entities/items/**,packages/game-server/src/application/repositories/**,packages/game-server/src/infrastructure/db/**,packages/game-server/src/infrastructure/testing/memory-repos.ts,packages/game-server/src/application/types.ts"
+description: "Architecture and conventions for the EntityManagement flow: character/monster/NPC lifecycle, session management, event system, Unit of Work, repository pattern, spell lookups. NOTE: Creature hydration → creature-hydration.instructions.md; inventory/items → inventory-system.instructions.md."
+applyTo: "packages/game-server/src/application/services/entities/**,packages/game-server/src/domain/entities/creatures/**,packages/game-server/src/application/repositories/**,packages/game-server/src/infrastructure/db/**,packages/game-server/src/infrastructure/testing/memory-repos.ts,packages/game-server/src/application/types.ts"
 ---
 
 # EntityManagement Flow

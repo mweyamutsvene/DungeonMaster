@@ -23,6 +23,7 @@ import {
 } from "./resource-utils.js";
 import { applyDamageDefenses, type DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyEvasion } from "../../../../domain/rules/evasion.js";
+import { isSavingThrowSuccess } from "../../../../domain/rules/advantage.js";
 import {
   normalizeConditions,
   addCondition,
@@ -129,7 +130,7 @@ export async function resolveMovementTriggers(
           ? deps.getSaveModifier(eff.triggerSave.ability)
           : 0;
         saveTotal = saveRoll + saveMod;
-        saveSuccess = saveTotal >= eff.triggerSave.dc;
+        saveSuccess = isSavingThrowSuccess(saveRoll, saveTotal, eff.triggerSave.dc);
       }
       // If no d20 roller, saves auto-fail
     }

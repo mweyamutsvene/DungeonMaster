@@ -26,6 +26,7 @@ import type {
   SessionMonsterRecord,
   SessionNPCRecord,
   CombatEncounterRecord,
+  CombatantStateRecord,
   JsonValue,
 } from "../../../../types.js";
 import {
@@ -38,6 +39,7 @@ import {
 import {
   getDamageDefenseEffects,
   type ActiveEffect,
+  createEffect,
 } from "../../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../../helpers/ko-handler.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
@@ -53,6 +55,7 @@ import {
 import { addGroundItem } from "../../../../../domain/rules/combat-map.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
 import type { GroundItem } from "../../../../../domain/entities/items/ground-item.js";
+import { addActiveEffectsToResources } from "../../helpers/resource-utils.js";
 import type {
   TabletopCombatServiceDeps,
   AttackPendingAction,
@@ -243,109 +246,22 @@ export class DamageResolver {
         }
       }
 
-      // Auto-break concentration on KO (Unconscious = Incapacitated → concentration ends)
-      if (hpAfter === 0 && targetCombatant) {
-        // combatants already refreshed above when hpAfter === 0
-        const koTarget = combatants.find((c: any) => c.id === targetCombatant.id);
-        if (koTarget) {
-          const koSpellName = getConcentrationSpellName(koTarget.resources);
-          if (koSpellName) {
-            await breakConcentration(
-              koTarget, encounter.id, this.deps.combatRepo,
-              this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
-            );
-            const targetEntityId = getEntityId(targetCombatant) ?? action.targetId;
-            await this.eventEmitter.emitConcentrationEvent(
-              sessionId, encounter.id, targetEntityId, characters, monsters,
-              { maintained: false, spellName: koSpellName, dc: 0, roll: 0, damage: totalDamage },
-            );
-            if (this.debugLogsEnabled) console.log(`[DamageResolver] Concentration auto-broken on KO`);
-          }
-        }
-      }
+      // KO-triggered side effects: auto-break concentration, death save auto-fails
+      await this.handleKoSideEffects(
+        targetCombatant, hpBefore, hpAfter, totalDamage, action,
+        combatants, encounter, sessionId, target, characters, monsters,
+      );
 
-      // If a CHARACTER already at 0 HP takes more damage, auto-fail death saves
-      if (hpBefore === 0 && targetCombatant.combatantType === "Character") {
-        const isCritical = action.isCritical ?? false;
-        await applyDamageWhileUnconscious(
-          targetCombatant, totalDamage, isCritical, this.deps.combatRepo,
-          this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
-        );
-      }
+      // Concentration check for surviving targets
+      await this.handleConcentrationCheck(
+        targetCombatant, hpAfter, totalDamage, target,
+        combatants, encounter, sessionId, action.targetId, characters, monsters,
+      );
 
-      // Concentration check: if the target is concentrating and took damage, auto-roll CON save
-      // If hpAfter === 0, concentration is auto-broken (handled by KO effects / condition-based break)
-      if (totalDamage > 0 && hpAfter > 0 && targetCombatant) {
-        const latestCombatant = findCombatantByEntityId(combatants, targetCombatant.id)
-          ?? (await this.deps.combatRepo.listCombatants(encounter.id)).find((c: any) => c.id === targetCombatant.id);
-        const spellName = getConcentrationSpellName(latestCombatant?.resources);
-        if (spellName && this.deps.diceRoller) {
-          // Get CON save modifier from the character sheet or stat block
-          const targetSheet = (target as any).sheet ?? (target as any).statBlock;
-          const conScore = targetSheet?.abilityScores?.constitution ?? 10;
-          const profBonus = targetSheet?.proficiencyBonus ?? 2;
-          const saveProficiencies: string[] = Array.isArray(targetSheet?.saveProficiencies) ? targetSheet.saveProficiencies : [];
-          const totalMod = computeConSaveModifier(conScore, profBonus, saveProficiencies);
-
-          const result = concentrationCheckOnDamage(this.deps.diceRoller, totalDamage, totalMod);
-
-          if (this.debugLogsEnabled) console.log(`[DamageResolver] Concentration check: ${result.check.total} vs DC ${result.dc} → ${result.maintained ? "maintained" : "LOST"}`);
-
-          if (!result.maintained) {
-            await breakConcentration(
-              latestCombatant!,
-              encounter.id,
-              this.deps.combatRepo,
-              this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
-            );
-          }
-
-          // Emit concentration event
-          const targetEntityId = getEntityId(targetCombatant) ?? action.targetId;
-          await this.eventEmitter.emitConcentrationEvent(
-            sessionId, encounter.id, targetEntityId, characters, monsters,
-            {
-              maintained: result.maintained,
-              spellName,
-              dc: result.dc,
-              roll: result.check.total,
-              damage: totalDamage,
-            },
-          );
-        }
-      }
-
-      // ── ActiveEffect: retaliatory damage (Armor of Agathys, Fire Shield) ──
-      if (totalDamage > 0 && action.weaponSpec?.kind === "melee") {
-        const tgtEffects = getActiveEffects(targetCombatant.resources ?? {});
-        const retaliatory = tgtEffects.filter(e => e.type === 'retaliatory_damage');
-        if (retaliatory.length > 0 && this.deps.diceRoller) {
-          const attackerForRetaliation = findCombatantByEntityId(combatants, actorId);
-          if (attackerForRetaliation && attackerForRetaliation.hpCurrent > 0) {
-            let totalRetaliatoryDamage = 0;
-            for (const eff of retaliatory) {
-              let retDmg = eff.value ?? 0;
-              if (eff.diceValue) {
-                for (let i = 0; i < eff.diceValue.count; i++) {
-                  retDmg += this.deps.diceRoller.rollDie(eff.diceValue.sides).total;
-                }
-              }
-              totalRetaliatoryDamage += retDmg;
-              if (this.debugLogsEnabled) console.log(`[DamageResolver] Retaliatory damage (${eff.source ?? 'effect'}): ${retDmg} ${eff.damageType ?? ''}`);
-            }
-            if (totalRetaliatoryDamage > 0) {
-              const atkHpBefore = attackerForRetaliation.hpCurrent;
-              const atkHpAfter = Math.max(0, atkHpBefore - totalRetaliatoryDamage);
-              await this.deps.combatRepo.updateCombatantState(attackerForRetaliation.id, { hpCurrent: atkHpAfter });
-              await applyKoEffectsIfNeeded(
-                attackerForRetaliation, atkHpBefore, atkHpAfter, this.deps.combatRepo,
-                this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
-              );
-              if (this.debugLogsEnabled) console.log(`[DamageResolver] Retaliatory damage: ${totalRetaliatoryDamage} to ${actorId} (HP: ${atkHpBefore} → ${atkHpAfter})`);
-            }
-          }
-        }
-      }
+      // Retaliatory damage (Armor of Agathys, Fire Shield)
+      await this.handleRetaliatoryDamage(
+        targetCombatant, totalDamage, action, actorId, combatants, encounter,
+      );
     }
 
     // Mark Sneak Attack as used for this turn if it was applied
@@ -476,11 +392,13 @@ export class DamageResolver {
         weaponSpec: action.weaponSpec,
         bonusAction: "flurry-of-blows",
         flurryStrike: 2,
+        rollMode: action.rollMode,
         // On-hit enhancements are resolved per-strike via damage text keywords — nothing to propagate
       };
 
       await this.deps.combatRepo.setPendingAction(encounter.id, pendingAction2);
 
+      const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
       const ohtSuffix = ohtResult ? ` ${ohtResult.summary}` : "";
       const ssSuffix = stunningStrikeResult ? ` ${stunningStrikeResult.summary}` : "";
       const enhSuffix = genericEnhancements.map((r) => ` ${r.summary}`).join("");
@@ -497,8 +415,8 @@ export class DamageResolver {
         actionComplete: false,
         requiresPlayerInput: true,
         type: "REQUEST_ROLL",
-        diceNeeded: "d20",
-        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a d20.`,
+        diceNeeded: followUpDice,
+        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
         ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
         ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       };
@@ -518,10 +436,12 @@ export class DamageResolver {
         weaponSpec: action.weaponSpec,
         spellStrike: nextStrike,
         spellStrikeTotal: action.spellStrikeTotal,
+        rollMode: action.rollMode,
       };
 
       await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
+      const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
       return {
         rollType: "attack",
         rawRoll: rollValue,
@@ -535,9 +455,34 @@ export class DamageResolver {
         actionComplete: false,
         requiresPlayerInput: true,
         type: "REQUEST_ROLL",
-        diceNeeded: "d20",
-        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20.`,
+        diceNeeded: followUpDice,
+        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
       };
+    }
+
+    // Apply on-hit spell effects to target (e.g. Guiding Bolt: advantage on next attack)
+    if (action.spellOnHitEffects?.length && hpAfter > 0) {
+      combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+      const effectTarget = findCombatantByEntityId(combatants, action.targetId);
+      if (effectTarget) {
+        for (const effDef of action.spellOnHitEffects) {
+          const effect = createEffect(
+            nanoid(),
+            effDef.type,
+            effDef.target,
+            effDef.duration,
+            {
+              source: action.weaponSpec?.name ?? "spell",
+              sourceCombatantId: actorId,
+              description: `${action.weaponSpec?.name ?? "spell"} (${effDef.type} on ${effDef.target})`,
+            },
+          );
+          const updatedResources = addActiveEffectsToResources(effectTarget.resources ?? {}, effect);
+          await this.deps.combatRepo.updateCombatantState(effectTarget.id, { resources: updatedResources as JsonValue });
+          if (this.debugLogsEnabled)
+            console.log(`[DamageResolver] Applied spell on-hit effect: ${effDef.type} → ${effDef.target} on ${effectTarget.id}`);
+        }
+      }
     }
 
     await this.eventEmitter.markActionSpent(encounter.id, actorId);
@@ -621,6 +566,152 @@ export class DamageResolver {
       ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       ...(genericEnhancements.length > 0 ? { enhancements: genericEnhancements } : {}),
     };
+  }
+
+  /**
+   * Handle KO side effects: auto-break concentration on KO + death save auto-fails
+   * for characters already at 0 HP taking damage.
+   */
+  private async handleKoSideEffects(
+    targetCombatant: CombatantStateRecord,
+    hpBefore: number,
+    hpAfter: number,
+    totalDamage: number,
+    action: DamagePendingAction,
+    combatants: CombatantStateRecord[],
+    encounter: CombatEncounterRecord,
+    sessionId: string,
+    target: SessionCharacterRecord | SessionMonsterRecord | SessionNPCRecord,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+  ): Promise<void> {
+    // Auto-break concentration on KO (Unconscious = Incapacitated → concentration ends)
+    if (hpAfter === 0) {
+      const koTarget = combatants.find((c: any) => c.id === targetCombatant.id);
+      if (koTarget) {
+        const koSpellName = getConcentrationSpellName(koTarget.resources);
+        if (koSpellName) {
+          await breakConcentration(
+            koTarget, encounter.id, this.deps.combatRepo,
+            this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
+          );
+          const targetEntityId = getEntityId(targetCombatant) ?? action.targetId;
+          await this.eventEmitter.emitConcentrationEvent(
+            sessionId, encounter.id, targetEntityId, characters, monsters,
+            { maintained: false, spellName: koSpellName, dc: 0, roll: 0, damage: totalDamage },
+          );
+          if (this.debugLogsEnabled) console.log(`[DamageResolver] Concentration auto-broken on KO`);
+        }
+      }
+    }
+
+    // If a CHARACTER already at 0 HP takes more damage, auto-fail death saves
+    if (hpBefore === 0 && targetCombatant.combatantType === "Character") {
+      const isCritical = action.isCritical ?? false;
+      await applyDamageWhileUnconscious(
+        targetCombatant, totalDamage, isCritical, this.deps.combatRepo,
+        this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
+      );
+    }
+  }
+
+  /**
+   * Handle concentration check: if the target is concentrating and survived damage,
+   * auto-roll a CON save to maintain concentration.
+   */
+  private async handleConcentrationCheck(
+    targetCombatant: CombatantStateRecord,
+    hpAfter: number,
+    totalDamage: number,
+    target: SessionCharacterRecord | SessionMonsterRecord | SessionNPCRecord,
+    combatants: CombatantStateRecord[],
+    encounter: CombatEncounterRecord,
+    sessionId: string,
+    targetId: string,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+  ): Promise<void> {
+    if (totalDamage <= 0 || hpAfter <= 0) return;
+
+    const latestCombatant = findCombatantByEntityId(combatants, targetCombatant.id)
+      ?? (await this.deps.combatRepo.listCombatants(encounter.id)).find((c: any) => c.id === targetCombatant.id);
+    const spellName = getConcentrationSpellName(latestCombatant?.resources);
+    if (!spellName || !this.deps.diceRoller) return;
+
+    const targetSheet = (target as any).sheet ?? (target as any).statBlock;
+    const conScore = targetSheet?.abilityScores?.constitution ?? 10;
+    const profBonus = targetSheet?.proficiencyBonus ?? 2;
+    const saveProficiencies: string[] = Array.isArray(targetSheet?.saveProficiencies) ? targetSheet.saveProficiencies : [];
+    const totalMod = computeConSaveModifier(conScore, profBonus, saveProficiencies);
+
+    const result = concentrationCheckOnDamage(this.deps.diceRoller, totalDamage, totalMod);
+
+    if (this.debugLogsEnabled) console.log(`[DamageResolver] Concentration check: ${result.check.total} vs DC ${result.dc} → ${result.maintained ? "maintained" : "LOST"}`);
+
+    if (!result.maintained) {
+      await breakConcentration(
+        latestCombatant!,
+        encounter.id,
+        this.deps.combatRepo,
+        this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
+      );
+    }
+
+    const targetEntityId = getEntityId(targetCombatant) ?? targetId;
+    await this.eventEmitter.emitConcentrationEvent(
+      sessionId, encounter.id, targetEntityId, characters, monsters,
+      {
+        maintained: result.maintained,
+        spellName,
+        dc: result.dc,
+        roll: result.check.total,
+        damage: totalDamage,
+      },
+    );
+  }
+
+  /**
+   * Handle retaliatory damage effects (Armor of Agathys, Fire Shield)
+   * triggered by melee attacks against targets with retaliatory_damage effects.
+   */
+  private async handleRetaliatoryDamage(
+    targetCombatant: CombatantStateRecord,
+    totalDamage: number,
+    action: DamagePendingAction,
+    actorId: string,
+    combatants: CombatantStateRecord[],
+    encounter: CombatEncounterRecord,
+  ): Promise<void> {
+    if (totalDamage <= 0 || action.weaponSpec?.kind !== "melee") return;
+
+    const tgtEffects = getActiveEffects(targetCombatant.resources ?? {});
+    const retaliatory = tgtEffects.filter(e => e.type === 'retaliatory_damage');
+    if (retaliatory.length === 0 || !this.deps.diceRoller) return;
+
+    const attackerForRetaliation = findCombatantByEntityId(combatants, actorId);
+    if (!attackerForRetaliation || attackerForRetaliation.hpCurrent <= 0) return;
+
+    let totalRetaliatoryDamage = 0;
+    for (const eff of retaliatory) {
+      let retDmg = eff.value ?? 0;
+      if (eff.diceValue) {
+        for (let i = 0; i < eff.diceValue.count; i++) {
+          retDmg += this.deps.diceRoller.rollDie(eff.diceValue.sides).total;
+        }
+      }
+      totalRetaliatoryDamage += retDmg;
+      if (this.debugLogsEnabled) console.log(`[DamageResolver] Retaliatory damage (${eff.source ?? 'effect'}): ${retDmg} ${eff.damageType ?? ''}`);
+    }
+    if (totalRetaliatoryDamage > 0) {
+      const atkHpBefore = attackerForRetaliation.hpCurrent;
+      const atkHpAfter = Math.max(0, atkHpBefore - totalRetaliatoryDamage);
+      await this.deps.combatRepo.updateCombatantState(attackerForRetaliation.id, { hpCurrent: atkHpAfter });
+      await applyKoEffectsIfNeeded(
+        attackerForRetaliation, atkHpBefore, atkHpAfter, this.deps.combatRepo,
+        this.debugLogsEnabled ? (msg) => console.log(`[DamageResolver] ${msg}`) : undefined,
+      );
+      if (this.debugLogsEnabled) console.log(`[DamageResolver] Retaliatory damage: ${totalRetaliatoryDamage} to ${actorId} (HP: ${atkHpBefore} → ${atkHpAfter})`);
+    }
   }
 
   /**

@@ -33,6 +33,23 @@ export class PrismaMonsterRepository implements IMonsterRepository {
     return created;
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{
+      id: string;
+      name: string;
+      monsterDefinitionId: string | null;
+      statBlock: JsonValue;
+    }>,
+  ): Promise<SessionMonsterRecord[]> {
+    if (inputs.length === 0) return [];
+    const results: SessionMonsterRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionMonsterRecord | null> {
     return this.prisma.sessionMonster.findUnique({ where: { id } });
   }
@@ -48,6 +65,17 @@ export class PrismaMonsterRepository implements IMonsterRepository {
   async delete(id: string): Promise<void> {
     await this.prisma.sessionMonster.delete({
       where: { id },
+    });
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionMonsterRecord> {
+    const existing = await this.prisma.sessionMonster.findUnique({ where: { id } });
+    if (!existing) throw new Error("Monster not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    return this.prisma.sessionMonster.update({
+      where: { id },
+      data: { statBlock: merged as Prisma.InputJsonValue },
     });
   }
 }

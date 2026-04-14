@@ -1,5 +1,5 @@
 ---
-description: "Architecture and conventions for the CombatRules flow: movement, pathfinding, damage, grapple, conditions, death saves, attack resolution, initiative, concentration, weapon mastery, feats, rest, surprise, effects."
+description: "Architecture and conventions for the CombatRules flow: movement, damage, grapple, conditions, death saves, attack resolution, initiative, concentration, weapon mastery, feats, rest, surprise, effects. NOTE: Grid/pathfinding/cover → combat-map.instructions.md; action economy flags → action-economy.instructions.md."
 applyTo: "packages/game-server/src/domain/rules/**,packages/game-server/src/domain/combat/**,packages/game-server/src/domain/effects/**"
 ---
 

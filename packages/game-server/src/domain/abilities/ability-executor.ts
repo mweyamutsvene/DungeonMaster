@@ -116,9 +116,9 @@ export interface AbilityExecutionResult {
   };
 
   /**
-   * Roll type needed for player input (e.g., "attack", "damage", "d20").
+   * Roll type needed for player input (e.g., "attack", "damage").
    */
-  rollType?: string;
+  rollType?: "attack" | "damage";
 
   /**
    * Dice formula needed (e.g., "d20", "1d6+3").

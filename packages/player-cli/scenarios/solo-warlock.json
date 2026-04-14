@@ -1,0 +1,113 @@
+{
+  "name": "Solo Warlock vs Shadow Construct",
+  "description": "A level 5 Pact of the Blade Warlock battles a Shadow Construct and a Spectral Guard. Tests Eldritch Blast multi-beam (2 beams at level 5, each 1d10 force), Pact Magic short-rest slots (2x level 3), and Hex concentration spell.",
+  "setup": {
+    "character": {
+      "name": "Malachar the Dark",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 18
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 14,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 },
+          { "name": "Hex", "level": 1 },
+          { "name": "Armor of Agathys", "level": 1 },
+          { "name": "Hunger of Hadar", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Pact Blade (Shortsword)",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ],
+        "features": [
+          { "name": "Eldritch Blast", "description": "Cantrip: 2 beams at level 5. Each beam: spell attack roll, 1d10 force damage. Does NOT scale to 2d10 — scaling IS the extra beams." },
+          { "name": "Pact Magic", "description": "All spell slots are level 3. Recover all slots on short rest." },
+          { "name": "Hex", "description": "Concentration. Curse target: extra 1d6 necrotic on each hit. Bonus action to move hex on target death." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Shadow Construct",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 6,
+            "dexterity": 14,
+            "constitution": 13,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 52,
+          "hp": 52,
+          "armorClass": 12,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Strength Drain",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 2 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Spectral Guard",
+        "position": { "x": 25, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 7,
+            "dexterity": 13,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 11
+          },
+          "maxHp": 22,
+          "hp": 22,
+          "armorClass": 11,
+          "speed": 0,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Withering Touch",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 1 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

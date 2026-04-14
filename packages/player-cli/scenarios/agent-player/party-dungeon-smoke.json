@@ -1,0 +1,5 @@
+{
+  "id": "party-dungeon-smoke",
+  "scenario": "party-dungeon",
+  "goal": "Test multi-combatant encounter with a party: Thorin (Fighter) + Elara the Wise (NPC Wizard ally) vs Goblin Boss, Goblin Archer, Goblin Warrior. Must confirm: (1) Initiative order includes all 5 combatants — verify the tactical view shows the correct turn order before your first action, (2) Elara (AI-controlled ally) takes a turn in initiative order and performs an action — she should not skip or error, (3) Fighter Extra Attack: confirm 2 attacks/action on Thorin's turns, (4) Dead combatants: once a goblin hits 0 HP, confirm it is no longer targeted by AI or offered as a valid target, (5) Multi-target combat: note which goblin each combatant targets; flag if AI allies target already-dead enemies. Flag any turn-order skips, any combatant who never gets a turn, or any 500 error from an AI controlled ally turn."
+}

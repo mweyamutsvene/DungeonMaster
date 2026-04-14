@@ -7,6 +7,7 @@
 
 export { ActionDispatcher } from "./action-dispatcher.js";
 export { RollStateMachine, loadRoster } from "./roll-state-machine.js";
+export type { LoadRosterResult } from "./roll-state-machine.js";
 export { SpellActionHandler } from "./spell-action-handler.js";
 export { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 export { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
@@ -35,6 +36,8 @@ export type { PathNarrationInput } from "./path-narrator.js";
 // All types
 export type {
   PendingActionType,
+  RollRequestType,
+  ActionRollType,
   InitiatePendingAction,
   AttackPendingAction,
   DamagePendingAction,

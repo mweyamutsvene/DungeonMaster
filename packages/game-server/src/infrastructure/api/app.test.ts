@@ -132,6 +132,17 @@ class MemoryMonsterRepository implements IMonsterRepository {
     return created;
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; monsterDefinitionId: string | null; statBlock: JsonValue }>,
+  ): Promise<SessionMonsterRecord[]> {
+    const results: SessionMonsterRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionMonsterRecord | null> {
     return this.monsters.get(id) ?? null;
   }
@@ -146,6 +157,16 @@ class MemoryMonsterRepository implements IMonsterRepository {
 
   async delete(id: string): Promise<void> {
     this.monsters.delete(id);
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionMonsterRecord> {
+    const existing = this.monsters.get(id);
+    if (!existing) throw new Error("Monster not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionMonsterRecord = { ...existing, statBlock: merged, updatedAt: now() };
+    this.monsters.set(id, updated);
+    return updated;
   }
 }
 
@@ -375,6 +396,17 @@ class MemoryNPCRepository implements INPCRepository {
     return created;
   }
 
+  async createMany(
+    sessionId: string,
+    inputs: Array<{ id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean }>,
+  ): Promise<SessionNPCRecord[]> {
+    const results: SessionNPCRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionNPCRecord | null> {
     return this.npcs.get(id) ?? null;
   }
@@ -389,6 +421,16 @@ class MemoryNPCRepository implements INPCRepository {
 
   async delete(id: string): Promise<void> {
     this.npcs.delete(id);
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
+    const existing = this.npcs.get(id);
+    if (!existing) throw new Error("NPC not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    const updated: SessionNPCRecord = { ...existing, statBlock: merged, updatedAt: now() };
+    this.npcs.set(id, updated);
+    return updated;
   }
 }
 

@@ -394,10 +394,13 @@ ${colors.bold}What would you like to do?${colors.reset}
       }
 
       const diceHint = resp.diceNeeded ?? this.inferDiceHint(resp.rollType);
-      const rollInput = await this.askForRoll(
-        `Enter your ${diceHint} roll for ${resp.rollType}: `,
-        resp.rollType,
-      );
+      const isDoubleRoll = diceHint === "2d20";
+      const rollInput = isDoubleRoll
+        ? await this.askForDoubleD20(resp.rollType)
+        : await this.askForRoll(
+            `Enter your ${diceHint} roll for ${resp.rollType}: `,
+            resp.rollType,
+          );
 
       resp = await this.client.submitRoll(this.ctx.sessionId, {
         text: `I rolled ${rollInput}`,
@@ -1323,6 +1326,36 @@ ${colors.cyan}Other:${colors.reset}
       } else {
         printWarning(`Please enter a number for your ${rollType} roll.`);
       }
+    }
+  }
+
+  /**
+   * Ask for two d20 rolls (advantage/disadvantage).
+   * Accepts "15 8", "15, 8", "15 and 8" or a single number (falls back gracefully).
+   */
+  private async askForDoubleD20(rollType: string): Promise<string> {
+    const prompt = `Enter your 2d20 rolls for ${rollType} (e.g. 15 8): `;
+    while (true) {
+      const input = await this.ask(prompt);
+      // Accept two numbers separated by space, comma, or "and"
+      const twoMatch = input.match(/^(\d{1,2})\s*[,\s]+(?:and\s+)?(\d{1,2})$/i);
+      if (twoMatch) {
+        const a = Number(twoMatch[1]);
+        const b = Number(twoMatch[2]);
+        if (a >= 1 && a <= 20 && b >= 1 && b <= 20) {
+          return `${a} and ${b}`;
+        }
+        printWarning("Each d20 value must be between 1 and 20.");
+        continue;
+      }
+      // Also accept a single number (backward compat / test harness)
+      if (/^\d{1,2}$/.test(input)) {
+        const v = Number(input);
+        if (v >= 1 && v <= 20) return String(v);
+        printWarning("d20 value must be between 1 and 20.");
+        continue;
+      }
+      printWarning("Enter two d20 values, e.g. '15 8' or '15, 8'.");
     }
   }
 

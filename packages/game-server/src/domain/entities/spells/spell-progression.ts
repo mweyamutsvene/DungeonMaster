@@ -146,6 +146,35 @@ const WARLOCK_CANTRIPS: readonly number[] = [
   /* Level 20 */ 4,
 ];
 
+// ── Ranger Cantrip Progression (D&D 5e 2024) ───────────────────────────
+// Rangers get cantrips starting at level 1: 2 cantrips, 3 at level 10.
+// Paladins do not learn cantrips.
+const RANGER_CANTRIPS: Partial<Record<CharacterClassId, readonly number[]>> = {
+  ranger: [
+    /* placeholder index 0 */ 0,
+    /* Level  1 */ 2,
+    /* Level  2 */ 2,
+    /* Level  3 */ 2,
+    /* Level  4 */ 2,
+    /* Level  5 */ 2,
+    /* Level  6 */ 2,
+    /* Level  7 */ 2,
+    /* Level  8 */ 2,
+    /* Level  9 */ 2,
+    /* Level 10 */ 3,
+    /* Level 11 */ 3,
+    /* Level 12 */ 3,
+    /* Level 13 */ 3,
+    /* Level 14 */ 3,
+    /* Level 15 */ 3,
+    /* Level 16 */ 3,
+    /* Level 17 */ 3,
+    /* Level 18 */ 3,
+    /* Level 19 */ 3,
+    /* Level 20 */ 3,
+  ],
+};
+
 // ── Class → Caster Type Mapping ─────────────────────────────────────────
 
 type CasterType = "full" | "half" | "pact" | "none";
@@ -209,7 +238,7 @@ export function getCantripsKnown(classId: CharacterClassId, level: number): numb
     case "pact":
       return WARLOCK_CANTRIPS[clamped] ?? 0;
     case "half":
-      return 0; // Half casters learn cantrips differently or not at all in Basic Rules
+      return RANGER_CANTRIPS[classId]?.[clamped] ?? 0;
     case "none":
       return 0;
   }

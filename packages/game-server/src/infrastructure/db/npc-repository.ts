@@ -27,6 +27,15 @@ export class PrismaNPCRepository implements INPCRepository {
     return npc;
   }
 
+  async createMany(sessionId: string, inputs: CreateNPCInput[]): Promise<SessionNPCRecord[]> {
+    if (inputs.length === 0) return [];
+    const results: SessionNPCRecord[] = [];
+    for (const input of inputs) {
+      results.push(await this.createInSession(sessionId, input));
+    }
+    return results;
+  }
+
   async getById(id: string): Promise<SessionNPCRecord | null> {
     return await this.prisma.sessionNPC.findUnique({
       where: { id },
@@ -49,6 +58,17 @@ export class PrismaNPCRepository implements INPCRepository {
   async delete(id: string): Promise<void> {
     await this.prisma.sessionNPC.delete({
       where: { id },
+    });
+  }
+
+  async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
+    const existing = await this.prisma.sessionNPC.findUnique({ where: { id } });
+    if (!existing) throw new Error("NPC not found: " + id);
+    const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
+    const merged = { ...currentStatBlock, ...data };
+    return this.prisma.sessionNPC.update({
+      where: { id },
+      data: { statBlock: merged as Prisma.InputJsonValue },
     });
   }
 }

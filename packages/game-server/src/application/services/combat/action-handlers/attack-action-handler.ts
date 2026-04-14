@@ -282,6 +282,8 @@ export class AttackActionHandler {
       armorClass: attackerAC,
       abilityScores: attackerAbilityScores,
       featIds: attackerFeatIds,
+      classId: attackerStats.className,
+      level: attackerStats.level,
       hpCurrent: attackerState.hpCurrent,
     }).creature as unknown as any;
 

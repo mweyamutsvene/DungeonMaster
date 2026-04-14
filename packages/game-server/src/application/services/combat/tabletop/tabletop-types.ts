@@ -30,6 +30,7 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { AbilityRegistry } from "../abilities/ability-registry.js";
 import type { DeathSaves } from "../../../../domain/rules/death-saves.js";
 import type { WeaponMasteryProperty } from "../../../../domain/rules/weapon-mastery.js";
+import type { SpellEffectDeclaration } from "../../../../domain/entities/spells/prepared-spell-definition.js";
 
 // ----- Pending action types -----
 
@@ -100,6 +101,8 @@ export interface AttackPendingAction {
   spellStrike?: number;
   /** Total spell strikes for multi-attack spells */
   spellStrikeTotal?: number;
+  /** On-hit spell effects to apply to target after damage (e.g. Guiding Bolt advantage on next attack) */
+  spellOnHitEffects?: SpellEffectDeclaration[];
 }
 
 export interface DamagePendingAction {
@@ -112,6 +115,7 @@ export interface DamagePendingAction {
   isCritical?: boolean;
   bonusAction?: string;
   flurryStrike?: 1 | 2;
+  rollMode?: "normal" | "advantage" | "disadvantage";
   /** Number of Sneak Attack d6s included in the damage formula */
   sneakAttackDice?: number;
   /** Post-damage enhancements to resolve (built at damage time from player opt-in keywords) */
@@ -120,6 +124,8 @@ export interface DamagePendingAction {
   spellStrike?: number;
   /** Total spell strikes for multi-attack spells */
   spellStrikeTotal?: number;
+  /** On-hit spell effects to apply to target after damage (e.g. Guiding Bolt advantage on next attack) */
+  spellOnHitEffects?: SpellEffectDeclaration[];
 }
 
 /**
@@ -238,10 +244,20 @@ export interface WeaponSpec {
 
 // ----- Result types -----
 
+/**
+ * All valid roll types used by RollRequest.
+ */
+export type RollRequestType = "initiative" | "attack" | "damage" | "deathSave";
+
+/**
+ * Roll types used in ActionParseResult contexts (dispatch handlers, OA flow, ability executors).
+ */
+export type ActionRollType = "attack" | "damage" | "initiative" | "opportunity_attack" | "opportunity_attack_damage";
+
 export interface RollRequest {
   requiresPlayerInput: true;
   type: "REQUEST_ROLL";
-  rollType: "initiative" | "attack" | "damage" | "deathSave";
+  rollType: RollRequestType;
   message: string;
   narration?: string;
   diceNeeded: string;
@@ -395,7 +411,7 @@ export interface ActionParseResult {
   movedFeet?: number | null;
   opportunityAttacks?: unknown[];
   pendingActionId?: string;
-  rollType?: string;
+  rollType?: ActionRollType;
   diceNeeded?: string;
   advantage?: boolean;
   disadvantage?: boolean;

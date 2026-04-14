@@ -38,8 +38,9 @@ export interface CanonicalSpell extends PreparedSpellDefinition {
  *   Only spells with `ritual: true` in the catalog can be cast this way.
  *   In combat, ritual casting is effectively impossible (10+ minutes).
  *
- * TODO: SS-L7 — Wire into SpellActionHandler castInfo and prepareSpellCast.
- * When castingMode is 'ritual', skip spell slot deduction in prepareSpellCast.
- * Add validation: reject ritual casting for non-ritual spells, reject in active combat.
+ * Ritual slot-skip is wired in `prepareSpellCast()` via `castAsRitual` parameter.
+ * TODO: SS-L7 — Wire SpellCastingMode into SpellActionHandler castInfo and the API request schema
+ * so callers can explicitly request ritual casting. Currently `castAsRitual` must be
+ * passed programmatically.
  */
 export type SpellCastingMode = 'normal' | 'ritual';

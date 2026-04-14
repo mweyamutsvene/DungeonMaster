@@ -1,6 +1,6 @@
 ---
 name: CombatOrchestration-Implementer
-description: "Use when implementing approved changes to combat orchestration: TabletopCombatService facade, ActionDispatcher, RollStateMachine, CombatTextParser, pending action state machine, two-phase action flow. Executes plans validated by CombatOrchestration-SME."
+description: "Use when implementing approved changes to combat orchestration: TabletopCombatService facade, ActionDispatcher, RollStateMachine, CombatTextParser. Two-phase reactions → ReactionSystem-Implementer. Executes plans validated by CombatOrchestration-SME."
 tools: [read, edit, search, execute]
 user-invocable: false
 agents: []

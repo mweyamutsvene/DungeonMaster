@@ -1,0 +1,5 @@
+{
+  "id": "monk-smoke",
+  "scenario": "solo-monk",
+  "goal": "Test Monk level 5 ability pipeline against Orc Brute. Must exercise: (1) Unarmed strike → Flurry of Blows bonus action (spends 1 ki), (2) Quarterstaff attack → Stunning Strike on hit (spends 1 ki, target rolls CON save), (3) Patient Defense (1 ki, grants Dodge). Verify ki pool decrements correctly and saves are requested. Flag any ability that silently fails."
+}

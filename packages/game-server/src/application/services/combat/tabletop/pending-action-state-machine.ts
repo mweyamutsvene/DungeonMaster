@@ -2,12 +2,13 @@
  * Formal state machine for TabletopPendingAction transitions.
  *
  * VALID_PENDING_TRANSITIONS documents every legal state-to-state move.
- * assertValidTransition emits a warning when an unexpected transition is detected
- * but does NOT throw — it is a non-blocking observability aid, not a hard gate.
+ * assertValidTransition throws a ValidationError when an invalid transition
+ * is attempted, preventing corrupted combat state.
  *
  * null = "no pending action" (start of sequence or fully resolved).
  */
 
+import { ValidationError } from "../../../errors.js";
 import type { PendingActionType } from "./tabletop-types.js";
 
 /**
@@ -35,9 +36,8 @@ export const VALID_PENDING_TRANSITIONS: Readonly<
 
 /**
  * Assert that a pending action transition is valid.
- * Emits a console.warn in non-production environments when the transition is
- * not listed in VALID_PENDING_TRANSITIONS. Does NOT throw — existing code paths
- * must not be hard-blocked by this validation.
+ * Throws a ValidationError when the transition is not listed in
+ * VALID_PENDING_TRANSITIONS, preventing corrupted combat state.
  *
  * @param from - The previous pending action type, or null if none was pending.
  * @param to   - The new pending action type being set, or null if clearing.
@@ -46,14 +46,14 @@ export function assertValidTransition(
   from: PendingActionType | null,
   to: PendingActionType | null,
 ): void {
-  if (process.env.NODE_ENV === "production") return;
   const fromKey = from ?? "null";
   const validTargets =
     VALID_PENDING_TRANSITIONS[fromKey as keyof typeof VALID_PENDING_TRANSITIONS];
   if (validTargets && !validTargets.includes(to)) {
-    console.warn(
-      `[PendingActionStateMachine] Unexpected transition: ${fromKey} \u2192 ${String(to ?? "null")}. ` +
-        `Valid targets: ${validTargets.map((t) => String(t ?? "null")).join(", ")}`,
+    const validStr = validTargets.map((t) => String(t ?? "null")).join(", ");
+    throw new ValidationError(
+      `Invalid pending action transition: ${fromKey} → ${String(to ?? "null")}. ` +
+        `Valid transitions from ${fromKey}: [${validStr}]`,
     );
   }
 }

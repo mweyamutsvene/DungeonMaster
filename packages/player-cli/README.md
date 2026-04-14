@@ -13,7 +13,61 @@ pnpm -C packages/player-cli start
 
 # Jump straight to a scenario
 pnpm -C packages/player-cli start -- --scenario solo-fighter
+
+# Run agent-player smoke scenarios (starts isolated backend + captures logs)
+pnpm -C packages/player-cli agent:smoke
 ```
+
+## Agent Player Smoke Runs
+
+You can run scripted smoke tests where the agent acts as the player and follows prompt-driven actions.
+
+- Starts a dedicated backend on a temporary port (default `3101`) using your current environment (including current LLM settings)
+- Captures backend logs to a temp file
+- Runs player-cli scenarios and auto-responds to prompts (actions + dice rolls)
+- Captures frontend transcript logs per scenario
+- Generates a summary report with warning/failure signals from backend and frontend logs
+- Generates bug reports for any failed scenarios, including all relevant logs and a description of the failure
+
+### Commands
+
+```bash
+# Run default subset (up to 3 scenarios)
+pnpm -C packages/player-cli agent:smoke
+
+# Run all agent-player scenarios
+pnpm -C packages/player-cli agent:smoke:all
+
+# Run specific scenario ids
+pnpm -C packages/player-cli agent:smoke -- --scenario fighter-smoke --scenario monk-smoke
+
+# Override isolated backend port
+pnpm -C packages/player-cli agent:smoke -- --port 3110
+```
+
+### Scenario Prompt Files
+
+Agent-player scenario definitions live in:
+
+- `scenarios/agent-player/fighter-smoke.json`
+- `scenarios/agent-player/monk-smoke.json`
+- `scenarios/agent-player/boss-smoke.json`
+
+Each file defines:
+
+- `cliScenario`: which normal CLI scenario to load
+- `actionSequence`: commands the agent will issue at the `>` prompt
+- `dice`: deterministic values for initiative/attack/damage/saves
+- `timeoutMs` and `maxActionPrompts`: guard rails for stuck flows
+
+### Output Artifacts
+
+Each run creates a temp folder like `dm-agent-player-XXXXXX` under your OS temp directory:
+
+- `backend.log`: backend server stdout/stderr
+- `<scenario-id>.frontend.log`: CLI transcript + agent inputs
+- `summary.json`: machine-readable run summary
+- `report.txt`: quick human-readable verdicts
 
 ## CLI Options
 

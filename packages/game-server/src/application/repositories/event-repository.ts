@@ -13,10 +13,24 @@ export interface SessionCreatedPayload {
   sessionId: string;
 }
 
+export interface SessionDeletedPayload {
+  sessionId: string;
+}
+
 export interface CharacterAddedPayload {
   characterId: string;
   name: string;
   level: number;
+}
+
+export interface CharacterUpdatedPayload {
+  characterId: string;
+  name: string;
+}
+
+export interface CharacterDeletedPayload {
+  characterId: string;
+  name: string;
 }
 
 export interface RestCompletedPayload {
@@ -306,7 +320,10 @@ export interface ReadiedActionTriggeredPayload {
 
 export type GameEventInput =
   | { type: "SessionCreated"; payload: SessionCreatedPayload }
+  | { type: "SessionDeleted"; payload: SessionDeletedPayload }
   | { type: "CharacterAdded"; payload: CharacterAddedPayload }
+  | { type: "CharacterUpdated"; payload: CharacterUpdatedPayload }
+  | { type: "CharacterDeleted"; payload: CharacterDeletedPayload }
   | { type: "MonsterAdded"; payload: MonsterAddedPayload }
   | { type: "NPCAdded"; payload: NPCAddedPayload }
   | { type: "InventoryChanged"; payload: InventoryChangedPayload }
@@ -359,7 +376,7 @@ export interface IEventRepository {
     input?: { limit?: number; since?: Date },
   ): Promise<GameEventRecord[]>;
 
-  listByEncounter?(
+  listByEncounter(
     encounterId: string,
     input?: { limit?: number; round?: number },
   ): Promise<GameEventRecord[]>;

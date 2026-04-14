@@ -238,6 +238,10 @@ export function hydrateCharacter(
   if (ancestryResistance) allResistances.push(ancestryResistance);
   const mergedResistances = [...new Set(allResistances)];
 
+  // Damage immunities and vulnerabilities from sheet
+  const sheetImmunities = readArray<string>(sheet, 'damageImmunities') ?? [];
+  const sheetVulnerabilities = readArray<string>(sheet, 'damageVulnerabilities') ?? [];
+
   // Extract equipped armor/shield so getAC() can detect when armor is worn
   const equipment = extractEquipment(sheet);
 
@@ -280,6 +284,8 @@ export function hydrateCharacter(
     skillExpertise: skillExpertise && skillExpertise.length > 0 ? skillExpertise : undefined,
     preparedSpells: preparedSpells && preparedSpells.length > 0 ? preparedSpells : undefined,
     knownSpells: knownSpells && knownSpells.length > 0 ? knownSpells : undefined,
+    damageImmunities: sheetImmunities.length > 0 ? sheetImmunities : undefined,
+    damageVulnerabilities: sheetVulnerabilities.length > 0 ? sheetVulnerabilities : undefined,
   };
 
   const character = new Character(data);

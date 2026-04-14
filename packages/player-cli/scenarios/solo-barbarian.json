@@ -1,0 +1,122 @@
+{
+  "name": "Solo Barbarian vs Orc Raiders",
+  "description": "A level 5 Berserker Barbarian battles two Orc Raiders. Tests Rage (bonus action, damage bonus +2, B/P/S resistance), Reckless Attack (advantage + grants advantage against you), and Extra Attack (2 per action).",
+  "setup": {
+    "character": {
+      "name": "Korgath Ironhide",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 55,
+        "currentHp": 55,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          },
+          {
+            "name": "Handaxe",
+            "kind": "ranged",
+            "range": "20/60 ft",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Rage", "description": "Bonus action: enter Rage for 1 minute. Gain resistance to B/P/S damage, advantage on STR checks, +2 melee damage bonus while raging." },
+          { "name": "Reckless Attack", "description": "First melee attack gets advantage using STR. Until next turn, all attacks against you have advantage." },
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." },
+          { "name": "Fast Movement", "description": "Speed increases by 10 ft when not wearing heavy armor." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Orc Raider",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Orc Berserker",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 10,
+            "constitution": 18,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 8
+          },
+          "maxHp": 42,
+          "hp": 42,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Javelin",
+              "kind": "ranged",
+              "range": "30/120 ft",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

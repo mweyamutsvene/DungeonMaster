@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import type { ICharacterRepository } from "../../application/repositories/character-repository.js";
+import type { ICharacterRepository, CharacterUpdateData } from "../../application/repositories/character-repository.js";
 import type { JsonValue, SessionCharacterRecord } from "../../application/types.js";
 
 /**
@@ -51,6 +51,20 @@ export class PrismaCharacterRepository implements ICharacterRepository {
     return this.prisma.sessionCharacter.update({
       where: { id },
       data: { sheet: sheet as Prisma.InputJsonValue },
+    });
+  }
+
+  async update(id: string, data: Partial<CharacterUpdateData>): Promise<SessionCharacterRecord> {
+    const prismaData: Prisma.SessionCharacterUpdateInput = {};
+    if (data.name !== undefined) prismaData.name = data.name;
+    if (data.level !== undefined) prismaData.level = data.level;
+    if (data.className !== undefined) prismaData.className = data.className;
+    if (data.sheet !== undefined) prismaData.sheet = data.sheet as Prisma.InputJsonValue;
+    if (data.faction !== undefined) prismaData.faction = data.faction;
+    if (data.aiControlled !== undefined) prismaData.aiControlled = data.aiControlled;
+    return this.prisma.sessionCharacter.update({
+      where: { id },
+      data: prismaData,
     });
   }
 
