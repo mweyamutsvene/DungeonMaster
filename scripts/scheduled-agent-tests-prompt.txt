@@ -1,0 +1,218 @@
+You are the DMDeveloper agent for the DungeonMaster D&D 5e rules engine project.
+Use the FULL ADAPTIVE WORKFLOW from .github/agents/developer.agent.md.
+
+IMPORTANT: Read .github/copilot-instructions.md and .github/agents/developer.agent.md FIRST.
+The game server should already be running at http://localhost:3000.
+
+=== MISSION ===
+Fix all bugs and implement all enhancements identified in the agent-player test runs
+(files in .github/prompts/Test-Runs/run-*-2026-04-13.prompt.md and plan-grapple-tabletop-dice-flow.prompt.md).
+
+Below is the MASTER BUG & ENHANCEMENT LIST extracted from those reports.
+Your job: use the adaptive workflow to research, plan, implement, test, and verify ALL of them.
+
+=== RATE LIMIT RECOVERY ===
+This is a long-running session. You may hit rate limits.
+- ALWAYS update the checkboxes in this plan as you complete each item.
+- If rate-limited, the next run will see which items are already checked and resume from there.
+- Never re-do checked items.
+
+=== WORKFLOW ===
+
+PHASE 1: SME RESEARCH (dispatch ALL in parallel)
+Dispatch these SME agents IN PARALLEL to avoid hitting rate limits from sequential waits:
+  - CombatOrchestration-SME → research bugs B01-B06, B10, B12, E01-E03, E05
+  - CombatRules-SME → research bugs B01, B07, B08, B09
+  - AIBehavior-SME → research bugs B11, B13
+  - ClassAbilities-SME → research bugs B03, B05, B14
+  - ReactionSystem-SME → research bug B09, E04
+  - ActionEconomy-SME → research bugs B03, B04, B06
+Each SME writes their findings to .github/plans/sme-research-{FlowName}.md
+
+PHASE 2: SYNTHESIZE PLAN
+Read ALL sme-research-*.md files. Write unified plan to:
+  .github/prompts/plan-test-run-bugfixes-2026-04-14.prompt.md
+Use the plan template from developer.agent.md. Include the Cross-Flow Risk Checklist.
+
+PHASE 3: REVIEW + CHALLENGE (dispatch ALL in parallel)
+  - Each affected SME reviews the plan → .github/plans/sme-feedback-{FlowName}.md
+  - Challenger reviews the plan → .github/plans/challenge-bugfixes.md
+If NEEDS_WORK: revise plan and re-send (max 3 rounds).
+
+PHASE 4: IMPLEMENT (parallel where independent)
+Dispatch implementer agents for independent flows in parallel:
+  - CombatOrchestration-Implementer (B01, B02, B05, B06, B10, B12, E01, E02, E03, E05)
+  - CombatRules-Implementer (B07, B08, B09)
+  - AIBehavior-Implementer (B11, B13)
+  - ClassAbilities-Implementer (B03, B14)
+  - ReactionSystem-Implementer (B09, E04)
+Then dispatch test writers:
+  - VitestWriter + E2EScenarioWriter
+
+PHASE 5: VERIFY
+  pnpm -C packages/game-server typecheck
+  pnpm -C packages/game-server test
+  pnpm -C packages/game-server test:e2e:combat:mock -- --all
+Fix failures. Re-dispatch implementers if needed.
+
+PHASE 6: CLEANUP
+Check off all items. Delete sme-research-* and sme-feedback-* files. Keep the plan.
+
+=== MASTER BUG LIST ===
+(Check off each bug/enhancement as it is RESOLVED and VERIFIED)
+
+## HIGH SEVERITY
+
+- [ ] B01: Extra Attack does not auto-chain — returns to > prompt between strikes
+  Sources: solo-fighter BUG-3, boss-fight BUG-2, wounded-fighter BUG-3, solo-monk BUG-2
+  Flow: CombatOrchestration
+  Description: Level 5 Fighter/Monk Extra Attack requires manual re-input for 2nd attack.
+  After first attack resolves, prompt returns to > with no indication a second attack is available.
+  Expected (5e 2024): Attack action with Extra Attack should chain all attacks automatically
+  or at minimum show "You have 1 attack remaining" before returning to prompt.
+
+- [ ] B02: Second attack parsed as off-hand TWF with Handaxe + Disadvantage instead of Extra Attack
+  Sources: wounded-fighter BUG-1, wounded-fighter BUG-2
+  Flow: CombatOrchestration
+  Description: After first attack, sending "I attack again" triggers Handaxe off-hand TWF
+  with disadvantage instead of using the same weapon for Extra Attack. Explicit weapon
+  specification ("with my longsword") is also ignored — server still selects Handaxe.
+  Expected: Extra Attack uses same weapon by default, honors explicit weapon choice.
+
+- [ ] B03: AI Flurry of Blows declared but never executed (Vex Nightthorn)
+  Sources: monk-vs-monk BUG-1
+  Flow: AIBehavior, ClassAbilities
+  Description: Vex chains "Shadow Fist + Flurry of Blows" in LLM text, but only Shadow Fist
+  executes. The Flurry of Blows bonus action is narrated but never resolved mechanically.
+  Expected: AI should either execute both action + bonus action, or LLM should be guided
+  to declare them separately so each gets resolved.
+
+- [ ] B04: Action Surge attack count message "4 total remaining" is off
+  Sources: boss-fight BUG-3, wounded-fighter BUG-4
+  Flow: ActionEconomy, CombatOrchestration
+  Description: After using one attack then Action Surge, message says "4 total attacks remaining"
+  but only 3 more attacks should be available (1 used + 3 remaining = 4 total in round).
+  The word "remaining" is misleading — should say "total this round" or correctly count remaining.
+
+- [ ] B05: Server auto-selects wrong weapon when player specifies one explicitly
+  Sources: solo-fighter BUG-2
+  Flow: CombatOrchestration
+  Description: Player says "attack with longsword" at 10ft range, server silently swaps to
+  Handaxe (thrown) without explanation. Should either use the specified weapon and show
+  range error, or explicitly tell the player why the weapon was changed.
+
+## MEDIUM SEVERITY
+
+- [ ] B06: Off-hand Handaxe attack applies Disadvantage with no apparent reason
+  Sources: wounded-fighter BUG-1
+  Flow: CombatOrchestration, CombatRules
+  Description: Off-hand attacks are prompted with "Disadvantage! Roll 2d20 and take the lower."
+  5e 2024 Two-Weapon Fighting does NOT impose disadvantage. It simply omits ability modifier
+  from damage (unless TWF style taken). Investigate why disadvantage is applied.
+
+- [ ] B07: Melee range rejection threshold shows 20ft instead of 5ft for longsword
+  Sources: boss-fight BUG-1, solo-fighter note, wounded-fighter note
+  Flow: CombatRules
+  Description: Error message says "Target is out of range (30ft > 20ft)" for longsword.
+  Longsword has 5ft reach. The 20ft threshold is wrong — likely weapon data issue.
+  Attacks DO succeed at 5ft, so only the validation/error message is affected.
+
+- [ ] B08: Grapple/shove bypasses tabletop dice flow entirely
+  Source: plan-grapple-tabletop-dice-flow.prompt.md (Bug 1)
+  Flow: CombatOrchestration, CombatRules
+  Description: GrappleHandlers calls programmatic ActionService path that auto-rolls with
+  seeded RNG. Player never rolls d20 for grapple/shove attempts.
+  Approved plan exists at plan-grapple-tabletop-dice-flow.prompt.md — implement it.
+
+- [ ] B09: Grapple/shove missing advantage from target conditions (Stunned, Paralyzed, etc.)
+  Source: plan-grapple-tabletop-dice-flow.prompt.md (Bug 2)
+  Flow: CombatRules, ReactionSystem
+  Description: Attack roll on grapple/shove doesn't consider Stunned/Paralyzed/etc.
+  for advantage and doesn't auto-fail STR/DEX saves for incapacitated targets.
+  Approved plan exists — implement it.
+
+- [ ] B10: Attack roll result printed twice in CLI output
+  Sources: boss-fight BUG-4
+  Flow: CombatOrchestration (response assembly)
+  Description: Every hit shows the roll result line twice (before and after narrative text).
+  E.g., "16 + 6 = 22 vs AC 11. Hit!" appears twice with narrative sandwiched between.
+  Cosmetic but confusing.
+
+- [ ] B11: Goblin AI only moves, never attacks on the same turn
+  Sources: solo-fighter BUG-1, solo-monk note
+  Flow: AIBehavior
+  Description: AI monster moves to melee range then ends turn without attacking.
+  In D&D 5e, movement and action are independent. Monster should move AND attack.
+  Makes combat trivially easy when monsters never deal damage.
+
+- [ ] B12: Stunning Strike on lethal hit — ki spend not visible, CON save skipped
+  Sources: solo-monk BUG-1
+  Flow: CombatOrchestration (roll state machine)
+  Description: When Stunning Strike kills the target, no CON save prompt appears (reasonable
+  optimization) but ki point spend is also not confirmed. Unclear if ki was deducted.
+  Expected: Ki should be spent regardless of whether damage is lethal (declared before outcome).
+  At minimum, response should confirm "Spent 1 ki" even on lethal.
+
+## LOW SEVERITY
+
+- [ ] B13: AI Extra Attack (Vex Level 5 Monk) not observed — only 1 attack per AI turn
+  Sources: monk-vs-monk REVIEW-3
+  Flow: AIBehavior
+  Description: Vex Nightthorn (Level 5 Monk) only makes 1 attack per turn. Level 5 Extra Attack
+  should grant 2 attacks with the Attack action. May be AI decision or stat block issue.
+
+- [ ] B14: Stunned condition not shown in combatant list display
+  Sources: monk-vs-monk BUG-3
+  Flow: ClassAbilities (tactical view), EntityManagement
+  Description: After Stunning Strike, combatant panel shows "HP 9/33 | (30, 0) | 0 ft" but
+  no [STUNNED] condition indicator. Conditions should be visible in tactical display.
+
+=== ENHANCEMENT LIST ===
+
+- [ ] E01: Extra Attack remaining count indicator
+  Sources: solo-fighter REVIEW, wounded-fighter REVIEW
+  Flow: CombatOrchestration
+  Description: When Extra Attack is available and first attack resolves, show indication like
+  "You have 1 attack remaining this action" before returning to prompt.
+
+- [ ] E02: Advantage/disadvantage roll UX improvement
+  Sources: wounded-fighter REVIEW
+  Flow: CombatOrchestration
+  Description: For advantage/disadvantage, consider asking for a single d20 value (server
+  clarifies the mechanic) rather than requiring "Enter your 2d20 rolls" format.
+  OR at minimum, clarify in prompt: "Roll 2d20, take the higher/lower."
+
+- [ ] E03: Weapon swap transparency
+  Sources: solo-fighter BUG-2
+  Flow: CombatOrchestration
+  Description: When server auto-selects a different weapon than requested, include an explicit
+  message explaining why (e.g., "Longsword out of range at 10ft, using Handaxe (thrown) instead").
+
+- [ ] E04: Deflect Attacks reaction coverage
+  Sources: monk-vs-monk BUG-2
+  Flow: ReactionSystem
+  Description: Deflect Attacks reaction was never triggered in testing. Ensure the reaction
+  system correctly prompts for Deflect Attacks when a monk takes damage from an attack roll.
+  Write a dedicated E2E scenario that guarantees a hit to verify.
+
+- [ ] E05: Sap mastery repeated notification clarity
+  Sources: boss-fight REVIEW
+  Flow: CombatOrchestration
+  Description: Sap triggers notification on every hit in a round. Consider consolidating
+  to "Sap: disadvantage on next attack roll (refreshed)" for subsequent hits in same round.
+
+=== ITEMS TO VERIFY (not bugs, just confirm during testing) ===
+- uncanny_metabolism: 0/1 display format at combat start (monk-vs-monk REVIEW-1)
+- Advantage on attacks vs Stunned targets in tabletop flow (monk-vs-monk REVIEW-4)
+- TWF damage modifier: does Thorin have TWF fighting style? (wounded-fighter REVIEW)
+- Melee range 20ft — is this intentional grid tolerance or weapon data bug? (cross-ref B07)
+
+=== END OF PLAN ===
+
+REMEMBER:
+1. Dispatch SMEs IN PARALLEL (not sequentially) to avoid rate limit stacking
+2. Update checkboxes after each completed item
+3. If rate-limited mid-session, stop gracefully — next run resumes from unchecked items
+4. Follow D&D 5e 2024 rules exclusively
+5. Write tests BEFORE implementing fixes (bug-fix pattern)
+6. Commit atomically with clear messages after each logical group
