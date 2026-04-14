@@ -96,8 +96,7 @@ export class AttackHandlers {
           : (ref as any).npcId;
         const comb = findCombatantByEntityId(combatants, refId);
         if (!comb) return true; // keep if we can't verify
-        const hp = typeof (comb.resources as any)?.currentHp === "number" ? (comb.resources as any).currentHp : null;
-        return hp === null || hp > 0;
+        return comb.hpCurrent > 0;
       });
 
       if (aliveCandidates.length === 0) {
@@ -143,8 +142,7 @@ export class AttackHandlers {
       if (!isHostile) continue;
 
       // Skip dead/unconscious
-      const hp = typeof (c.resources as any)?.currentHp === "number" ? (c.resources as any).currentHp : null;
-      if (hp !== null && hp <= 0) continue;
+      if (c.hpCurrent <= 0) continue;
 
       const pos = getPosition(c.resources ?? {});
       if (!pos) continue;
@@ -381,18 +379,28 @@ export class AttackHandlers {
       }
     }
 
-    const diceCount = typeof specDamage?.diceCount === "number"
-      ? specDamage.diceCount
-      : equippedWeapon?.damage?.diceCount ?? 1;
-    const diceSidesRaw = typeof specDamage?.diceSides === "number"
-      ? specDamage.diceSides
-      : equippedWeapon?.damage?.diceSides ?? 8;
-    const modifierRaw = typeof specDamage?.modifier === "number"
-      ? specDamage.modifier
-      : equippedWeapon?.damage?.modifier ?? unarmedStats.damageModifier;
-    const attackBonusRaw = typeof spec?.attackBonus === "number"
-      ? spec.attackBonus
-      : equippedWeapon?.attackBonus ?? unarmedStats.attackBonus;
+    // Priority: sheet-resolved equippedWeapon > LLM spec > unarmed defaults.
+    // For Character attackers, the sheet is always more reliable than LLM-provided values.
+    const diceCount = equippedWeapon?.damage?.diceCount !== undefined
+      ? equippedWeapon.damage.diceCount
+      : typeof specDamage?.diceCount === "number"
+        ? specDamage.diceCount
+        : 1;
+    const diceSidesRaw = equippedWeapon?.damage?.diceSides !== undefined
+      ? equippedWeapon.damage.diceSides
+      : typeof specDamage?.diceSides === "number"
+        ? specDamage.diceSides
+        : 8;
+    const modifierRaw = equippedWeapon?.damage?.modifier !== undefined
+      ? equippedWeapon.damage.modifier
+      : typeof specDamage?.modifier === "number"
+        ? specDamage.modifier
+        : unarmedStats.damageModifier;
+    const attackBonusRaw = equippedWeapon?.attackBonus !== undefined
+      ? equippedWeapon.attackBonus
+      : typeof spec?.attackBonus === "number"
+        ? spec.attackBonus
+        : unarmedStats.attackBonus;
 
     const finalDiceSides = isUnarmed ? unarmedStats.damageDie : diceSidesRaw;
     let finalModifier = isUnarmed ? unarmedStats.damageModifier : modifierRaw;
@@ -572,7 +580,7 @@ export class AttackHandlers {
       rollType: "attack",
       message: rollMessage,
       narration,
-      diceNeeded: "d20",
+      diceNeeded: rollMode !== "normal" ? "2d20" : "d20",
       pendingAction,
       actionComplete: false,
       advantage: rollMode === "advantage",

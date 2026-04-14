@@ -219,7 +219,7 @@ export function tryParseReadyText(input: string): ParsedReadyAction | null {
 
   // Determine what response is being readied
   let responseType: ReadyResponseType = "attack"; // default
-  if (/\b(attack|strike|hit|slash|stab)\b/.test(normalized)) responseType = "attack";
+  if (/\b(attack|strike|hit|slash|stab|throw|hurl|toss)\b/.test(normalized)) responseType = "attack";
   else if (/\b(dash|run|sprint)\b/.test(normalized)) responseType = "dash";
   else if (/\b(move|retreat|advance)\b/.test(normalized)) responseType = "move";
   else if (/\b(disengage|withdraw)\b/.test(normalized)) responseType = "disengage";
@@ -610,7 +610,7 @@ export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAtta
   // Must start with an attack-like verb
   // Allow leading "I" / "i'll" / "let me" etc.
   const attackVerb = normalized.match(
-    /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:attack|strike|hit|slash|stab|punch|kick|fist|swing\s+at|swing\s+my)\b(.*)$/,
+    /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:attack|strike|hit|slash|stab|punch|kick|fist|swing\s+at|swing\s+my|throw|hurl|toss)\b(.*)$/,
   );
   if (!attackVerb) return null;
 
@@ -619,11 +619,22 @@ export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAtta
   let targetName: string | undefined;
   let weaponHint: string | undefined;
 
+  // Detect throw-style text: "throw {weapon} at {target}" — weapon comes first
+  const isThrowVerb = /^(?:i\s+|i'll\s+|let\s+me\s+|i\s+will\s+|i\s+want\s+to\s+)?(?:throw|hurl|toss)\b/i.test(normalized);
+  const throwAtMatch = isThrowVerb
+    ? rest.match(/^(?:my\s+|the\s+|a\s+)?(.+?)\s+at\s+(?:the\s+)?(.+?)$/)
+    : null;
+
   // Split on " with " / " using " to separate target from weapon
-  const withMatch = rest.match(/^(.*?)\s+(?:with|using)\s+(?:my\s+|the\s+|a\s+)?(.+?)$/);
+  const withMatch = !throwAtMatch
+    ? rest.match(/^(.*?)\s+(?:with|using)\s+(?:my\s+|the\s+|a\s+)?(.+?)$/)
+    : null;
 
   let targetPart: string;
-  if (withMatch) {
+  if (throwAtMatch) {
+    weaponHint = throwAtMatch[1]!.trim();
+    targetPart = throwAtMatch[2]!.trim();
+  } else if (withMatch) {
     targetPart = withMatch[1]!.trim();
     weaponHint = withMatch[2]!.trim();
   } else {
