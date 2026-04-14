@@ -498,13 +498,13 @@ export class TacticalViewService {
 
     const kiPoints = (sheet as any).kiPoints;
     if (typeof kiPoints === "number" && Number.isFinite(kiPoints)) {
-      out.push({ name: "Ki", current: kiPoints, max: kiPoints });
+      out.push({ name: "ki", current: kiPoints, max: kiPoints });
     }
 
     const spellSlots = (sheet as any).spellSlots;
     if (this.isRecord(spellSlots)) {
       for (const [levelKey, raw] of Object.entries(spellSlots)) {
-        const poolName = `spellSlots${levelKey}`;
+        const poolName = `spellSlot_${levelKey}`;
         if (typeof raw === "number" && Number.isFinite(raw)) {
           out.push({ name: poolName, current: raw, max: raw });
           continue;
