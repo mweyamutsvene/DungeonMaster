@@ -85,7 +85,10 @@ export function tryParseMoveText(input: string): { x: number; y: number } | null
   const normalized = input.trim().toLowerCase();
   if (!normalized.startsWith("move")) return null;
 
-  const match = normalized.match(/move\s*(?:to\s*)?\(?\s*(-?\d+)\s*[ ,]\s*(-?\d+)\s*\)?/);
+  // Strip compound suffixes ("and attack ...", "then attack ...") so move still works
+  const cleaned = normalized.replace(/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b.*$/, "");
+
+  const match = cleaned.match(/move\s*(?:to\s*)?\(?\s*(-?\d+)\s*[ ,]\s*(-?\d+)\s*\)?/);
   if (!match) return null;
   const x = Number.parseInt(match[1]!, 10);
   const y = Number.parseInt(match[2]!, 10);
@@ -114,10 +117,13 @@ export function tryParseMoveTowardText(
   input: string,
   roster: LlmRoster,
 ): { target: CombatantRef; rawTargetName: string; desiredRange?: number } | null {
-  const normalized = input.trim().toLowerCase();
+  let normalized = input.trim().toLowerCase();
 
   // Don't steal from coordinate-based move parser
   if (/\(\s*-?\d+\s*[, ]\s*-?\d+\s*\)/.test(normalized)) return null;
+
+  // Strip compound suffixes ("and attack ...", "then attack ...") so move still works
+  normalized = normalized.replace(/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b.*$/, "");
 
   // --- Range-aware patterns (checked first so they don't get eaten by generic patterns) ---
   const rangePatterns: Array<{ pattern: RegExp; rangeGroup: number; nameGroup: number; fixedRange?: number }> = [
