@@ -225,7 +225,7 @@ export class MemoryMonsterRepository implements IMonsterRepository {
 export class MemoryCombatRepository implements ICombatRepository {
   private readonly encounters = new Map<string, CombatEncounterRecord>();
   private readonly combatantsByEncounter = new Map<string, CombatantStateRecord[]>();
-  private readonly pendingActionsByEncounter = new Map<string, JsonValue>();
+  private readonly pendingActionsByEncounter = new Map<string, JsonValue[]>();
   private readonly battlePlansByEncounter = new Map<string, Record<string, JsonValue>>();
 
   /** Optional entity repos for resolving character/monster/npc relations in listCombatants. */
@@ -392,15 +392,31 @@ export class MemoryCombatRepository implements ICombatRepository {
   }
 
   async setPendingAction(encounterId: string, action: JsonValue): Promise<void> {
-    this.pendingActionsByEncounter.set(encounterId, action);
+    if (action === null || action === undefined) {
+      // null push = clear (backward compat)
+      const queue = this.pendingActionsByEncounter.get(encounterId) ?? [];
+      queue.shift();
+      if (queue.length > 0) this.pendingActionsByEncounter.set(encounterId, queue);
+      else this.pendingActionsByEncounter.delete(encounterId);
+      return;
+    }
+    const queue = this.pendingActionsByEncounter.get(encounterId) ?? [];
+    queue.push(action);
+    this.pendingActionsByEncounter.set(encounterId, queue);
   }
 
   async getPendingAction(encounterId: string): Promise<JsonValue | null> {
-    return this.pendingActionsByEncounter.get(encounterId) ?? null;
+    return this.pendingActionsByEncounter.get(encounterId)?.[0] ?? null;
   }
 
   async clearPendingAction(encounterId: string): Promise<void> {
-    this.pendingActionsByEncounter.delete(encounterId);
+    const queue = this.pendingActionsByEncounter.get(encounterId);
+    if (!queue || queue.length === 0) {
+      this.pendingActionsByEncounter.delete(encounterId);
+      return;
+    }
+    queue.shift();
+    if (queue.length === 0) this.pendingActionsByEncounter.delete(encounterId);
   }
 
   async findActiveEncounter(sessionId: string): Promise<CombatEncounterRecord | null> {

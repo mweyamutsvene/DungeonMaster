@@ -62,9 +62,11 @@ async function tryInitiateDamageReaction(
   const encounter = await deps.combatRepo.getEncounterById(encounterId);
   if (!encounter || encounter.status !== "Active") return null;
 
-  // Avoid clobbering another pending tabletop action (for example, flurry follow-up).
-  const pendingAfterRoll = await deps.combatRepo.getPendingAction(encounterId);
-  if (pendingAfterRoll) return null;
+  // With queue semantics: a multi-attack follow-up ATTACK in the queue is expected and
+  // should NOT block a damage reaction. Only bail if the head is a non-ATTACK action
+  // (which would indicate an unusual concurrent state, e.g., another pending reaction).
+  const headAfterRoll = await deps.combatRepo.getPendingAction(encounterId);
+  if (headAfterRoll && (headAfterRoll as Record<string, unknown>).type !== "ATTACK") return null;
 
   const combatants = await deps.combatRepo.listCombatants(encounterId);
   const targetCombatant = findCombatantByEntityId(combatants, pendingDamage.targetId);
@@ -152,6 +154,13 @@ async function tryInitiateDamageReaction(
     return null;
   }
 
+  // With queue semantics: reaction_pending must be at HEAD so it's resolved before any
+  // queued follow-up attack (e.g., Extra Attack, Flurry strike 2). Read and save any
+  // queued follow-up, clear it, push reaction_pending first, then re-push the follow-up.
+  const queuedFollowUp = await deps.combatRepo.getPendingAction(encounterId);
+  if (queuedFollowUp) {
+    await deps.combatRepo.clearPendingAction(encounterId);
+  }
   await deps.combatRepo.setPendingAction(encounterId, {
     id: initiateResult.pendingActionId,
     type: "reaction_pending",
@@ -159,6 +168,9 @@ async function tryInitiateDamageReaction(
     reactionType: detectedReaction.reactionType,
     target: targetRef,
   });
+  if (queuedFollowUp) {
+    await deps.combatRepo.setPendingAction(encounterId, queuedFollowUp);
+  }
 
   return {
     pendingActionId: initiateResult.pendingActionId,
@@ -235,12 +247,6 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
             ...(rollResult as unknown as Record<string, unknown>),
             damageReaction,
           };
-        }
-
-        // No damage reaction — apply deferred EA chain pending action if present
-        const nextAttackPending = (rollResult as unknown as Record<string, unknown>)?.nextAttackPending;
-        if (nextAttackPending && typeof nextAttackPending === "object") {
-          await deps.combatRepo.setPendingAction(encounter.id, nextAttackPending as any);
         }
       }
 

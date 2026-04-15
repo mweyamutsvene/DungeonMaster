@@ -178,6 +178,7 @@ model CombatEncounter {
   // Tabletop combat flow - pending player action
   pendingAction   Json?
   pendingActionAt DateTime?
+  pendingActionQueue Json?
 
   // Combat map data (terrain, entities, cover, etc.)
   mapData Json?

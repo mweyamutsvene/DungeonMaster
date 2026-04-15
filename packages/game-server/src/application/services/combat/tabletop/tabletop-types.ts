@@ -375,8 +375,6 @@ export interface DamageResult {
   diceNeeded?: string;
   combatEnded?: boolean;
   victoryStatus?: CombatVictoryStatus;
-  /** Deferred Extra Attack pending action (applied by route handler if no damage reaction fires) */
-  nextAttackPending?: AttackPendingAction;
 }
 
 /** Result of a death saving throw roll. */

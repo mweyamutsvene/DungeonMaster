@@ -419,6 +419,7 @@ export class InitiativeHandler {
         eligibleTargets: swapEligibleTargets,
       };
       assertValidTransition("INITIATIVE", "INITIATIVE_SWAP");
+      await this.deps.combatRepo.clearPendingAction(encounter.id);
       await this.deps.combatRepo.setPendingAction(encounter.id, swapAction as any);
 
       const targetList = swapEligibleTargets.map((t) => `${t.actorName} (${t.initiative})`).join(", ");

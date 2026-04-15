@@ -141,29 +141,53 @@ export class PrismaCombatRepository implements ICombatRepository {
     return created;
   }
 
-  // Tabletop combat flow - pending actions
+  // Tabletop combat flow - pending actions (FIFO queue)
   async setPendingAction(encounterId: string, action: JsonValue): Promise<void> {
+    // null/undefined push = backward-compat clear (callers that do setPendingAction(id, null as any))
+    if (action === null || action === undefined) {
+      await this.clearPendingAction(encounterId);
+      return;
+    }
+    const encounter = await this.prisma.combatEncounter.findUnique({
+      where: { id: encounterId },
+      select: { pendingActionQueue: true },
+    });
+    const queue = Array.isArray(encounter?.pendingActionQueue)
+      ? (encounter.pendingActionQueue as Prisma.JsonValue[])
+      : [];
+    queue.push(action);
     await this.prisma.combatEncounter.update({
       where: { id: encounterId },
-      data: {
-        pendingAction: action as Prisma.InputJsonValue,
-        pendingActionAt: new Date(),
-      },
+      data: { pendingActionQueue: queue as Prisma.InputJsonValue },
     });
   }
 
   async getPendingAction(encounterId: string): Promise<JsonValue | null> {
     const encounter = await this.prisma.combatEncounter.findUnique({
       where: { id: encounterId },
-      select: { pendingAction: true },
+      select: { pendingActionQueue: true, pendingAction: true },
     });
+    const queue = Array.isArray(encounter?.pendingActionQueue)
+      ? (encounter.pendingActionQueue as Prisma.JsonValue[])
+      : [];
+    if (queue.length > 0) return queue[0] as JsonValue;
+    // Fallback: legacy single-slot field for in-flight sessions
     return (encounter?.pendingAction as JsonValue) ?? null;
   }
 
   async clearPendingAction(encounterId: string): Promise<void> {
+    const encounter = await this.prisma.combatEncounter.findUnique({
+      where: { id: encounterId },
+      select: { pendingActionQueue: true },
+    });
+    const queue = Array.isArray(encounter?.pendingActionQueue)
+      ? ([...encounter.pendingActionQueue] as Prisma.JsonValue[])
+      : [];
+    queue.shift();
     await this.prisma.combatEncounter.update({
       where: { id: encounterId },
       data: {
+        pendingActionQueue: queue as Prisma.InputJsonValue,
         pendingAction: Prisma.DbNull,
         pendingActionAt: null,
       },

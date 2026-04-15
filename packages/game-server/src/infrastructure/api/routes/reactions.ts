@@ -203,6 +203,8 @@ export function registerReactionRoutes(
           throw new ValidationError("Lucky prompt is missing original attack action context");
         }
 
+        // Clear the lucky_reroll pending action and restore the original attack action at HEAD
+        await deps.combat.clearPendingAction(encounterId);
         await deps.combat.setPendingAction(encounterId, luckyData.originalAttackAction as JsonValue);
         await deps.pendingActions.markCompleted(pendingActionId);
         await deps.pendingActions.delete(pendingActionId);
@@ -264,7 +266,8 @@ export function registerReactionRoutes(
 
         // Check if a damage reaction is now pending (Absorb Elements, Hellish Rebuke)
         if (completeResult.damageReaction) {
-          // Store the NEW damage reaction pending action on the encounter
+          // Replace the resolved attack reaction_pending with the new damage reaction_pending
+          await deps.combat.clearPendingAction(encounterId);
           await deps.combat.setPendingAction(encounterId, {
             id: completeResult.damageReaction.pendingActionId,
             type: "reaction_pending",

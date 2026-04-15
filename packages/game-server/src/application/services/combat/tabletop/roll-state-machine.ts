@@ -588,6 +588,7 @@ export class RollStateMachine {
         };
 
         await this.deps.pendingActions.create(luckyPendingAction);
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
         await this.deps.combatRepo.setPendingAction(encounter.id, {
           id: pendingActionId,
           type: "reaction_pending",
@@ -634,6 +635,7 @@ export class RollStateMachine {
           rollMode: action.rollMode,
         };
 
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
         await this.deps.combatRepo.setPendingAction(encounter.id, pendingAction2);
 
         const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
@@ -669,6 +671,7 @@ export class RollStateMachine {
           rollMode: action.rollMode,
         };
 
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
         await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
         const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
@@ -797,6 +800,7 @@ export class RollStateMachine {
               weaponSpec: action.weaponSpec,
               rollMode: action.rollMode,
             };
+            await this.deps.combatRepo.clearPendingAction(encounter.id);
             await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
             const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
@@ -964,6 +968,7 @@ export class RollStateMachine {
       // Enhancements are built at damage time from player opt-in keywords, not here
     };
 
+    await this.deps.combatRepo.clearPendingAction(encounter.id);
     await this.deps.combatRepo.setPendingAction(encounter.id, damageAction);
 
     // Build damage formula including Sneak Attack dice if eligible

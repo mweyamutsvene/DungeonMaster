@@ -561,8 +561,7 @@ export class DamageResolver {
             weaponSpec: action.weaponSpec,
             rollMode: action.rollMode,
           };
-          // Defer setPendingAction until after damage reaction check (see session-tabletop route handler)
-          // This allows damage reactions to fire before the EA chain blocks the pending action slot.
+          await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
           const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
           return {
             rollType: "damage",
@@ -579,7 +578,6 @@ export class DamageResolver {
             type: "REQUEST_ROLL",
             diceNeeded: followUpDice,
             message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
-            nextAttackPending: nextPending,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };
