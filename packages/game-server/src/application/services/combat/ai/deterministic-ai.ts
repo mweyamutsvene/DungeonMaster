@@ -105,6 +105,18 @@ function considerGrappleOrShove(
   return undefined;
 }
 
+/** Module-level debug logger, gated by DM_AI_DEBUG env var */
+const aiDebugEnabled =
+  process.env.DM_AI_DEBUG === "1" ||
+  process.env.DM_AI_DEBUG === "true" ||
+  process.env.DM_AI_DEBUG === "yes";
+
+function aiLog(...args: unknown[]): void {
+  if (aiDebugEnabled) {
+    console.log(...args);
+  }
+}
+
 export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
   async decide(input: {
     combatantName: string;
@@ -239,13 +251,15 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
         }
         if (distToTarget !== Infinity && distToTarget > 60) {
           // Too far to reliably hit, move closer
-          return {
+          const moveDecision: AiDecision = {
             action: "moveToward",
             target: primaryTarget.name,
             desiredRange: preferredRange,
             endTurn: false,
             intentNarration: `${input.combatantName} moves toward ${primaryTarget.name}.`,
           };
+          aiLog(`[DeterministicAI] Ranged moveToward: target=${primaryTarget.name}, dist=${Math.round(distToTarget)}ft, desiredRange=${preferredRange}ft, endTurn=${moveDecision.endTurn}`);
+          return moveDecision;
         }
         // AI-M7: Cover-seeking — if in attack range, look for a position with cover
         if (combatant.position && distToTarget !== Infinity && distToTarget <= 60) {
@@ -285,13 +299,15 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
               }
             }
           }
-          return {
+          const moveDecision: AiDecision = {
             action: "moveToward",
             target: primaryTarget.name,
             desiredRange: meleeReach,
             endTurn: false,
             intentNarration: `${input.combatantName} moves toward ${primaryTarget.name}.`,
           };
+          aiLog(`[DeterministicAI] Melee moveToward: target=${primaryTarget.name}, dist=${Math.round(distToTarget)}ft, desiredRange=${meleeReach}ft, endTurn=${moveDecision.endTurn}`);
+          return moveDecision;
         }
       }
     }

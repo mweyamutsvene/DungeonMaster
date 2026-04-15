@@ -92,40 +92,14 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 1" },
-      "comment": "1 + 3 = 4 damage. This validates +3 damage modifier is applied. Dummy: 50 - 4 = 46 HP",
-      "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Training Dummy with my longsword" },
-      "comment": "Second attack (Extra Attack feature)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "I rolled 5" },
-      "comment": "5 + 6 = 11 vs AC 5 - hit!",
-      "expect": {
-        "hit": true,
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "I rolled 8" },
-      "comment": "8 + 3 = 11 damage. Dummy: 46 - 11 = 35 HP",
+      "comment": "1 + 3 = 4 damage. This validates +3 damage modifier is applied. Dummy: 50 - 4 = 46 HP. Extra Attack auto-chains and auto-completes (nat-1 miss).",
       "expect": {
         "actionComplete": true
       }
     },
     {
       "type": "assertState",
-      "comment": "Combat continues - Dummy should have taken 15 total damage (50 - 15 = 35 HP)",
+      "comment": "Combat continues - Dummy should have taken 4 damage from first attack (50 - 4 = 46 HP). Extra Attack auto-missed.",
       "expect": {
         "combatStatus": "Active"
       }

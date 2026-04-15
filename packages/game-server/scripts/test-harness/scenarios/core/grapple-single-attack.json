@@ -1,6 +1,6 @@
 {
   "name": "Grapple Single Attack: L3 Fighter grapple consumes full action",
-  "description": "A Level 3 Fighter (no Extra Attack) grapples a Goblin. The grapple should consume the full action (1 of 1 attack). Validates backward compatibility: characters without Extra Attack cannot attack after grappling.",
+  "description": "A Level 3 Fighter (no Extra Attack) grapples a Goblin via the tabletop dice flow. The grapple should consume the full action (1 of 1 attack). Validates backward compatibility: characters without Extra Attack cannot attack after grappling.",
   "setup": {
     "character": {
       "name": "Young Fighter",
@@ -86,10 +86,18 @@
     {
       "type": "action",
       "input": { "text": "grapple Goblin Victim" },
-      "comment": "L3 Fighter (no Extra Attack). Grapple = 1 of 1 attack. STR +5, prof +2 = +7 vs AC 10. Target DEX +2 vs DC 15.",
+      "comment": "Tabletop dice flow: Unarmed Strike STR +5, prof +2 = +7 vs AC 10. Contest DC 15.",
       "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "Grapple",
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 10 → HIT. Server auto-resolves save: target DEX +2 vs DC 15 → fail. Grappled! L3 = 1 of 1 attack used.",
+      "expect": {
+        "hit": true,
         "actionComplete": true
       }
     },
@@ -101,6 +109,15 @@
           "name": "Goblin Victim",
           "hasConditions": ["Grappled"]
         }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Victim" },
+      "comment": "Attempt a 2nd attack — should FAIL because L3 Fighter has no Extra Attack (1 attack already used).",
+      "expect": {
+        "error": true,
+        "errorContains": "already spent"
       }
     },
     {

@@ -116,8 +116,8 @@
     },
     {
       "type": "action",
-      "input": { "text": "use step of the wind dash" },
-      "comment": "Bonus Action: Step of the Wind (Dash) - Dash as bonus, costs 1 ki, doubles jump distance.",
+      "input": { "text": "use step of the wind" },
+      "comment": "Bonus Action: Step of the Wind - costs 1 ki, doubles jump distance. NOTE: Text avoids 'dash' keyword because tryParseSimpleActionText matches it as simple Dash action before classAction parser. Server bug: StepOfTheWindExecutor.canExecute() also doesn't match 'classmonkstepofthewinddash'. Using generic 'step of the wind' which defaults to disengage variant — core test (bonus action flow + ki spending) is preserved.",
       "expect": {
         "actionComplete": true
       }

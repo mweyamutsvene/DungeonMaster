@@ -113,9 +113,9 @@
     {
       "type": "rollResult",
       "input": { "text": "10" },
-      "comment": "Damage roll: 10 + 4 (STR) = 14 damage. Dummy: 200 → 186",
+      "comment": "Damage roll: 10 + 4 (STR) = 14 damage. Dummy: 200 → 186. Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
+        "actionComplete": false
       }
     },
     {
@@ -126,18 +126,9 @@
       "comment": "First attack dealt 14 damage (10 + 4 STR). Dummy: 200 - 14 = 186"
     },
     {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "comment": "Second attack of Extra Attack (2/2) — should succeed",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
-    },
-    {
       "type": "rollResult",
       "input": { "text": "12" },
-      "comment": "Attack roll: 12 + 7 = 19 vs AC 5 → hit",
+      "comment": "Chained Extra Attack 2/2: attack roll 12 + 7 = 19 vs AC 5 → hit",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -146,7 +137,7 @@
     {
       "type": "rollResult",
       "input": { "text": "8" },
-      "comment": "Damage roll: 8 + 4 (STR) = 12 damage. Dummy: 186 → 174",
+      "comment": "Damage roll: 8 + 4 (STR) = 12 damage. Dummy: 186 → 174. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }

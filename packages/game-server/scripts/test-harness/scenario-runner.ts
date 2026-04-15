@@ -911,6 +911,49 @@ export async function runScenario(
             scenario.setup.flankingEnabled = false;
           }
 
+          // ── Auto-complete Extra Attack chains ──
+          // When the server chains to the next Extra Attack (actionComplete=false, requiresPlayerInput=true,
+          // and message contains "Extra Attack") and the step did NOT explicitly opt into testing the chain
+          // (expect.actionComplete !== false), automatically consume the remaining attacks by sending
+          // natural-1 rolls (guaranteed miss). This keeps existing scenarios working transparently
+          // after Extra Attack chaining was added to damage-resolver and roll-state-machine.
+          //
+          // Also handles the target-dead case: when the target dies from damage but attacks remain,
+          // the server returns actionComplete=false, requiresPlayerInput=false with "remaining" in message.
+          // We silently absorb this by patching actionComplete to true.
+          if (body.actionComplete === false) {
+            const explicitlyExpectsChaining = action.expect?.actionComplete === false;
+            if (!explicitlyExpectsChaining) {
+              if (body.requiresPlayerInput === true
+                  && typeof body.message === "string" && body.message.includes("Extra Attack")) {
+                // Active chain: consume remaining attacks with natural-1 misses
+                let autoBody = body as any;
+                let autoCount = 0;
+                const maxAutoRolls = 20; // safety valve
+                while (autoBody.actionComplete === false && autoBody.requiresPlayerInput === true && autoCount < maxAutoRolls) {
+                  autoCount++;
+                  const autoPayload = { text: "I rolled 1", actorId };
+                  log(`   ${colors.yellow}⚡ Auto-completing Extra Attack #${autoCount}: natural 1 → miss${colors.reset}`);
+                  logRequest("POST", `${baseUrl}/sessions/${sessionId}/combat/roll-result`, autoPayload);
+                  const autoRes = await httpPost(`${baseUrl}/sessions/${sessionId}/combat/roll-result`, autoPayload);
+                  logResponse(autoRes.status, autoRes.body);
+                  if (autoRes.status !== 200) {
+                    throw new Error(`Extra Attack auto-complete failed (roll #${autoCount}): ${JSON.stringify(autoRes.body)}`);
+                  }
+                  autoBody = autoRes.body as any;
+                }
+                body.actionComplete = autoBody.actionComplete;
+                body.requiresPlayerInput = autoBody.requiresPlayerInput;
+                log(`   ${colors.yellow}⚡ Extra Attack chain consumed (${autoCount} auto-miss roll${autoCount !== 1 ? "s" : ""})${colors.reset}`);
+              } else if (body.requiresPlayerInput === false
+                         && typeof body.message === "string" && body.message.includes("remaining")) {
+                // Target died but attacks remain — absorb silently
+                log(`   ${colors.yellow}⚡ Target defeated with Extra Attacks remaining — absorbing${colors.reset}`);
+                body.actionComplete = true;
+              }
+            }
+          }
+
           // Validate expectations
           if (action.expect) {
             if (action.expect.rollType && body.rollType !== action.expect.rollType) {

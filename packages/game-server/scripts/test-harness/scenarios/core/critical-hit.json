@@ -76,17 +76,13 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 12" },
-      "expect": { "actionComplete": true }
+      "expect": { "actionComplete": false }
     },
 
     {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "expect": { "rollType": "attack" }
-    },
-    {
       "type": "rollResult",
       "input": { "text": "I rolled 1" },
+      "comment": "Extra Attack chained: natural 1 = auto-miss regardless of total vs AC",
       "expect": {
         "hit": false,
         "isCritical": false,

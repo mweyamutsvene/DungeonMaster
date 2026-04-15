@@ -103,6 +103,10 @@ export interface AttackPendingAction {
   spellStrikeTotal?: number;
   /** On-hit spell effects to apply to target after damage (e.g. Guiding Bolt advantage on next attack) */
   spellOnHitEffects?: SpellEffectDeclaration[];
+  /** Grapple/shove contest type — when set, HIT path resolves saving throw inline instead of DAMAGE */
+  contestType?: "grapple" | "shove_push" | "shove_prone";
+  /** Pre-computed contest DC (8 + attacker STR mod + proficiency bonus) for the saving throw step */
+  contestDC?: number;
 }
 
 export interface DamagePendingAction {
@@ -195,6 +199,8 @@ export interface SavingThrowPendingAction {
   onFailure: SaveOutcome;
   /** Ability-specific context data */
   context?: Record<string, unknown>;
+  /** When true, target auto-fails (e.g., Stunned/Paralyzed auto-fail STR/DEX saves) — skip d20 roll */
+  autoFail?: boolean;
 }
 
 /**
@@ -327,6 +333,30 @@ export interface AttackResult {
   }>;
 }
 
+/**
+ * Detailed save result for grapple/shove contest resolution.
+ * Returned as part of ContestResult when a contest's saving throw step is resolved.
+ */
+export interface ContestSaveDetail {
+  ability: string;
+  dc: number;
+  rawRoll: number;
+  modifier: number;
+  total: number;
+  success: boolean;
+  outcomeSummary: string;
+  conditionsApplied?: string[];
+}
+
+/**
+ * Extended attack result for grapple/shove contests.
+ * Includes the optional `contestSave` field with saving throw details.
+ * Backward-compatible — clients that don't know about `contestSave` see a valid AttackResult.
+ */
+export interface ContestResult extends AttackResult {
+  contestSave?: ContestSaveDetail;
+}
+
 export interface DamageResult {
   rollType: "damage" | "attack";
   rawRoll: number;
@@ -345,6 +375,8 @@ export interface DamageResult {
   diceNeeded?: string;
   combatEnded?: boolean;
   victoryStatus?: CombatVictoryStatus;
+  /** Deferred Extra Attack pending action (applied by route handler if no damage reaction fires) */
+  nextAttackPending?: AttackPendingAction;
 }
 
 /** Result of a death saving throw roll. */

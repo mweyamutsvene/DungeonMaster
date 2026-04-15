@@ -106,24 +106,15 @@
     {
       "type": "rollResult",
       "input": { "text": "6" },
-      "comment": "6 + 4 = 10 damage",
+      "comment": "6 + 4 = 10 damage. Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "comment": "Second attack of Extra Attack - SHOULD SUCCEED (Fighter level 5+ has Extra Attack)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "12" },
-      "comment": "12 + 7 = 19 vs AC 10 - hit!",
+      "comment": "Chained Extra Attack 2/2: 12 + 7 = 19 vs AC 10 - hit!",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true

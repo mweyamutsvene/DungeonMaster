@@ -236,6 +236,12 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
             damageReaction,
           };
         }
+
+        // No damage reaction — apply deferred EA chain pending action if present
+        const nextAttackPending = (rollResult as unknown as Record<string, unknown>)?.nextAttackPending;
+        if (nextAttackPending && typeof nextAttackPending === "object") {
+          await deps.combatRepo.setPendingAction(encounter.id, nextAttackPending as any);
+        }
       }
 
       return rollResult;

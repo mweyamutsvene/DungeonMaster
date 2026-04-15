@@ -129,24 +129,15 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 8" },
-      "comment": "8 + 4 = 12 damage (greatsword 2d6+4)",
+      "comment": "8 + 4 = 12 damage (greatsword 2d6+4). Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
-      "comment": "Extra Attack at level 5 - second attack",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 12" },
-      "comment": "12 + 7 = 19 vs AC 13 - hit!",
+      "comment": "Chained Extra Attack 2/2: 12 + 7 = 19 vs AC 13 - hit!",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -155,7 +146,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 6" },
-      "comment": "6 + 4 = 10 damage. Total: 22 damage. Boss at 33 HP",
+      "comment": "6 + 4 = 10 damage. Total: 22 damage. Boss at 33 HP. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }
@@ -198,24 +189,15 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 10" },
-      "comment": "10 + 4 = 14 damage. Boss has taken ~36 damage total",
+      "comment": "10 + 4 = 14 damage. Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Skeletal Champion with my greatsword" },
-      "comment": "Extra Attack - second hit to finish the boss",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 14" },
-      "comment": "14 + 7 = 21 vs AC 13 - hit!",
+      "comment": "Chained Extra Attack 2/2: 14 + 7 = 21 vs AC 13 - hit!",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -224,7 +206,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 9" },
-      "comment": "9 + 4 = 13 damage. Total ~49 damage on 55 HP boss - still alive",
+      "comment": "9 + 4 = 13 damage. Total ~49 damage on 55 HP boss - still alive. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }

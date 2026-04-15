@@ -1,6 +1,6 @@
 {
   "name": "Fighter Shove: Push and Prone",
-  "description": "A Fighter uses the Shove action to push an enemy back and knock them prone. Tests the contested athletics check and shove mechanics.",
+  "description": "A Fighter uses the Shove action via the tabletop dice flow (attack roll → inline saving throw) to push an enemy back and knock them prone. Tests the two-step shove contest for both push and prone modes.",
   "setup": {
     "character": {
       "name": "Grimgar the Strong",
@@ -84,9 +84,19 @@
     {
       "type": "action",
       "input": { "text": "shove Goblin Scout" },
+      "comment": "Tabletop dice flow: Unarmed Strike +8 vs AC 13 (shove push). Contest DC 16.",
       "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "Shove"
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 13 → HIT. Server auto-resolves save: target DEX +2 vs DC 16 → fail. Pushed 5ft!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
       }
     },
     {
@@ -106,9 +116,29 @@
     {
       "type": "action",
       "input": { "text": "shove Goblin Scout prone" },
+      "comment": "Tabletop dice flow: Unarmed Strike +8 vs AC 13 (shove prone). Contest DC 16.",
       "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "Shove"
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 13 → HIT. Server auto-resolves save: target DEX +2 vs DC 16 → fail. Knocked Prone!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the Goblin Scout has the Prone condition applied",
+      "expect": {
+        "monsterConditions": {
+          "name": "Goblin Scout",
+          "hasConditions": ["Prone"]
+        }
       }
     },
     {

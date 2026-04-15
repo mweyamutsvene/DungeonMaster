@@ -124,24 +124,15 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 8" },
-      "comment": "8 + 4 = 12 damage (greatsword 2d6+4). Wyrm at 56 HP.",
+      "comment": "8 + 4 = 12 damage (greatsword 2d6+4). Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Cave Wyrm with my greatsword" },
-      "comment": "Extra Attack at level 5 - second attack",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 12" },
-      "comment": "12 + 7 = 19 vs AC 15 - hit!",
+      "comment": "Chained Extra Attack 2/2: 12 + 7 = 19 vs AC 15 - hit!",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -150,7 +141,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 6" },
-      "comment": "6 + 4 = 10 damage. Wyrm now at 46 HP.",
+      "comment": "6 + 4 = 10 damage. Wyrm now at 46 HP. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }
@@ -193,24 +184,15 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 10" },
-      "comment": "10 + 4 = 14 damage. Wyrm at ~32 HP.",
+      "comment": "10 + 4 = 14 damage. Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Cave Wyrm with my greatsword" },
-      "comment": "Extra Attack - second hit",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 15" },
-      "comment": "15 + 7 = 22 vs AC 15 - hit!",
+      "comment": "Chained Extra Attack 2/2: 15 + 7 = 22 vs AC 15 - hit!",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -219,7 +201,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 9" },
-      "comment": "9 + 4 = 13 damage. Wyrm at ~19 HP.",
+      "comment": "9 + 4 = 13 damage. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }

@@ -209,6 +209,7 @@ export class AttackHandlers {
     characters: SessionCharacterRecord[],
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],
+    weaponHint?: string,
   ): Promise<ActionParseResult> {
     const targetId = command.target
       ? command.target.type === "Character"
@@ -365,17 +366,40 @@ export class AttackHandlers {
     if (isThrownAttack) {
       equippedWeapon = this.findThrownWeapon(actorSheet, lowered) ?? null;
     } else if (!spec) {
-      if (actorSheet?.equipment?.weapons) {
-        const weapons = actorSheet.equipment.weapons as any[];
-        equippedWeapon = weapons.find((w) => w.kind === inferredKind && w.equipped)
-          ?? weapons.find((w) => w.kind === inferredKind)
-          ?? weapons.find((w) => w.equipped)
-          ?? weapons[0]
-          ?? null;
+      // Name-based weapon lookup from parsed "with my <weapon>" hint
+      if (weaponHint) {
+        const hint = weaponHint.toLowerCase();
+        const weapons = (actorSheet?.equipment?.weapons ?? []) as any[];
+        equippedWeapon = weapons.find((w: any) => w.name?.toLowerCase() === hint) ?? null;
+        if (!equippedWeapon) {
+          equippedWeapon = weapons.find((w: any) => w.name?.toLowerCase().includes(hint)) ?? null;
+        }
+        if (!equippedWeapon) {
+          const attacks = (actorSheet?.attacks ?? []) as any[];
+          equippedWeapon = attacks.find((a: any) => a.name?.toLowerCase() === hint) ?? null;
+          if (!equippedWeapon) {
+            equippedWeapon = attacks.find((a: any) => a.name?.toLowerCase().includes(hint)) ?? null;
+          }
+        }
+        if (equippedWeapon) {
+          inferredKind = (equippedWeapon as any).kind ?? inferredKind;
+        }
       }
-      if (!equippedWeapon && actorSheet?.attacks) {
-        const attacks = actorSheet.attacks as any[];
-        equippedWeapon = attacks.find((a) => a.kind === inferredKind) ?? attacks[0] ?? null;
+
+      // Fallback: match by inferredKind from text keywords
+      if (!equippedWeapon) {
+        if (actorSheet?.equipment?.weapons) {
+          const weapons = actorSheet.equipment.weapons as any[];
+          equippedWeapon = weapons.find((w) => w.kind === inferredKind && w.equipped)
+            ?? weapons.find((w) => w.kind === inferredKind)
+            ?? weapons.find((w) => w.equipped)
+            ?? weapons[0]
+            ?? null;
+        }
+        if (!equippedWeapon && actorSheet?.attacks) {
+          const attacks = actorSheet.attacks as any[];
+          equippedWeapon = attacks.find((a) => a.kind === inferredKind) ?? attacks[0] ?? null;
+        }
       }
     }
 

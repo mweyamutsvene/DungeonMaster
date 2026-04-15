@@ -35,6 +35,9 @@ import {
   setActiveEffects,
   getPosition,
   patchResources,
+  canMakeAttack,
+  getAttacksAllowedThisTurn,
+  getAttacksUsedThisTurn,
 } from "../../helpers/resource-utils.js";
 import {
   getDamageDefenseEffects,
@@ -530,6 +533,77 @@ export class DamageResolver {
     // Drop loot from defeated monsters onto the battlefield
     if (hpAfter <= 0 && targetCombatant?.combatantType === "Monster") {
       await this.dropMonsterLoot(encounter, targetCombatant, monsters);
+    }
+
+    // ── Extra Attack chaining ──
+    // After damage resolves, check if the actor has remaining attacks from Extra Attack.
+    // Skip for bonus action attacks (FoB, offhand — have their own chaining), spell-strikes (handled above),
+    // and Loading weapons (can only fire once per action per D&D 5e 2024 rules).
+    const weaponHasLoading = action.weaponSpec?.properties?.some(
+      (p: string) => p.toLowerCase() === "loading",
+    ) ?? false;
+    if (!combatEnded && !action.bonusAction && !action.spellStrike && !weaponHasLoading) {
+      // Re-fetch actor's resources after markActionSpent updated them in the DB
+      const freshCombatants = await this.deps.combatRepo.listCombatants(encounter.id);
+      const freshActor = findCombatantByEntityId(freshCombatants, actorId);
+      if (freshActor && canMakeAttack(freshActor.resources ?? {})) {
+        const weaponName = action.weaponSpec?.name ?? "weapon";
+        const enhSuffix = genericEnhancements.map((r) => ` ${r.summary}`).join("");
+        if (hpAfter > 0) {
+          // Target alive — chain to same target with same weapon
+          const nextPending: AttackPendingAction = {
+            type: "ATTACK",
+            timestamp: new Date(),
+            actorId,
+            attacker: actorId,
+            target: action.targetId,
+            targetId: action.targetId,
+            weaponSpec: action.weaponSpec,
+            rollMode: action.rollMode,
+          };
+          // Defer setPendingAction until after damage reaction check (see session-tabletop route handler)
+          // This allows damage reactions to fire before the EA chain blocks the pending action slot.
+          const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
+          return {
+            rollType: "damage",
+            rawRoll: rollValue,
+            modifier: damageModifier,
+            total: totalDamage,
+            totalDamage,
+            targetName,
+            hpBefore,
+            hpAfter,
+            targetHpRemaining: hpAfter,
+            actionComplete: false,
+            requiresPlayerInput: true,
+            type: "REQUEST_ROLL",
+            diceNeeded: followUpDice,
+            message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
+            nextAttackPending: nextPending,
+            ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
+            ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
+          };
+        } else {
+          // Target dead — return to prompt for new target selection
+          const remaining = getAttacksAllowedThisTurn(freshActor.resources ?? {}) - getAttacksUsedThisTurn(freshActor.resources ?? {});
+          return {
+            rollType: "damage",
+            rawRoll: rollValue,
+            modifier: damageModifier,
+            total: totalDamage,
+            totalDamage,
+            targetName,
+            hpBefore,
+            hpAfter,
+            targetHpRemaining: hpAfter,
+            actionComplete: false,
+            requiresPlayerInput: false,
+            message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Target defeated! You have ${remaining} attack(s) remaining.`,
+            ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
+            ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
+          };
+        }
+      }
     }
 
     const narration = await this.eventEmitter.generateNarration(combatEnded ? "combatVictory" : "damageDealt", {

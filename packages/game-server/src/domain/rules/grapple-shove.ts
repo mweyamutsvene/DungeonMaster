@@ -30,6 +30,8 @@ export interface GrappleShoveOptions {
   targetSaveMode?: RollMode;
   /** Flat d20 penalty for the target's save (Exhaustion, negative value). */
   targetSavePenalty?: number;
+  /** When true, target auto-fails the STR/DEX save (Stunned/Paralyzed/Petrified/Unconscious). */
+  targetAutoFail?: boolean;
 }
 
 /** Options to thread condition-based modifiers into escape-grapple rolls. */
@@ -216,7 +218,24 @@ function resolveUnarmedStrike(
   }
 
   // Step 2: Target saving throw vs DC (apply mode and flat penalty from conditions)
+  // TODO: abilityCheck() should be replaced with proper saving throw logic (proficiency + nat 1/20 rules) in follow-up PR
   const dc = 8 + attackerStrMod + attackerProfBonus;
+
+  // Auto-fail: Stunned/Paralyzed/Petrified/Unconscious targets auto-fail STR/DEX saves
+  if (options?.targetAutoFail) {
+    return {
+      success: true,
+      attackRoll,
+      attackTotal,
+      targetAC,
+      hit: true,
+      dc,
+      saveRoll: 0,
+      total: 0,
+      abilityUsed: "strength",
+    };
+  }
+
   const useDex = targetDexMod > targetStrMod;
   const savePenalty = options?.targetSavePenalty ?? 0;
   const targetMod = (useDex ? targetDexMod : targetStrMod) + savePenalty;

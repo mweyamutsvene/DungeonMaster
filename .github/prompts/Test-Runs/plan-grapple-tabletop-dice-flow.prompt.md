@@ -98,9 +98,9 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
 ### CombatOrchestration Flow
 
 #### File: `packages/game-server/src/application/services/combat/tabletop/tabletop-types.ts`
-- [ ] Add `contestType?: "grapple" | "shove_push" | "shove_prone"` to `AttackPendingAction`
-- [ ] Add `contestDC?: number` to `AttackPendingAction` (pre-computed DC for the saving throw step)
-- [ ] Define `ContestResult` interface extending `AttackResult` with optional `contestSave?` field:
+- [x] Add `contestType?: "grapple" | "shove_push" | "shove_prone"` to `AttackPendingAction`
+- [x] Add `contestDC?: number` to `AttackPendingAction` (pre-computed DC for the saving throw step)
+- [x] Define `ContestResult` interface extending `AttackResult` with optional `contestSave?` field:
   ```typescript
   export interface ContestSaveDetail {
     ability: string;
@@ -119,7 +119,7 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
   This extends `AttackResult` so it's backward-compatible — existing clients that don't know about `contestSave` still see a valid `AttackResult`.
 
 #### File: `packages/game-server/src/application/services/combat/tabletop/dispatch/grapple-handlers.ts`
-- [ ] **Major rewrite of `handleGrappleAction()`**: Stop calling `this.deps.actions.grapple()`. Instead:
+- [x] **Major rewrite of `handleGrappleAction()`**: Stop calling `this.deps.actions.grapple()`. Instead:
   1. Validate target (exists, in range [5ft melee], not too large [max one size larger], attacker has free hand)
   2. Initialize `attacksAllowedThisTurn` from `ClassFeatureResolver.getAttacksPerAction()` if needed, **persist to DB immediately** via `combatRepo.updateCombatantState()` (matching AttackHandlers pattern)
   3. Check `canMakeAttack()` from resource-utils (uses one attack from multi-attack pool)
@@ -130,12 +130,12 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
   8. Store via `combatRepo.setPendingAction()`
   9. Return `{ requiresPlayerInput: true, type: "REQUEST_ROLL", rollType: "attack", diceNeeded: "d20", ... }`
 
-- [ ] **Major rewrite of `handleShoveAction()`**: Same pattern as grapple, with `contestType: "shove_push"` or `"shove_prone"` based on parser output. No free hand check needed for shove.
+- [x] **Major rewrite of `handleShoveAction()`**: Same pattern as grapple, with `contestType: "shove_push"` or `"shove_prone"` based on parser output. No free hand check needed for shove.
 
-- [ ] **Keep `handleEscapeGrappleAction()` as-is** (programmatic auto-resolve per D3). Only fix: apply the advantage bug fix from Bug 2 if conditions affect the ability check.
+- [x] **Keep `handleEscapeGrappleAction()` as-is** (programmatic auto-resolve per D3). Only fix: apply the advantage bug fix from Bug 2 if conditions affect the ability check.
 
 #### File: `packages/game-server/src/application/services/combat/tabletop/roll-state-machine.ts`
-- [ ] **Add contest branch in `handleAttackRoll()` HIT path**: After determining `hit = true`, check `if (action.contestType)`:
+- [x] **Add contest branch in `handleAttackRoll()` HIT path**: After determining `hit = true`, check `if (action.contestType)`:
   1. **Consume the attack**: Call `this.eventEmitter.markActionSpent(encounter.id, actorId)` — this happens BEFORE the save (the attack hit, the slot is consumed regardless of save outcome)
   2. **Determine target save ability**: Compute full save modifier (ability mod + proficiency if proficient) for both STR and DEX. Pick the higher one. (D&D 5e 2024: target chooses, rational choice is the higher save modifier)
   3. **Check auto-fail**: Load target conditions, check `hasAutoFailStrDexSaves(targetConditions)`. If true, skip the save entirely — apply `onFailure` outcomes directly
@@ -158,21 +158,21 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
   7. **Build ContestResult**: Set `hit: true`, `actionComplete: true` (matches existing attack miss pattern — player re-initiates attacks, `canMakeAttack()` gates), `requiresPlayerInput: false`, and `contestSave` with resolution details
   8. Return combined message: "14 + 7 = 21 vs AC 15. Hit! Target rolls STR save: d20(8) + 2 = 10 vs DC 16. Failed! Grappled!"
 
-- [ ] **Handle contest MISS path**: On miss with `contestType`, the grapple/shove fails entirely — no saving throw step. The attack slot is consumed via existing `markActionSpent()` (already called in miss path). Return normal miss `AttackResult` with message "Grapple attempt missed!". `actionComplete: true` (standard).
+- [x] **Handle contest MISS path**: On miss with `contestType`, the grapple/shove fails entirely — no saving throw step. The attack slot is consumed via existing `markActionSpent()` (already called in miss path). Return normal miss `AttackResult` with message "Grapple attempt missed!". `actionComplete: true` (standard).
 
-- [ ] **onFailure outcomes per contest type**:
+- [x] **onFailure outcomes per contest type**:
   - `"grapple"`: `{ conditions: { add: ["Grappled"] }, summary: "Grappled!" }`
   - `"shove_push"`: `{ movement: { push: 5, direction: computeDirection(attackerPos, targetPos) }, summary: "Pushed 5ft" }`
   - `"shove_prone"`: `{ conditions: { add: ["Prone"] }, summary: "Knocked Prone!" }`
 
-- [ ] **Push direction computation for shove_push**: Need attacker and target positions. Load from combatant records (same as movement handlers do). Direction = normalize(targetPos - attackerPos).
+- [x] **Push direction computation for shove_push**: Need attacker and target positions. Load from combatant records (same as movement handlers do). Direction = normalize(targetPos - attackerPos).
 
-- [ ] **Condition source ID format**: `SavingThrowResolver` uses `action.sourceId` as the condition source (line ~393). Verify it accepts entity IDs (characterId/monsterId/npcId) — escape grapple looks up the grappler by this ID to compute DC. If the resolver expects combatant record IDs, use `findCombatantByEntityId()` to resolve. **TODO**: Verify in source during implementation.
+- [x] **Condition source ID format**: `SavingThrowResolver` uses `action.sourceId` as the condition source (line ~393). Verify it accepts entity IDs (characterId/monsterId/npcId) — escape grapple looks up the grappler by this ID to compute DC. If the resolver expects combatant record IDs, use `findCombatantByEntityId()` to resolve. **TODO**: Verify in source during implementation.
 
 ### CombatRules Flow
 
 #### File: `packages/game-server/src/domain/entities/combat/conditions.ts`
-- [ ] **Add `hasAutoFailStrDexSaves()` helper function**:
+- [x] **Add `hasAutoFailStrDexSaves()` helper function**:
   ```typescript
   export function hasAutoFailStrDexSaves(conditions: readonly ActiveCondition[]): boolean {
     return conditions.some(c => {
@@ -184,7 +184,7 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
   Covers: Paralyzed, Petrified, Stunned, Unconscious.
 
 #### File: `packages/game-server/src/application/services/combat/action-handlers/grapple-action-handler.ts`
-- [ ] **Fix `.grapple()` advantage computation** (Bug 2 fix for programmatic/AI path):
+- [x] **Fix `.grapple()` advantage computation** (Bug 2 fix for programmatic/AI path):
   Import `deriveRollModeFromConditions` from `combat-text-parser.ts` and use it:
   ```typescript
   import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
@@ -196,13 +196,13 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
   ```
   This correctly combines ALL sources: attacker self-advantage (Invisible/Hidden), attacker outgoing-disadvantage (Blinded/Frightened/Poisoned/Restrained/Prone), target incoming-advantage (Stunned/Paralyzed/Unconscious/Petrified/Restrained/Blinded), target incoming-disadvantage (Invisible), and Prone distance-aware modifiers.
 
-- [ ] **Fix `.grapple()` save auto-fail**: Check `hasAutoFailStrDexSaves(targetConditions)` — if true, skip the save roll entirely and treat as auto-success for the grapple. Add `targetAutoFail?: boolean` to `GrappleShoveOptions` and handle in domain `resolveUnarmedStrike()`.
+- [x] **Fix `.grapple()` save auto-fail**: Check `hasAutoFailStrDexSaves(targetConditions)` — if true, skip the save roll entirely and treat as auto-success for the grapple. Add `targetAutoFail?: boolean` to `GrappleShoveOptions` and handle in domain `resolveUnarmedStrike()`.
 
-- [ ] **Fix `.shove()` advantage computation**: Same `deriveRollModeFromConditions()` call as grapple.
+- [x] **Fix `.shove()` advantage computation**: Same `deriveRollModeFromConditions()` call as grapple.
 
-- [ ] **Fix `.shove()` save auto-fail**: Same as grapple.
+- [x] **Fix `.shove()` save auto-fail**: Same as grapple.
 
-- [ ] **Add TODO**: Document save proficiency divergence in programmatic path:
+- [x] **Add TODO**: Document save proficiency divergence in programmatic path:
   ```typescript
   // TODO: Domain resolveUnarmedStrike() uses abilityCheck() which omits save proficiency
   // and nat 1/20 auto-fail/success rules. The tabletop path (SavingThrowResolver) handles
@@ -221,8 +221,8 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
 ### ActionEconomy Flow (Minor)
 
 #### File: `packages/game-server/src/application/services/combat/tabletop/dispatch/grapple-handlers.ts`
-- [ ] **Action economy at initiation**: At the point of creating the `AttackPendingAction`, do NOT consume the attack yet (deferred pattern, matching AttackHandlers).
-- [ ] **Multi-attack pool initialization**: Initialize `attacksAllowedThisTurn` from `ClassFeatureResolver.getAttacksPerAction()`, check `canMakeAttack()`, and **persist to DB immediately** via `combatRepo.updateCombatantState()` — this is critical because the attack consumption happens in a later `handleAttackRoll()` call which reads the DB.
+- [x] **Action economy at initiation**: At the point of creating the `AttackPendingAction`, do NOT consume the attack yet (deferred pattern, matching AttackHandlers).
+- [x] **Multi-attack pool initialization**: Initialize `attacksAllowedThisTurn` from `ClassFeatureResolver.getAttacksPerAction()`, check `canMakeAttack()`, and **persist to DB immediately** via `combatRepo.updateCombatantState()` — this is critical because the attack consumption happens in a later `handleAttackRoll()` call which reads the DB.
 
 #### Notes on action economy (from reviewer feedback):
 - Attack is consumed on BOTH hit and miss, BEFORE save resolution (R4 option b confirmed correct)
@@ -300,14 +300,19 @@ The domain function `resolveUnarmedStrike()` in `grapple-shove.ts` uses `ability
 8. Ensure `markActionSpent()` is called in contest hit branch BEFORE save resolution
 
 ### Phase 3: E2E Scenarios
-1. Rewrite `fighter/grapple-extra-attack.json` for two-step flow
-2. Rewrite `fighter/shove.json` for two-step flow
-3. Rewrite `core/prone-effects.json` shove steps for two-step flow
-4. Rewrite `core/prone-melee-vs-ranged.json` shove steps for two-step flow
-5. Rewrite `core/prone-movement.json` shove steps for two-step flow
-6. Add new scenario: `core/grapple-stunned-advantage.json` — grapple vs Stunned target (advantage + auto-fail save)
-7. Add new scenario: `core/grapple-tabletop-miss.json` — grapple attack misses, no save step
-8. Verify `core/grapple-escape.json` still works (escape grapple is unchanged)
+1. [x] Rewrite `fighter/grapple-extra-attack.json` for two-step flow
+2. [x] Rewrite `fighter/shove.json` for two-step flow
+3. [x] Rewrite `core/prone-effects.json` shove steps for two-step flow
+4. [x] Rewrite `core/prone-melee-vs-ranged.json` shove steps for two-step flow
+5. [x] Rewrite `core/prone-movement.json` shove steps for two-step flow
+6. [x] Add new scenario: `core/grapple-stunned-advantage.json` — grapple vs Stunned target (advantage + auto-fail save)
+7. [x] Add new scenario: `core/grapple-tabletop-miss.json` — grapple attack misses, no save step
+8. [x] Update `core/grapple-escape.json` player grapple step for two-step flow (escape grapple stays programmatic)
+9. [x] Update `core/grapple-test.json` for two-step flow
+10. [x] Update `core/grapple-single-attack.json` for two-step flow
+11. [x] Update `core/grappled-effects.json` for two-step flow
+12. [x] Verify `core/ai-grapple.json` unchanged (AI path is programmatic)
+13. [x] Verify `core/ai-grapple-condition.json` unchanged (AI path is programmatic)
 9. Verify `core/ai-grapple.json` and `core/ai-grapple-condition.json` still work (AI path)
 
 ---

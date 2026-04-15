@@ -594,7 +594,7 @@ export class ActionDispatcher {
             attacker: inferActorRef(ctx.actorId, ctx.roster),
             target: targetRef,
           };
-          return this.attackHandlers.handleAttackAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, command, ctx.characters, ctx.monsters, ctx.npcs);
+          return this.attackHandlers.handleAttackAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, command, ctx.characters, ctx.monsters, ctx.npcs, parsed.weaponHint);
         },
       },
     ];

@@ -94,6 +94,20 @@ export class MoveTowardHandler implements AiActionHandler {
     const hasDashed = (resources.dashed as boolean) ?? false;
     let effectiveSpeed = hasDashed ? speed * 2 : speed;
 
+    // Cap by already-spent movement (second+ move in the same turn)
+    const movementRemainingValue = resources.movementRemaining;
+    if (typeof movementRemainingValue === "number") {
+      effectiveSpeed = Math.min(effectiveSpeed, movementRemainingValue as number);
+    }
+    if (effectiveSpeed <= 0) {
+      return {
+        action: decision.action,
+        ok: true,
+        summary: `No movement remaining this turn`,
+        data: { movedFeet: 0, movementExhausted: true },
+      };
+    }
+
     const aiConditions = normalizeConditions(aiCombatant.conditions as unknown[]);
     const isProne = hasCondition(aiConditions, "Prone");
     if (isProne) {

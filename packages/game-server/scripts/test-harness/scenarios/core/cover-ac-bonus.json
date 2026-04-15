@@ -1,6 +1,6 @@
 {
   "name": "Cover: Half cover AC bonus",
-  "description": "A goblin behind half cover gets +2 AC. Attacker rolls high enough to beat base AC but not the cover-boosted AC, resulting in a miss.",
+  "description": "A goblin behind half cover gets +2 AC. Attacker rolls high enough to beat base AC but not the cover-boosted AC, resulting in a miss. Extra Attack auto-chains and also misses.",
   "setup": {
     "character": {
       "name": "Archer",
@@ -106,35 +106,9 @@
     {
       "type": "rollResult",
       "input": { "text": "9" },
-      "comment": "9 + 7 = 16 vs AC 15 + 2 (half cover) = 17 → miss! Without cover this would hit.",
+      "comment": "9 + 7 = 16 vs AC 15 + 2 (half cover) = 17 → miss! Without cover this would hit. Extra Attack auto-chains and auto-completes (nat-1 miss).",
       "expect": {
         "hit": false
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "shoot Goblin Sentry with longbow" },
-      "comment": "Second attack (Extra Attack) — roll high enough to beat cover AC",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "12" },
-      "comment": "12 + 7 = 19 vs AC 17 → hit!",
-      "expect": {
-        "hit": true,
-        "requiresPlayerInput": true
-      }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "6" },
-      "comment": "6 + 3 = 9 damage → Goblin dies (7 HP)",
-      "expect": {
-        "actionComplete": true
       }
     }
   ]

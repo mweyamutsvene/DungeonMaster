@@ -11,7 +11,7 @@ import {
   removeCondition,
   createCondition,
   hasAbilityCheckDisadvantage,
-  hasOutgoingAttackDisadvantage,
+  hasAutoFailStrDexSaves,
   getExhaustionD20Penalty,
   type Condition,
 } from "../../../../domain/entities/combat/conditions.js";
@@ -47,6 +47,7 @@ import {
 } from "../helpers/combat-utils.js";
 import { resolvePitEntry } from "../helpers/pit-terrain-resolver.js";
 import { resolveActiveActorOrThrow } from "../helpers/active-actor-resolver.js";
+import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 
 export class GrappleActionHandler {
   constructor(
@@ -145,11 +146,23 @@ export class GrappleActionHandler {
     // Conditions-based modifiers
     const actorShoveConditions = normalizeConditions(actorState.conditions as unknown[]);
     const targetShoveConditions = normalizeConditions(targetState.conditions as unknown[]);
+
+    // Use deriveRollModeFromConditions for comprehensive advantage/disadvantage computation
+    // (handles attacker self-advantage, target incoming advantage, Prone distance-aware, etc.)
+    const attackerMode = deriveRollModeFromConditions(actorShoveConditions, targetShoveConditions, "melee", 0, 0, dist);
+
+    // Check if target auto-fails STR/DEX saves (Stunned, Paralyzed, Petrified, Unconscious)
+    const targetAutoFail = hasAutoFailStrDexSaves(targetShoveConditions);
+
+    // TODO: Domain resolveUnarmedStrike() uses abilityCheck() which omits save proficiency
+    // and nat 1/20 auto-fail/success rules. The tabletop path (SavingThrowResolver) handles
+    // these correctly. Fix in follow-up PR to align both paths.
     const shoveOptions = {
-      attackerMode: hasOutgoingAttackDisadvantage(actorShoveConditions) ? "disadvantage" as const : "normal" as const,
+      attackerMode,
       attackerD20Penalty: getExhaustionD20Penalty(actorShoveConditions),
       targetSaveMode: hasAbilityCheckDisadvantage(targetShoveConditions) ? "disadvantage" as const : "normal" as const,
       targetSavePenalty: getExhaustionD20Penalty(targetShoveConditions),
+      targetAutoFail,
     };
 
     const dice = new SeededDiceRoller(seed);
@@ -360,11 +373,23 @@ export class GrappleActionHandler {
     // Conditions-based modifiers
     const actorGrappleConditions = normalizeConditions(actorState.conditions as unknown[]);
     const targetGrappleConditions = normalizeConditions(targetState.conditions as unknown[]);
+
+    // Use deriveRollModeFromConditions for comprehensive advantage/disadvantage computation
+    // (handles attacker self-advantage, target incoming advantage, Prone distance-aware, etc.)
+    const grappleAttackerMode = deriveRollModeFromConditions(actorGrappleConditions, targetGrappleConditions, "melee", 0, 0, dist);
+
+    // Check if target auto-fails STR/DEX saves (Stunned, Paralyzed, Petrified, Unconscious)
+    const grappleTargetAutoFail = hasAutoFailStrDexSaves(targetGrappleConditions);
+
+    // TODO: Domain resolveUnarmedStrike() uses abilityCheck() which omits save proficiency
+    // and nat 1/20 auto-fail/success rules. The tabletop path (SavingThrowResolver) handles
+    // these correctly. Fix in follow-up PR to align both paths.
     const grappleOptions = {
-      attackerMode: hasOutgoingAttackDisadvantage(actorGrappleConditions) ? "disadvantage" as const : "normal" as const,
+      attackerMode: grappleAttackerMode,
       attackerD20Penalty: getExhaustionD20Penalty(actorGrappleConditions),
       targetSaveMode: hasAbilityCheckDisadvantage(targetGrappleConditions) ? "disadvantage" as const : "normal" as const,
       targetSavePenalty: getExhaustionD20Penalty(targetGrappleConditions),
+      targetAutoFail: grappleTargetAutoFail,
     };
 
     const dice = new SeededDiceRoller(seed);

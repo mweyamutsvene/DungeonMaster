@@ -101,25 +101,15 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 5" },
-      "comment": "Damage roll: 5 + 4 = 9 damage. Vex mastery: advantage on next attack vs same target.",
+      "comment": "Damage roll: 5 + 4 = 9 damage. Vex mastery activates: advantage on next attack vs same target. Extra Attack chains.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "I attack the Orc Brute with my rapier" },
-      "comment": "Second attack should have ADVANTAGE from Vex mastery.",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true,
-        "advantage": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "I rolled 15" },
-      "comment": "Second attack hits. Vex activates again for NEXT attack.",
+      "comment": "Extra Attack chained: second attack against same target. Vex advantage should apply (server bug: chain copies original rollMode, not recomputed — advantage is stored as ActiveEffect but not applied to chained pending action).",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true

@@ -14,6 +14,7 @@ import {
   removeCondition,
   createCondition,
   getExhaustionD20Penalty,
+  getConditionEffects,
   type ActiveCondition,
   type Condition,
   type ConditionDuration,
@@ -143,6 +144,96 @@ export class SavingThrowResolver {
     const abilityScores = targetSheet?.abilityScores ?? {};
     const abilityScore = abilityScores[action.ability] ?? 10;
     const abilityMod = getAbilityModifier(abilityScore);
+
+    // ── Auto-fail: Stunned/Paralyzed/Petrified/Unconscious targets auto-fail STR/DEX saves ──
+    if (action.autoFail === true) {
+      if (this.debugLogsEnabled) {
+        console.log(`[SavingThrowResolver] Auto-fail: ${action.reason} — target auto-fails ${action.ability} save vs DC ${action.dc}`);
+      }
+      const outcome = action.onFailure;
+      const conditionsApplied: string[] = [];
+      const conditionsRemoved: string[] = [];
+
+      // Apply condition changes from failure outcome
+      if (outcome.conditions) {
+        const combatants = await this.combatRepo.listCombatants(encounterId);
+        const targetCombatant = findCombatantByEntityId(combatants, action.actorId);
+
+        if (targetCombatant) {
+          let conditions = normalizeConditions(targetCombatant.conditions);
+
+          if (outcome.conditions.add) {
+            for (const condName of outcome.conditions.add) {
+              if (isConditionImmuneByEffects(targetCombatant.resources, condName)) continue;
+              const expiresAt = (action.context?.expiresAt as { event: 'start_of_turn' | 'end_of_turn'; combatantId: string } | undefined);
+              const condSource = action.sourceId ?? action.reason;
+              const newCond = createCondition(condName as Condition, expiresAt ? 'until_start_of_next_turn' : 'until_removed', {
+                source: condSource,
+                expiresAt,
+              });
+              conditions = addCondition(conditions, newCond);
+              conditionsApplied.push(condName);
+            }
+          }
+
+          if (outcome.conditions.remove) {
+            for (const condName of outcome.conditions.remove) {
+              conditions = removeCondition(conditions, condName as Condition);
+              conditionsRemoved.push(condName);
+            }
+          }
+
+          await this.combatRepo.updateCombatantState(targetCombatant.id, {
+            conditions: conditions as any,
+          });
+
+          if (conditionsApplied.some(isConcentrationBreakingCondition)) {
+            const spellName = getConcentrationSpellName(targetCombatant.resources);
+            if (spellName) {
+              await breakConcentration(targetCombatant, encounterId, this.combatRepo);
+            }
+          }
+        }
+      }
+
+      // Apply movement effects for auto-fail (e.g., shove push)
+      if (outcome.movement?.push) {
+        const combatants = await this.combatRepo.listCombatants(encounterId);
+        const targetCombatant = findCombatantByEntityId(combatants, action.actorId);
+        const sourceCombatant = findCombatantByEntityId(combatants, action.sourceId);
+
+        if (targetCombatant && sourceCombatant) {
+          const targetRes = normalizeResources(targetCombatant.resources);
+          const sourceRes = normalizeResources(sourceCombatant.resources);
+          const targetPos = getPosition(targetRes);
+          const sourcePos = getPosition(sourceRes);
+
+          if (targetPos && sourcePos) {
+            const dir = outcome.movement.direction ?? directionFromTo(sourcePos, targetPos);
+            const encounter = await this.combatRepo.getEncounterById(encounterId);
+            const map = encounter?.mapData as unknown as PassabilityMap | undefined;
+            const pushResult = applyForcedMovement(targetPos, dir, outcome.movement.push, map);
+            if (pushResult.distanceMoved > 0) {
+              const updatedRes = setPosition(targetRes, pushResult.finalPosition);
+              await this.combatRepo.updateCombatantState(targetCombatant.id, {
+                resources: updatedRes as any,
+              });
+            }
+          }
+        }
+      }
+
+      return {
+        success: false,
+        rawRoll: 0,
+        modifier: abilityMod,
+        total: 0,
+        dc: action.dc,
+        appliedOutcome: outcome,
+        conditionsApplied,
+        conditionsRemoved,
+      };
+    }
 
     // Check proficiency in this save
     const level = targetSheet?.level ?? (target as any)?.level ?? 1;
@@ -300,7 +391,22 @@ export class SavingThrowResolver {
       }
     }
     const hasEffectAdvantage = hasAdvantageFromEffects(filteredEffects, 'saving_throws', saveAbility);
-    const hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility) || staggeringSaveDisadvantage;
+    let hasEffectDisadvantage = hasDisadvantageFromEffects(filteredEffects, 'saving_throws', saveAbility) || staggeringSaveDisadvantage;
+
+    // ── Condition-based saving throw disadvantage (e.g., Restrained → DEX save disadvantage) ──
+    if (targetCombatantForEffects && saveAbility) {
+      const targetConditionsForSaveDisadv = normalizeConditions(targetCombatantForEffects.conditions as unknown[] ?? []);
+      for (const cond of targetConditionsForSaveDisadv) {
+        const effects = getConditionEffects(cond.condition);
+        if (effects.savingThrowDisadvantage.includes(saveAbility)) {
+          hasEffectDisadvantage = true;
+          if (this.debugLogsEnabled) {
+            console.log(`[SavingThrowResolver] Condition ${cond.condition} imposes disadvantage on ${saveAbility} save`);
+          }
+          break;
+        }
+      }
+    }
 
     // ── Species save advantages (Elf vs charmed, Halfling vs frightened, Dwarf vs poisoned, etc.) ──
     let speciesAdvantage = false;

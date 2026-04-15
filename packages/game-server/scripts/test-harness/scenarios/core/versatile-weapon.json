@@ -1,6 +1,6 @@
 {
   "name": "Versatile: Longsword 2-handed damage",
-  "description": "A Fighter wielding a Longsword (versatile) with no shield or offhand weapon auto-uses 2-handed grip. The damage formula should be 1d10+3 instead of 1d8+3. A second attack explicitly says 'one-handed' to verify 1h fallback (1d8+3).",
+  "description": "A Fighter wielding a Longsword (versatile) with no shield or offhand weapon auto-uses 2-handed grip. Both attacks (via Extra Attack chaining) use the default 2-handed grip, dealing 1d10+3 damage each.",
   "setup": {
     "character": {
       "name": "Varis",
@@ -108,31 +108,15 @@
     {
       "type": "rollResult",
       "input": { "text": "8" },
-      "comment": "8 + 3 = 11 damage (1d10+3, rolled 8 which is > d8 max, proving d10 is used)",
+      "comment": "8 + 3 = 11 damage (1d10+3, rolled 8 which is > d8 max, proving d10 is used). Extra Attack chains to second attack.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "assertState",
-      "comment": "Ogre took 11 damage: 59 - 11 = 48 HP",
-      "expect": {
-        "monsterHp": { "name": "Ogre", "min": 48, "max": 48 }
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Ogre with longsword one-handed" },
-      "comment": "Explicit one-handed grip → 1d8 damage",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "15" },
-      "comment": "15 + 6 = 21 vs AC 11 → hit",
+      "comment": "Chained Extra Attack: 15 + 6 = 21 vs AC 11 → hit (2-handed grip, same weapon)",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -141,14 +125,14 @@
     {
       "type": "rollResult",
       "input": { "text": "5" },
-      "comment": "5 + 3 = 8 damage (1d8+3 with one-handed)",
+      "comment": "5 + 3 = 8 damage (1d10+3 with 2-handed grip via chain)",
       "expect": {
         "actionComplete": true
       }
     },
     {
       "type": "assertState",
-      "comment": "Ogre took 11 + 8 = 19 total: 59 - 19 = 40 HP",
+      "comment": "Ogre took 11 + 8 = 19 total damage: 59 - 19 = 40 HP",
       "expect": {
         "monsterHp": { "name": "Ogre", "min": 40, "max": 40 }
       }

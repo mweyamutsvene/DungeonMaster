@@ -105,24 +105,15 @@
     {
       "type": "rollResult",
       "input": { "text": "4" },
-      "comment": "4 + 3 = 7 damage. Dummy: 100 - 7 = 93 HP",
+      "comment": "4 + 3 = 7 damage. Dummy: 100 - 7 = 93 HP. Extra Attack chains to attack 2/2.",
       "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "comment": "Second attack (Extra Attack)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "actionComplete": false
       }
     },
     {
       "type": "rollResult",
       "input": { "text": "12" },
-      "comment": "12 + 6 = 18 vs AC 10 - hit",
+      "comment": "Chained Extra Attack 2/2: 12 + 6 = 18 vs AC 10 - hit",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true
@@ -131,7 +122,7 @@
     {
       "type": "rollResult",
       "input": { "text": "3" },
-      "comment": "3 + 3 = 6 damage. Dummy: 93 - 6 = 87 HP",
+      "comment": "3 + 3 = 6 damage. Dummy: 93 - 6 = 87 HP. Extra Attack complete.",
       "expect": {
         "actionComplete": true
       }

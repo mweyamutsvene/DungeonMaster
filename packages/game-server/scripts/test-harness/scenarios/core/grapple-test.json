@@ -1,6 +1,6 @@
 {
   "name": "Grapple: Fighter restrains Goblin",
-  "description": "A Fighter uses the Grapple option of Unarmed Strike to restrain a Goblin. Tests the contested Athletics check and Grappled condition application.",
+  "description": "A Fighter uses the Grapple option of Unarmed Strike via the tabletop dice flow (attack roll → inline saving throw) to restrain a Goblin. Tests the two-step grapple contest and Grappled condition application.",
   "setup": {
     "character": {
       "name": "Grimgar the Grappler",
@@ -84,10 +84,19 @@
     {
       "type": "action",
       "input": { "text": "grapple Goblin Victim" },
-      "comment": "Attempt to grapple - contested STR (Athletics) vs target's STR/DEX",
+      "comment": "Tabletop dice flow: Unarmed Strike +8 vs AC 13. Returns REQUEST_ROLL for attack.",
       "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "action": "Grapple"
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 13 → HIT. Server auto-resolves save: target DEX save +2 vs DC 16 → fail. Grappled!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
       }
     },
     {
@@ -95,12 +104,12 @@
     },
     {
       "type": "waitForTurn",
-      "comment": "Wait for monster turn (should have Grappled condition if successful)"
+      "comment": "Wait for monster turn (should have Grappled condition)"
     },
     {
       "type": "action",
       "input": { "text": "attack Goblin Victim" },
-      "comment": "Attack the grappled target - advantage due to Grappled condition",
+      "comment": "Attack the grappled target — Grappled does NOT grant advantage per 5e 2024",
       "expect": {
         "rollType": "attack",
         "requiresPlayerInput": true

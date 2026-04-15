@@ -106,20 +106,13 @@
     {
       "type": "rollResult",
       "input": { "text": "6" },
-      "expect": { "actionComplete": true }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "comment": "Second attack (Extra Attack 2/2)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
+      "comment": "6 + 4 = 10 damage. Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
     },
     {
       "type": "rollResult",
       "input": { "text": "14" },
+      "comment": "Chained Extra Attack 2/2: 14 + 7 = 21 vs AC 10 - hit!",
       "expect": { "hit": true, "requiresPlayerInput": true }
     },
     {
@@ -153,20 +146,13 @@
     {
       "type": "rollResult",
       "input": { "text": "7" },
-      "expect": { "actionComplete": true }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Training Dummy" },
-      "comment": "Fourth attack (Action Surge Extra Attack 2/2)",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
+      "comment": "7 + 4 = 11 damage. Extra Attack chains to surge attack 2/2.",
+      "expect": { "actionComplete": false }
     },
     {
       "type": "rollResult",
       "input": { "text": "13" },
+      "comment": "Chained surge Extra Attack 2/2: 13 + 7 = 20 vs AC 10 - hit!",
       "expect": { "hit": true, "requiresPlayerInput": true }
     },
     {

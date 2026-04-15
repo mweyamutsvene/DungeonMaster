@@ -98,22 +98,13 @@
     {
       "type": "rollResult",
       "input": { "text": "5" },
-      "comment": "5 + 3 = 8 damage. Attack 1 done, Action NOT spent yet (Extra Attack allows 2).",
-      "expect": { "actionComplete": true }
-    },
-    {
-      "type": "action",
-      "input": { "text": "attack Training Dummy Golem" },
-      "comment": "Extra Attack 2 of 2. Should still succeed — action not fully used.",
-      "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
-      }
+      "comment": "5 + 3 = 8 damage. Attack 1 done, Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
     },
     {
       "type": "rollResult",
       "input": { "text": "12" },
-      "comment": "12 + 6 = 18 vs AC 12 - hit!",
+      "comment": "Chained Extra Attack 2/2: 12 + 6 = 18 vs AC 12 - hit!",
       "expect": { "hit": true, "requiresPlayerInput": true }
     },
     {

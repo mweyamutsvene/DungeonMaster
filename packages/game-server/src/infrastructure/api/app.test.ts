@@ -1438,13 +1438,15 @@ describe("game-server api", () => {
       url: `/sessions/${sessionId}/characters`,
       payload: {
         name: "Attacker",
+        // Now support level 5+ with Extra Attack + damage reaction
+        // (damage reaction now fires BEFORE EA chain due to deferred pending action)
         level: 5,
         className: "fighter",
         sheet: {
           armorClass: 16,
           abilityScores: { strength: 18, dexterity: 12, constitution: 14 },
           proficiencyBonus: 3,
-          maxHp: 38,
+          maxHp: 45,
           attacks: [
             {
               name: "Longsword",

@@ -525,6 +525,8 @@ export class AiTurnOrchestrator {
         }
       }
 
+      this.aiLog(`[AiTurnOrchestrator] Decision: action=${decision.action}, target=${decision.target ?? "none"}, endTurn=${decision.endTurn}, bonusAction=${decision.bonusAction ?? "none"}`);
+
       // Execute the action
       const result = await this.actionExecutor.execute(
         sessionId,
@@ -587,6 +589,39 @@ export class AiTurnOrchestrator {
         currentAiCombatant = currentCombatants.find((c) => c.id === aiCombatantId) ?? currentAiCombatant;
       } catch {
         // If refresh fails, continue with existing snapshot
+      }
+
+      // Defensive fix: moveToward should NEVER end the turn — force loop continuation
+      if (decision.action === "moveToward" && result.ok) {
+        this.aiLog(`[AiTurnOrchestrator] moveToward succeeded — forcing turnComplete=false regardless of endTurn=${decision.endTurn}`);
+        // Don't break — continue the loop so the AI can attack after moving
+        continue;
+      }
+
+      // Execute bonus action if the handler didn't already do it
+      if (result.ok && decision.bonusAction) {
+        const refreshedRes = normalizeResources(currentAiCombatant.resources);
+        const bonusAlreadySpent = (refreshedRes as Record<string, unknown>).bonusActionUsed === true;
+        if (!bonusAlreadySpent) {
+          this.aiLog(`[AiTurnOrchestrator] Executing bonus action at orchestrator level: ${decision.bonusAction}`);
+          const actorRefForBonus = this.buildActorRef(aiCombatant);
+          const bonusResult = await this.actionExecutor.executeBonusAction(
+            sessionId, encounter.id, currentAiCombatant, decision, actorRefForBonus,
+          );
+          if (bonusResult) {
+            this.aiLog(`[AiTurnOrchestrator] Bonus action result: ${bonusResult.summary}`);
+            actionHistory.push(bonusResult.summary);
+          }
+          // Refresh again after bonus action
+          try {
+            currentCombatants = await this.combat.listCombatants(encounter.id);
+            currentAiCombatant = currentCombatants.find((c) => c.id === aiCombatantId) ?? currentAiCombatant;
+          } catch {
+            // If refresh fails, continue with existing snapshot
+          }
+        } else {
+          this.aiLog(`[AiTurnOrchestrator] Bonus action already spent by handler, skipping orchestrator-level execution`);
+        }
       }
 
       // Check if turn should end

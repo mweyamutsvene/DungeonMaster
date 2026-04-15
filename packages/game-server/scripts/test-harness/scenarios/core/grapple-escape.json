@@ -1,6 +1,6 @@
 {
   "name": "Grapple Escape: Player grapples monster, monster escapes",
-  "description": "Player grapples a monster (Unarmed Strike vs AC 10, then STR/DEX save vs DC 15). On the monster's turn the AI attempts to escape the grapple. The monster has low STR so escape should fail.",
+  "description": "Player grapples a monster via the tabletop dice flow (Unarmed Strike attack roll vs AC, then server auto-resolves STR/DEX save vs DC). On the monster's turn the AI attempts to escape the grapple (programmatic, unchanged). The monster has low STR so escape should fail.",
   "setup": {
     "character": {
       "name": "Strong Fighter",
@@ -89,10 +89,19 @@
     {
       "type": "action",
       "input": { "text": "grapple Weak Goblin" },
-      "comment": "Player (STR +5, prof +2) Unarmed Strike vs AC 10 → hit. Target DEX save +2 vs DC 15 → fail. Grapple succeeds.",
+      "comment": "Tabletop dice flow: Unarmed Strike STR +5, prof +2 = +7 vs AC 10. Contest DC 15.",
       "expect": {
-        "actionComplete": true,
-        "messageContains": "Grapple"
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 10 → HIT. Server auto-resolves save: target DEX +2 vs DC 15 → fail. Grappled!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
       }
     },
     {

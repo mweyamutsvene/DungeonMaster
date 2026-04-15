@@ -88,10 +88,19 @@
     {
       "type": "action",
       "input": { "text": "shove Goblin Scout prone" },
-      "comment": "Unarmed Strike shove: STR 20 (+5 prof 3 = +8) vs AC 10. Target DEX save +2 vs DC 16. Should succeed. L5 Fighter (Extra Attack) uses 1 of 2 attacks.",
+      "comment": "Tabletop dice flow: Unarmed Strike +8 vs AC 10 (shove prone). Contest DC 16. L5 Fighter (Extra Attack) uses 1 of 2 attacks.",
       "expect": {
-        "type": "SIMPLE_ACTION_COMPLETE",
-        "actionComplete": false
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 = 23 vs AC 10 → HIT. Server auto-resolves save: target DEX +2 vs DC 16 → fail. Knocked Prone!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
       }
     },
     {

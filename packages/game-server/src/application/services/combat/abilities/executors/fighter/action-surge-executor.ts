@@ -10,7 +10,7 @@ import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult }
 import { ACTION_SURGE } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { ClassFeatureResolver } from "../../../../../../domain/entities/classes/class-feature-resolver.js";
 import { requireActor, requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
-import { hasResourceAvailable, spendResourceFromPool, grantAdditionalAction, getAttacksAllowedThisTurn } from "../../../helpers/resource-utils.js";
+import { hasResourceAvailable, spendResourceFromPool, grantAdditionalAction, getAttacksAllowedThisTurn, getAttacksUsedThisTurn } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Action Surge (Fighter class feature).
@@ -69,10 +69,11 @@ export class ActionSurgeExecutor implements AbilityExecutor {
       updatedResources = grantAdditionalAction(updatedResources, extraAttacks);
       
       const attacksAllowed = getAttacksAllowedThisTurn(updatedResources);
+      const remaining = attacksAllowed - getAttacksUsedThisTurn(updatedResources);
 
       return {
         success: true,
-        summary: `Action Surge! Gained ${extraAttacks} additional attack${extraAttacks > 1 ? 's' : ''} (${attacksAllowed} total attacks remaining).`,
+        summary: `Action Surge! Gained ${extraAttacks} additional attack${extraAttacks > 1 ? 's' : ''} (${remaining} attacks remaining).`,
         resourcesSpent: { actionSurge: 1 },
         data: {
           abilityName: 'Action Surge',

@@ -21,10 +21,12 @@ import type {
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import {
   getPosition,
+  setPosition,
   normalizeResources,
   getResourcePools,
   hasResourceAvailable,
   getActiveEffects,
+  canMakeAttack,
 } from "../helpers/resource-utils.js";
 import {
   calculateBonusFromEffects,
@@ -39,6 +41,9 @@ import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/re
 import {
   normalizeConditions,
   removeCondition,
+  addCondition,
+  createCondition,
+  getConditionEffects,
   type Condition,
 } from "../../../../domain/entities/combat/conditions.js";
 import {
@@ -58,6 +63,7 @@ import {
 } from "../../../../domain/rules/death-saves.js";
 
 import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
+import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/ability-checks.js";
 import { doubleDiceInFormula } from "./combat-text-parser.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
@@ -85,6 +91,8 @@ import type {
   DeathSaveResult,
 
   SaveOutcome,
+  ContestSaveDetail,
+  ContestResult,
   PendingActionHandlerMap,
   RollProcessingCtx,
 } from "./tabletop-types.js";
@@ -681,6 +689,30 @@ export class RollStateMachine {
       }
 
       // Regular miss
+      // Contest miss — grapple/shove attack missed, no save step.
+      if (action.contestType) {
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
+        await this.eventEmitter.markActionSpent(encounter.id, actorId);
+        const contestLabel = action.contestType === "grapple" ? "Grapple" : "Shove";
+        const contestMissMsg = isCriticalMiss
+          ? `Natural 1! Critical Miss! ${contestLabel} attempt fails!`
+          : `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! ${contestLabel} attempt fails!`;
+
+        return {
+          rollType: "attack",
+          rawRoll: rollValue,
+          modifier: attackBonus,
+          total,
+          targetAC: effectAdjustedAC,
+          hit: false,
+          isCritical: false,
+          targetHpRemaining: (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0,
+          requiresPlayerInput: false,
+          actionComplete: true,
+          message: contestMissMsg,
+        };
+      }
+
       await this.deps.combatRepo.clearPendingAction(encounter.id);
       await this.eventEmitter.markActionSpent(encounter.id, actorId);
 
@@ -733,6 +765,77 @@ export class RollStateMachine {
         await this.dropThrownWeaponOnGround(encounter, actorId, targetId, action.weaponSpec, encounter.round ?? 1);
       }
 
+      // ── Extra Attack miss chaining ──
+      // If the attacker has remaining attacks (Extra Attack), chain to the next attack
+      // instead of ending the action. Does NOT apply to bonus action attacks (FoB, offhand),
+      // spell strikes (which have their own chaining paths above), or Loading weapons.
+      const weaponHasLoading = action.weaponSpec?.properties?.some(
+        (p: string) => p.toLowerCase() === "loading",
+      ) ?? false;
+      if (!action.bonusAction && !action.spellStrike && !weaponHasLoading) {
+        // Re-fetch combatant to get updated resources after markActionSpent
+        const actorCombatantAfterMiss = findCombatantByEntityId(
+          await this.deps.combatRepo.listCombatants(encounter.id), actorId,
+        );
+        if (actorCombatantAfterMiss && canMakeAttack(actorCombatantAfterMiss.resources)) {
+          // Check if target is still alive (may have died from Graze damage)
+          const targetHp = (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0;
+          const targetCombatantForChain = findCombatantByEntityId(
+            await this.deps.combatRepo.listCombatants(encounter.id), targetId,
+          );
+          const targetAlive = targetCombatantForChain ? targetCombatantForChain.hpCurrent > 0 : targetHp > 0;
+
+          if (targetAlive) {
+            // Target alive → chain to same target, stay in roll loop
+            const nextPending: AttackPendingAction = {
+              type: "ATTACK",
+              timestamp: new Date(),
+              actorId,
+              attacker: actorId,
+              target: action.target,
+              targetId: action.targetId,
+              weaponSpec: action.weaponSpec,
+              rollMode: action.rollMode,
+            };
+            await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
+
+            const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
+            return {
+              rollType: "attack",
+              rawRoll: rollValue,
+              modifier: attackBonus,
+              total,
+              targetAC: effectAdjustedAC,
+              hit: false,
+              isCritical: false,
+              targetHpRemaining: targetCombatantForChain?.hpCurrent ?? targetHp,
+              requiresPlayerInput: true,
+              actionComplete: false,
+              type: "REQUEST_ROLL",
+              diceNeeded: followUpDice,
+              message: `${missMessage} Extra Attack: Roll a ${followUpDice} for ${action.weaponSpec?.name ?? "attack"} vs ${target?.name ?? "target"}.`,
+              narration,
+            };
+          } else {
+            // Target dead (killed by Graze) but attacks remain → back to prompt
+            return {
+              rollType: "attack",
+              rawRoll: rollValue,
+              modifier: attackBonus,
+              total,
+              targetAC: effectAdjustedAC,
+              hit: false,
+              isCritical: false,
+              targetHpRemaining: 0,
+              requiresPlayerInput: false,
+              actionComplete: false,
+              message: `${missMessage} Target defeated! You have attack(s) remaining.`,
+              narration,
+            };
+          }
+        }
+      }
+
       return {
         rollType: "attack",
         rawRoll: rollValue,
@@ -747,6 +850,16 @@ export class RollStateMachine {
         message: missMessage,
         narration,
       };
+    }
+
+    // ── Contest branch: Grapple/Shove hit → inline saving throw resolution ──
+    // When contestType is set, the HIT path resolves a saving throw instead of requesting damage.
+    if (action.contestType) {
+      return this.resolveContestHit(
+        sessionId, encounter, action, actorId, targetId, target,
+        rollValue, attackBonus, total, effectAdjustedAC, isCritical,
+        rollPrefix, d20Rolls, characters, monsters, npcs, combatants,
+      );
     }
 
     // Hit - check Sneak Attack eligibility before building damage formula
@@ -1095,6 +1208,260 @@ export class RollStateMachine {
       combatEnded,
       victoryStatus,
     };
+  }
+
+  // ----- Contest (Grapple/Shove) Hit Resolution -----
+
+  /**
+   * Resolve the saving throw step for a grapple/shove contest after the attack hits.
+   * D&D 5e 2024: On hit, target makes STR or DEX save (their choice — we pick the higher modifier).
+   * If auto-fail (Stunned/Paralyzed/Petrified/Unconscious), skip the save and auto-apply failure.
+   *
+   * Outcomes:
+   * - grapple: apply Grappled condition on failure
+   * - shove_push: push target 5ft away on failure
+   * - shove_prone: apply Prone condition on failure
+   */
+  private async resolveContestHit(
+    sessionId: string,
+    encounter: CombatEncounterRecord,
+    action: AttackPendingAction,
+    actorId: string,
+    targetId: string,
+    target: any,
+    rollValue: number,
+    attackBonus: number,
+    total: number,
+    targetAC: number,
+    isCritical: boolean,
+    rollPrefix: string,
+    d20Rolls: number[],
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
+    combatants: any[],
+  ): Promise<ContestResult> {
+    const contestType = action.contestType!;
+    const contestDC = action.contestDC ?? 10;
+    const contestLabel = contestType === "grapple" ? "Grapple" : "Shove";
+
+    // 1. Consume the attack BEFORE save resolution (the attack hit, slot consumed regardless of save)
+    await this.eventEmitter.markActionSpent(encounter.id, actorId);
+
+    // 2. Determine target's best save ability (STR or DEX — D&D 5e 2024: target chooses, rational = higher modifier)
+    const targetSheet = (target as any)?.statBlock ?? (target as any)?.sheet ?? {};
+    const targetAbilityScores = targetSheet?.abilityScores ?? {};
+    const targetLevel = targetSheet?.level ?? (target as any)?.level ?? 1;
+    const profBonus = getProficiencyBonus(targetLevel);
+
+    const targetStrScore = targetAbilityScores.strength ?? 10;
+    const targetDexScore = targetAbilityScores.dexterity ?? 10;
+    const targetStrMod = getAbilityModifier(targetStrScore);
+    const targetDexMod = getAbilityModifier(targetDexScore);
+
+    // Check save proficiency
+    const saveProficiencies: string[] = Array.isArray(targetSheet?.saveProficiencies)
+      ? targetSheet.saveProficiencies
+      : Array.isArray(targetSheet?.proficiencies)
+        ? targetSheet.proficiencies
+        : [];
+    const strProficient = saveProficiencies.includes("strength_save") || saveProficiencies.includes("strength");
+    const dexProficient = saveProficiencies.includes("dexterity_save") || saveProficiencies.includes("dexterity");
+
+    const fullStrMod = targetStrMod + (strProficient ? profBonus : 0);
+    const fullDexMod = targetDexMod + (dexProficient ? profBonus : 0);
+    const bestAbility = fullDexMod > fullStrMod ? "dexterity" : "strength";
+
+    // 3. Check auto-fail from conditions (Stunned, Paralyzed, Petrified, Unconscious)
+    const targetCombatant = findCombatantByEntityId(combatants, targetId);
+    const targetConditions = normalizeConditions(targetCombatant?.conditions as unknown[] ?? []);
+    const autoFail = targetConditions.some(c => {
+      const effects = getConditionEffects(c.condition);
+      return effects.autoFailStrDexSaves === true;
+    });
+
+    // 4. Build onSuccess / onFailure outcomes
+    const onSuccess: SaveOutcome = { summary: `Resists the ${contestLabel.toLowerCase()}!` };
+
+    let onFailure: SaveOutcome;
+    if (contestType === "grapple") {
+      onFailure = {
+        conditions: { add: ["Grappled"] },
+        summary: "Grappled!",
+      };
+    } else if (contestType === "shove_prone") {
+      onFailure = {
+        conditions: { add: ["Prone"] },
+        summary: "Knocked Prone!",
+      };
+    } else {
+      // shove_push — compute push direction from positions
+      const actorCombatant = findCombatantByEntityId(combatants, actorId);
+      const actorPos = getPosition(actorCombatant?.resources ?? {});
+      const targetPos = getPosition(targetCombatant?.resources ?? {});
+      let pushDirection = { x: 1, y: 0 }; // fallback
+      if (actorPos && targetPos) {
+        const dx = targetPos.x - actorPos.x;
+        const dy = targetPos.y - actorPos.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 0.0001) {
+          pushDirection = { x: dx / len, y: dy / len };
+        }
+      }
+      onFailure = {
+        movement: { push: 5, direction: pushDirection },
+        summary: "Pushed 5ft!",
+      };
+    }
+
+    // 5. Build SavingThrowPendingAction for inline resolution (NOT stored to DB)
+    const saveAction: SavingThrowPendingAction = {
+      type: "SAVING_THROW",
+      timestamp: new Date(),
+      actorId: targetId,          // TARGET makes the save
+      sourceId: actorId,          // ATTACKER forced it (entity ID — used for condition source)
+      ability: bestAbility,
+      dc: contestDC,
+      reason: contestLabel,
+      onSuccess,
+      onFailure,
+      autoFail,
+      context: contestType === "grapple" ? { grapplerId: actorId } : undefined,
+    };
+
+    let contestSave: ContestSaveDetail;
+
+    if (autoFail) {
+      // Auto-fail: skip save roll entirely, apply failure outcome directly
+      if (this.debugLogsEnabled) {
+        console.log(`[RollStateMachine] Contest ${contestLabel}: Target auto-fails STR/DEX save (conditions: ${targetConditions.map(c => c.condition).join(", ")})`);
+      }
+
+      // Apply failure outcome manually (conditions + movement)
+      await this.applyContestFailureOutcome(onFailure, targetId, actorId, encounter, combatants);
+
+      contestSave = {
+        ability: bestAbility,
+        dc: contestDC,
+        rawRoll: 0,
+        modifier: 0,
+        total: 0,
+        success: false,
+        outcomeSummary: `Auto-fail! ${onFailure.summary}`,
+        conditionsApplied: onFailure.conditions?.add,
+      };
+    } else {
+      // 6. Resolve inline via SavingThrowResolver (NOT handleSavingThrowAction which hardcodes actionComplete: true)
+      if (!this.savingThrowResolver) {
+        throw new ValidationError("DiceRoller is required for contest save resolution");
+      }
+
+      const resolution = await this.savingThrowResolver.resolve(
+        saveAction, encounter.id, characters, monsters, npcs,
+      );
+
+      const abilityUpper = bestAbility.toUpperCase().slice(0, 3);
+      contestSave = {
+        ability: bestAbility,
+        dc: contestDC,
+        rawRoll: resolution.rawRoll,
+        modifier: resolution.modifier,
+        total: resolution.total,
+        success: resolution.success,
+        outcomeSummary: resolution.success
+          ? `Makes ${abilityUpper} save (${resolution.total} vs DC ${contestDC}). ${onSuccess.summary}`
+          : `Fails ${abilityUpper} save (${resolution.total} vs DC ${contestDC}). ${onFailure.summary}`,
+        conditionsApplied: resolution.conditionsApplied.length > 0 ? resolution.conditionsApplied : undefined,
+      };
+
+      if (this.debugLogsEnabled) {
+        console.log(`[RollStateMachine] Contest ${contestLabel}: ${contestSave.outcomeSummary}`);
+      }
+    }
+
+    // 7. Clear pending action
+    await this.deps.combatRepo.clearPendingAction(encounter.id);
+
+    // 8. Build combined message
+    const hitPart = isCritical
+      ? `Natural 20! Critical Hit!`
+      : `${rollPrefix} + ${attackBonus} = ${total} vs AC ${targetAC}. Hit!`;
+    const savePart = contestSave.outcomeSummary;
+    const message = `${hitPart} ${savePart}`;
+
+    return {
+      rollType: "attack",
+      rawRoll: rollValue,
+      modifier: attackBonus,
+      total,
+      targetAC,
+      hit: true,
+      isCritical,
+      targetHpRemaining: targetCombatant?.hpCurrent ?? 0,
+      requiresPlayerInput: false,
+      actionComplete: true,
+      message,
+      contestSave,
+    };
+  }
+
+  /**
+   * Apply contest failure outcome (conditions and/or push movement).
+   * Used for auto-fail path where SavingThrowResolver is bypassed.
+   */
+  private async applyContestFailureOutcome(
+    onFailure: SaveOutcome,
+    targetId: string,
+    actorId: string,
+    encounter: CombatEncounterRecord,
+    combatants: any[],
+  ): Promise<void> {
+    const targetCombatant = findCombatantByEntityId(combatants, targetId);
+    if (!targetCombatant) return;
+
+    // Apply conditions
+    if (onFailure.conditions?.add) {
+      let conditions = normalizeConditions(targetCombatant.conditions);
+      for (const condName of onFailure.conditions.add) {
+        const newCond = createCondition(condName as Condition, "until_removed", {
+          source: actorId,
+        });
+        conditions = addCondition(conditions, newCond);
+      }
+      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+        conditions: conditions as any,
+      });
+    }
+
+    // Apply push movement
+    if (onFailure.movement?.push) {
+      const targetRes = normalizeResources(targetCombatant.resources);
+      const targetPos = getPosition(targetRes);
+      if (targetPos && onFailure.movement.direction) {
+        const dir = onFailure.movement.direction;
+        const encounter_ = await this.deps.combatRepo.getEncounterById(encounter.id);
+        const map = encounter_?.mapData as any;
+        const pushDist = onFailure.movement.push;
+
+        const proposed = {
+          x: Math.round((targetPos.x + dir.x * pushDist) * 100) / 100,
+          y: Math.round((targetPos.y + dir.y * pushDist) * 100) / 100,
+        };
+
+        // Clamp to map bounds
+        const width = typeof map?.width === "number" ? map.width : null;
+        const height = typeof map?.height === "number" ? map.height : null;
+        const final = {
+          x: width === null ? proposed.x : Math.max(0, Math.min(proposed.x, width)),
+          y: height === null ? proposed.y : Math.max(0, Math.min(proposed.y, height)),
+        };
+
+        const updatedRes = setPosition(targetRes, final);
+        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+          resources: updatedRes as any,
+        });
+      }
+    }
   }
 
   // ----- Saving Throw Handler -----

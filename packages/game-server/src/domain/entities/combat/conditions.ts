@@ -421,6 +421,17 @@ export function hasIncomingAttackDisadvantage(conditions: readonly ActiveConditi
 }
 
 /**
+ * Check if any condition causes automatic failure on STR/DEX saving throws.
+ * D&D 5e 2024: Paralyzed, Petrified, Stunned, Unconscious auto-fail STR/DEX saves.
+ */
+export function hasAutoFailStrDexSaves(conditions: readonly ActiveCondition[]): boolean {
+  return conditions.some(c => {
+    const effects = getConditionEffects(c.condition);
+    return effects.autoFailStrDexSaves === true;
+  });
+}
+
+/**
  * Check if any condition imposes disadvantage on ability checks (e.g. Poisoned, Frightened).
  */
 export function hasAbilityCheckDisadvantage(conditions: readonly ActiveCondition[]): boolean {

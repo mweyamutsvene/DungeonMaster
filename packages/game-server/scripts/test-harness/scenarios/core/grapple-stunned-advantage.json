@@ -1,0 +1,142 @@
+{
+  "name": "Grapple vs Stunned: Advantage + auto-fail save",
+  "description": "Tests grapple against a Stunned target via tabletop dice flow. Stunned grants advantage on the attack roll AND auto-fails STR/DEX saving throws. The grapple should succeed automatically on hit since the save auto-fails.",
+  "setup": {
+    "character": {
+      "name": "Strong Grappler",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Stunned Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "size": "Large",
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High roll so player goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "applyCondition",
+      "input": {
+        "target": "monster:Stunned Ogre",
+        "condition": "Stunned",
+        "duration": "round",
+        "source": "test-setup"
+      },
+      "comment": "Apply Stunned condition to the Ogre before grapple attempt"
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the Ogre has Stunned condition",
+      "expect": {
+        "monsterConditions": {
+          "name": "Stunned Ogre",
+          "hasConditions": ["Stunned"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "grapple Stunned Ogre" },
+      "comment": "Grapple vs Stunned target: Unarmed Strike STR +3, prof +3 = +6 vs AC 11. Stunned grants ADVANTAGE on attack. Contest DC 14 (8 + 3 + 3). Stunned = auto-fail STR/DEX saves.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 6 = 18 vs AC 11 → HIT (with advantage). Stunned target auto-fails the STR/DEX save. Grappled!",
+      "expect": {
+        "hit": true,
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify the Ogre now has both Stunned and Grappled conditions",
+      "expect": {
+        "monsterConditions": {
+          "name": "Stunned Ogre",
+          "hasConditions": ["Stunned", "Grappled"]
+        }
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}
