@@ -359,6 +359,11 @@ ${colors.bold}What would you like to do?${colors.reset}
     if (resp.requiresPlayerInput && resp.rollType) {
       // narration will be shown by printRollRequest inside rollPromptLoop
       await this.rollPromptLoop(resp);
+      // Refresh tactical view after combat resolution so player sees updated
+      // conditions, HP changes, etc. (fixes transient conditions like Stunned
+      // not appearing because they expire before the next turn's view fetch)
+      const updated = await this.fetchTactical();
+      if (updated) printTacticalState(updated);
       return;
     }
 
@@ -408,7 +413,9 @@ ${colors.bold}What would you like to do?${colors.reset}
       });
 
       // Display result (message only — narration already shown by printRollRequest)
-      if (resp.message) {
+      // Skip printing here when the loop will continue — printRollRequest at the
+      // top of the next iteration will display the same message, avoiding duplicates.
+      if (resp.message && !(resp.requiresPlayerInput && resp.rollType)) {
         printActionResult(resp, { suppressNarration: true });
       }
 
