@@ -175,9 +175,7 @@ model CombatEncounter {
   round  Int    @default(1)
   turn   Int    @default(0)
 
-  // Tabletop combat flow - pending player action
-  pendingAction   Json?
-  pendingActionAt DateTime?
+  // Tabletop combat flow - pending player action (FIFO queue)
   pendingActionQueue Json?
 
   // Combat map data (terrain, entities, cover, etc.)

@@ -112,4 +112,4 @@ The correct implementation: `tryInitiateDamageReaction` saves the queued ATTACK 
 Additionally, ALL transition call sites in `roll-state-machine.ts` and `initiative-handler.ts` that call `setPendingAction` need to first call `clearPendingAction` to replace (not append) the current head.
 
 ## Deferred
-- Remove old `pendingAction`/`pendingActionAt` columns in a follow-up migration once confirmed no in-flight sessions rely on them.
+- [x] Remove old `pendingAction`/`pendingActionAt` columns — migration `20260415151751_drop_legacy_pending_action` applied, fallback read-through removed from `combat-repository.ts`.

@@ -165,14 +165,12 @@ export class PrismaCombatRepository implements ICombatRepository {
   async getPendingAction(encounterId: string): Promise<JsonValue | null> {
     const encounter = await this.prisma.combatEncounter.findUnique({
       where: { id: encounterId },
-      select: { pendingActionQueue: true, pendingAction: true },
+      select: { pendingActionQueue: true },
     });
     const queue = Array.isArray(encounter?.pendingActionQueue)
       ? (encounter.pendingActionQueue as Prisma.JsonValue[])
       : [];
-    if (queue.length > 0) return queue[0] as JsonValue;
-    // Fallback: legacy single-slot field for in-flight sessions
-    return (encounter?.pendingAction as JsonValue) ?? null;
+    return queue.length > 0 ? (queue[0] as JsonValue) : null;
   }
 
   async clearPendingAction(encounterId: string): Promise<void> {
@@ -186,11 +184,7 @@ export class PrismaCombatRepository implements ICombatRepository {
     queue.shift();
     await this.prisma.combatEncounter.update({
       where: { id: encounterId },
-      data: {
-        pendingActionQueue: queue as Prisma.InputJsonValue,
-        pendingAction: Prisma.DbNull,
-        pendingActionAt: null,
-      },
+      data: { pendingActionQueue: queue as Prisma.InputJsonValue },
     });
   }
 
