@@ -1,0 +1,153 @@
+{
+  "name": "Fighter Extra Attack + Hellish Rebuke Reaction (Queue Integration)",
+  "description": "Tests the pending action queue when a Hellish Rebuke damage reaction fires between a Fighter's Extra Attacks (level 5). The Fighter attacks Lyra (Warlock 3 with Hellish Rebuke). After taking damage from attack 1, Lyra uses Hellish Rebuke as a reaction, dealing 2d10 fire to the Fighter. The queued Extra Attack 2 then auto-promotes from the queue and executes. Verifies: (1) HR reaction fires correctly mid-Extra-Attack chain, (2) queued second attack proceeds after reaction resolves, (3) both characters take appropriate damage.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Sir Marcus",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 35, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 14, "constitution": 16,
+            "intelligence": 10, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 44, "currentHp": 44, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+          ]
+        }
+      },
+      {
+        "name": "Lyra the Hexblade",
+        "className": "Warlock",
+        "level": 3,
+        "position": { "x": 40, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 8, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 18
+          },
+          "maxHp": 30, "currentHp": 30, "armorClass": 5, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 2 },
+          "preparedSpells": [
+            { "name": "Hellish Rebuke", "level": 1 }
+          ],
+          "attacks": []
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 55, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 4, "constitution": 18,
+            "intelligence": 1, "wisdom": 6, "charisma": 1
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 0,
+          "challengeRating": 0, "experienceValue": 0,
+          "attacks": [
+            {
+              "name": "None", "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the warlock" },
+      "comment": "Sir Marcus initiates combat",
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Sir Marcus rolls 20 + 2 DEX = 22 initiative. Always goes first (Lyra max 19 with DEX 8, Dummy max 17 with DEX 4).",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Lyra the Hexblade" },
+      "comment": "Extra Attack 1 of 2: attack the warlock",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Attack 1: 15 + 7 = 22 vs AC 5 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Attack 1 damage: 5 + 4 = 9 slashing. Extra Attack 2 is queued. HR damage reaction should be detected (Lyra at 21 HP, has HR + spell slot).",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Wait for Lyra's Hellish Rebuke damage reaction. The queue now holds: [reaction_pending, ATTACK(2/2)].",
+      "type": "waitForReaction",
+      "input": { "reactionType": "hellish_rebuke" },
+      "timeout": 5000
+    },
+    {
+      "comment": "Lyra uses Hellish Rebuke — 2d10 fire damage to Sir Marcus, DEX save DC 14 for half.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Extra Attack 2 (auto-promoted from queue after HR resolves): 14 + 7 = 21 vs AC 5 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "Attack 2 damage: 7 + 4 = 11 slashing. Both Extra Attacks complete — queue fully drained.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sir Marcus",
+      "comment": "Sir Marcus should have taken fire damage from Hellish Rebuke (2d10, DEX save DC 14 for half). Starts at 44 HP — took at least 1 fire.",
+      "expect": {
+        "characterHp": { "min": 24, "max": 43 }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Lyra the Hexblade",
+      "comment": "Lyra took 9 + 11 = 20 slashing from two longsword hits. 30 - 20 = 10 HP remaining.",
+      "expect": {
+        "characterHp": { "min": 8, "max": 12 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Sir Marcus ends his turn after using both Extra Attacks with HR reaction in between."
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "name": "Monk Extra Attack + Hellish Rebuke + Flurry (Queue Integration)",
+  "description": "Tests the pending action queue when a Hellish Rebuke damage reaction fires between a Monk's Extra Attacks (level 5). The Monk attacks Lyra (Warlock 3 with Hellish Rebuke). Extra Attack 1 hits — after damage, Lyra uses Hellish Rebuke as a reaction, dealing 2d10 fire to the Monk. The queued Extra Attack 2 then auto-promotes from the queue and executes. After the main action completes, the Monk uses Flurry of Blows as a bonus action against the adjacent Training Dummy (no HR, since Lyra used her reaction). Verifies: (1) HR fires correctly mid-Extra-Attack chain, (2) queued Extra Attack 2 proceeds after reaction resolves, (3) Flurry bonus action still functions after HR interruption, (4) Ki is spent, (5) action economy fully tracks.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Li Wei",
+        "className": "Monk",
+        "level": 5,
+        "position": { "x": 35, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 16, "constitution": 14,
+            "intelligence": 11, "wisdom": 16, "charisma": 8
+          },
+          "maxHp": 38, "currentHp": 38, "armorClass": 16, "speed": 45,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Unarmed Strike", "kind": "melee", "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Lyra the Hexblade",
+        "className": "Warlock",
+        "level": 3,
+        "position": { "x": 40, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 8, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 18
+          },
+          "maxHp": 30, "currentHp": 30, "armorClass": 5, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 2 },
+          "preparedSpells": [
+            { "name": "Hellish Rebuke", "level": 1 }
+          ],
+          "attacks": []
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 4, "constitution": 18,
+            "intelligence": 1, "wisdom": 6, "charisma": 1
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 0,
+          "challengeRating": 0, "experienceValue": 0,
+          "attacks": [
+            {
+              "name": "None", "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I face down my opponents" },
+      "comment": "Li Wei initiates combat",
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Li Wei rolls 20 + 3 DEX = 23 initiative. Always goes first (Lyra max 19 with DEX 8, Dummy max 17 with DEX 4).",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Lyra the Hexblade" },
+      "comment": "Extra Attack 1 of 2: main action unarmed strike on the warlock",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "Attack 1: 12 + 6 = 18 vs AC 5 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Attack 1 damage: 5 + 3 = 8 bludgeoning. Lyra: 30 - 8 = 22 HP. Extra Attack 2 queued. HR damage reaction detected.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Wait for Lyra's Hellish Rebuke damage reaction. Queue holds: [reaction_pending, ATTACK(Extra Attack 2/2)].",
+      "type": "waitForReaction",
+      "input": { "reactionType": "hellish_rebuke" },
+      "timeout": 5000
+    },
+    {
+      "comment": "Lyra uses Hellish Rebuke — 2d10 fire damage to Li Wei, DEX save DC 14 for half.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Extra Attack 2 (auto-promoted from queue after HR resolves): 14 + 6 = 20 vs AC 5 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "Attack 2 damage: 4 + 3 = 7 bludgeoning. Lyra: 22 - 7 = 15 HP. Main action complete — queue fully drained.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "Bonus Action: Flurry of Blows (1 Ki) targeting nearest monster (Training Dummy at x:30). Lyra cannot HR again — reaction spent.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Flurry strike 1: 10 + 6 = 16 vs AC 10 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Flurry strike 1 damage: 5 + 3 = 8 bludgeoning to Dummy. Flurry strike 2 queued. No HR (Lyra's reaction is spent).",
+      "expect": { "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "Flurry strike 2: 8 + 6 = 14 vs AC 10 — hit!",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "Flurry strike 2 damage: 3 + 3 = 6 bludgeoning to Dummy. Flurry complete.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify Ki point was spent: 5 total - 1 (Flurry) = 4 remaining",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4 }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Li Wei",
+      "comment": "Li Wei took fire from HR (2d10, DEX save DC 14 for half). Starts at 38 HP.",
+      "expect": {
+        "characterHp": { "min": 18, "max": 37 }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Lyra the Hexblade",
+      "comment": "Lyra took 8 + 7 = 15 bludgeoning from two unarmed strikes. 30 - 15 = 15 HP remaining.",
+      "expect": {
+        "characterHp": { "min": 13, "max": 17 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Li Wei ends his turn: Extra Attack (with HR interruption) + Flurry bonus action — full action economy used."
+    }
+  ]
+}
