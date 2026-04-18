@@ -1,6 +1,6 @@
 {
   "name": "Warlock: Hex + Eldritch Blast Multi-Beam with AI Turns",
-  "description": "Tests the full warlock combat flow: (1) Cast Hex as bonus action (concentration, deducts spell slot), (2) Cast Eldritch Blast with 2 beams at level 5, each dealing 1d10 force + server-rolled 1d6 necrotic from Hex, (3) End turn and AI monsters act (attack + help). Verifies: Hex sets concentration, EB beams chain correctly, Hex bonus damage is added server-side (not shown in dice formula), AI turns complete without hanging.",
+  "description": "Tests the full warlock combat flow: (1) Cast Hex as bonus action (concentration, deducts spell slot), (2) Cast Eldritch Blast with 2 beams at level 5, each dealing 1d10 force + server-rolled 1d6 necrotic from Hex, (3) End turn and AI monsters act (Shadow Construct attacks, Spectral Guard uses Help action). Verifies: Hex sets concentration, EB beams chain correctly, Hex bonus damage is added server-side (not shown in dice formula), AI Help action completes without hanging, AI turns advance properly.",
   "setup": {
     "character": {
       "name": "Malachar the Dark",
@@ -67,7 +67,10 @@
       }
     ],
     "aiConfig": {
-      "defaultBehavior": "attack"
+      "defaultBehavior": "attack",
+      "monsterBehaviors": {
+        "Spectral Guard": "help"
+      }
     }
   },
   "actions": [

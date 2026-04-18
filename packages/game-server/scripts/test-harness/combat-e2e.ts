@@ -108,6 +108,7 @@ async function main() {
       // Reset AI behavior to default for each scenario
       aiDecisionMaker.setDefaultBehavior("attack");
       aiDecisionMaker.setDefaultBonusAction(undefined);
+      aiDecisionMaker.clearMonsterBehaviors();
       
       console.log(`📋 Loading scenario: ${name}\n`);
 
@@ -125,9 +126,15 @@ async function main() {
       console.log(`   ${scenario.description ?? ""}\n`);
 
       // Create AI configuration callback
-      const configureAi = (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"; defaultBonusAction?: string }) => {
-        aiDecisionMaker.setDefaultBehavior(config.defaultBehavior);
+      const configureAi = (config: { defaultBehavior: string; defaultBonusAction?: string; monsterBehaviors?: Record<string, string> }) => {
+        aiDecisionMaker.setDefaultBehavior(config.defaultBehavior as any);
         aiDecisionMaker.setDefaultBonusAction(config.defaultBonusAction);
+        aiDecisionMaker.clearMonsterBehaviors();
+        if (config.monsterBehaviors) {
+          for (const [name, behavior] of Object.entries(config.monsterBehaviors)) {
+            aiDecisionMaker.setMonsterBehavior(name, behavior as any);
+          }
+        }
       };
 
       const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi });

@@ -180,7 +180,16 @@ Scenario: <scenario file name>
 Outcome: Victory / Defeat / Incomplete
 Thorin HP at end: <N>/<max>  (or relevant character)
 Rounds played: <N>
-
+## Player and Enemy actions taken
+(This is used to replicate the series of events as an e2e test script, so be as detailed as possible. Include every attack, move, and special action, along with rolls and outcomes. Use the format below as a template.)
+- Round 0: <Enemy> went first (initiative X vs Y), did <action>, roll Z → Hit/Miss
+- Round 1 (Player):
+  - Attack 1: d20=R → R+bonus vs AC X → Hit/Miss, damage D (Enemy HP N→M)
+  - Extra Attack (auto-chain): d20=R → R+bonus vs AC X → Hit/Miss, damage D (Enemy HP N→M)
+  - Action Surge: Activated, "Gained 2 additional attacks."
+  - Action Surge Attack 1: d20=R → R+bonus vs AC X → Hit/Miss, damage D (Enemy HP N→M)
+  - Extra Attack (Action Surge chain): d20=R → R+bonus vs AC X → Hit/Miss, damage D (Enemy HP N→M)
+  - Turn ended. <Enemy> fled (moveAwayFrom).
 ## ✅ Confirmed Working
 - <thing that worked correctly>
 - ...

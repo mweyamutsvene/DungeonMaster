@@ -828,6 +828,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
   private queuedDecisions: AiDecision[] = [];
   private defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "shove" | "dodge" | "dash" | "disengage" | "help" | "search" = "attack";
   private defaultBonusAction?: string;
+  private perMonsterBehavior: Map<string, "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "shove" | "dodge" | "dash" | "disengage" | "help" | "search"> = new Map();
 
   /** Captured contexts from every decide() call, for test assertions. */
   private _capturedContexts: CapturedAiContext[] = [];
@@ -877,6 +878,21 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     this.defaultBonusAction = bonusAction;
   }
 
+  /**
+   * Set behavior for a specific monster by name.
+   * Overrides defaultBehavior for that monster only.
+   */
+  setMonsterBehavior(monsterName: string, behavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "shove" | "dodge" | "dash" | "disengage" | "help" | "search"): void {
+    this.perMonsterBehavior.set(monsterName.toLowerCase(), behavior);
+  }
+
+  /**
+   * Clear per-monster overrides.
+   */
+  clearMonsterBehaviors(): void {
+    this.perMonsterBehavior.clear();
+  }
+
   async decide(input: {
     combatantName: string;
     combatantType: string;
@@ -895,8 +911,11 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     
     // Extract context to find enemies and attacks
     const ctx = input.context as Record<string, unknown> | undefined;
+
+    // Resolve effective behavior: per-monster override > defaultBehavior
+    const effectiveBehavior = this.perMonsterBehavior.get(input.combatantName.toLowerCase()) ?? this.defaultBehavior;
     
-    if (this.defaultBehavior === "endTurn" || !ctx) {
+    if (effectiveBehavior === "endTurn" || !ctx) {
       return { action: "endTurn", intentNarration: `${input.combatantName} ends their turn.` };
     }
 
@@ -924,7 +943,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Grapple behavior: grapple the nearest enemy
-    if (this.defaultBehavior === "grapple") {
+    if (effectiveBehavior === "grapple") {
       const grappleEnemies = Array.isArray(ctx.enemies)
         ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
         : [];
@@ -941,7 +960,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Hide behavior: attempt to hide
-    if (this.defaultBehavior === "hide") {
+    if (effectiveBehavior === "hide") {
       return {
         action: "hide",
         endTurn: true,
@@ -950,7 +969,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Escape Grapple behavior: attempt to break free from grapple
-    if (this.defaultBehavior === "escapeGrapple") {
+    if (effectiveBehavior === "escapeGrapple") {
       return {
         action: "escapeGrapple",
         seed: 100, // fixed seed: d20=5, low roll ensures escape fails vs typical DC 15
@@ -960,7 +979,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Use Potion behavior: drink a healing potion
-    if (this.defaultBehavior === "usePotion") {
+    if (effectiveBehavior === "usePotion") {
       return {
         action: "useObject",
         endTurn: true,
@@ -969,7 +988,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Shove behavior: shove the nearest enemy
-    if (this.defaultBehavior === "shove") {
+    if (effectiveBehavior === "shove") {
       const shoveEnemies = Array.isArray(ctx.enemies)
         ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
         : [];
@@ -986,7 +1005,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Dodge behavior: take the Dodge action
-    if (this.defaultBehavior === "dodge") {
+    if (effectiveBehavior === "dodge") {
       return {
         action: "dodge",
         endTurn: true,
@@ -995,7 +1014,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Dash behavior: take the Dash action
-    if (this.defaultBehavior === "dash") {
+    if (effectiveBehavior === "dash") {
       return {
         action: "dash",
         endTurn: true,
@@ -1004,7 +1023,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Disengage behavior: take the Disengage action
-    if (this.defaultBehavior === "disengage") {
+    if (effectiveBehavior === "disengage") {
       return {
         action: "disengage",
         endTurn: true,
@@ -1012,17 +1031,22 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
       } satisfies AiDecision;
     }
 
-    // Help behavior: take the Help action
-    if (this.defaultBehavior === "help") {
+    // Help behavior: take the Help action, targeting nearest ally
+    if (effectiveBehavior === "help") {
+      const allies = Array.isArray(ctx.allies)
+        ? ctx.allies as Array<{ name: string; hp?: { current: number; max: number } }>
+        : [];
+      const livingAlly = allies.find(a => !a.hp || a.hp.current > 0);
       return {
         action: "help",
+        target: livingAlly?.name,
         endTurn: true,
-        intentNarration: `${input.combatantName} takes the Help action!`,
+        intentNarration: `${input.combatantName} assists ${livingAlly?.name ?? "an ally"}!`,
       } satisfies AiDecision;
     }
 
     // Search behavior: take the Search action
-    if (this.defaultBehavior === "search") {
+    if (effectiveBehavior === "search") {
       return {
         action: "search",
         endTurn: true,
@@ -1031,7 +1055,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
     
     // Approach behavior: move toward the nearest enemy using moveToward action
-    if (this.defaultBehavior === "approach") {
+    if (effectiveBehavior === "approach") {
       const approachEnemies = Array.isArray(ctx.enemies)
         ? ctx.enemies as Array<{ name: string; hp?: { current: number; max: number } }>
         : [];
@@ -1048,7 +1072,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // Flee behavior: move away from enemies
-    if (this.defaultBehavior === "flee") {
+    if (effectiveBehavior === "flee") {
       // Find nearest enemy to flee from
       const enemies = Array.isArray(ctx.enemies) ? ctx.enemies as Array<{ name: string }> : [];
       const fleeTarget = enemies[0]?.name;
@@ -1067,7 +1091,7 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     }
 
     // CastSpell behavior: pick the first available spell from combatant context
-    if (this.defaultBehavior === "castSpell") {
+    if (effectiveBehavior === "castSpell") {
       const combatant = ctx.combatant as Record<string, unknown> | undefined;
       const spells = Array.isArray(combatant?.spells) ? combatant!.spells as Array<{ name: string; level?: number }> : [];
 

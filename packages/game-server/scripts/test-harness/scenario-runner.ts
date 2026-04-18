@@ -16,6 +16,9 @@ const __dirname = dirname(__filename);
 // Types
 // ============================================================================
 
+/** AI behavior options for the mock decision maker */
+export type AiBehavior = "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion" | "help";
+
 export interface TestScenario {
   name: string;
   description?: string;
@@ -50,8 +53,10 @@ export interface ScenarioSetup {
   }>;
   /** Configure mock AI behavior */
   aiConfig?: {
-    defaultBehavior?: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion";
+    defaultBehavior?: AiBehavior;
     defaultBonusAction?: string;
+    /** Per-monster behavior overrides by name */
+    monsterBehaviors?: Record<string, AiBehavior>;
   };
   /** Pre-placed ground items on the battlefield at combat start */
   groundItems?: Array<{
@@ -263,8 +268,9 @@ interface WaitForReactionAction {
 interface ConfigureAiAction {
   type: "configureAi";
   input: {
-    defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion";
+    defaultBehavior: AiBehavior;
     defaultBonusAction?: string;
+    monsterBehaviors?: Record<string, AiBehavior>;
   };
   comment?: string;
 }
@@ -583,7 +589,7 @@ function displayCombatEvents(
 
 export interface RunScenarioCallbacks {
   /** Configure the mock AI decision maker */
-  configureAi?: (config: { defaultBehavior: "attack" | "endTurn" | "flee" | "castSpell" | "approach" | "grapple" | "escapeGrapple" | "hide" | "usePotion"; defaultBonusAction?: string }) => void;
+  configureAi?: (config: { defaultBehavior: AiBehavior; defaultBonusAction?: string; monsterBehaviors?: Record<string, AiBehavior> }) => void;
 }
 
 export async function runScenario(
@@ -628,6 +634,7 @@ export async function runScenario(
     callbacks.configureAi({
       defaultBehavior: scenario.setup.aiConfig.defaultBehavior ?? "attack",
       defaultBonusAction: scenario.setup.aiConfig.defaultBonusAction,
+      monsterBehaviors: scenario.setup.aiConfig.monsterBehaviors,
     });
   }
 
@@ -2337,8 +2344,9 @@ export async function runScenario(
             callbacks.configureAi({
               defaultBehavior: configAction.input.defaultBehavior,
               defaultBonusAction: configAction.input.defaultBonusAction,
+              monsterBehaviors: configAction.input.monsterBehaviors,
             });
-            log(`${colors.green}✓${colors.reset} AI configured to: ${configAction.input.defaultBehavior}${configAction.input.defaultBonusAction ? ` + bonus: ${configAction.input.defaultBonusAction}` : ""}`);
+            log(`${colors.green}✓${colors.reset} AI configured to: ${configAction.input.defaultBehavior}${configAction.input.defaultBonusAction ? ` + bonus: ${configAction.input.defaultBonusAction}` : ""}${configAction.input.monsterBehaviors ? ` + per-monster: ${JSON.stringify(configAction.input.monsterBehaviors)}` : ""}`);
           } else {
             log(`${colors.yellow}⚠${colors.reset} AI configuration not available (no callback provided)`);
           }
