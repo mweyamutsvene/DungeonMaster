@@ -984,7 +984,10 @@ export class RollStateMachine {
       }
     }
 
-    // Append active effect damage bonuses (Rage, Hex, etc.) to displayed formula
+    // Append FLAT active effect damage bonuses (Rage +2, etc.) to displayed formula.
+    // Dice-based bonuses (Hex 1d6, Hunter's Mark 1d6) are NOT shown in the formula —
+    // the server rolls them automatically in the damage-resolver to avoid double-counting
+    // (player would otherwise include dice in their roll AND server adds them again).
     {
       const attackerEffects = getActiveEffects(actorCombatantForEnhancements?.resources ?? {});
       const isMelee = action.weaponSpec?.kind === "melee";
@@ -998,13 +1001,11 @@ export class RollStateMachine {
       );
       for (const eff of dmgEffects) {
         const label = eff.source ?? "effect";
+        // Only include flat value bonuses in the displayed formula.
+        // Dice bonuses are rolled server-side in damage-resolver.
         if (eff.value && eff.value > 0) {
           const sign = eff.type === 'penalty' ? '-' : '+';
           baseDamageFormula += `${sign}${eff.value}[${label}]`;
-        }
-        if (eff.diceValue) {
-          const sign = eff.type === 'penalty' ? '-' : '+';
-          baseDamageFormula += `${sign}${eff.diceValue.count}d${eff.diceValue.sides}[${label}]`;
         }
       }
     }

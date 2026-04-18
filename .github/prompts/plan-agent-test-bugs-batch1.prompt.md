@@ -52,15 +52,11 @@ Fix all bugs discovered during agent test player runs (solo-fighter, solo-barbar
 
 ---
 
-### B2: OA Pending Action 404 (CRITICAL)
-**Root cause**: When a move triggers OA reactions, `MoveReactionHandler.initiate()` creates a pending action. The reaction route auto-completes the move when all reactions are resolved (reactions.ts line ~400). This calls `completeMove()` which deletes the pending action. BUT the CLI then also tries to call `/combat/move/complete` with the same `pendingActionId`, getting a 404 because the action was already consumed.
+### B2: OA Pending Action 404 (CRITICAL) — ✅ ALREADY FIXED
+**Status**: `tabletop-combat-service.ts` at lines 335-343 already has graceful handling. When `completeMove()` is called but the pending action was already consumed by the reaction route, it returns success instead of throwing 404.
 
-**Fix**: The reaction route auto-completion for moves already handles this (reactions.ts line ~400-430). The issue is that the CLI doesn't know the move was already completed. The server should return a response indicating the move was completed as part of the reaction resolution, OR the `completeMove` endpoint should gracefully handle already-completed pending actions instead of throwing 404.
-
-#### Files to fix:
-- [ ] `application/services/combat/two-phase/move-reaction-handler.ts` — `complete()` should gracefully handle already-deleted pending actions
-- [ ] `application/services/combat/tabletop-combat-service.ts` — `completeMove()` should handle 404 gracefully
-- [ ] `infrastructure/api/routes/sessions/session-tabletop.ts` — move/complete route should return success if move was already completed
+#### Files verified:
+- [x] `application/services/combat/tabletop-combat-service.ts` — Graceful 404 handling in completeMove()
 
 ---
 
@@ -103,13 +99,12 @@ Fix all bugs discovered during agent test player runs (solo-fighter, solo-barbar
 
 ---
 
-### B6: Concentration Save Not Triggered on Damage (HIGH)
-**Root cause**: The `handleConcentrationCheck()` in `damage-resolver.ts` is already implemented. The issue may be that concentration tracking isn't set up for the warlock's Hex spell, or the method isn't called in all damage paths (e.g., AI attack damage applied via `attack-action-handler.ts`).
+### B6: Concentration Save Not Triggered on Damage (HIGH) — ✅ ALREADY FIXED
+**Status**: `attack-action-handler.ts` at line 378 already runs concentration checks unconditionally (not gated on `this.events`). The concentration check fires for both player and AI damage paths via `handleConcentrationCheck()` in damage-resolver and the direct concentration check in attack-action-handler.
 
-#### Files to investigate & fix:
-- [ ] `application/services/combat/tabletop/rolls/damage-resolver.ts` — Verify `handleConcentrationCheck()` is called after damage
-- [ ] `application/services/combat/action-handlers/attack-action-handler.ts` — Verify concentration check happens for AI-applied damage
-- [ ] `application/services/combat/helpers/resource-utils.ts` — Verify concentration state is read correctly
+#### Files verified:
+- [x] `application/services/combat/action-handlers/attack-action-handler.ts` — Unconditional concentration check at line 378
+- [x] `application/services/combat/tabletop/rolls/damage-resolver.ts` — `handleConcentrationCheck()` called after damage
 
 ---
 
@@ -130,19 +125,25 @@ Fix all bugs discovered during agent test player runs (solo-fighter, solo-barbar
 
 ---
 
-### B9: Hex Damage Formula Display Wrong (MEDIUM)
-**Root cause**: When the player enters a combined damage roll (e.g., "14" for 1d10 + 1d6[hex]), the server displays `14 + 0 = 20` because it adds hex bonus dice on top of the player-supplied total. The server is double-counting — the player already included hex in their number, AND the server adds hex programmatically.
+### B9: Hex Damage Formula Display Wrong (MEDIUM) — ✅ FIXED
+**Root cause**: The damage formula displayed to the player (in roll-state-machine.ts) included dice-based effect bonuses like `+1d6[hex]`, causing the player to include hex dice in their roll total. The damage-resolver then added hex dice again server-side, double-counting the damage.
 
-#### Files to fix:
-- [ ] `application/services/combat/tabletop/rolls/damage-resolver.ts` — When on-hit bonus dice (hex, hunter's mark) are present, the prompt should either: (a) only ask for base dice and add bonus programmatically, or (b) clearly indicate the player should include all dice and NOT add bonus programmatically
+**Fix applied**: 
+1. `roll-state-machine.ts` — Removed dice-based effects from the displayed formula. Only flat bonuses (Rage +2) appear in the formula. Dice bonuses (Hex 1d6, Hunter's Mark 1d6) are rolled server-side only.
+2. `damage-resolver.ts` — Added `effectBonusSuffix` to all 6 damage message templates showing server-rolled dice contributions (e.g., "8 + 0 + 6[hex] = 14 damage").
+3. Formula before: `1d10+1d6[hex]` → after: `1d10`. Message before: `8 + 0 = 12` → after: `8 + 0 + 6[hex] = 14`.
+
+#### Files fixed:
+- [x] `application/services/combat/tabletop/roll-state-machine.ts` — Only append flat value bonuses to displayed formula
+- [x] `application/services/combat/tabletop/rolls/damage-resolver.ts` — Track effectBonusSuffix, show in all damage messages
 
 ---
 
-### B10: Multi-Beam Continues After Target Dies (LOW)
-**Root cause**: Spell-strike chaining in `roll-state-machine.ts` chains to the next beam unconditionally. It should check if the target is dead and either skip remaining beams or allow retargeting.
+### B10: Multi-Beam Continues After Target Dies (LOW) — ✅ ALREADY FIXED
+**Status**: Already has the `hpAfter > 0` guard in `damage-resolver.ts` (line ~431). When the target dies from a beam, remaining beams are lost. A TODO exists for future mid-spell retargeting (Eldritch Blast RAW allows different targets per beam).
 
-#### Files to fix:
-- [ ] `application/services/combat/tabletop/roll-state-machine.ts` — Check target HP before chaining next spell strike; skip if dead
+#### Files verified:
+- [x] `application/services/combat/tabletop/rolls/damage-resolver.ts` — `hpAfter > 0` guard prevents chaining to dead targets
 
 ---
 

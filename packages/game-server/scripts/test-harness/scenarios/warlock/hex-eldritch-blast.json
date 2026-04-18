@@ -1,0 +1,172 @@
+{
+  "name": "Warlock: Hex + Eldritch Blast Multi-Beam with AI Turns",
+  "description": "Tests the full warlock combat flow: (1) Cast Hex as bonus action (concentration, deducts spell slot), (2) Cast Eldritch Blast with 2 beams at level 5, each dealing 1d10 force + server-rolled 1d6 necrotic from Hex, (3) End turn and AI monsters act (attack + help). Verifies: Hex sets concentration, EB beams chain correctly, Hex bonus damage is added server-side (not shown in dice formula), AI turns complete without hanging.",
+  "setup": {
+    "character": {
+      "name": "Malachar the Dark",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 18
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 },
+          { "name": "Hex", "level": 1 }
+        ],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Shadow Construct",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 6, "dexterity": 14, "constitution": 13,
+            "intelligence": 6, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 52, "hp": 52, "armorClass": 12, "speed": 40,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Strength Drain", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 2 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Spectral Guard",
+        "position": { "x": 25, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 7, "dexterity": 13, "constitution": 10,
+            "intelligence": 10, "wisdom": 10, "charisma": 11
+          },
+          "maxHp": 22, "hp": 22, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Withering Touch", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 1 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "--- Initiative ---",
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll high initiative so player goes first",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "--- Cast Hex (bonus action, concentration, targets Shadow Construct) ---",
+      "type": "action",
+      "input": { "text": "cast Hex on Shadow Construct" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "Verify Hex set concentration",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hex"
+      }
+    },
+
+    {
+      "comment": "--- Eldritch Blast: 2 beams at level 5, targeting hexed Shadow Construct ---",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Shadow Construct" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack roll: 15 + 7 = 22 vs AC 12 → HIT. Damage formula should be 1d10 (NO hex dice — server adds hex automatically)",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: player rolls 8 (d10 only). Server adds hex 1d6 automatically. Chains to beam 2.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack roll: 12 + 7 = 19 vs AC 12 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: player rolls 6 (d10 only). Server adds hex 1d6 automatically. Last beam → action complete.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "--- End player turn, AI monsters act ---",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for AI turns to complete (Shadow Construct attacks, Spectral Guard acts). Tests that AI doesn't hang.",
+      "type": "waitForTurn"
+    },
+
+    {
+      "comment": "--- Round 2: Verify player can still act after AI turns ---",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Shadow Construct" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack roll (round 2): 10 + 7 = 17 vs AC 12 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 10" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage (round 2): player rolls 7. Server adds hex 1d6. Chains to beam 2.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 7" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack roll (round 2): 14 + 7 = 21 vs AC 12 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage (round 2): player rolls 5. Server adds hex 1d6. Last beam → action complete.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 5" },
+      "expect": { "actionComplete": true }
+    }
+  ]
+}

@@ -133,9 +133,13 @@ export class DamageResolver {
     let totalDamage = rollValue + damageModifier;
 
     // ── ActiveEffect: extra damage (flat + dice) ──
-    // Includes Rage melee damage bonus, Hunter's Mark, etc.
+    // Both flat bonuses (Rage +2) and dice bonuses (Hex 1d6) are added server-side.
+    // The displayed damage formula only includes flat bonuses for informational purposes —
+    // dice bonuses are intentionally omitted from the formula to avoid double-counting
+    // (the player types raw dice results; the server adds all bonuses automatically).
     const actorCombatant = findCombatantByEntityId(combatants, action.actorId);
     const actorRes = actorCombatant?.resources ?? {} as Record<string, unknown>;
+    let effectBonusSuffix = ""; // human-readable suffix for damage messages (e.g., " + 4[hex]")
     {
       const attackerEffects = getActiveEffects(actorCombatant?.resources ?? {});
       const targetId = action.targetId;
@@ -152,21 +156,32 @@ export class DamageResolver {
       );
       let effectFlatDmg = 0;
       let effectDiceDmg = 0;
+      const effectDiceLabels: string[] = [];
       for (const eff of dmgEffects) {
+        // Flat bonuses/penalties
         if (eff.type === 'bonus') effectFlatDmg += eff.value ?? 0;
         if (eff.type === 'penalty') effectFlatDmg -= eff.value ?? 0;
+        // Dice bonuses (Hex 1d6, Hunter's Mark 1d6) — rolled server-side
         if (eff.diceValue && this.deps.diceRoller) {
           const sign = eff.type === 'penalty' ? -1 : 1;
+          const label = eff.source ?? "effect";
           const count = Math.abs(eff.diceValue.count);
+          let diceTotal = 0;
           for (let i = 0; i < count; i++) {
-            effectDiceDmg += sign * this.deps.diceRoller.rollDie(eff.diceValue.sides).total;
+            diceTotal += this.deps.diceRoller.rollDie(eff.diceValue.sides).total;
           }
+          effectDiceDmg += sign * diceTotal;
+          effectDiceLabels.push(`${sign > 0 ? "+" : "-"} ${Math.abs(sign * diceTotal)}[${label}]`);
         }
       }
       const effectDmgTotal = effectFlatDmg + effectDiceDmg;
       if (effectDmgTotal !== 0) {
         totalDamage = Math.max(0, totalDamage + effectDmgTotal);
         if (this.debugLogsEnabled) console.log(`[DamageResolver] ActiveEffect damage bonus: +${effectFlatDmg} flat, +${effectDiceDmg} dice (total now ${totalDamage})`);
+      }
+      // Build human-readable suffix showing dice contributions in damage messages
+      if (effectDiceLabels.length > 0) {
+        effectBonusSuffix = ` ${effectDiceLabels.join(" ")}`;
       }
     }
 
@@ -419,7 +434,7 @@ export class DamageResolver {
         requiresPlayerInput: true,
         type: "REQUEST_ROLL",
         diceNeeded: followUpDice,
-        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
+        message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
         ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
         ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       };
@@ -460,7 +475,7 @@ export class DamageResolver {
           requiresPlayerInput: true,
           type: "REQUEST_ROLL",
           diceNeeded: followUpDice,
-          message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
+          message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
         };
       }
       // Target dead — remaining beams are lost (D&D 5e: can't target dead creature)
@@ -582,7 +597,7 @@ export class DamageResolver {
             type: "REQUEST_ROLL",
             diceNeeded: followUpDice,
             nextRollType: "attack",
-            message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
+            message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };
@@ -602,7 +617,7 @@ export class DamageResolver {
             targetHpRemaining: hpAfter,
             actionComplete: false,
             requiresPlayerInput: false,
-            message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Target defeated! You have ${remaining} attack(s) remaining.`,
+            message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Target defeated! You have ${remaining} attack(s) remaining.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };
@@ -635,8 +650,8 @@ export class DamageResolver {
       actionComplete: true,
       requiresPlayerInput: false,
       message: combatEnded
-        ? `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}. ${victoryStatus}!${masterySuffix}${enhancementSuffix}`
-        : `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}${masterySuffix}${enhancementSuffix}`,
+        ? `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}. ${victoryStatus}!${masterySuffix}${enhancementSuffix}`
+        : `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}${masterySuffix}${enhancementSuffix}`,
       narration,
       combatEnded,
       victoryStatus,
