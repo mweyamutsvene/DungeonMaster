@@ -80,7 +80,7 @@ classDiagram
 | Type | File | Purpose |
 |------|------|---------|
 | `IAiDecisionMaker` | `ai/ai-types.ts` | Port for LLM-based tactical decisions |
-| `IAiBattlePlanner` | `ai/battle-plan-types.ts` | Port for faction-level battle planning |
+| `IAiBattlePlanner` | `ai/battle-plan-service.ts` | Port for faction-level battle planning |
 | `AiDecision` | `ai/ai-types.ts` | Structured decision with `action` union type |
 | `AiCombatContext` | `ai/ai-types.ts` | Rich tactical context passed to LLM |
 | `AiActionHandler` | `ai/ai-action-handler.ts` | Strategy interface for action execution |
@@ -119,7 +119,7 @@ interface AiActionHandler {
 }
 ```
 
-### Registered handlers (14 total, in `ai/handlers/`)
+### Registered handlers (15 total, in `ai/handlers/`)
 
 | Handler | File | `handles()` values | Purpose |
 |---------|------|-------------------|---------|
@@ -128,6 +128,7 @@ interface AiActionHandler {
 | `MoveTowardHandler` | `move-toward-handler.ts` | `moveToward` | A* pathfind toward named target to `desiredRange` |
 | `MoveAwayFromHandler` | `move-away-from-handler.ts` | `moveAwayFrom` | Dijkstra flood-fill retreat via `findRetreatPosition()` |
 | `BasicActionHandler` | `basic-action-handler.ts` | `disengage`, `dash`, `dodge` | Delegates to `actionService` methods |
+| `UseFeatureHandler` | `use-feature-handler.ts` | `useFeature` | Executes class abilities and features |
 | `HelpHandler` | `help-handler.ts` | `help` | Help action on named target |
 | `CastSpellHandler` | `cast-spell-handler.ts` | `castSpell` | Spell slot validation + `actionService.castSpell()` |
 | `ShoveHandler` | `shove-handler.ts` | `shove` | Shove attack on named target |

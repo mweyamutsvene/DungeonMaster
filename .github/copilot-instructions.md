@@ -6,7 +6,7 @@
 - Clean code architecture is a must. If you find yourself writing code that is tightly coupled, or has side effects that impact other parts of the system, stop and refactor to decouple and isolate functionality.
 - If a class is growing too large, or taking on too many responsibilities, break it up into smaller, focused classes or services. Each class should have a single responsibility and a clear interface.
 - Always look for opportunities to abstract and generalize code. If you find yourself writing similar code in multiple places, consider creating a reusable function or service that can be shared across the codebase.
-
+- Always pick the best option, even if it is more risky or takes more time where you have to rewrite tests.  Tests should be rewritten to fit the new code, and if they break, that is a sign that the new code is better and more accurate. Do not be afraid to break tests — they are meant to be broken and rewritten as the code evolves.
 # running commands
 - pnpm -C packages/game-server dev
 - pnpm -C packages/player-cli dev

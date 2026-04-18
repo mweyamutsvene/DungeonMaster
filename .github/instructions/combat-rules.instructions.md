@@ -102,16 +102,15 @@ classDiagram
     Rest ..> ClassDefinition : refreshPolicy
 ```
 
-## Dual Movement Files
+## Movement File
 
-Two `movement.ts` files serve distinct purposes — do NOT mix them up:
+`rules/movement.ts` is the single movement module — `combat/movement.ts` was deleted and consolidated here (CR-M10).
 
 | File | Layer | Key Types | Purpose |
 |------|-------|-----------|---------|
-| `rules/movement.ts` | Pure math | `Position{x,y}`, `MovementAttempt`, `MovementResult` | Grid math: `calculateDistance()`, `snapToGrid()`, `isWithinRange()`, jump calculations (`calculateLongJumpDistance`, `calculateHighJumpDistance`, `computeJumpLandingPosition`), `getPositionsInRadius()` |
-| `combat/movement.ts` | Stateful helper | `MovementState{position, movementUsed, movementAvailable, jumpDistanceMultiplier, difficultTerrain}` | Turn-scoped movement tracking: `moveToPosition()`, `pushAwayFrom()`, `pullToward()`, `resetMovement()`, `createMovementState()` |
+| `rules/movement.ts` | Pure math + state | `Position{x,y}`, `MovementAttempt`, `MovementResult`, `MovementState` | Grid math: `calculateDistance()`, `snapToGrid()`, `isWithinRange()`, `getPositionsInRadius()`, jump calculations (`calculateLongJumpDistance`, `calculateHighJumpDistance`, `computeJumpLandingPosition`); turn-scoped state: `createMovementState()`, `applyForcedMovement()` |
 
-**Rule**: `rules/movement.ts` is purely geometric — it knows nothing about turns or budget tracking. `combat/movement.ts` tracks how much movement a creature has spent this turn and handles forced movement (push/pull). Pathfinding (`rules/pathfinding.ts`) imports `Position` and `snapToGrid` from `rules/movement.ts`.
+**Rule**: `rules/movement.ts` handles both geometric calculations and turn-scoped movement state. Forced movement (push/pull) uses `applyForcedMovement(origin, direction, distanceFeet, map?)`. Pathfinding (`rules/pathfinding.ts`) imports `Position` and `snapToGrid` from `rules/movement.ts`.
 
 ## Dual Attack Resolution
 

@@ -24,10 +24,19 @@ Manages the two-phase reaction resolution pipeline: server detects a reaction tr
 
 ## Key Types/Interfaces
 
-- `TwoPhaseActionService` — facade with `initiateMoveReaction()`, `initiateAttackReaction()`, `initiateSpellReaction()`, `initiateDamageReaction()`, `resolveReaction()`
-- `PendingAction` — discriminated union: `move_reaction`, `attack_reaction`, `spell_reaction`, `damage_reaction`
-- `detectOpportunityAttacks(movement, combatants, map)` — returns eligible OA sources
+- `TwoPhaseActionService` — facade with paired initiate/complete methods: `initiateMove()` / `completeMove()`, `initiateAttack()` / `completeAttack()`, `initiateSpellCast()` / `completeSpellCast()`, `initiateDamageReaction()` / `completeDamageReaction()`
+- `PendingActionType` — `"move" | "spell_cast" | "attack" | "damage_reaction" | "lucky_reroll" | "ability_check"`
+- `ReactionType` — `"opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection"`
+- `PendingAction` — core interface with `id`, `encounterId`, `actor`, `type`, `data`, `reactionOpportunities`, `resolvedReactions`, `expiresAt`
+- `DetectOpportunityAttacksInput` — single input object passed to `detectOpportunityAttacks(input: DetectOpportunityAttacksInput)`; NOT positional args
 - `PendingActionStateMachine` — validates state transitions (e.g., `reaction_pending` → `reaction_resolved`)
+
+### Dual Pending Action Systems (CO-L7)
+There are TWO parallel pending action systems that do NOT conflict:
+1. **Encounter-level `pendingAction` field** — singleton JSON blob; used by the tabletop dice flow (RollStateMachine) for ATTACK/DAMAGE/INITIATIVE rolls
+2. **PendingActionRepository** — multi-record store; used by TwoPhaseActionService for reaction opportunities
+
+The only synchronization point: when encounter `pendingAction = "reaction_pending"`, the tabletop flow is paused waiting for reactions from PendingActionRepository.
 
 ## Known Gotchas
 

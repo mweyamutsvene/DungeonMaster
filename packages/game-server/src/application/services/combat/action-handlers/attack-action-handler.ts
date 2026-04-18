@@ -372,32 +372,36 @@ export class AttackActionHandler {
             hpCurrent: newHp,
           },
         });
+      }
+    }
 
-        // Check concentration if target is concentrating
-        const concentrationSpellName = getConcentrationSpellName(updatedTarget.resources);
-        if (concentrationSpellName) {
-          // CON saving throw modifier (ability mod + proficiency if proficient)
-          const conSaveMod = computeConSaveModifier(
-            targetAbilityScores.constitution,
-            targetStats.proficiencyBonus,
-            // saveProficiencies not available via CombatantCombatStats yet;
-            // fall back to just ability modifier + 0 proficiency override
+    // Concentration check runs unconditionally (not gated on this.events)
+    if ((result as any).hit && (result as any).damage?.applied > 0) {
+      const concentrationSpellName = getConcentrationSpellName(updatedTarget.resources);
+      if (concentrationSpellName) {
+        // CON saving throw modifier (ability mod + proficiency if proficient)
+        const conSaveMod = computeConSaveModifier(
+          targetAbilityScores.constitution,
+          targetStats.proficiencyBonus,
+          // saveProficiencies not available via CombatantCombatStats yet;
+          // fall back to just ability modifier + 0 proficiency override
+        );
+
+        const appliedDamage = (result as any).damage.applied as number;
+        const checkResult = concentrationCheckOnDamage(
+          new SeededDiceRoller(seed + 1000),
+          appliedDamage,
+          conSaveMod,
+        );
+
+        if (!checkResult.maintained) {
+          await breakConcentration(
+            updatedTarget, encounter.id, this.combat,
           );
+        }
 
-          const appliedDamage = (result as any).damage.applied as number;
-          const checkResult = concentrationCheckOnDamage(
-            new SeededDiceRoller(seed + 1000),
-            appliedDamage,
-            conSaveMod,
-          );
-
-          if (!checkResult.maintained) {
-            await breakConcentration(
-              updatedTarget, encounter.id, this.combat,
-            );
-          }
-
-          // Emit event
+        // Emit concentration event if events are configured
+        if (this.events) {
           const eventType = checkResult.maintained
             ? "ConcentrationMaintained"
             : "ConcentrationBroken";
@@ -415,7 +419,9 @@ export class AttackActionHandler {
           });
         }
       }
+    }
 
+    if (this.events) {
       // Generate narrative text if a narrative generator is configured
       if (this.narrativeGenerator) {
         try {

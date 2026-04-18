@@ -99,10 +99,10 @@ classDiagram
 | Module | Responsibility | Lines | Owner |
 |--------|---------------|-------|-------|
 | **Tabletop subsystem** | | | |
-| `tabletop-combat-service.ts` | Thin facade, 4 public methods | ~435 | — |
-| `tabletop/action-dispatcher.ts` | Parser chain facade, delegates to handler classes | ~515 | — |
-| `tabletop/dispatch/movement-handlers.ts` | Move, moveToward, jump dispatch handlers | ~613 | ActionDispatcher |
-| `tabletop/dispatch/attack-handlers.ts` | Attack, offhand, TWF dispatch handlers | ~718 | ActionDispatcher |
+| `tabletop-combat-service.ts` | Thin facade, 4 public methods | ~517 | — |
+| `tabletop/action-dispatcher.ts` | Parser chain facade, delegates to handler classes | ~632 | — |
+| `tabletop/dispatch/movement-handlers.ts` | Move, moveToward, jump dispatch handlers | ~650 | ActionDispatcher |
+| `tabletop/dispatch/attack-handlers.ts` | Attack, offhand, TWF dispatch handlers | ~790 | ActionDispatcher |
 | `tabletop/dispatch/class-ability-handlers.ts` | Class ability + bonus action dispatch handlers | ~487 | ActionDispatcher |
 | `tabletop/dispatch/interaction-handlers.ts` | Pickup, drop, draw, sheathe, use-item handlers | ~567 | ActionDispatcher |
 | `tabletop/dispatch/grapple-handlers.ts` | Shove, grapple, escape-grapple handlers | ~123 | ActionDispatcher |
@@ -112,8 +112,9 @@ classDiagram
 | `tabletop/rolls/hit-rider-resolver.ts` | Post-damage enhancement effects | ~148 | RollStateMachine |
 | `tabletop/rolls/weapon-mastery-resolver.ts` | Weapon mastery effect resolution | ~308 | RollStateMachine |
 | `tabletop/combat-text-parser.ts` | 20+ pure text parsing functions | ~616 | Multiple |
-| `tabletop/rolls/saving-throw-resolver.ts` | Save-based effect resolution | ~337 | Multiple |
-| `tabletop/spell-action-handler.ts` | Spell delivery facade (dispatches to `spell-delivery/`) | ~157 | ActionDispatcher |
+| `tabletop/rolls/saving-throw-resolver.ts` | Save-based effect resolution | ~500 | Multiple |
+| `tabletop/rolls/damage-resolver.ts` | Damage roll resolution + Extra Attack auto-chaining | ~650 | RollStateMachine |
+| `tabletop/spell-action-handler.ts` | Spell delivery facade (dispatches to `spell-delivery/`) | ~450 | ActionDispatcher |
 | `tabletop/tabletop-types.ts` | All shared types/interfaces | ~418 | Multiple |
 | `tabletop/tabletop-event-emitter.ts` | Narration + event helpers | ~250 | Multiple |
 | `tabletop/action-parser-chain.ts` | Parser chain types | ~44 | ActionDispatcher |
@@ -133,10 +134,11 @@ classDiagram
 | `action-handlers/grapple-action-handler.ts` | Programmatic grapple/shove resolution | ~479 | ActionService |
 | `action-handlers/skill-action-handler.ts` | Programmatic hide/search/help | ~247 | ActionService |
 | **TwoPhaseAction subsystem** | | | |
-| `two-phase-action-service.ts` | Reaction resolution facade | ~422 | — |
-| `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~485 | TwoPhaseActionService |
-| `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect) + damage reactions | ~598 | TwoPhaseActionService |
-| `two-phase/spell-reaction-handler.ts` | Spell reactions (counterspell) | ~299 | TwoPhaseActionService |
+| `two-phase-action-service.ts` | Reaction resolution facade | ~225 | — |
+| `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~600 | TwoPhaseActionService |
+| `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect Attacks, Protection, Interception) | ~840 | TwoPhaseActionService |
+| `two-phase/spell-reaction-handler.ts` | Spell reactions (Counterspell, Silvery Barbs) | ~380 | TwoPhaseActionService |
+| `two-phase/damage-reaction-handler.ts` | Damage reactions (Absorb Elements, Hellish Rebuke, Uncanny Dodge) | ~297 | TwoPhaseActionService |
 | **Combat lifecycle** | | | |
 | `combat-service.ts` | Turn advancement, combat lifecycle, zone/effect processing | ~1083 | — |
 | `tactical-view-service.ts` | Tactical view assembly, OA prediction, query context | ~547 | — |
@@ -155,7 +157,7 @@ classDiagram
 
 ## ActionDispatcher Parser Chain
 
-`ActionDispatcher.dispatch()` uses a **registry-based parser chain** — an ordered array of 19 `ActionParserEntry<T>` objects. The dispatcher iterates in priority order; the first parser whose `tryParse()` returns non-null wins.
+`ActionDispatcher.dispatch()` uses a **registry-based parser chain** — an ordered array of 21 `ActionParserEntry<T>` objects. The dispatcher iterates in priority order; the first parser whose `tryParse()` returns non-null wins.
 
 ### Adding a new action type
 1. Add a `tryParseXxxText()` function in `combat-text-parser.ts` (pure, no deps)
@@ -163,7 +165,7 @@ classDiagram
 3. Implement the handler in the appropriate handler class (movement → `MovementHandlers`, combat → `AttackHandlers`, etc.)
 
 ### Parser chain order (priority)
-1. move → 2. moveToward → 3. jump → 4. simpleAction → 5. classAction → 6. hide → 7. search → 8. offhand → 9. help → 10. shove → 11. escapeGrapple → 12. grapple → 13. castSpell → 14. pickup → 15. drop → 16. drawWeapon → 17. sheatheWeapon → 18. useItem → 19. attack
+1. move → 2. moveToward → 3. jump → 4. simpleAction → 5. classAction → 6. hide → 7. search → 8. offhand → 9. help → 10. shove → 11. escapeGrapple → 12. grapple → 13. castSpell → 14. pickup → 15. drop → 16. drawWeapon → 17. sheatheWeapon → 18. useItem → 19. legendaryAction → 20. endTurn → 21. attack
 
 ## Handler Ownership Rules
 

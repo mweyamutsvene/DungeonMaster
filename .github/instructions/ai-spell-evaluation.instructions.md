@@ -12,24 +12,26 @@ Deterministic AI spell decision-making: evaluates which spell to cast and when, 
 
 | File | ~Lines | Responsibility |
 |------|--------|----------------|
-| `combat/ai/deterministic-ai.ts` | ~500 | Core AI decision engine: `evaluateSpellAction()`, `computeSpellValue()` |
-| `combat/ai/ai-spell-evaluator.ts` | ~300 | Dedicated spell evaluation: damage estimation, heal priority, AoE targeting |
-| `combat/ai/handlers/cast-spell-handler.ts` | ~200 | AI spell casting execution: spend action + slot, record event |
-| `combat/ai/handlers/ai-spell-delivery.ts` | ~150 | Simplified spell resolution for AI (damage/heal without full dice flow) |
-| `combat/ai/ai-bonus-action-picker.ts` | ~150 | Bonus action spell evaluation (Healing Word, Spiritual Weapon, etc.) |
+| `combat/ai/deterministic-ai.ts` | ~500 | Core AI decision engine: calls `pickSpell()` from ai-spell-evaluator for spell decisions |
+| `combat/ai/ai-spell-evaluator.ts` | ~400 | Dedicated spell evaluation: `pickSpell()`, `estimateSpellDamage()`, `hasAvailableSlot()`, `getLowestAvailableSlotLevel()`, AoE targeting |
+| `combat/ai/handlers/cast-spell-handler.ts` | ~210 | AI spell casting execution: spend slot via `prepareSpellCast()`, then full mechanical delivery via `AiSpellDelivery` |
+| `combat/ai/handlers/ai-spell-delivery.ts` | ~200+ | Full spell resolution for AI: save-based damage (with SavingThrowResolver), healing, spell attacks, buff/debuff conditions, zone creation |
+| `combat/ai/ai-bonus-action-picker.ts` | ~220 | Bonus action spell/feature evaluation: `pickBonusAction()`, `pickFeatureAction()`, `pickHealingForDyingAlly()` |
 
 ## Key Types/Interfaces
 
-- `evaluateSpellAction(creature, spell, targets, context)` — returns a value score for casting this spell
-- `computeSpellValue(spell, targets, existingConcentration)` — raw value computation factoring in concentration tradeoff
-- `CastSpellHandler.execute(creature, spell, target, context)` — spends action + slot, records combat event
-- `AISpellDelivery.resolve(spell, caster, targets)` — simplified resolution (estimated damage/heal, no dice)
-- `evaluateBonusActionSpell(creature, spells, allies, enemies)` — picks best bonus action spell
+- `pickSpell(combatant, target, allies, name, round, ...)` in `ai-spell-evaluator.ts` — main spell selection entry point; returns a `castSpell` AiDecision or null
+- `estimateSpellDamage(spell, casterLevel)` in `ai-spell-evaluator.ts` — expected damage estimate for scoring
+- `hasAvailableSlot(resources, level)` / `getLowestAvailableSlotLevel(resources)` in `ai-spell-evaluator.ts` — slot economy checks
+- `CastSpellHandler.execute(ctx, deps)` in `cast-spell-handler.ts` — spends slot via `prepareSpellCast()`, then calls `AiSpellDelivery.deliver()` for full mechanical resolution
+- `AiSpellDelivery.deliver(sessionId, encounterId, caster, spellDef, targetCombatant, targetName, castAtLevel, casterSource)` in `ai-spell-delivery.ts` — full spell delivery with dice, saves, conditions, zones
+- `pickBonusAction(combatant, ...)` in `ai-bonus-action-picker.ts` — picks best bonus action spell or feature
+- `pickFeatureAction(combatant, ...)` in `ai-bonus-action-picker.ts` — picks class feature actions
 
 ## Known Gotchas
 
-- **AI spell casting does NOT resolve full spell mechanics** — saves, conditions, and exact damage are NOT computed. It only spends the action/slot and records the event. The TODO at line ~133-136 of `cast-spell-handler.ts` tracks this limitation. Full spell delivery only works through the player-facing tabletop dice flow.
+- **AI spell casting DOES fully resolve spell mechanics** — `AiSpellDelivery.deliver()` handles saves (via `SavingThrowResolver`), resistance/immunity/vulnerability, healing with upcast scaling, spell attack rolls, buff/debuff `ActiveEffect` application, and zone creation via `addZone()`. This is NOT a simplified estimate path.
 - **Concentration replacement evaluation** — casting a new concentration spell drops the existing one. AI must weigh whether the new spell is worth losing the current one (e.g., don't drop a strong ongoing effect for a marginally better one).
 - **AoE net value must subtract friendly fire** — `netValue = enemyDamage - allyDamage`. An AoE that hits 2 enemies and 1 ally may not be worth it.
-- **Spell slot validation is mandatory** — never spend a slot the creature doesn't have. Check remaining slots before evaluating spells at that level.
+- **Spell slot validation is mandatory** — never spend a slot the creature doesn't have. Check `hasAvailableSlot()` before evaluating spells at that level.
 - **Bonus action spells are separate economy** — if the AI casts a bonus action spell, it can still use its action for attacks or cantrips (but NOT for another leveled spell per D&D rules).

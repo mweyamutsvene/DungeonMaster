@@ -78,9 +78,9 @@ export class MoveReactionHandler {
 
     // Check if actor has movement available
     const resources = normalizeResources(actor.resources);
-    const movementSpent = readBoolean(resources, "movementSpent") ?? false;
-    if (movementSpent) {
-      throw new ValidationError("Actor has already moved this turn");
+    const movementRemainingCheck = typeof resources.movementRemaining === "number" ? resources.movementRemaining : null;
+    if (movementRemainingCheck !== null && movementRemainingCheck <= 0) {
+      throw new ValidationError("No movement remaining this turn");
     }
 
     // Get current position

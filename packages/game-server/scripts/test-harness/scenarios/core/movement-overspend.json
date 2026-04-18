@@ -102,7 +102,7 @@
       "input": { "text": "move to (45, 10)" },
       "expect": {
         "error": true,
-        "errorContains": "moved"
+        "errorContains": "movement remaining"
       }
     },
     {

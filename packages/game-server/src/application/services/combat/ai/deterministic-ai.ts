@@ -473,6 +473,15 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
         }
       }
 
+      // B12: Skip futile melee attack when creature has speed 0 and no target in reach
+      if (!ranged && speed === 0 && attackTarget.distanceFeet > meleeReach) {
+        return {
+          action: "endTurn",
+          endTurn: true,
+          intentNarration: `${input.combatantName} cannot reach any target.`,
+        };
+      }
+
       const isLastAttack = attacksMade + 1 >= attacksPerAction;
 
       // Only attach bonus action and endTurn on the final attack

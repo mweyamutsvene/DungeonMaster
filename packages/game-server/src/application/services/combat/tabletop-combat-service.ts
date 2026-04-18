@@ -333,7 +333,14 @@ export class TabletopCombatService {
   ): Promise<ActionParseResult> {
     const pendingAction = await this.deps.pendingActions.getById(pendingActionId);
     if (!pendingAction) {
-      throw new NotFoundError(`Pending action not found: ${pendingActionId}`);
+      // Pending action was already consumed by reaction auto-complete — return graceful response
+      return {
+        success: true,
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "MOVE_COMPLETE",
+        message: "Move already completed.",
+      };
     }
 
     // Check for player OAs needing rolls

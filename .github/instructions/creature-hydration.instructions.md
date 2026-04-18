@@ -29,7 +29,10 @@ Bridge between persistence (Prisma DB rows, schemaless JSON sheets) and combat m
 
 - `Creature` — interface with `getFeatIds()`, `getClassId()`, `getSubclass()`, `getLevel()`, `takeDamage()`, `heal()`
 - `buildCreatureAdapter(stats, options?)` — builds a Creature-compliant adapter from combat stats
-- `hydrateCreature(dbRow)` — converts persistence row to domain entity
+- Three hydration entry points: `hydrateCharacter(dbRow)`, `hydrateMonster(dbRow)`, `hydrateNPC(dbRow)` — one per creature type (NOT a single `hydrateCreature()`)
+- `parseCharacterSheet(json)` — in `hydration-types.ts`, parses raw JSON sheet into typed `CharacterSheet`
+- `extractActionEconomy(combatant)` in `combat-hydration.ts` — hydrates economy from persisted DB state
+- `resetTurnResources(combatant)` in `resource-utils.ts` — resets all flags for new turn start
 - `CombatantCombatStats` — resolved stats ready for combat (AC, HP, abilities, weapons, spells)
 - `EquippedItems` — tracks equipped weapon/armor/shield with AC computation
 

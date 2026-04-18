@@ -436,8 +436,21 @@ export class AttackReactionHandler {
       }
 
       const normalizedUpdated = normalizeResources(updatedResources);
+      // Add persistent +5 AC ActiveEffect (D&D 5e 2024: Shield lasts until start of caster's next turn)
+      const existingEffects = Array.isArray(normalizedUpdated.activeEffects) ? normalizedUpdated.activeEffects as unknown[] : [];
+      const shieldEffect = {
+        id: `shield-${nanoid(6)}`,
+        type: 'bonus' as const,
+        target: 'armor_class' as const,
+        value: 5,
+        source: 'Shield',
+        duration: 'until_start_of_next_turn' as const,
+        appliedAtRound: encounter.round,
+        appliedAtTurnIndex: encounter.turn,
+        casterCombatantId: target.id,
+      };
       await this.combat.updateCombatantState(target.id, {
-        resources: { ...normalizedUpdated, reactionUsed: true } as JsonValue,
+        resources: { ...normalizedUpdated, reactionUsed: true, activeEffects: [...existingEffects, shieldEffect] } as JsonValue,
       });
 
       // Emit Shield event
@@ -683,7 +696,9 @@ export class AttackReactionHandler {
               attacker: pendingAction.actor,
               target: attackData.target,
               attackName: attackData.attackName,
-              attackRoll: attackData.attackRoll,
+              attackRoll: attackData.d20Roll ?? attackData.attackRoll,
+              attackBonus: attackData.attackBonus ?? 0,
+              attackTotal: attackData.attackTotal ?? attackData.attackRoll,
               targetAC: finalAC,
               hit: true,
               critical: attackData.critical ?? false,
@@ -703,7 +718,9 @@ export class AttackReactionHandler {
             attacker: pendingAction.actor,
             target: attackData.target,
             attackName: attackData.attackName,
-            attackRoll: attackData.attackRoll,
+            attackRoll: attackData.d20Roll ?? attackData.attackRoll,
+            attackBonus: attackData.attackBonus ?? 0,
+            attackTotal: attackData.attackTotal ?? attackData.attackRoll,
             targetAC: finalAC,
             hit: false,
             critical: false,

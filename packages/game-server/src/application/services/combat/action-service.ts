@@ -125,7 +125,15 @@ export class ActionService {
       updatedResources = markDisengaged(updatedResources);
     }
     if (action === "Dash") {
-      updatedResources = { ...(updatedResources as any), dashed: true } as JsonValue;
+      const speed = getEffectiveSpeed(actorState.resources);
+      const currentRemaining = typeof actorResources.movementRemaining === "number"
+        ? actorResources.movementRemaining : speed;
+      updatedResources = {
+        ...(updatedResources as any),
+        dashed: true,
+        movementRemaining: currentRemaining + speed,
+        movementSpent: false,
+      } as JsonValue;
     }
     
     const updatedActor = await this.combat.updateCombatantState(actorState.id, {

@@ -359,6 +359,7 @@ export interface ContestResult extends AttackResult {
 
 export interface DamageResult {
   rollType: "damage" | "attack";
+  nextRollType?: "attack";
   rawRoll: number;
   modifier: number;
   total: number;

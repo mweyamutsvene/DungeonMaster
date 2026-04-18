@@ -41,6 +41,7 @@ import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery
 import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
 import { checkFlanking } from "../../../../../domain/rules/flanking.js";
+import { getWeaponThrownRange } from "../../../../../domain/entities/items/weapon-catalog.js";
 import type { CombatMap as FlankingCombatMap } from "../../../../../domain/rules/combat-map-types.js";
 
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
@@ -662,6 +663,10 @@ export class AttackHandlers {
       const longRange = parts.length >= 2 && !isNaN(parts[1]) ? parts[1] : undefined;
       return { normalRange, longRange };
     }
+    // Use weapon catalog for accurate thrown ranges (e.g., Javelin 30/120 not hardcoded 20/60)
+    const weaponName = typeof weapon.name === "string" ? weapon.name : "";
+    const catalogRange = getWeaponThrownRange(weaponName, (weapon.properties ?? []) as string[]);
+    if (catalogRange) return { normalRange: catalogRange[0], longRange: catalogRange[1] };
     const range = this.parseThrownRange((weapon.properties ?? []) as string[]);
     return range ? { normalRange: range.normal, longRange: range.long } : {};
   }

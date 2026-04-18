@@ -137,6 +137,12 @@ export interface PendingAttackData {
   target: CombatantRef;
   attackName?: string;
   attackRoll: number;
+  /** Raw d20 roll (before modifiers). Used for event display when available. */
+  d20Roll?: number;
+  /** Attack bonus (modifier added to d20). Used for event display when available. */
+  attackBonus?: number;
+  /** Full attack total (d20 + bonus). Used for event display when available. */
+  attackTotal?: number;
   /** Full attack info stored for damage resolution after Shield response */
   damageSpec?: { diceCount: number; diceSides: number; modifier: number; damageType?: string };
   /** Whether the attack was a critical hit (nat 20) */

@@ -25,12 +25,12 @@ Manages item lifecycle across all three DDD layers: domain entities for item dat
 
 ## Key Types/Interfaces
 
-- `Inventory` — item collection with weight tracking and encumbrance
+- `CharacterItemInstance` — runtime inventory item state: `equipped`, `attuned`, `currentCharges`, `quantity`, `slot` (the inventory IS `CharacterItemInstance[]`, there is no `Inventory` class)
 - `EquippedItems` — currently equipped weapon/armor/shield, computes final AC
 - `GroundItem` — item at a map position (dropped/found)
-- `WeaponDefinition` — weapon with properties (finesse, heavy, light, two-handed, versatile, thrown, reach)
-- `ArmorDefinition` — armor with AC formula (base AC, DEX cap, stealth disadvantage)
-- `MagicItem` — item with bonus (+1/+2/+3), rarity, attunement requirement
+- `WeaponCatalogEntry` — weapon definition with properties (NOT `WeaponDefinition`)
+- `ArmorCatalogEntry` — armor definition with AC formula (NOT `ArmorDefinition`)
+- `MagicItemDefinition` — magic item definition with bonus (+1/+2/+3), rarity, attunement requirement (NOT `MagicItem`)
 - `ItemLookupService` — resolves items by ID (DB → catalog fallback chain)
 
 ## Known Gotchas

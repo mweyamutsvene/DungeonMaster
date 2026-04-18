@@ -314,6 +314,9 @@ export class AiAttackResolver {
         attackData.critical = critical;
         attackData.sessionId = sessionId;
         attackData.targetAC = targetAC;
+        attackData.d20Roll = d20;
+        attackData.attackBonus = attackBonus;
+        attackData.attackTotal = attackTotal;
         await pendingActions.update(pendingAction);
       }
 

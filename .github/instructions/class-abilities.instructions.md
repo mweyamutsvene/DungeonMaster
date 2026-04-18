@@ -121,7 +121,7 @@ Three reaction categories, each with its own input type, detection function, and
 
 All detection functions are **pure** — they take `(input, profiles[])` and scan all registered defs, returning an array of `Detected*Reaction` results with `reactionType` + `context` data. Class-gating is done inside each def's `detect()` method (often via resource flags like `hasShieldPrepared` rather than class name checks).
 
-**Current class usage**: Wizard (all 3: Shield attack, Absorb Elements damage, Counterspell spell), Warlock (damage: Hellish Rebuke), Monk (attack: Deflect Attacks).
+**Current class usage**: Wizard (4: Shield attack, Silvery Barbs attack, Absorb Elements damage, Counterspell spell), Warlock (damage: Hellish Rebuke), Monk (attack: Deflect Attacks), Fighter (attack: Protection, Interception), Rogue (attack: Uncanny Dodge).
 
 ## Resource Lifecycle
 
@@ -173,7 +173,7 @@ Declared on `CharacterClassDefinition`. Returns the list of combat capabilities 
 - `cost`: Human-readable cost string (e.g., `"1 ki"`)
 - `requires`: Prerequisite description (e.g., `"Attack action on this turn"`)
 
-Classes with `capabilitiesForLevel`: Barbarian, Cleric, Fighter, Monk, Paladin, Rogue (6 of 12). Classes without: Bard, Druid, Ranger, Sorcerer, Warlock, Wizard.
+**Classes with `capabilitiesForLevel`**: All 12 classes now implement `capabilitiesForLevel` (Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard).
 
 ## Dual-Mode Executor Pattern
 
@@ -244,29 +244,37 @@ Guard against double-activation: check `getActiveEffects(resources).some(e => e.
 | Class | Complexity | Profile | Executors | Reactions | Notes |
 |-------|-----------|---------|-----------|-----------|-------|
 | **Monk** | Heavy | 6 action mappings, 1 enhancement (Stunning Strike), 1 attack reaction (Deflect Attacks) | 5 (flurry, patient defense, step of the wind, martial arts, wholeness) | Attack | 200+ lines, most complex domain file |
-| **Barbarian** | Heavy | 2 action mappings | 2 (rage, reckless attack) | — | Cross-cutting ActiveEffects, rage tracking flags in combat-service |
-| **Wizard** | Heavy | 0 action mappings | 0 | Attack + Damage + Spell | Reaction-only profile (Shield, Absorb Elements, Counterspell) |
-| **Fighter** | Moderate | 2 action mappings | 2 (action surge, second wind) | — | capabilitiesForLevel defined |
-| **Paladin** | Moderate | 2 action mappings | 1 (lay on hands) | — | Divine Smite inline in attack flow |
-| **Rogue** | Moderate | — | 1 (cunning action) | — | capabilitiesForLevel defined |
-| **Cleric** | Moderate | 1 action mapping | 1 (turn undead) | — | capabilitiesForLevel defined |
-| **Warlock** | Light | 0 action mappings | 0 | Damage | Hellish Rebuke reaction, Pact Magic pools |
-| **Bard/Sorcerer/Druid/Ranger** | Skeleton | No profile | 0 | — | Class definition only (hitDie, proficiencies, features map) |
+| **Barbarian** | Heavy | 4 action mappings (rage, reckless-attack, brutal-strike, frenzy) | 4 (rage, reckless-attack, brutal-strike, frenzy) | — | Cross-cutting ActiveEffects, rage tracking flags in combat-service |
+| **Wizard** | Heavy | 0 action mappings | 0 | Attack (Shield, Silvery Barbs) + Damage (Absorb Elements) + Spell (Counterspell) | Reaction-only profile (4 reactions total) |
+| **Fighter** | Moderate | 3 action mappings (action-surge, second-wind, indomitable); 2 attack reactions (Protection, Interception) | 3 (action surge, second wind, indomitable) | Attack | capabilitiesForLevel defined |
+| **Paladin** | Moderate | 2 action mappings (lay-on-hands, divine-sense); 1 enhancement (Divine Smite) | 2 (lay-on-hands, channel-divinity) | — | Divine Smite is AttackEnhancementDef, NOT an action mapping |
+| **Rogue** | Moderate | 1 action mapping (cunning-action); 1 attack reaction (Uncanny Dodge) | 1 (cunning action) | Attack | capabilitiesForLevel defined |
+| **Cleric** | Moderate | 1 action mapping (turn-undead) | 1 (turn undead) | — | capabilitiesForLevel defined |
+| **Warlock** | Light | 0 action mappings; 1 damage reaction (Hellish Rebuke) | 0 | Damage | Pact Magic pools |
+| **Bard** | Light | 1 action mapping (bardic-inspiration) | 1 (bardic-inspiration) | — | capabilitiesForLevel defined |
+| **Sorcerer** | Light | 2 action mappings (quickened-spell, twinned-spell) | 2 (quickened-spell, twinned-spell) | — | capabilitiesForLevel defined |
+| **Druid** | Light | 1 action mapping (wild-shape) | 1 (wild-shape) | — | capabilitiesForLevel defined |
+| **Ranger** | Skeleton | Empty profile (no mappings) | 0 | — | capabilitiesForLevel defined; class definition only |
 
 ## Registered Profiles
-Barbarian, Cleric, Fighter, Monk, Paladin, Warlock, Wizard (7 of 12 classes)
+All 12 classes registered: Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard.
 
-## Registered Executors (14 total, registered in AbilityRegistry)
-- **barbarian** (2): rage, reckless-attack
+`getAllCombatTextProfiles()` also iterates subclass definitions and appends any `sub.combatTextProfile` — the OpenHand Monk subclass has one (containing the Open Hand Technique attack enhancement). This subclass expansion is in addition to the 12 base class profiles.
+
+## Registered Executors (22 total, registered in AbilityRegistry)
+- **barbarian** (4): rage, reckless-attack, brutal-strike, frenzy
 - **monk** (5): flurry-of-blows, patient-defense, step-of-the-wind, martial-arts, wholeness-of-body
-- **fighter** (2): action-surge, second-wind
+- **fighter** (3): action-surge, second-wind, indomitable
 - **rogue** (1): cunning-action
-- **paladin** (1): lay-on-hands
+- **paladin** (2): lay-on-hands, channel-divinity
 - **cleric** (1): turn-undead
+- **bard** (1): bardic-inspiration
+- **druid** (1): wild-shape
+- **sorcerer** (2): quickened-spell, twinned-spell
 - **monster** (1): nimble-escape
 - **common** (1): offhand-attack
 
-Note: Stunning Strike, Deflect Attacks, and Open Hand Technique are handled as attack enhancements/reactions via `ClassCombatTextProfile`, not as AbilityRegistry executors. Divine Smite is handled inline in the attack flow.
+Note: Stunning Strike, Deflect Attacks, and Open Hand Technique are handled as attack enhancements/reactions via `ClassCombatTextProfile`, not as AbilityRegistry executors. Divine Smite is an `AttackEnhancementDef` (not an action mapping, not an executor).
 
 ## Cross-Cutting Touchpoints
 

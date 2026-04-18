@@ -428,39 +428,43 @@ export class DamageResolver {
     // Handle multi-attack spell strike chaining (Eldritch Blast beams, Scorching Ray rays)
     const isSpellStrikeNotLast = action.spellStrike && action.spellStrikeTotal && action.spellStrike < action.spellStrikeTotal;
     if (isSpellStrikeNotLast) {
-      const nextStrike = action.spellStrike! + 1;
-      const nextPending: AttackPendingAction = {
-        type: "ATTACK",
-        timestamp: new Date(),
-        actorId,
-        attacker: actorId,
-        target: action.targetId,
-        targetId: action.targetId,
-        weaponSpec: action.weaponSpec,
-        spellStrike: nextStrike,
-        spellStrikeTotal: action.spellStrikeTotal,
-        rollMode: action.rollMode,
-      };
+      if (hpAfter > 0) {
+        const nextStrike = action.spellStrike! + 1;
+        const nextPending: AttackPendingAction = {
+          type: "ATTACK",
+          timestamp: new Date(),
+          actorId,
+          attacker: actorId,
+          target: action.targetId,
+          targetId: action.targetId,
+          weaponSpec: action.weaponSpec,
+          spellStrike: nextStrike,
+          spellStrikeTotal: action.spellStrikeTotal,
+          rollMode: action.rollMode,
+        };
 
-      await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
+        await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
-      const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
-      return {
-        rollType: "attack",
-        rawRoll: rollValue,
-        modifier: damageModifier,
-        total: totalDamage,
-        totalDamage,
-        targetName,
-        hpBefore,
-        hpAfter,
-        targetHpRemaining: hpAfter,
-        actionComplete: false,
-        requiresPlayerInput: true,
-        type: "REQUEST_ROLL",
-        diceNeeded: followUpDice,
-        message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
-      };
+        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
+        return {
+          rollType: "attack",
+          rawRoll: rollValue,
+          modifier: damageModifier,
+          total: totalDamage,
+          totalDamage,
+          targetName,
+          hpBefore,
+          hpAfter,
+          targetHpRemaining: hpAfter,
+          actionComplete: false,
+          requiresPlayerInput: true,
+          type: "REQUEST_ROLL",
+          diceNeeded: followUpDice,
+          message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
+        };
+      }
+      // Target dead — remaining beams are lost (D&D 5e: can't target dead creature)
+      // TODO: Support mid-spell retargeting for multi-beam spells (Eldritch Blast RAW allows different targets per beam)
     }
 
     // Apply on-hit spell effects to target (e.g. Guiding Bolt: advantage on next attack)
@@ -577,6 +581,7 @@ export class DamageResolver {
             requiresPlayerInput: true,
             type: "REQUEST_ROLL",
             diceNeeded: followUpDice,
+            nextRollType: "attack",
             message: `${rollValue} + ${damageModifier} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
@@ -586,6 +591,7 @@ export class DamageResolver {
           const remaining = getAttacksAllowedThisTurn(freshActor.resources ?? {}) - getAttacksUsedThisTurn(freshActor.resources ?? {});
           return {
             rollType: "damage",
+            nextRollType: "attack",
             rawRoll: rollValue,
             modifier: damageModifier,
             total: totalDamage,

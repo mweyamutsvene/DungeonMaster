@@ -10,7 +10,7 @@ Spell casting pipeline — from text parsing through slot spending, concentratio
 
 ## Architecture
 
-SpellActionHandler (~157 lines) is a thin facade that:
+SpellActionHandler (~450 lines) is a thin facade that:
 1. Looks up the spell in `sheet.preparedSpells[]` via `findPreparedSpellInSheet()`
 2. Spends slots + manages concentration via `prepareSpellCast()` (shared with AI path)
 3. Dispatches to the first `SpellDeliveryHandler` where `canHandle(spell)` returns true
@@ -18,9 +18,9 @@ SpellActionHandler (~157 lines) is a thin facade that:
 
 ```mermaid
 flowchart TD
-    SAH[SpellActionHandler ~157 lines<br/>facade: slot spend + dispatch]
-    SSM[spell-slot-manager.ts ~113 lines<br/>findPreparedSpellInSheet + prepareSpellCast]
-    CH[concentration-helper.ts ~138 lines<br/>breakConcentration + cleanup]
+    SAH[SpellActionHandler ~450 lines<br/>facade: slot spend + dispatch]
+    SSM[spell-slot-manager.ts ~350 lines<br/>findPreparedSpellInSheet + prepareSpellCast + resolveSpell]
+    CH[concentration-helper.ts ~170 lines<br/>breakConcentration + cleanup + computeConSaveModifier]
 
     SAH -->|"slot + concentration"| SSM
     SSM -->|"break old concentration"| CH
@@ -32,12 +32,12 @@ flowchart TD
     SAH --> BUFF[BuffDebuffSpellDeliveryHandler ~150 lines<br/>Bless, Shield of Faith, Faerie Fire]
     SAH -->|"fallback"| SIMPLE[Inline simple delivery<br/>Magic Missile, unknown spells]
 
-    ATK -->|"sets ATTACK pending"| STR[SavingThrowResolver ~337 lines]
+    ATK -->|"sets ATTACK pending"| STR[SavingThrowResolver ~650 lines]
     SAVE -->|"resolves save"| STR
 
     subgraph "Domain Layer"
-      CONC[concentration.ts ~43 lines<br/>DC calc + CON save check]
-      PSD[PreparedSpellDefinition ~75 lines<br/>spell shape contract]
+      CONC[concentration.ts ~105 lines<br/>DC calc + CON save check + isConcentrationBreakingCondition]
+      PSD[PreparedSpellDefinition ~290 lines<br/>spell shape contract + getUpcastBonusDice]
     end
 
     CH -->|"DC math"| CONC
@@ -62,17 +62,21 @@ SpellActionHandler iterates `deliveryHandlers[]` in priority order. First `canHa
 
 | Type/Function | File | Purpose |
 |---------------|------|---------|
-| `SpellActionHandler` | `tabletop/spell-action-handler.ts` (~157 lines) | Thin facade: slot spend + strategy dispatch |
+| `SpellActionHandler` | `tabletop/spell-action-handler.ts` (~450 lines) | Thin facade: slot spend + strategy dispatch |
 | `SpellDeliveryHandler` | `tabletop/spell-delivery/spell-delivery-handler.ts` | Strategy interface: `canHandle(spell)` + `handle(ctx)` |
 | `SpellCastingContext` | same file | All data for a cast — resolved AFTER slot spending |
 | `SpellDeliveryDeps` | same file | Shared deps injected into every handler |
 | `PreparedSpellDefinition` | `domain/entities/spells/prepared-spell-definition.ts` | Canonical shape for `sheet.preparedSpells[]` entries |
 | `findPreparedSpellInSheet` | `helpers/spell-slot-manager.ts` | Pure lookup — no I/O, case-insensitive match |
 | `prepareSpellCast` | `helpers/spell-slot-manager.ts` | Slot validation + spend + concentration swap — shared with AI path |
+| `resolveSpell` | `helpers/spell-slot-manager.ts` | Catalog-first spell resolution: catalog base + sheet override merge |
+| `validateUpcast` | `helpers/spell-slot-manager.ts` | Pure upcast validation helper: spellLevel vs castAtLevel |
 | `breakConcentration` | `helpers/concentration-helper.ts` | Full cleanup: resources + effects on all combatants + zones on map |
 | `getConcentrationSpellName` | `helpers/concentration-helper.ts` | Read current concentration from resources bag |
+| `computeConSaveModifier` | `helpers/concentration-helper.ts` | Computes CON save modifier for concentration checks |
 | `concentrationCheckOnDamage` | `domain/rules/concentration.ts` | Pure DC calc: `max(10, floor(damage/2))` + CON save roll |
-| `SavingThrowResolver` | `tabletop/rolls/saving-throw-resolver.ts` (~337 lines) | Per-target save: proficiency, effect bonuses, cover, advantage/disadvantage |
+| `isConcentrationBreakingCondition` | `domain/rules/concentration.ts` | Returns true if condition auto-breaks concentration |
+| `SavingThrowResolver` | `tabletop/rolls/saving-throw-resolver.ts` (~650 lines) | Per-target save: proficiency, effect bonuses, cover, advantage/disadvantage |
 | `SpellLookupService` | `services/entities/spell-lookup-service.ts` | Static spell definition lookup (wraps `ISpellRepository`) |
 
 ## Cross-Flow Notes

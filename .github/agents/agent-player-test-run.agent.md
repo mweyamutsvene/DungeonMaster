@@ -62,14 +62,44 @@ Invoke-WebRequest http://127.0.0.1:3002/stream -UseBasicParsing
 
 ## Step 3 — Send input
 
-To inject a line as if you typed it:
+To inject a line as if you typed it (write command — **always** sleep 30s after):
 
 ```powershell
-Invoke-WebRequest http://127.0.0.1:3002/input -Method POST `
-  -ContentType "application/json" `
-  -Body '{"text":"<YOUR INPUT>"}' `
-  -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest http://127.0.0.1:3002/input -Method POST -ContentType "application/json" -Body '{"text":"<YOUR INPUT>"}' -UseBasicParsing | Select-Object -ExpandProperty Content; Start-Sleep -Seconds 30
 ```
+
+To poll output (read command — sleep 30s only if the response is empty):
+
+```powershell
+$out = Invoke-WebRequest http://127.0.0.1:3002/output -UseBasicParsing | Select-Object -ExpandProperty Content; if (-not $out) { Start-Sleep -Seconds 30 }; $out
+```
+
+***CRITICAL — SLEEP PLACEMENT RULES (violations will cause rate limit errors and invalid test results):***
+
+✅ CORRECT — sleep is AFTER the request, chained inline:
+```powershell
+Invoke-WebRequest .../input ... -Body '{"text":"15"}' ...; Start-Sleep -Seconds 30
+```
+
+❌ WRONG — sleep BEFORE the request:
+```powershell
+Start-Sleep -Seconds 30; Invoke-WebRequest .../input ...
+```
+
+❌ WRONG — sleep in a separate command call:
+```powershell
+Invoke-WebRequest .../input ...
+Start-Sleep -Seconds 30
+```
+
+❌ WRONG — no sleep at all:
+```powershell
+Invoke-WebRequest .../input ... -Body '{"text":"y"}'
+```
+
+- Every single POST to `/input` must end with `; Start-Sleep -Seconds 30` — no exceptions, including short "y/n" replies.
+- Never split the sleep into a separate call — always chain it inline with `;`.
+- The game will progress slower but this is necessary to avoid overwhelming the server and to ensure we can observe each response carefully for rule violations or bugs.
 
 Always wait for the CLI to produce a new prompt (`> `, `Enter your ... roll`, or `Choose:`)
 before sending the next input. Use `await_terminal` or poll `/output` to confirm.
