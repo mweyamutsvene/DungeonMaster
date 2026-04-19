@@ -115,7 +115,7 @@
       "comment": "4+4=8 damage. Goblin HP: 50→42."
     },
     {
-      "comment": "Verify full HP and combat active
+      "comment": "Verify full HP and combat active",
       "type": "assertState",
       "expect": {
         "characterHp": { "min": 38, "max": 38 },
