@@ -176,6 +176,7 @@ export interface ReactionPromptEventPayload {
   encounterId: string;
   pendingActionId: string;
   combatantId: string;
+  combatantName: string;
   reactionOpportunity: ReactionOpportunity;
   actor: CombatantRef;
   actorName: string;

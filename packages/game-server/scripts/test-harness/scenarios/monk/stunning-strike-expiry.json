@@ -101,11 +101,10 @@
       "type": "rollResult",
       "input": { "text": "5 with stunning strike" },
       "expect": {
-        "rollType": "damage",
         "actionComplete": true,
         "stunningStrike": {}
       },
-      "comment": "5 + 3 = 8 damage. CON save DC 14, Golem has CON 1 (-5 mod). d20(18)-5=13 < DC 14 → fails → Stunned."
+      "comment": "5 + 3 = 8 damage. CON save DC 14, Golem has CON 1 (-5 mod). d20(18)-5=13 < DC 14 → fails → Stunned. EA chain auto-completed."
     },
     {
       "type": "assertState",

@@ -156,12 +156,12 @@ Fix all bugs discovered during agent test player runs (solo-fighter, solo-barbar
 
 ---
 
-### B12: AI Monsters Don't Attack After Moving to Melee Range (MEDIUM)
-**Root cause**: AI decision-making (deterministic AI or LLM) may decide to move but then end the turn without attacking. The `DeterministicAI` might have a bug where after a move action, it doesn't continue to evaluate attack options.
+### B12: AI Monsters Don't Attack After Moving to Melee Range (MEDIUM) — ✅ ALREADY FIXED
+**Status**: `ai-turn-orchestrator.ts` at line 594 forces `continue` after successful `moveToward`, re-entering the turn loop. `deterministic-ai.ts` doesn't set `actionSpent` for `moveToward`, so attack evaluation proceeds after movement. The orchestrator's defensive fix with explicit comment confirms this is intentional.
 
-#### Files to fix:
-- [ ] `application/services/combat/ai/deterministic-ai.ts` — Verify attack evaluation happens after movement
-- [ ] `application/services/combat/ai/ai-turn-orchestrator.ts` — Verify turn loop continues after movement to evaluate attacks
+#### Files verified:
+- [x] `application/services/combat/ai/deterministic-ai.ts` — `moveToward` doesn't consume action economy, attack evaluation proceeds
+- [x] `application/services/combat/ai/ai-turn-orchestrator.ts` — `moveToward` handler uses `continue` to re-enter loop
 
 ---
 

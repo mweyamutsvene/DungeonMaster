@@ -100,11 +100,10 @@
       "type": "rollResult",
       "input": { "text": "5 with stunning strike" },
       "expect": {
-        "rollType": "damage",
         "actionComplete": true,
         "stunningStrike": {}
       },
-      "comment": "5 + 3 = 8 damage. Player opts into stunning strike in damage text. CON save vs DC 14 auto-resolved."
+      "comment": "5 + 3 = 8 damage. Player opts into stunning strike in damage text. CON save vs DC 14 auto-resolved. EA chain auto-completed."
     },
     {
       "type": "assertState",

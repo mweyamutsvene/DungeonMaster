@@ -76,6 +76,7 @@ export class TabletopEventEmitter {
     hit: boolean,
     rollValue: number,
     total: number,
+    opts?: { attackBonus?: number; targetAC?: number; attackName?: string },
   ): Promise<void> {
     if (!this.deps.events) return;
 
@@ -96,6 +97,13 @@ export class TabletopEventEmitter {
         encounterId,
         attacker: attackerRef,
         target: targetRef,
+        attackName: opts?.attackName ?? "Attack",
+        attackRoll: rollValue,
+        attackBonus: opts?.attackBonus ?? (total - rollValue),
+        attackTotal: total,
+        targetAC: opts?.targetAC,
+        hit,
+        critical: rollValue === 20,
         result: {
           hit,
           critical: rollValue === 20,

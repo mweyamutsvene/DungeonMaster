@@ -583,7 +583,7 @@ export class DamageResolver {
           await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
           const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
           return {
-            rollType: "damage",
+            rollType: "attack",
             rawRoll: rollValue,
             modifier: damageModifier,
             total: totalDamage,
@@ -605,7 +605,7 @@ export class DamageResolver {
           // Target dead — return to prompt for new target selection
           const remaining = getAttacksAllowedThisTurn(freshActor.resources ?? {}) - getAttacksUsedThisTurn(freshActor.resources ?? {});
           return {
-            rollType: "damage",
+            rollType: "attack",
             nextRollType: "attack",
             rawRoll: rollValue,
             modifier: damageModifier,

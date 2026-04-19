@@ -1,0 +1,143 @@
+{
+  "name": "B1: Disengage Prevents Opportunity Attacks",
+  "description": "A Fighter engages a Goblin in melee, ends turn, survives goblin attack, then Disengages and moves away. The key assertion: NO opportunity attack reaction check should trigger. On a subsequent turn without Disengage, retreating DOES trigger an OA. Tests that the disengaged flag correctly suppresses OA detection.",
+  "setup": {
+    "character": {
+      "name": "Careful Carl",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 10, "charisma": 10
+        },
+        "maxHp": 28, "currentHp": 28, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword", "kind": "melee", "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Guard",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the goblin" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative to go first. Fighter at (35,10) is 5ft from Goblin at (40,10).",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "--- Turn 1: Disengage (action) then retreat safely ---",
+      "type": "action",
+      "input": { "text": "disengage" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "comment": "Move away from goblin. With Disengage active, NO opportunity attack should trigger. Expect MOVE_COMPLETE, NOT REACTION_CHECK.",
+      "type": "action",
+      "input": { "text": "move to (10, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify no OA damage taken — HP should be 28 (full)",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 28, "max": 28 }
+      }
+    },
+    {
+      "comment": "End turn after safe retreat",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Goblin turn (endTurn behavior, no attack)",
+      "type": "waitForTurn",
+      "timeout": 5000
+    },
+    {
+      "comment": "--- Turn 2: Move back to melee, attack, then end turn ---",
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Attack the goblin",
+      "type": "action",
+      "input": { "text": "attack goblin with longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll 15 + 5 = 20 vs AC 15 → HIT",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 5000
+    },
+    {
+      "comment": "--- Turn 3: Move away WITHOUT Disengage — should trigger OA ---",
+      "type": "action",
+      "input": { "text": "move to (10, 10)" },
+      "expect": { "type": "REACTION_CHECK" }
+    },
+    {
+      "comment": "Goblin uses opportunity attack",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "HP should have decreased from OA (may or may not hit depending on dice)",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "max": 28 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

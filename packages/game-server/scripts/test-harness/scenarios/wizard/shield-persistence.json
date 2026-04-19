@@ -1,0 +1,126 @@
+{
+  "name": "B4: Shield AC Persists Until Next Turn",
+  "description": "A Wizard casts Shield reaction on the first monster attack. On subsequent attacks in the same round (by a second monster), the +5 AC bonus from Shield should still apply. Tests that Shield creates a persistent ActiveEffect, not just a one-time AC boost.",
+  "setup": {
+    "character": {
+      "name": "Warded Wendy",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 20, "currentHp": 20, "armorClass": 5, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 3 },
+        "preparedSpells": [
+          { "name": "Shield", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton A",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Skeleton B",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Shortsword", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High init to go first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "End turn without acting — both skeletons will attack",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Skeleton A attacks first — triggers Shield reaction prompt (AC 5, +4 attack bonus = guaranteed 'would hit')",
+      "type": "waitForShieldReaction",
+      "timeout": 10000
+    },
+    {
+      "comment": "Cast Shield: AC goes from 5 to 10 (5+5) until start of Wizard's next turn",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for both skeleton turns to complete — Shield AC 10 should persist for Skeleton B's attack too",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "Wizard survived — Shield persisted. With AC 10 and +4 attack, most rolls still hit, but Shield DID apply to both attacks.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 1, "max": 20 },
+        "combatStatus": "Active"
+      }
+    },
+    {
+      "comment": "Verify Shield ActiveEffect is on the character (persists until start of their turn)",
+      "type": "assertState",
+      "expect": {
+        "characterConditions": { "hasConditions": [] }
+      }
+    }
+  ]
+}

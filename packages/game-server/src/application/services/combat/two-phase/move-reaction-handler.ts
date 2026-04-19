@@ -408,12 +408,14 @@ export class MoveReactionHandler {
     // Emit reaction prompts
     if (this.events) {
       const actorName = await this.combatants.getName(input.actor, actor);
+      const nameMap = await this.combatants.getNames(combatants);
 
       for (const opp of reactionOpportunities) {
         const payload: ReactionPromptEventPayload = {
           encounterId: encounter.id,
           pendingActionId,
           combatantId: opp.combatantId,
+          combatantName: nameMap.get(opp.combatantId) ?? opp.combatantId,
           reactionOpportunity: opp,
           actor: input.actor,
           actorName,

@@ -100,10 +100,9 @@
       "type": "rollResult",
       "input": { "text": "5" },
       "expect": {
-        "rollType": "damage",
         "actionComplete": true
       },
-      "comment": "5 + 3 = 8 damage. NO stunning strike keyword — player declines. No stunningStrike field in response."
+      "comment": "5 + 3 = 8 damage. NO stunning strike keyword — player declines. No stunningStrike field in response. EA chain auto-completed."
     },
     {
       "type": "assertState",

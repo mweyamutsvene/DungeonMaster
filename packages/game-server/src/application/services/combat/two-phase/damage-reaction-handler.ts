@@ -90,6 +90,7 @@ export class DamageReactionHandler {
         encounterId: input.encounterId,
         pendingActionId,
         combatantId: input.targetCombatantId,
+        combatantName: targetName,
         reactionOpportunity,
         actor: input.attackerId,
         actorName: targetName,

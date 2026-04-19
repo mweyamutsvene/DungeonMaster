@@ -488,7 +488,11 @@ export class RollStateMachine {
     const hit = isCriticalMiss ? false : (isCritical ? true : total >= effectAdjustedAC);
 
     // Emit events
-    await this.eventEmitter.emitAttackEvents(sessionId, encounter.id, actorId, targetId, characters, monsters, hit, rollValue, total);
+    await this.eventEmitter.emitAttackEvents(sessionId, encounter.id, actorId, targetId, characters, monsters, hit, rollValue, total, {
+      attackBonus,
+      targetAC: effectAdjustedAC,
+      attackName: action.weaponSpec?.name ?? "Attack",
+    });
 
     // D&D 5e 2024: Rage attack tracking — any attack roll counts (hit or miss)
     // Use entity ID matching (characterId/monsterId/npcId) since actorId is an entity ID, not a combatant record ID
