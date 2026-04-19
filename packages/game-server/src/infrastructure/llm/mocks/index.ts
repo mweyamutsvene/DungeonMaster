@@ -893,6 +893,13 @@ export class MockAiDecisionMaker implements IAiDecisionMaker {
     this.perMonsterBehavior.clear();
   }
 
+  /**
+   * Clear any queued decisions (call between test scenarios).
+   */
+  clearQueuedDecisions(): void {
+    this.queuedDecisions.length = 0;
+  }
+
   async decide(input: {
     combatantName: string;
     combatantType: string;

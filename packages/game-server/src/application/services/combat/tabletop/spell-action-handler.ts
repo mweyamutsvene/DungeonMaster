@@ -99,7 +99,7 @@ export class SpellActionHandler {
     sessionId: string,
     encounterId: string,
     actorId: string,
-    castInfo: { spellName: string; targetName?: string; castAtLevel?: number },
+    castInfo: { spellName: string; targetName?: string; castAtLevel?: number; isBonusActionFromText?: boolean },
     characters: SessionCharacterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
@@ -119,7 +119,7 @@ export class SpellActionHandler {
     const spellMatch = resolveSpell(castInfo.spellName, sheet);
     const spellLevel = spellMatch?.level ?? 0;
     const isConcentration = spellMatch?.concentration ?? false;
-    const isBonusAction = spellMatch?.isBonusAction ?? false;
+    const isBonusAction = spellMatch?.isBonusAction ?? castInfo.isBonusActionFromText ?? false;
     const isCantrip = spellLevel === 0;
 
     // Determine effective cast level (for upcasting)
@@ -247,7 +247,16 @@ export class SpellActionHandler {
         encounterId,
         actor,
         spellName: castInfo.spellName,
+        skipActionCheck: isBonusAction,
       });
+
+      // If bonus action spell, mark bonus action used on resources
+      if (isBonusAction && actorCombatant) {
+        const actorResources = normalizeResources(actorCombatant.resources ?? {});
+        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          resources: patchResources(actorResources, { bonusActionUsed: true }),
+        });
+      }
 
       await this.deps.combatRepo.setPendingAction(encounter.id, {
         id: initiateResult.pendingActionId,
@@ -330,6 +339,7 @@ export class SpellActionHandler {
           spellLevel,
           castAtLevel: effectiveCastLevel,
           isConcentration,
+          isBonusAction,
           sheet,
           characters,
           actor,
@@ -397,7 +407,16 @@ export class SpellActionHandler {
             encounterId,
             actor,
             spellName: castInfo.spellName,
+            skipActionCheck: isBonusAction,
           });
+
+          // If bonus action spell, mark bonus action used on resources
+          if (isBonusAction && actorCombatant) {
+            const actorResources = normalizeResources(actorCombatant.resources ?? {});
+            await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+              resources: patchResources(actorResources, { bonusActionUsed: true }),
+            });
+          }
 
           // Check victory
           if (hpAfter <= 0 && this.deps.victoryPolicy) {
@@ -425,7 +444,16 @@ export class SpellActionHandler {
       encounterId,
       actor,
       spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
     });
+
+    // If bonus action spell, mark bonus action used on resources
+    if (isBonusAction && actorCombatant) {
+      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: patchResources(actorResources, { bonusActionUsed: true }),
+      });
+    }
 
     const targetNote = castInfo.targetName ? ` at ${castInfo.targetName}` : "";
     const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";

@@ -1,0 +1,147 @@
+{
+  "name": "Paladin Bonus-Action Spell Then Melee Attack",
+  "description": "Regression test for BUG-P2/P3 fix (Track D): casting Shield of Faith 'as a bonus action' must correctly parse the spell name (stripping the bonus-action qualifier), consume a bonus action (not the main action), and allow a melee attack in the same turn. Pre-fix: parser captures 'shield of faith as a bonus action' as the spell name, lookup fails, and the action is consumed instead of the bonus action. Post-fix: spell cast succeeds, concentration applied, melee attack is still available.",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric",
+      "className": "paladin",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "className": "paladin",
+        "level": 5,
+        "maxHp": 44,
+        "currentHp": 44,
+        "ac": 18,
+        "armorClass": 18,
+        "speed": 30,
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 16
+        },
+        "proficiencyBonus": 3,
+        "spellSlots": { "1": 4, "2": 2 },
+        "equipment": {
+          "weapons": [
+            {
+              "name": "Longsword",
+              "damage": "1d8+3",
+              "damageType": "slashing",
+              "kind": "melee",
+              "range": "melee",
+              "properties": ["versatile"]
+            }
+          ],
+          "armor": { "name": "Chain Mail", "ac": 16 },
+          "shield": { "name": "Shield", "ac": 2 }
+        }
+      }
+    },
+    "monsters": [
+      {
+        "name": "Cultist",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 1,
+          "hp": 1,
+          "armorClass": 10,
+          "speed": 30,
+          "challengeRating": 0.125,
+          "experienceValue": 25,
+          "attacks": [
+            {
+              "name": "Dagger",
+              "kind": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare for battle" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High initiative — paladin goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast shield of faith as a bonus action" },
+      "comment": "Pre-fix: parser captures full 'shield of faith as a bonus action' as spell name, lookup fails. Post-fix: spell name parsed as 'shield of faith', bonus action consumed, concentration applied.",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Shield of Faith is concentration — character should be concentrating on it after the bonus action cast",
+      "expect": {
+        "characterConcentration": "Shield of Faith"
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Cultist with longsword" },
+      "comment": "Action must still be available — bonus action spell must NOT consume the main action",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 (STR 3 + prof 3) = 21 vs AC 10 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage vs 1 HP → Cultist dies",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

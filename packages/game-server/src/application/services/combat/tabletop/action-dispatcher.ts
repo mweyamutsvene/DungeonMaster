@@ -63,6 +63,7 @@ import {
   tryParseAttackText,
   tryParseEndTurnText,
   tryParseLegendaryAction,
+  tryParseCompoundMoveAttack,
   inferActorRef,
 } from "./combat-text-parser.js";
 
@@ -306,6 +307,55 @@ export class ActionDispatcher {
     const profiles = getAllCombatTextProfiles();
 
     return [
+      // 0. Compound "move to X and attack Y" — must be before simple move parser
+      {
+        id: "compound:moveAndAttack",
+        tryParse: (text) => tryParseCompoundMoveAttack(text),
+        handle: async (parsed, ctx) => {
+          // Execute the move first
+          const moveResult = await this.movementHandlers.handleMoveAction(
+            ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.move, ctx.roster,
+          );
+
+          // If move triggered a reaction check, return that — attack is deferred
+          if (moveResult.type === "REACTION_CHECK") {
+            (moveResult as any).message = (moveResult.message ?? "") +
+              " Your attack will need to be sent as a separate command after reactions resolve.";
+            return moveResult;
+          }
+
+          // Move succeeded — now execute the attack
+          const attackParsed = tryParseAttackText(
+            parsed.targetName
+              ? parsed.weaponHint
+                ? `attack ${parsed.targetName} with ${parsed.weaponHint}`
+                : `attack ${parsed.targetName}`
+              : "attack nearest",
+            ctx.roster,
+          );
+          if (!attackParsed) {
+            // Move succeeded but couldn't parse attack — return move result
+            return {
+              ...moveResult,
+              message: (moveResult.message ?? "Moved.") + " Could not parse the attack target.",
+            };
+          }
+
+          const targetRef = await this.attackHandlers.resolveAttackTarget(
+            ctx.encounterId, ctx.actorId, ctx.roster, attackParsed.targetName, attackParsed.nearest,
+          );
+          const command = {
+            kind: "attack" as const,
+            attacker: inferActorRef(ctx.actorId, ctx.roster),
+            target: targetRef,
+          };
+          return this.attackHandlers.handleAttackAction(
+            ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, command,
+            ctx.characters, ctx.monsters, ctx.npcs, attackParsed.weaponHint,
+          );
+        },
+      },
+
       // 1. Move to coordinates
       {
         id: "move",

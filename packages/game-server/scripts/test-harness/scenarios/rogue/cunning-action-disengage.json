@@ -1,0 +1,174 @@
+{
+  "name": "Rogue Cunning Action: Disengage as Bonus Action Prevents OA",
+  "description": "Regression test for BUG-1: Rogue uses Cunning Action to Disengage as a bonus action, then moves away from a melee enemy. No opportunity attack should trigger because Disengage suppresses OAs for the rest of the turn. Tests that bonus-action Disengage (via Cunning Action) sets the disengaged flag, not just the full-action Disengage.",
+  "setup": {
+    "character": {
+      "name": "Vex Shadowblade",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 15, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ],
+        "features": [
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as bonus action" },
+          { "name": "Sneak Attack", "description": "3d6 extra damage with advantage or ally adjacent to target" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Cultist Guard",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I draw my blade" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Initiative 18+4=22, Rogue goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "--- Turn 1: Attack, then Cunning Action Disengage, then safely retreat ---",
+      "type": "action",
+      "input": { "text": "I attack the Cultist Guard with my shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14+7=21 vs AC 12 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "4+4=8 damage. Cultist Guard HP: 50→42."
+    },
+    {
+      "comment": "Cunning Action: Disengage as bonus action. This should consume the bonus action and set the disengaged flag.",
+      "type": "action",
+      "input": { "text": "cunning action disengage" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "comment": "Move away from Cultist Guard. With Disengage active, NO opportunity attack should trigger. Expect MOVE_COMPLETE or actionComplete, NOT REACTION_CHECK.",
+      "type": "action",
+      "input": { "text": "move to (5, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify no OA damage — HP should still be 38 (full)",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 38, "max": 38 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Cultist Guard turn (endTurn behavior)",
+      "type": "waitForTurn",
+      "timeout": 5000
+    },
+    {
+      "comment": "--- Turn 2: Move to melee WITHOUT Disengage, attack, then retreat to trigger OA ---",
+      "type": "action",
+      "input": { "text": "move to (15, 10)" },
+      "comment": "Move back to melee range (5ft from Cultist at 20,10)",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "I attack the Cultist Guard with my shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "10+7=17 vs AC 12 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "comment": "3+4=7 damage. Cultist Guard HP: 42→35."
+    },
+    {
+      "comment": "Now move away WITHOUT Disengage — this SHOULD trigger an opportunity attack",
+      "type": "action",
+      "input": { "text": "move to (5, 10)" },
+      "expect": { "type": "REACTION_CHECK" }
+    },
+    {
+      "comment": "Cultist Guard uses opportunity attack",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "max": 38 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

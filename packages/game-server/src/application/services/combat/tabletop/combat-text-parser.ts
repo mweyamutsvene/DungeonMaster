@@ -85,10 +85,10 @@ export function tryParseMoveText(input: string): { x: number; y: number } | null
   const normalized = input.trim().toLowerCase();
   if (!normalized.startsWith("move")) return null;
 
-  // Strip compound suffixes ("and attack ...", "then attack ...") so move still works
-  const cleaned = normalized.replace(/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b.*$/, "");
+  // Reject compound commands ("move to X and attack Y") — handled by compound parser
+  if (/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b/.test(normalized)) return null;
 
-  const match = cleaned.match(/move\s*(?:to\s*)?\(?\s*(-?\d+)\s*[ ,]\s*(-?\d+)\s*\)?/);
+  const match = normalized.match(/move\s*(?:to\s*)?\(?\s*(-?\d+)\s*[ ,]\s*(-?\d+)\s*\)?/);
   if (!match) return null;
   const x = Number.parseInt(match[1]!, 10);
   const y = Number.parseInt(match[2]!, 10);
@@ -122,8 +122,8 @@ export function tryParseMoveTowardText(
   // Don't steal from coordinate-based move parser
   if (/\(\s*-?\d+\s*[, ]\s*-?\d+\s*\)/.test(normalized)) return null;
 
-  // Strip compound suffixes ("and attack ...", "then attack ...") so move still works
-  normalized = normalized.replace(/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b.*$/, "");
+  // Reject compound commands ("move toward X and attack Y") — handled by compound parser
+  if (/\s+(?:and|then|,)\s+(?:attack|strike|hit|throw|cast|use)\b/.test(normalized)) return null;
 
   // --- Range-aware patterns (checked first so they don't get eaten by generic patterns) ---
   const rangePatterns: Array<{ pattern: RegExp; rangeGroup: number; nameGroup: number; fixedRange?: number }> = [
@@ -432,16 +432,24 @@ export function tryParseEscapeGrappleText(input: string): true | null {
 
 /**
  * Parse "cast <spell> [at level N] [at <target>]" or "cast <spell> [at level N] on <target>".
- * Returns { spellName, targetName?, castAtLevel? } if matched, null otherwise.
+ * Also strips "as a bonus action" / "as my bonus action" / "using a bonus action" suffixes
+ * so the spell name is clean for catalog lookup. When stripped, sets isBonusActionFromText: true
+ * as a fallback for callers when spellMatch?.isBonusAction is also false.
+ * Returns { spellName, targetName?, castAtLevel?, isBonusActionFromText? } if matched, null otherwise.
  */
-export function tryParseCastSpellText(input: string): { spellName: string; targetName?: string; castAtLevel?: number } | null {
+export function tryParseCastSpellText(input: string): { spellName: string; targetName?: string; castAtLevel?: number; isBonusActionFromText?: boolean } | null {
   const normalized = input.trim().toLowerCase();
-  const match = normalized.match(/\bcast\s+(.+?)(?:\s+at\s+level\s+(\d+))?(?:\s+(?:at|on)\s+(.+))?\s*$/i);
+  // Strip "as a bonus action" / "as my bonus action" / "using a bonus action" suffixes
+  const isBonusActionFromText = /\s+as\s+(?:a\s+|my\s+)?bonus\s+action\b|\s+using\s+(?:a\s+|my\s+)?bonus\s+action\b/i.test(normalized);
+  const cleaned = normalized
+    .replace(/\s+as\s+(?:a\s+|my\s+)?bonus\s+action\b/i, "")
+    .replace(/\s+using\s+(?:a\s+|my\s+)?bonus\s+action\b/i, "");
+  const match = cleaned.match(/\bcast\s+(.+?)(?:\s+at\s+level\s+(\d+))?(?:\s+(?:at|on)\s+(.+))?\s*$/i);
   if (!match) return null;
   const spellName = match[1]!.trim();
   const targetName = match[3]?.trim();
   const castAtLevel = match[2] ? parseInt(match[2], 10) : undefined;
-  return { spellName, targetName, castAtLevel };
+  return { spellName, targetName, castAtLevel, ...(isBonusActionFromText && { isBonusActionFromText }) };
 }
 
 /**
@@ -553,6 +561,64 @@ export function tryParseLegendaryAction(input: string): ParsedLegendaryAction | 
   }
   return null;
 }
+
+// ----- Compound move+attack parser -----
+
+export interface ParsedCompoundMoveAttack {
+  /** Move destination coordinates */
+  move: { x: number; y: number };
+  /** Attack target name (may be empty if not specified) */
+  targetName?: string;
+  /** Weapon hint from "with my X" */
+  weaponHint?: string;
+}
+
+/**
+ * Parse compound "move to (X,Y) and attack [target] [with weapon]" commands.
+ *
+ * Matches patterns like:
+ *   "move to (5,5) and attack goblin"
+ *   "move to 3, 7 then attack the orc with my longsword"
+ *   "move (10,10), attack goblin warrior"
+ *   "move to (2,4) and strike the bandit with my dagger"
+ *
+ * Returns both move destination and attack intent. The dispatcher handles
+ * executing the move first, then the attack.
+ */
+export function tryParseCompoundMoveAttack(input: string): ParsedCompoundMoveAttack | null {
+  const normalized = input.trim().toLowerCase();
+  if (!normalized.startsWith("move")) return null;
+
+  // Must contain a compound separator followed by an attack verb
+  const compoundMatch = normalized.match(
+    /^move\s*(?:to\s*)?\(?\s*(-?\d+)\s*[ ,]\s*(-?\d+)\s*\)?\s*(?:and|then|,)\s*(?:attack|strike|hit)\s*(.*)?$/,
+  );
+  if (!compoundMatch) return null;
+
+  const x = Number.parseInt(compoundMatch[1]!, 10);
+  const y = Number.parseInt(compoundMatch[2]!, 10);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  // Parse the attack part for target name and weapon hint
+  const attackPart = (compoundMatch[3] ?? "").trim();
+  let targetName: string | undefined;
+  let weaponHint: string | undefined;
+
+  if (attackPart) {
+    // Try "target with my weapon" pattern
+    const withMatch = attackPart.match(/^(?:the\s+)?(.+?)\s+with\s+(?:my\s+|a\s+)?(.+?)$/);
+    if (withMatch) {
+      targetName = withMatch[1]!.trim();
+      weaponHint = withMatch[2]!.trim();
+    } else {
+      // Just a target name (strip leading "the")
+      targetName = attackPart.replace(/^the\s+/, "").trim() || undefined;
+    }
+  }
+
+  return { move: { x, y }, targetName, weaponHint };
+}
+
 // ----- Roster / ref helpers -----
 
 /** Look up an actor in the roster and return the combatant ref. */

@@ -1,0 +1,200 @@
+{
+  "name": "Dead Combatant Pathfinding: AI Moves Through Dead Body Positions",
+  "description": "Regression test for Track A fix: dead combatants (hpCurrent <= 0) must not block live AI movement. Player kills Goblin Blocker at (10,10). Goblin Pathfinder at (40,10) then uses 'approach' AI behavior, must path through the dead goblin's position at (10,10) to reach the player at (5,10). With the fix the pathfinder reaches melee range and the player can kill it.",
+  "setup": {
+    "character": {
+      "name": "Freya",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Blocker",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 1,
+          "hp": 1,
+          "armorClass": 10,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Pathfinder",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "monsterBehaviors": {
+        "Goblin Blocker": "endTurn",
+        "Goblin Pathfinder": "approach"
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "comment": "High roll — player goes first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Blocker with longsword" },
+      "comment": "Goblin Blocker is adjacent at (10,10). Player at (5,10) = 5ft away.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 10 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "comment": "Damage: 1 + 3 = 4 vs 1 HP. Goblin Blocker dies. Extra Attack remaining auto-absorbed by runner.",
+      "expect": {
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn. Goblin Pathfinder's AI turn fires: uses 'approach' behavior, moves from (40,10) toward player at (5,10). With fix, paths through (10,10) corpse position and stops at melee range."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Goblin Pathfinder AI turn to complete and player turn to return",
+      "timeout": 8000
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin Blocker dead, Goblin Pathfinder alive and has moved toward player",
+      "expect": {
+        "monstersAlive": 1
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin Pathfinder with longsword" },
+      "comment": "Goblin Pathfinder should have moved to melee range (10,10) via pathfinding through dead goblin position. If pathfinding bug is present, goblin is stuck further away and this attack fails.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 13 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage vs 7 HP. Goblin Pathfinder dies.",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

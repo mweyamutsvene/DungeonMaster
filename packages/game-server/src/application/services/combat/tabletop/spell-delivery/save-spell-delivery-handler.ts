@@ -13,7 +13,7 @@
  */
 
 import { ValidationError } from '../../../../errors.js';
-import { normalizeResources, getPosition, addActiveEffectsToResources } from '../../helpers/resource-utils.js';
+import { normalizeResources, getPosition, addActiveEffectsToResources, patchResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { applyKoEffectsIfNeeded } from '../../helpers/ko-handler.js';
@@ -76,6 +76,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       spellMatch,
       spellLevel,
       castAtLevel,
+      isBonusAction,
       sheet,
       characters,
       actor,
@@ -135,7 +136,15 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
               encounterId,
               actor,
               spellName: castInfo.spellName,
+              skipActionCheck: isBonusAction,
             });
+            // If bonus action spell, mark bonus action used on resources
+            if (isBonusAction && actorCombatant) {
+              const actorResources = normalizeResources(actorCombatant.resources ?? {});
+              await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+                resources: patchResources(actorResources, { bonusActionUsed: true }),
+              });
+            }
             const effectiveLevel = castAtLevel ?? spellLevel;
             const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
             return {
@@ -343,7 +352,16 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       encounterId,
       actor,
       spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
     });
+
+    // If bonus action spell, mark bonus action used on resources
+    if (isBonusAction && actorCombatant) {
+      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: patchResources(actorResources, { bonusActionUsed: true }),
+      });
+    }
 
     const effectiveLevel = castAtLevel ?? spellLevel;
     const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : "";
@@ -392,6 +410,7 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       encounter,
       combatants,
       actorCombatant,
+      isBonusAction,
     } = ctx;
     const { deps, eventEmitter, debugLogsEnabled, savingThrowResolver } = this.handlerDeps;
 
@@ -473,7 +492,20 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     }
 
     // --- Spend action (slot already spent by SpellActionHandler) ---
-    await deps.actions.castSpell(sessionId, { encounterId, actor, spellName: castInfo.spellName });
+    await deps.actions.castSpell(sessionId, {
+      encounterId,
+      actor,
+      spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
+    });
+
+    // If bonus action spell, mark bonus action used on resources
+    if (isBonusAction && actorCombatant) {
+      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: patchResources(actorResources, { bonusActionUsed: true }),
+      });
+    }
 
     const effectiveLevel = castAtLevel ?? spellLevel;
     const slotNote = effectiveLevel > 0 ? ` (level ${effectiveLevel} slot spent)` : '';

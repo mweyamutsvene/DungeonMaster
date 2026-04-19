@@ -291,7 +291,8 @@ export class MovementHandlers {
     const occupiedPositions = combatantStates
       .filter(c => {
         const p = getPosition(c.resources ?? {});
-        return p && !(c.characterId === (actorRef as any).characterId && actorRef.type === "Character")
+        return p && c.hpCurrent > 0
+                   && !(c.characterId === (actorRef as any).characterId && actorRef.type === "Character")
                    && !(c.monsterId === (actorRef as any).monsterId && actorRef.type === "Monster")
                    && !(c.npcId === (actorRef as any).npcId && actorRef.type === "NPC");
       })

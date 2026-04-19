@@ -473,8 +473,19 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
         }
       }
 
-      // B12: Skip futile melee attack when creature has speed 0 and no target in reach
-      if (!ranged && speed === 0 && attackTarget.distanceFeet > meleeReach) {
+      // B12+: Skip futile melee attack when no target is in reach
+      if (!ranged && attackTarget.distanceFeet > meleeReach) {
+        // If movement is not spent, try to close distance instead of attacking
+        if (!movementSpent && !hasMoved) {
+          return {
+            action: "moveToward",
+            target: attackTarget.name,
+            desiredRange: meleeReach,
+            endTurn: false,
+            intentNarration: `${input.combatantName} moves toward ${attackTarget.name}.`,
+          };
+        }
+        // Movement already spent and no target in reach — end turn
         return {
           action: "endTurn",
           endTurn: true,

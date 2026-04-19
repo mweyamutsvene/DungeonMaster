@@ -321,6 +321,7 @@ export class DamageResolver {
     // Generic hit-rider enhancement resolution (System 2)
     // Processes ALL enhancements through the unified pipeline:
     // Stunning Strike saves, OHT effects, bonus dice (Divine Smite), etc.
+    let enhancementTotal = 0; // accumulated bonus damage from bonusDice enhancements (e.g. Divine Smite)
     const enhancementResults: HitRiderEnhancementResult[] = [];
     if (action.enhancements && action.enhancements.length > 0 && hpAfter > 0) {
       for (const enhancement of action.enhancements) {
@@ -371,6 +372,7 @@ export class DamageResolver {
               await applyKoEffectsIfNeeded(targetCombatantForBonus, bonusHpBefore, newHp, this.deps.combatRepo);
               hpAfter = newHp;
               totalDamage += bonusDamage;
+              enhancementTotal += bonusDamage;
             }
             enhancementResults.push({
               abilityId: enhancement.abilityId,
@@ -398,6 +400,11 @@ export class DamageResolver {
     const genericEnhancements = enhancementResults.filter(
       (r) => r.abilityId !== "class:monk:stunning-strike" && r.abilityId !== "class:monk:open-hand-technique",
     );
+
+    // Build damage equation display prefix — includes enhancement bonus (e.g. Divine Smite) when present
+    const equationPrefix = enhancementTotal > 0
+      ? `${rollValue} + ${damageModifier}${effectBonusSuffix} + ${enhancementTotal}`
+      : `${rollValue} + ${damageModifier}${effectBonusSuffix}`;
 
     if (isFlurryStrike1) {
       const pendingAction2: AttackPendingAction = {
@@ -434,7 +441,7 @@ export class DamageResolver {
         requiresPlayerInput: true,
         type: "REQUEST_ROLL",
         diceNeeded: followUpDice,
-        message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
+        message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
         ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
         ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       };
@@ -475,7 +482,7 @@ export class DamageResolver {
           requiresPlayerInput: true,
           type: "REQUEST_ROLL",
           diceNeeded: followUpDice,
-          message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
+          message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
         };
       }
       // Target dead — remaining beams are lost (D&D 5e: can't target dead creature)
@@ -597,7 +604,7 @@ export class DamageResolver {
             type: "REQUEST_ROLL",
             diceNeeded: followUpDice,
             nextRollType: "attack",
-            message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
+            message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };
@@ -617,7 +624,7 @@ export class DamageResolver {
             targetHpRemaining: hpAfter,
             actionComplete: false,
             requiresPlayerInput: false,
-            message: `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Target defeated! You have ${remaining} attack(s) remaining.`,
+            message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Target defeated! You have ${remaining} attack(s) remaining.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };
@@ -650,8 +657,8 @@ export class DamageResolver {
       actionComplete: true,
       requiresPlayerInput: false,
       message: combatEnded
-        ? `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}. ${victoryStatus}!${masterySuffix}${enhancementSuffix}`
-        : `${rollValue} + ${damageModifier}${effectBonusSuffix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}${masterySuffix}${enhancementSuffix}`,
+        ? `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}. ${victoryStatus}!${masterySuffix}${enhancementSuffix}`
+        : `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}${masterySuffix}${enhancementSuffix}`,
       narration,
       combatEnded,
       victoryStatus,

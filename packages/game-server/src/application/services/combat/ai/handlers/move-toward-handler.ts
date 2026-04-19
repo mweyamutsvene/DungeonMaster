@@ -147,7 +147,7 @@ export class MoveTowardHandler implements AiActionHandler {
       }
 
       const occupiedPositions = allCombatants
-        .filter((c) => c.id !== aiCombatant.id && c.id !== targetCombatant.id)
+        .filter((c) => c.id !== aiCombatant.id && c.id !== targetCombatant.id && c.hpCurrent > 0)
         .map((c) => (c.resources as Record<string, unknown>)?.position as { x: number; y: number })
         .filter((p): p is { x: number; y: number } => !!p && typeof p.x === "number" && typeof p.y === "number");
 

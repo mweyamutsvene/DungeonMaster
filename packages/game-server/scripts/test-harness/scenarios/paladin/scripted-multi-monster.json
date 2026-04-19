@@ -1,0 +1,203 @@
+{
+  "name": "Paladin: Divine Smite + Scripted Multi-Monster AI Turns",
+  "description": "Reproduces the paladin test run pattern: Sir Aldric attacks with Divine Smite on first hit, then two monsters take scripted turns — Hell Hound moves and attacks, Fiend Scout holds. Tests: Divine Smite on-hit prompt, smite spell slot consumption, scripted AI via queueMonsterActions for deterministic multi-enemy turns, and survival against multiple attackers.",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric",
+      "className": "paladin",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "className": "paladin",
+        "level": 5,
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 16
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 20,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Shield of Faith", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Divine Smite", "description": "Expend a spell slot to deal extra radiant damage on a hit" },
+          { "name": "Lay on Hands", "description": "Heal with a pool of 25 HP" },
+          { "name": "Aura of Protection", "description": "+CHA to all saves within 10ft" }
+        ],
+        "resourcePools": [
+          { "name": "layOnHands", "current": 25, "max": 25 },
+          { "name": "channelDivinity:paladin", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hell Hound",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 17,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 6,
+            "wisdom": 13,
+            "charisma": 6
+          },
+          "maxHp": 45,
+          "hp": 45,
+          "armorClass": 15,
+          "speed": 50,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Fiend Scout",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 33,
+          "hp": 33,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Short Sword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I charge into battle" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Initiative 20+0=20, Aldric goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "--- Attack 1: Longsword vs Fiend Scout (adjacent at 15,10) with Divine Smite ---",
+      "type": "action",
+      "input": { "text": "I attack the Fiend Scout with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "17" },
+      "comment": "17+6=23 vs AC 13 → hit. Should offer Divine Smite.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with divine smite" },
+      "comment": "Longsword 6+3=9 base + smite 2d8 radiant. Fiend Scout takes heavy damage. EA chains.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "--- Attack 2: Extra Attack chain vs Fiend Scout ---",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15+6=21 vs AC 13 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+3=8 damage. All attacks complete (2 from Extra Attack).",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Queue Hell Hound: move to melee then attack. Fiend Scout: just end turn.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          {
+            "action": "moveToward",
+            "target": "Sir Aldric",
+            "desiredRange": 5,
+            "endTurn": false
+          },
+          {
+            "action": "attack",
+            "target": "Sir Aldric",
+            "attackName": "Bite",
+            "endTurn": true
+          },
+          {
+            "action": "endTurn",
+            "endTurn": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End Aldric's turn — monsters execute scripted decisions"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for both monster turns to complete",
+      "timeout": 8000
+    },
+    {
+      "comment": "Verify combat is active. Aldric may or may not have taken damage from Hell Hound Bite (5+5=10 vs AC 20 likely misses).",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "monstersAlive": 2
+      }
+    }
+  ]
+}

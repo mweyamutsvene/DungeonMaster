@@ -11,7 +11,7 @@ import { createEffect } from '../../../../../domain/entities/combat/effects.js';
 import { createZone } from '../../../../../domain/entities/combat/zones.js';
 import type { ZoneEffect } from '../../../../../domain/entities/combat/zones.js';
 import { addZone } from '../../../../../domain/rules/combat-map.js';
-import { getPosition } from '../../helpers/resource-utils.js';
+import { getPosition, normalizeResources, patchResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
@@ -38,11 +38,13 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
       castInfo,
       spellMatch,
       isConcentration,
+      isBonusAction,
       sheet,
       roster,
       encounter,
       combatants,
       actor,
+      actorCombatant,
     } = ctx;
     const { deps, debugLogsEnabled } = this.handlerDeps;
 
@@ -156,7 +158,16 @@ export class ZoneSpellDeliveryHandler implements SpellDeliveryHandler {
       encounterId,
       actor,
       spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
     });
+
+    // If bonus action spell, mark bonus action used on resources
+    if (isBonusAction && actorCombatant) {
+      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: patchResources(actorResources, { bonusActionUsed: true }),
+      });
+    }
 
     const concNote = isConcentration ? " [concentration]" : "";
     const typeNote =

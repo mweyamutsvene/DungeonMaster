@@ -92,6 +92,31 @@ const narrativeGenerator =
 const characterGenerator =
   llmProvider && llmModel ? new CharacterGenerator(llmProvider, { model: llmModel }) : undefined;
 
+// ── Process-level crash handlers ──────────────────────────────────────────
+// Catch unhandled promise rejections and uncaught exceptions so the server
+// logs the error instead of silently crashing. This is critical for debugging
+// async failures in AI turn orchestration, LLM calls, and fire-and-forget
+// narration/event emits.
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("🔥 Unhandled Promise Rejection:");
+  console.error("  Reason:", reason);
+  if (reason instanceof Error) {
+    console.error("  Stack:", reason.stack);
+  }
+  // Don't exit — keep the server running so we can diagnose.
+  // Node.js will emit a warning but won't crash.
+});
+
+process.on("uncaughtException", (error, origin) => {
+  console.error("🔥 Uncaught Exception:");
+  console.error("  Error:", error);
+  console.error("  Origin:", origin);
+  console.error("  Stack:", error.stack);
+  // For uncaughtException the process state may be corrupt — exit after logging.
+  // Give a moment for the log to flush.
+  setTimeout(() => process.exit(1), 500);
+});
+
 const app = buildApp({
   sessionsRepo,
   charactersRepo,

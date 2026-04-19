@@ -28,6 +28,8 @@ export interface SpellCastingContext {
   /** The effective slot level consumed (equals castAtLevel if upcasting, else spellLevel). */
   castAtLevel?: number;
   isConcentration: boolean;
+  /** Whether this spell uses the bonus action (from catalog or text detection). */
+  isBonusAction: boolean;
   /** Character sheet — typed from the raw JSON stored in SQLite. */
   sheet: CharacterSheet | null;
   characters: SessionCharacterRecord[];

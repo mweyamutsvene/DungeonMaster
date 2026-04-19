@@ -1,0 +1,203 @@
+{
+  "name": "Boss Fight: Fighter Action Surge Nova + OA on Fleeing Ogre",
+  "description": "Reproduces the boss-fight test run: Level 5 Fighter (Thorin) vs an Ogre (59 HP, AC 11). Thorin uses 2 regular attacks + Action Surge for 2 more (4 total via Extra Attack). Then uses queueMonsterActions to script the Ogre to flee, triggering an Opportunity Attack. Tests: Extra Attack chaining, Action Surge resource spending, OA on fleeing monster, and high-HP enemy survival across multiple attacks.",
+  "setup": {
+    "character": {
+      "name": "Thorin Ironfist",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 35, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Action Surge", "description": "Take one additional action on your turn" },
+          { "name": "Second Wind", "description": "Regain HP as a bonus action" }
+        ],
+        "resourcePools": [
+          { "name": "actionSurge", "current": 1, "max": 1 },
+          { "name": "secondWind", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Initiative 18+2=20. Thorin goes first. Ogre has endTurn behavior to stay passive for Round 1.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "--- Attack 1 of 2 (regular action): Longsword vs Ogre ---",
+      "type": "action",
+      "input": { "text": "I attack the Ogre with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15+6=21 vs AC 11 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "8+3=11 damage. Ogre HP: 59→48. Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "--- Attack 2 of 2 (Extra Attack chain): Longsword vs Ogre ---",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14+6=20 vs AC 11 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6+3=9 damage. Ogre HP: 48→39. Regular action complete (2 attacks done).",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "--- Action Surge: Grants 1 additional action (2 more attacks with Extra Attack) ---",
+      "type": "action",
+      "input": { "text": "I use action surge" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "--- Action Surge Attack 1 of 2: Longsword vs Ogre ---",
+      "type": "action",
+      "input": { "text": "I attack the Ogre with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7+6=13 vs AC 11 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+3=8 damage. Ogre HP: 39→31. Surge Extra Attack chains to surge 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "--- Action Surge Attack 2 of 2 (Extra Attack chain): Longsword vs Ogre ---",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12+6=18 vs AC 11 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7+3=10 damage. Ogre HP: 31→21. All 4 attacks complete.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Queue the Ogre to flee on its turn (moveAwayFrom triggers OA)",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          {
+            "action": "moveAwayFrom",
+            "target": "Thorin Ironfist",
+            "desiredRange": 40,
+            "endTurn": true
+          }
+        ]
+      }
+    },
+    {
+      "comment": "End player turn — Ogre uses queued flee decision",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for Ogre to flee and trigger OA. Server should prompt for OA.",
+      "type": "waitForPlayerOa",
+      "comment": "Ogre fleeing should trigger OA prompt for Thorin"
+    },
+    {
+      "comment": "Roll OA attack: natural 20 for critical hit against the fleeing Ogre",
+      "type": "playerOaRoll",
+      "input": { "text": "20" },
+      "comment": "20+6=26 vs AC 11 → crit hit. OA auto-resolves damage (server-rolled)."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Ogre's turn to complete (endTurn: true in queued action) and player turn to begin",
+      "timeout": 5000
+    },
+    {
+      "comment": "Verify combat is still active. OA damage is server-rolled so Ogre may survive.",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "name": "Rogue Cunning Action: Dash as Bonus Action for Extra Movement",
+  "description": "Tests Cunning Action Dash: Rogue uses Cunning Action Dash as bonus action first, then moves beyond normal 30ft speed to close the gap with a distant enemy and attack. Verifies: (1) Cunning Action Dash consumes bonus action and grants extra movement, (2) Total movement of 50ft exceeds base speed 30ft (only possible with Dash), (3) Melee attack works after the Dash move. From test matrix: Cunning Action Dash was listed as untested.",
+  "setup": {
+    "character": {
+      "name": "Vex Shadowblade",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ],
+        "features": [
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as bonus action" },
+          { "name": "Sneak Attack", "description": "3d6 extra damage with advantage or ally adjacent to target" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 55, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I strike fast" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "Initiative 18+4=22, Rogue goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cunning Action: Dash as bonus action FIRST. Should add 30ft to movement budget (total 60ft).",
+      "type": "action",
+      "input": { "text": "cunning action dash" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "comment": "Move 50ft to reach the Goblin at (55,10). Start at (5,10), move to (55,10) = 50ft. Without Dash, max is 30ft — this proves Dash works. No enemies adjacent along the path.",
+      "type": "action",
+      "input": { "text": "move to (55, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Now attack with main action — Goblin is adjacent after the 50ft move.",
+      "type": "action",
+      "input": { "text": "I attack the Goblin Scout with my shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12+7=19 vs AC 12 → hit",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "4+4=8 damage. Goblin HP: 50→42."
+    },
+    {
+      "comment": "Verify full HP and combat active
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 38, "max": 38 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

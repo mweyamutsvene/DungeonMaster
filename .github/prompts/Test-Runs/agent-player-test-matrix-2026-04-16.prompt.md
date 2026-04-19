@@ -126,49 +126,62 @@
 - **⚠️ INVESTIGATE**: Spectral Guard never moved or attacked in 4 rounds (AI passivity bug)
 - Report: `run-solo-warlock-2026-04-17.prompt.md`
 
-### Test H: `wounded-fighter` — Survival Pressure
-- [ ] Starts at 18/42 HP (below 50%)
-- [ ] Second Wind fires immediately (survival priority)
-- [ ] 4 Goblin Warriors → multi-enemy AI turns work
-- [ ] Action Surge when outnumbered
-- [ ] **Creative: Focus fire one goblin** to reduce enemy count
-- [ ] **Creative: Move to bottle-neck position** — tactical movement
-- [ ] **Creative: Grapple one goblin** while fighting others
-- [ ] Multiple enemies taking turns in sequence
-- [ ] Death save if HP hits 0
+### Test H: `wounded-fighter` — Combat State Corruption (2026-04-18)
+- [x] Starts at 18/42 HP (below 50%)
+- [x] Second Wind fires immediately (survival priority) — healed 13 HP (8+5) ✅
+- [x] Second Wind resource decremented (1→0) ✅
+- [x] Action Surge grants 2 additional attacks ✅ ("Gained 2 additional attacks")
+- [x] Action Surge resource decremented (1→0) ✅
+- [x] Extra Attack (2/action) chains correctly ✅
+- [x] Disadvantage on hidden target handled (2d20, lower taken) ✅
+- [x] 3 of 4 Goblins killed in single round via SecondWind + ExtraAttack + ActionSurge
+- [ ] Multiple enemies taking turns in sequence *(AI stall then combat loop)*
+- [ ] Death save if HP hits 0 *(not needed — took no damage)*
+- **🐛 BUG-5** (reproduced): "longsword" auto-selects Handaxe by default
+- **🐛 BUG-6** (reproduced): Longsword damage 1d10+3 instead of 1d8+3 (versatile always two-hand)
+- **🐛 BUG-H1** (new): Ranged long-range attack rejected — 30ft > 20ft normal range, ignores 60ft long range
+- **🐛 BUG-H2** (new): AI stalls when dead combatants block pathfinding (root cause: dead bodies treated as occupied)
+- **🐛 BUG-H3** (Critical): Server attacks already-dead goblins at full HP (7→0 on dead targets)
+- **🐛 BUG-H4** (Critical): Player turn auto-resolved without player input
+- **🐛 BUG-H5** (Critical): Combat loop replays identical turn sequence indefinitely
+- **🐛 BUG-H6** (High): No victory declared despite all enemies at 0 HP
+- Report: `run-batch2-2026-04-18.prompt.md`
 
-### Test I: `solo-paladin` — Divine Smite + Healing
-- [ ] Lay on Hands healing works
-- [ ] Divine Smite post-hit (bonus radiant damage)
-- [ ] Extra Attack (2/action)
-- [ ] Shield of Faith concentration (+2 AC)
-- [ ] **Creative: Smite + Extra Attack** combo round
-- [ ] **Creative: Cure Wounds** instead of attacking
-- [ ] **Creative: End turn early** to conserve resources
-- [ ] **Creative: Grapple a fiend** — STR contest
-- [ ] Spell slot management across Smite + spells
+### Test I: `solo-paladin` — PARTIAL (Re-tested 2026-04-19)
+- [ ] Lay on Hands healing works *(not tested — Aldric never took damage)*
+- [x] Divine Smite post-hit (bonus radiant damage) ✅ — 16 radiant bonus vs fiend, slot decremented
+- [x] Extra Attack (2/action) ✅ — auto-chains correctly
+- [ ] Shield of Faith concentration (+2 AC) *(BUG-P2: consumes action instead of bonus action)*
+- [ ] Channel Divinity *(not tested)*
+- [ ] Cure Wounds spell *(not tested)*
+- [x] Resource pools initialize correctly: layOnHands 25/25, channelDivinity 1/1, spellSlots ✅
+- [x] Sap weapon mastery applies on hit ✅
+- [x] AC 20 correctly blocks low attack rolls ✅
+- ~~**⚠️ BUG-I1**~~ RESOLVED: Ollama contention, not a code bug. Re-test on 4/19 started immediately.
+- **🐛 BUG-P1** (Low): Divine Smite damage display shows "6 + 3 = 25" — omits +16 smite in equation
+- **🐛 BUG-P2** (High): Shield of Faith consumes action instead of bonus action — blocks attack on same turn
+- **🐛 BUG-P3** (High): Shield of Faith does not consume spell slot — spellSlot_1 unchanged after cast
+- **🐛 BUG-P4** (High): AI stall after Round 3 (same as BUG-H2)
+- **⚠️**: Bonus action marked "used" after Divine Smite in Round 1 (no bonus action requested — rule mismatch?)
+- Report: `run-solo-paladin-2026-04-19.prompt.md`
 
 ---
 
 ## Batch 4: Remaining Scenarios (Ports 3011–3013)
 
-### Test J: `party-dungeon` — Multi-Combatant Party
-- [ ] Multiple PCs/NPCs in party
-- [ ] Turn order with multiple combatants
-- [ ] Targeting specific enemies by name
-- [ ] **Creative: Move to protect NPC ally** 
-- [ ] **Creative: Dash past enemies** — provoke multiple OAs
-- [ ] AI targets weakest party member
-- [ ] Multi-combatant victory condition
+### Test J: `party-dungeon` — INCOMPLETE — Server Timeout (2026-04-18)
+- [ ] Multiple PCs/NPCs in party *(not reached — server timeout)*
+- [ ] Turn order with multiple combatants *(not reached)*
+- [ ] Targeting specific enemies by name *(not reached)*
+- **⚠️ BUG-J1** (Needs Re-Test): `/combat/initiate` times out after 120s. NPC initialization suspected, but Ollama contention from stuck wounded-fighter AI is the likely confound. Re-test in isolation.
+- Report: `run-batch2-2026-04-18.prompt.md`
 
-### Test K: `monk-vs-monk` — Mirror Match
-- [ ] Both combatants have ki abilities
-- [ ] Stunning Strike vs Stunning Strike
-- [ ] Deflect Attacks from both sides
-- [ ] **Creative: Patient Defense** against monk enemy
-- [ ] **Creative: Step of the Wind to reposition**
-- [ ] **Creative: Grapple the enemy monk**
-- [ ] Ki resource war — who runs out first
+### Test K: `monk-vs-monk` — INCOMPLETE — Server Timeout (2026-04-18)
+- [ ] Both combatants have ki abilities *(not reached — server timeout)*
+- [ ] Stunning Strike vs Stunning Strike *(not reached)*
+- [ ] Ki resource war — who runs out first *(not reached)*
+- **⚠️ BUG-K1** (Needs Re-Test): `/combat/initiate` times out after 120s. Monster has `className: "monk"` + `level: 5` — server resource init suspected, but Ollama contention is likely confound. Re-test in isolation.
+- Report: `run-batch2-2026-04-18.prompt.md`
 
 ---
 
@@ -177,16 +190,24 @@
 |--------|-------|
 | Total scenarios | 11 |
 | Total test checks | ~115 |
-| Batches completed | 1 of 4 |
-| Scenarios run | 3 (fighter ✅, barbarian ✅, rogue ⚠️ stuck) |
-| Bugs found | **14** (3 Critical, 6 Medium, 5 Low) |
-| Unexpected behaviors | 4 (ambiguous/needs review) |
+| Batches completed | 2 of 4 |
+| Scenarios run | 9 (fighter ✅, barbarian ✅, rogue ⚠️, wizard ✅, monk ✅, boss ✅, warlock ✅, wounded-fighter ⚠️, paladin ⚠️, party-dungeon ❌, monk-vs-monk ❌) |
+| Bugs found | **30** (6 Critical, 10 High, 8 Medium, 6 Low/Cosmetic) |
+| Resolved | BUG-I1 (Ollama contention, not code) |
+| Unexpected behaviors | 6 (ambiguous/needs review) |
 | Missing features | Dash extra movement, long-range attacks |
 
-### Bug Report
-See [run-batch1-2026-04-16.prompt.md](run-batch1-2026-04-16.prompt.md) for full details.
+### Bug Reports
+- Batch 1: [run-batch1-2026-04-16.prompt.md](run-batch1-2026-04-16.prompt.md)
+- Batch 2: [run-batch2-2026-04-18.prompt.md](run-batch2-2026-04-18.prompt.md)
+- Paladin: [run-solo-paladin-2026-04-19.prompt.md](run-solo-paladin-2026-04-19.prompt.md)
 
-### Top 3 Blockers
-1. **BUG-2**: OA pending action 404 — all movement-triggered reactions broken
-2. **BUG-1**: Disengage not suppressing OAs — core 5e mechanic
-3. **BUG-4**: Dash not granting extra movement
+### Top 8 Blockers
+1. **BUG-H3/H4/H5**: Dead goblins attacked at full HP + player turn auto-resolved + combat loop (Critical — combat state corruption)
+2. **BUG-H6**: No victory despite all enemies at 0 HP (High — combat never ends)
+3. **Dead combatant pathfinding**: Dead bodies block movement in 4 files (root cause of BUG-H2/P4 AI stall)
+4. **BUG-P2/P3**: Shield of Faith consumes action (not bonus) + no spell slot consumed (High — spell casting broken)
+5. **BUG-H1/BUG-11**: Long-range attacks rejected (Medium — only normal range checked)
+6. **BUG-6**: Longsword versatile always 1d10 two-hand (Medium)
+7. **BUG-2**: OA pending action 404 (Critical — movement reactions broken)
+8. **BUG-1**: Disengage not suppressing OAs (Critical — core 5e mechanic)

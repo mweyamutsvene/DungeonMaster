@@ -758,10 +758,20 @@ export class ClassAbilityHandlers {
       };
     }
 
+    // Re-read combatant state: executors that delegate to ActionService (e.g.,
+    // CunningAction disengage/dash, StepOfTheWind) persist resource changes
+    // directly (disengaged, dashed, movementRemaining). We must use the freshly-
+    // persisted state as base, not the stale snapshot captured before execution.
+    const refreshedCombatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const refreshedActor = refreshedCombatants.find(
+      (c: any) => c.combatantType === "Character" && c.characterId === actorId,
+    );
+    const freshResources = (refreshedActor?.resources ?? resources) as Record<string, unknown>;
+
     // Executor completed the action (e.g., patient-defense, step-of-the-wind)
     let updatedResourcesForComplete = skipBonusActionCost
-      ? resources
-      : useBonusAction(resources);
+      ? freshResources
+      : useBonusAction(freshResources as any);
 
     // Track Nick mastery usage (once per turn)
     if (skipBonusActionCost) {

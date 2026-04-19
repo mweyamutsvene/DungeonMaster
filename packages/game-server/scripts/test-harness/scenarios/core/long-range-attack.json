@@ -1,0 +1,126 @@
+{
+  "name": "Long-Range Thrown Weapon: Attack Beyond Normal Range Allowed",
+  "description": "Regression test for BUG-H1 fix (Track C): thrown weapon attacks beyond normal range but within long range must be accepted, not rejected with 400. Player at (5,10) throws a Handaxe (range 20/60ft) at an enemy 35ft away. The attack should succeed (200 OK) with disadvantage applied per 5e 2024 rules for attacks beyond normal range.",
+  "setup": {
+    "character": {
+      "name": "Rowan",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Handaxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["light", "thrown"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Archer",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I throw my handaxe" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "comment": "High initiative to go first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "throw handaxe at Goblin Archer" },
+      "comment": "Goblin Archer is 35ft away (normal range 20ft, long range 60ft). Pre-fix: returns 400 error. Post-fix: returns attack roll request with disadvantage for long-range throw.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "disadvantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 5 = 20 vs AC 13 → hit (rolling with disadvantage but still hits)",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage vs 7 HP → Goblin Archer dies",
+      "expect": {
+        "actionComplete": true,
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Victory"
+      }
+    }
+  ]
+}

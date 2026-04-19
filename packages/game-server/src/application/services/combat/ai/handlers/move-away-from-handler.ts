@@ -120,7 +120,7 @@ export class MoveAwayFromHandler implements AiActionHandler {
     } catch { /* No map */ }
 
     const occupiedPositions = allCombatants
-      .filter((c) => c.id !== aiCombatant.id)
+      .filter((c) => c.id !== aiCombatant.id && c.hpCurrent > 0)
       .map((c) => (c.resources as Record<string, unknown>)?.position as { x: number; y: number })
       .filter((p): p is { x: number; y: number } => !!p && typeof p.x === "number" && typeof p.y === "number");
 

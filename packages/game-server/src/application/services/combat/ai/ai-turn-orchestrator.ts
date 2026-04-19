@@ -63,6 +63,9 @@ export class AiTurnOrchestrator {
   /** Tracks combatants we've already narrated as "downed" to avoid repeat messages */
   private readonly downedSkipNarrated = new Set<string>();
 
+  /** Tracks encounters currently being processed by processAllMonsterTurns to prevent concurrent races */
+  private readonly _inFlight = new Set<string>();
+
   /** Extracted context builder */
   private readonly contextBuilder: AiContextBuilder;
 
@@ -731,6 +734,11 @@ export class AiTurnOrchestrator {
    * Also processes legendary actions after each turn ends and lair actions at round start.
    */
   async processAllMonsterTurns(sessionId: string, encounterId: string): Promise<void> {
+    // Concurrency guard: skip if already processing this encounter
+    if (this._inFlight.has(encounterId)) return;
+    this._inFlight.add(encounterId);
+
+    try {
     // Determine who just ended their turn (the combatant before the current one in initiative order).
     // Legendary actions fire "immediately after another creature's turn ends".
     const enc0 = await this.combat.getEncounterById(encounterId);
@@ -769,7 +777,25 @@ export class AiTurnOrchestrator {
       const snapCombatants = encSnap ? await this.combat.listCombatants(encounterId) : [];
       const aboutToAct = encSnap ? snapCombatants[encSnap.turn] : undefined;
 
-      processed = await this.processMonsterTurnIfNeeded(sessionId, encounterId);
+      try {
+        processed = await this.processMonsterTurnIfNeeded(sessionId, encounterId);
+      } catch (aiTurnErr) {
+        console.error(`[processAllMonsterTurns] AI turn processing failed for encounter ${encounterId}, attempting to advance turn:`, aiTurnErr);
+        // Try to advance to next turn so combat doesn't get stuck
+        try {
+          await this.combatService.nextTurn(sessionId, { encounterId, skipDeathSaveAutoRoll: true });
+        } catch (advanceErr) {
+          console.error("[processAllMonsterTurns] Failed to advance turn after error, breaking:", advanceErr);
+          break;
+        }
+        continue;
+      }
+
+      // After each turn, re-check encounter status — break early if combat ended
+      const encAfter = await this.combat.getEncounterById(encounterId);
+      if (!encAfter || encAfter.status !== "Active") {
+        break;
+      }
 
       // After an AI turn completes, fire legendary actions for the combatant that just ended
       if (processed && aboutToAct) {
@@ -779,6 +805,9 @@ export class AiTurnOrchestrator {
           console.error("[processAllMonsterTurns] Post-turn legendary action failed, continuing:", err);
         }
       }
+    }
+    } finally {
+      this._inFlight.delete(encounterId);
     }
   }
 

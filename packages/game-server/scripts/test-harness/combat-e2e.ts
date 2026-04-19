@@ -109,6 +109,7 @@ async function main() {
       aiDecisionMaker.setDefaultBehavior("attack");
       aiDecisionMaker.setDefaultBonusAction(undefined);
       aiDecisionMaker.clearMonsterBehaviors();
+      aiDecisionMaker.clearQueuedDecisions();
       
       console.log(`📋 Loading scenario: ${name}\n`);
 
@@ -137,7 +138,14 @@ async function main() {
         }
       };
 
-      const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi });
+      // Create decision queueing callback for exact monster action reproduction
+      const queueDecisions = (decisions: Array<Record<string, unknown>>) => {
+        for (const d of decisions) {
+          aiDecisionMaker.queueDecision(d as any);
+        }
+      };
+
+      const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi, queueDecisions });
       results.push({ name, success: result.success, passedSteps: result.passedSteps, totalSteps: result.totalSteps });
 
       // Print results for this scenario

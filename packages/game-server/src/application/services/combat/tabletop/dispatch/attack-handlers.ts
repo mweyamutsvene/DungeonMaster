@@ -41,7 +41,7 @@ import { resolveWeaponMastery } from "../../../../../domain/rules/weapon-mastery
 import { lookupMagicItemById } from "../../../../../domain/entities/items/magic-item-catalog.js";
 import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inventory.js";
 import { checkFlanking } from "../../../../../domain/rules/flanking.js";
-import { getWeaponThrownRange } from "../../../../../domain/entities/items/weapon-catalog.js";
+import { getWeaponThrownRange, lookupWeapon } from "../../../../../domain/entities/items/weapon-catalog.js";
 import type { CombatMap as FlankingCombatMap } from "../../../../../domain/rules/combat-map-types.js";
 
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
@@ -498,6 +498,18 @@ export class AttackHandlers {
     }
 
     if (inferredKind === "ranged") {
+      // Catalog fallback: if longRange wasn't populated from character sheet, look it up.
+      // Covers cases where the sheet only has normalRange or no range at all (old flat-array sheets).
+      if (longRange === undefined) {
+        const lookupName = isUnarmed ? "Unarmed Strike" : spec?.name ?? equippedWeapon?.name ?? "";
+        const catalogEntry = lookupWeapon(lookupName);
+        if (catalogEntry?.range) {
+          if (normalRange === undefined) normalRange = catalogEntry.range[0];
+          longRange = catalogEntry.range[1];
+          if (this.debugLogsEnabled) console.log(`[AttackHandlers] Catalog fallback range for ${lookupName}: ${normalRange}/${longRange}`);
+        }
+      }
+
       const maxRange = longRange ?? normalRange ?? 600;
       if (dist > maxRange + 0.0001) {
         throw new ValidationError(`Target is out of range (${Math.round(dist)}ft > ${Math.round(maxRange)}ft)`);
@@ -746,11 +758,9 @@ export class AttackHandlers {
     } else if (isThrownAttack) {
       hands = 1;
     } else {
-      const hasShield = !!(actorSheet?.equipment?.armor?.type === "shield"
-        || (actorSheet?.equipment?.shield));
-      const attacks = (actorSheet?.attacks ?? actorSheet?.equipment?.weapons ?? []) as any[];
-      const hasSecondWeapon = attacks.filter((a: any) => a.kind === "melee").length >= 2;
-      hands = (hasShield || hasSecondWeapon) ? 1 : 2;
+      // D&D 5e 2024: versatile weapons default to one-handed.
+      // Two-handed grip requires explicit player intent ("two-handed", "2h", "with two hands", etc.).
+      hands = 1;
     }
 
     let effectiveDiceSides = baseDiceSides;

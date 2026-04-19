@@ -1,0 +1,120 @@
+{
+  "name": "Compound Move+Attack: Both actions execute",
+  "description": "Player sends a compound 'move to (X,Y) and attack target' command. Verifies BOTH the move AND the attack are executed in a single command. Reproduces BUG-J1 from agent test plays where the attack was silently dropped.",
+  "setup": {
+    "character": {
+      "name": "Thorin Ironfist",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 15,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Warrior",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the goblin" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 20" },
+      "comment": "High initiative so player goes first.",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to (35, 10) and attack the Goblin Warrior with my longsword" },
+      "comment": "Compound command: move to adjacent position AND attack. Goblin is at (40,10), moving to (35,10) puts us 5ft away. BUG-J1 fix: the attack part should NOT be silently dropped.",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Verify player actually moved to the target position.",
+      "expect": {
+        "characterPosition": { "x": 35, "y": 10 }
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": {
+        "hit": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 6" },
+      "comment": "1d8+3 = 9 damage (longsword), kills the 7HP goblin.",
+      "expect": {
+        "combatEnded": true,
+        "victoryStatus": "Victory"
+      }
+    }
+  ]
+}

@@ -211,6 +211,7 @@ export function registerSessionTacticalRoutes(app: FastifyInstance, deps: Sessio
     // --- Collect occupied positions from combatants ---
     const combatants = await deps.combatRepo.listCombatants(encounterId);
     const occupiedPositions = combatants
+      .filter((c) => c.hpCurrent > 0)
       .map((c) => {
         const res = (c.resources as Record<string, unknown>) ?? {};
         const pos = res.position as { x: number; y: number } | undefined;

@@ -95,7 +95,8 @@ export type ScenarioAction =
   | RestAction
   | QueryAction
   | NpcActionAction
-  | ApplyConditionAction;
+  | ApplyConditionAction
+  | QueueMonsterActionsAction;
 
 interface InitiateAction {
   type: "initiate";
@@ -271,6 +272,34 @@ interface ConfigureAiAction {
     defaultBehavior: AiBehavior;
     defaultBonusAction?: string;
     monsterBehaviors?: Record<string, AiBehavior>;
+  };
+  comment?: string;
+}
+
+/**
+ * Queue specific AiDecision objects for the mock AI decision maker.
+ * Decisions are consumed in FIFO order. When the queue is empty,
+ * the mock falls back to its configured behavior (defaultBehavior / monsterBehaviors).
+ *
+ * Use this to replicate exact monster action sequences observed in live play
+ * (e.g., from AgentTestPlayer bug reports) for deterministic reproduction.
+ */
+interface QueueMonsterActionsAction {
+  type: "queueMonsterActions";
+  input: {
+    decisions: Array<{
+      action: string;
+      target?: string;
+      attackName?: string;
+      destination?: { x: number; y: number };
+      desiredRange?: number;
+      bonusAction?: string;
+      endTurn?: boolean;
+      spellName?: string;
+      spellLevel?: number;
+      featureId?: string;
+      seed?: number;
+    }>;
   };
   comment?: string;
 }
@@ -590,6 +619,8 @@ function displayCombatEvents(
 export interface RunScenarioCallbacks {
   /** Configure the mock AI decision maker */
   configureAi?: (config: { defaultBehavior: AiBehavior; defaultBonusAction?: string; monsterBehaviors?: Record<string, AiBehavior> }) => void;
+  /** Queue specific AiDecision objects for deterministic monster turn reproduction */
+  queueDecisions?: (decisions: Array<Record<string, unknown>>) => void;
 }
 
 export async function runScenario(
@@ -2349,6 +2380,20 @@ export async function runScenario(
             log(`${colors.green}✓${colors.reset} AI configured to: ${configAction.input.defaultBehavior}${configAction.input.defaultBonusAction ? ` + bonus: ${configAction.input.defaultBonusAction}` : ""}${configAction.input.monsterBehaviors ? ` + per-monster: ${JSON.stringify(configAction.input.monsterBehaviors)}` : ""}`);
           } else {
             log(`${colors.yellow}⚠${colors.reset} AI configuration not available (no callback provided)`);
+          }
+          break;
+        }
+
+        case "queueMonsterActions": {
+          const queueAction = action as QueueMonsterActionsAction;
+          if (callbacks.queueDecisions) {
+            callbacks.queueDecisions(queueAction.input.decisions as Array<Record<string, unknown>>);
+            log(`${colors.green}✓${colors.reset} Queued ${queueAction.input.decisions.length} AI decision(s)`);
+            for (const d of queueAction.input.decisions) {
+              log(`   ${colors.cyan}→ ${d.action}${d.target ? ` → ${d.target}` : ""}${d.attackName ? ` (${d.attackName})` : ""}${d.spellName ? ` [${d.spellName}]` : ""}${d.endTurn !== false ? " [end turn]" : ""}${colors.reset}`);
+            }
+          } else {
+            log(`${colors.yellow}⚠${colors.reset} Decision queueing not available (no callback provided)`);
           }
           break;
         }

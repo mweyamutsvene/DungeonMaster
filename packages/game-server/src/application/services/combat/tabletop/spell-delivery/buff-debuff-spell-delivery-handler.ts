@@ -7,7 +7,7 @@
 
 import { findCombatantByName } from '../combat-text-parser.js';
 import { createEffect } from '../../../../../domain/entities/combat/effects.js';
-import { addActiveEffectsToResources } from '../../helpers/resource-utils.js';
+import { addActiveEffectsToResources, normalizeResources, patchResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
 import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
@@ -33,6 +33,7 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       castInfo,
       spellMatch,
       isConcentration,
+      isBonusAction,
       sheet,
       actor,
       roster,
@@ -50,7 +51,7 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       console.warn(
         `[WARN] Spell '${castInfo.spellName}' has no effects defined — no mechanical changes applied. Check the spell catalog definition.`,
       );
-      await deps.actions.castSpell(sessionId, { encounterId, actor, spellName: castInfo.spellName });
+      await deps.actions.castSpell(sessionId, { encounterId, actor, spellName: castInfo.spellName, skipActionCheck: isBonusAction });
       return {
         requiresPlayerInput: false,
         actionComplete: true,
@@ -182,7 +183,16 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       encounterId,
       actor,
       spellName: castInfo.spellName,
+      skipActionCheck: isBonusAction,
     });
+
+    // If bonus action spell, mark bonus action used on resources
+    if (isBonusAction && actorCombatant) {
+      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: patchResources(actorResources, { bonusActionUsed: true }),
+      });
+    }
 
     const targetNote =
       appliedTo.length > 0 ? ` affecting ${appliedTo.length} target(s)` : "";
