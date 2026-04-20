@@ -103,28 +103,28 @@ import { HitRiderResolver } from "./rolls/hit-rider-resolver.js";
 import { DamageResolver } from "./rolls/damage-resolver.js";
 
 /**
- * Resolve the effective d20 roll value considering advantage/disadvantage.
- * When 2 values are provided and rollMode is advantage → take higher; disadvantage → take lower.
- * Falls back to the first value when only 1 is provided (backward-compatible with single-roll submissions).
+ * Resolve the effective d20 roll value.
+ * The server always expects a SINGLE value from the player. When advantage/disadvantage
+ * applies, the server instructs the player to "roll 2d20 and report the highest/lowest".
+ * The player does the selection; the server trusts the first number submitted.
  */
 export function resolveD20Roll(
   command: RollResultCommand,
-  rollMode: "normal" | "advantage" | "disadvantage" | undefined,
+  _rollMode?: "normal" | "advantage" | "disadvantage",
 ): { effective: number; rolls: number[] } {
-  const values: number[] = command.values
-    ? command.values.slice(0, 2)
-    : command.value != null
-      ? [command.value]
-      : [0];
-  if (values.length === 0) return { effective: 0, rolls: [0] };
-  const mode = rollMode ?? "normal";
-  if (mode === "advantage" && values.length >= 2) {
-    return { effective: Math.max(values[0]!, values[1]!), rolls: values };
-  }
-  if (mode === "disadvantage" && values.length >= 2) {
-    return { effective: Math.min(values[0]!, values[1]!), rolls: values };
-  }
-  return { effective: values[0]!, rolls: values };
+  const value = command.value ?? (command.values?.[0]) ?? 0;
+  return { effective: value, rolls: [value] };
+}
+
+/**
+ * Build the dice-prompt suffix for advantage/disadvantage.
+ * Returns text like " (roll 2d20, take the highest)" or "".
+ * Use this in all REQUEST_ROLL messages so wording stays consistent.
+ */
+export function rollModePrompt(rollMode: "normal" | "advantage" | "disadvantage" | undefined): string {
+  if (rollMode === "advantage") return " (roll 2d20, take the highest)";
+  if (rollMode === "disadvantage") return " (roll 2d20, take the lowest)";
+  return "";
 }
 
 /**
@@ -315,15 +315,6 @@ export class RollStateMachine {
         `Invalid d20 roll: ${numberFromText}. A d20 roll must be between 1 and 20.`,
       );
     }
-    // Validate second value for advantage/disadvantage rolls
-    if (d20NumbersFromText.length >= 2 && D20_ROLL_TYPES.has(expectedRollType)) {
-      const second = d20NumbersFromText[1]!;
-      if (second < 1 || second > 20) {
-        throw new ValidationError(
-          `Invalid d20 roll: ${second}. A d20 roll must be between 1 and 20.`,
-        );
-      }
-    }
 
     const looksLikeARoll = /\broll(?:ed)?\b/i.test(text);
 
@@ -414,12 +405,8 @@ export class RollStateMachine {
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],
   ): Promise<AttackResult> {
-    const { effective: rollValue, rolls: d20Rolls } = resolveD20Roll(command, action.rollMode);
-    const showBothRolls = d20Rolls.length >= 2 && action.rollMode && action.rollMode !== "normal";
-    // Format prefix showing both dice when advantage/disadvantage: "[15, 8] → 15"
-    const rollPrefix = showBothRolls
-      ? `[${d20Rolls[0]}, ${d20Rolls[1]}] → ${rollValue}`
-      : `${rollValue}`;
+    const { effective: rollValue } = resolveD20Roll(command, action.rollMode);
+    const rollPrefix = `${rollValue}`;
 
     const targetId = action.targetId || action.target;
     const target =
@@ -642,7 +629,6 @@ export class RollStateMachine {
         await this.deps.combatRepo.clearPendingAction(encounter.id);
         await this.deps.combatRepo.setPendingAction(encounter.id, pendingAction2);
 
-        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
         return {
           rollType: "attack",
           rawRoll: rollValue,
@@ -654,8 +640,8 @@ export class RollStateMachine {
           requiresPlayerInput: true,
           actionComplete: false,
           type: "REQUEST_ROLL",
-          diceNeeded: followUpDice,
-          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Second strike: Roll a ${followUpDice}.`,
+          diceNeeded: "d20",
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Second strike: Roll a d20${rollModePrompt(action.rollMode)}.`,
         };
       }
 
@@ -678,7 +664,6 @@ export class RollStateMachine {
         await this.deps.combatRepo.clearPendingAction(encounter.id);
         await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
-        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
         return {
           rollType: "attack",
           rawRoll: rollValue,
@@ -690,8 +675,8 @@ export class RollStateMachine {
           requiresPlayerInput: true,
           actionComplete: false,
           type: "REQUEST_ROLL",
-          diceNeeded: followUpDice,
-          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
+          diceNeeded: "d20",
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20${rollModePrompt(action.rollMode)}.`,
         };
       }
 
@@ -792,6 +777,18 @@ export class RollStateMachine {
           );
           const targetAlive = targetCombatantForChain ? targetCombatantForChain.hpCurrent > 0 : targetHp > 0;
 
+          // BUG-3 fix: Recompute rollMode for chained EA — weapon mastery effects
+          // (e.g. Vex advantage) may have been applied to the actor's resources.
+          const missChainEffects = getActiveEffects(actorCombatantAfterMiss.resources ?? {});
+          let missChainRollMode: "normal" | "advantage" | "disadvantage" = action.rollMode ?? "normal";
+          const missChainVex = missChainEffects.some(
+            e => e.type === "advantage" && e.target === "attack_rolls"
+              && e.duration === "until_triggered" && e.targetCombatantId === action.targetId,
+          );
+          if (missChainVex && missChainRollMode !== "disadvantage") {
+            missChainRollMode = "advantage";
+          }
+
           if (targetAlive) {
             // Target alive → chain to same target, stay in roll loop
             const nextPending: AttackPendingAction = {
@@ -802,12 +799,11 @@ export class RollStateMachine {
               target: action.target,
               targetId: action.targetId,
               weaponSpec: action.weaponSpec,
-              rollMode: action.rollMode,
+              rollMode: missChainRollMode,
             };
             await this.deps.combatRepo.clearPendingAction(encounter.id);
             await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
-            const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
             return {
               rollType: "attack",
               rawRoll: rollValue,
@@ -820,8 +816,8 @@ export class RollStateMachine {
               requiresPlayerInput: true,
               actionComplete: false,
               type: "REQUEST_ROLL",
-              diceNeeded: followUpDice,
-              message: `${missMessage} Extra Attack: Roll a ${followUpDice} for ${action.weaponSpec?.name ?? "attack"} vs ${target?.name ?? "target"}.`,
+              diceNeeded: "d20",
+              message: `${missMessage} Extra Attack: Roll a d20${rollModePrompt(missChainRollMode)} for ${action.weaponSpec?.name ?? "attack"} vs ${target?.name ?? "target"}.`,
               narration,
             };
           } else {
@@ -866,7 +862,7 @@ export class RollStateMachine {
       return this.resolveContestHit(
         sessionId, encounter, action, actorId, targetId, target,
         rollValue, attackBonus, total, effectAdjustedAC, isCritical,
-        rollPrefix, d20Rolls, characters, monsters, npcs, combatants,
+        rollPrefix, characters, monsters, npcs, combatants,
       );
     }
 
@@ -1245,7 +1241,6 @@ export class RollStateMachine {
     targetAC: number,
     isCritical: boolean,
     rollPrefix: string,
-    d20Rolls: number[],
     characters: SessionCharacterRecord[],
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],

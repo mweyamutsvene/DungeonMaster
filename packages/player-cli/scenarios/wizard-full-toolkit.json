@@ -1,0 +1,197 @@
+{
+  "name": "Wizard Full Toolkit vs Bandit Camp",
+  "description": "A level 7 Wizard faces a diverse bandit group. Tests the full wizard spell toolkit: Fireball (AoE save), Scorching Ray (multi-attack), Hold Person (save + paralysis), Magic Missile (auto-hit), Shield (reaction), Web (zone + restrained), Fire Bolt (cantrip), Counterspell (reaction vs caster). Higher level for broader spell access.",
+  "setup": {
+    "character": {
+      "name": "Magnus Stormweaver",
+      "className": "Wizard",
+      "level": 7,
+      "position": { "x": 0, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 20,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 16,
+        "spellAttackBonus": 8,
+        "spellSlots": { "1": 4, "2": 3, "3": 3, "4": 1 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Ray of Frost", "level": 0 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Shield", "level": 1 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Mage Armor", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Hold Person", "level": 2 },
+          { "name": "Web", "level": 2 },
+          { "name": "Misty Step", "level": 2 },
+          { "name": "Fireball", "level": 3 },
+          { "name": "Counterspell", "level": 3 },
+          { "name": "Wall of Fire", "level": 4 }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Light", "Thrown"]
+          }
+        ],
+        "features": [
+          { "name": "Arcane Recovery", "description": "Once per long rest, recover spell slots totaling level/2 (rounded up)." },
+          { "name": "Shield", "description": "Reaction: +5 AC until start of your next turn when hit by an attack." },
+          { "name": "Counterspell", "description": "Reaction: Interrupt a spell being cast within 60 feet." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bandit Captain",
+        "position": { "x": 30, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 16,
+            "constitution": 14,
+            "intelligence": 14,
+            "wisdom": 11,
+            "charisma": 14
+          },
+          "maxHp": 65,
+          "hp": 65,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Dagger",
+              "kind": "ranged",
+              "range": "20/60 ft",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit Mage",
+        "position": { "x": 35, "y": 10 },
+        "statBlock": {
+          "className": "wizard",
+          "level": 3,
+          "abilityScores": {
+            "strength": 9,
+            "dexterity": 14,
+            "constitution": 11,
+            "intelligence": 16,
+            "wisdom": 12,
+            "charisma": 11
+          },
+          "maxHp": 22,
+          "hp": 22,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 2,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 13,
+          "spellAttackBonus": 5,
+          "spellSlots": { "1": 4, "2": 2 },
+          "preparedSpells": [
+            { "name": "Fire Bolt", "level": 0 },
+            { "name": "Magic Missile", "level": 1 },
+            { "name": "Shield", "level": 1 },
+            { "name": "Burning Hands", "level": 1 },
+            { "name": "Scorching Ray", "level": 2 }
+          ],
+          "attacks": [
+            {
+              "name": "Dagger",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit Thug A",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 11,
+            "constitution": 14,
+            "intelligence": 8,
+            "wisdom": 9,
+            "charisma": 11
+          },
+          "maxHp": 32,
+          "hp": 32,
+          "armorClass": 11,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit Thug B",
+        "position": { "x": 25, "y": 20 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 11,
+            "constitution": 14,
+            "intelligence": 8,
+            "wisdom": 9,
+            "charisma": 11
+          },
+          "maxHp": 32,
+          "hp": 32,
+          "armorClass": 11,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

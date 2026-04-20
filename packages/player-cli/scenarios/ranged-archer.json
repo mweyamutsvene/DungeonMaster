@@ -1,0 +1,175 @@
+{
+  "name": "Ranged Archer vs Wolf Pack",
+  "description": "A level 5 Fighter (Archery fighting style) with longbow faces a pack of wolves and a dire wolf. Tests ranged combat exclusively: longbow attacks, long-range disadvantage, ranged attacks in melee range (disadvantage), kiting/repositioning, and the Archery feat (+2 ranged attack bonus). Also tests thrown weapons as backup.",
+  "setup": {
+    "character": {
+      "name": "Lyra Swiftbow",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 42,
+        "currentHp": 42,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "featIds": ["archery"],
+        "attacks": [
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600 ft",
+            "attackBonus": 9,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing"
+          },
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Light"]
+          },
+          {
+            "name": "Dagger",
+            "kind": "ranged",
+            "range": "20/60 ft",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Light", "Thrown"]
+          }
+        ],
+        "features": [
+          { "name": "Archery", "description": "+2 bonus to attack rolls with ranged weapons." },
+          { "name": "Action Surge", "description": "Take an additional action on your turn. Once per short rest." },
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Dire Wolf",
+        "position": { "x": 40, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 17,
+            "dexterity": 15,
+            "constitution": 15,
+            "intelligence": 3,
+            "wisdom": 12,
+            "charisma": 7
+          },
+          "maxHp": 37,
+          "hp": 37,
+          "armorClass": 14,
+          "speed": 50,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Wolf Alpha",
+        "position": { "x": 35, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 15,
+            "constitution": 12,
+            "intelligence": 3,
+            "wisdom": 12,
+            "charisma": 6
+          },
+          "maxHp": 16,
+          "hp": 16,
+          "armorClass": 13,
+          "speed": 40,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Wolf Scout",
+        "position": { "x": 35, "y": 20 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 15,
+            "constitution": 12,
+            "intelligence": 3,
+            "wisdom": 12,
+            "charisma": 6
+          },
+          "maxHp": 11,
+          "hp": 11,
+          "armorClass": 13,
+          "speed": 40,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Wolf Flanker",
+        "position": { "x": 30, "y": 25 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 15,
+            "constitution": 12,
+            "intelligence": 3,
+            "wisdom": 12,
+            "charisma": 6
+          },
+          "maxHp": 11,
+          "hp": 11,
+          "armorClass": 13,
+          "speed": 40,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

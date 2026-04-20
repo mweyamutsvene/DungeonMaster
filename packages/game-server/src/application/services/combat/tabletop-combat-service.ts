@@ -279,12 +279,12 @@ export class TabletopCombatService {
       type: "REQUEST_ROLL",
       rollType: "initiative",
       message: initModifiers.disadvantage
-        ? "Roll for initiative with disadvantage! (2d20 take lowest + DEX modifier)"
+        ? "Roll for initiative with disadvantage! (roll 2d20, take the lowest + DEX modifier)"
         : initModifiers.advantage
-          ? "Roll for initiative with advantage! (2d20 take highest + DEX modifier)"
+          ? "Roll for initiative with advantage! (roll 2d20, take the highest + DEX modifier)"
           : "Roll for initiative! (d20 + your DEX modifier)",
       narration,
-      diceNeeded: initModifiers.advantage || initModifiers.disadvantage ? "2d20" : "d20",
+      diceNeeded: "d20",
       pendingAction,
     };
     if (initModifiers.advantage) rollRequest.advantage = true;

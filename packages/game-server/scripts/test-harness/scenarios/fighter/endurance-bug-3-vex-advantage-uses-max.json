@@ -1,0 +1,109 @@
+{
+  "name": "BUG-3 Regression: Vex Advantage Must Use Higher d20",
+  "description": "After Vex grants advantage on the chained Extra Attack, the player reports the higher of 2d20 and the server uses that single value. Verifies Vex advantage is correctly applied to chained EA.",
+  "setup": {
+    "character": {
+      "name": "Valeria Steelhand",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 5 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 18,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Rapier",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Soldier B",
+        "position": { "x": 5, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start encounter",
+      "type": "initiate",
+      "input": { "text": "I attack Hobgoblin Soldier B with my rapier" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Go first",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "First rapier attack to trigger Vex",
+      "type": "action",
+      "input": { "text": "I attack Hobgoblin Soldier B with my rapier" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage resolves and Extra Attack chains. Vex should now grant advantage vs same target.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Regression assertion: with advantage, player rolls 2d20 and reports the highest (20). Should hit.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "hit": true }
+    }
+  ]
+}

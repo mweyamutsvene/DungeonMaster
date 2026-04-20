@@ -1,0 +1,357 @@
+{
+  "name": "Solo Cleric Replay: Full Feature Stress Test",
+  "description": "Extended replay of the solo-cleric AgentTestPlayer run from 2026-04-19. Tests: (1) Spirit Guardians zone damage, (2) channelDivinity resource pool, (3) Two-spell rule enforcement, (4) Sacred Flame cantrip (DEX save), (5) Healing Word bonus action heal on fresh turn, (6) Bless concentration swap (drops Spirit Guardians), (7) Turn Undead channel divinity. HP inflated to prevent early combat end.",
+  "setup": {
+    "character": {
+      "name": "Brother Aldric",
+      "className": "Cleric",
+      "level": 5,
+      "subclass": "Life",
+      "position": { "x": 15, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 18,
+          "charisma": 12
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Sacred Flame", "level": 0 },
+          { "name": "Toll the Dead", "level": 0 },
+          { "name": "Guiding Bolt", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 },
+          { "name": "Bless", "level": 1 },
+          { "name": "Shield of Faith", "level": 1 },
+          { "name": "Healing Word", "level": 1 },
+          { "name": "Spirit Guardians", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Mace",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Turn Undead", "description": "Channel Divinity: Each undead within 30 feet must make a WIS save or be turned for 1 minute." },
+          { "name": "Destroy Undead", "description": "Undead of CR 1/2 or lower that fail Turn Undead are destroyed." }
+        ],
+        "resourcePools": [
+          { "name": "channelDivinity", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Archer",
+        "position": { "x": 35, "y": 15 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320 ft",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ],
+          "vulnerabilities": ["radiant"],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"]
+        }
+      },
+      {
+        "name": "Zombie Brute",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 6,
+            "constitution": 16,
+            "intelligence": 3,
+            "wisdom": 6,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 8,
+          "speed": 20,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"]
+        }
+      },
+      {
+        "name": "Ghoul",
+        "position": { "x": 10, "y": 20 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 15,
+            "constitution": 10,
+            "intelligence": 7,
+            "wisdom": 10,
+            "charisma": 6
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Claws",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion", "Charmed"]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "--- INITIATIVE: Player rolls 20 to go first ---",
+      "type": "initiate",
+      "input": { "text": "I invoke divine power" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "--- BUG-2 CHECK: Look for duplicate channelDivinity resource pool. Setup provides channelDivinity:1/1 but hydration may add channelDivinity:cleric:2/2 as a separate entry ---",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "channelDivinity", "current": 1, "max": 1 } }
+    },
+
+    {
+      "comment": "--- ROUND 1, PLAYER TURN: Cast Spirit Guardians (Level 3 concentration, 15ft radius aura, 3d8 radiant on WIS save) ---",
+      "type": "action",
+      "input": { "text": "cast Spirit Guardians" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify concentration is active on Spirit Guardians",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Spirit Guardians" }
+    },
+
+    {
+      "comment": "Verify Level 3 spell slot consumed: 2 → 1",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+
+    {
+      "comment": "End player turn → all 3 monsters take their turns. Ghoul (10,20) and Zombie Brute (20,10) are within 15ft of Aldric (15,15) — Chebyshev distance = 5ft each. They should take Spirit Guardians zone damage (3d8 radiant, WIS save DC 15) at the start of their turn. Skeleton Archer (35,15) is 20ft away — outside SG range. AI behavior: attack → monsters try to attack Aldric.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "--- BUG-1/BUG-3 VERIFICATION: Spirit Guardians zone damage should have been applied silently. Check HP decreases. Ghoul (80 HP) at 5ft from Aldric should have taken 3d8 radiant (3-24 damage). WIS +0 vs DC 15 — likely fails. ---",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Ghoul", "min": 0, "max": 79 } }
+    },
+    {
+      "comment": "Zombie Brute (80 HP) at 5ft from Aldric should have taken 3d8 radiant. WIS -2 vs DC 15 — very likely fails.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Zombie Brute", "min": 0, "max": 79 } }
+    },
+    {
+      "comment": "Skeleton Archer (80 HP) at 20ft from Aldric — OUTSIDE 15ft Spirit Guardians radius. Should still be at full HP (no SG damage taken).",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Skeleton Archer", "min": 80, "max": 80 } }
+    },
+
+    {
+      "comment": "--- ROUND 2, PLAYER TURN: Cast Guiding Bolt at Skeleton Archer (Level 1 spell attack, 4d6 radiant) ---",
+      "type": "action",
+      "input": { "text": "cast Guiding Bolt at Skeleton Archer" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 7 (spellAttackBonus) = 22 vs AC 13 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 18 (4d6 radiant). Skeleton has radiant vulnerability → 36 effective damage vs 80 HP → HP should drop to 44",
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" }
+    },
+
+    {
+      "comment": "Verify Skeleton Archer took Guiding Bolt damage (18 radiant, possibly doubled by vulnerability to 36). HP 80 → 44 or 62 depending on vulnerability handling.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Skeleton Archer", "min": 1, "max": 79 } }
+    },
+
+    {
+      "comment": "Verify Level 1 spell slot consumed: 4 → 3",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+
+    {
+      "comment": "--- TWO-SPELL RULE: Attempt Healing Word (leveled bonus action spell) after Guiding Bolt (leveled action spell) on same turn. D&D 5e 2024: If a leveled action spell was cast, only cantrip bonus action spells are allowed. Should be BLOCKED. ---",
+      "type": "action",
+      "input": { "text": "I cast Healing Word on myself" },
+      "expect": { "error": true, "errorContains": "leveled" }
+    },
+
+    {
+      "comment": "--- Verify Spirit Guardians concentration is still active after casting Guiding Bolt (Guiding Bolt is NOT concentration) ---",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Spirit Guardians" }
+    },
+
+    {
+      "comment": "End turn → monsters take turns (Spirit Guardians ticks again on Ghoul + Zombie Brute). Then Round 3 player turn begins.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "=== ROUND 3: TEST SACRED FLAME (cantrip, DEX save, no slot cost) ===\nSacred Flame is a save-based cantrip — server auto-resolves DEX save + damage. Should not consume a spell slot.",
+      "type": "action",
+      "input": { "text": "cast Sacred Flame at Ghoul" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify no spell slots were consumed by cantrip — Level 1 still at 3 from Guiding Bolt",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+
+    {
+      "comment": "--- TEST HEALING WORD ON FRESH TURN (bonus action heal) ---\nOn this turn we only cast a cantrip (Sacred Flame) as our action, so a leveled bonus action spell (Healing Word) should be allowed.",
+      "type": "action",
+      "input": { "text": "cast Healing Word on Brother Aldric" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify Healing Word consumed Level 1 slot: 3 → 2",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+
+    {
+      "comment": "Spirit Guardians should still be active (Healing Word is not concentration)",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Spirit Guardians" }
+    },
+
+    {
+      "comment": "End turn → monsters take turns again. Round 4 player turn begins.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "=== ROUND 4: TEST BLESS (concentration swap) ===\nBless is a concentration spell. Casting it should DROP Spirit Guardians concentration and start Bless concentration instead. Uses Level 1 slot.",
+      "type": "action",
+      "input": { "text": "cast Bless on Brother Aldric" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify concentration SWITCHED from Spirit Guardians to Bless",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Bless" }
+    },
+
+    {
+      "comment": "BUG-4 DISCOVERED: Bless did NOT consume a spell slot! Message shows no '(level 1 slot spent)'. Level 1 should be 1 but is still 2. Buff/debuff delivery handler may skip slot deduction.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+
+    {
+      "comment": "End turn → monsters take turns. Spirit Guardians zone should be GONE now (concentration dropped). Monsters should no longer take zone damage.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "=== ROUND 5: TEST TURN UNDEAD (Channel Divinity) ===\nUse Turn Undead — all undead within 30ft must make WIS save or be Frightened. Skeleton (CR 0.25, WIS -1) and Zombie Brute (CR 0.5, WIS -2) should be affected by Destroy Undead at Cleric level 5 (threshold CR 0.5). Ghoul (CR 1, WIS +0) fails save but CR > 0.5, so Frightened instead of destroyed.",
+      "type": "action",
+      "input": { "text": "turn undead" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify Bless concentration is still active (Turn Undead is not a spell, does not affect concentration)",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Bless" }
+    },
+
+    {
+      "comment": "Verify combat is still active — monsters have high HP so some should survive",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}

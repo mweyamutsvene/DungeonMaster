@@ -1,0 +1,134 @@
+{
+  "name": "BUG-5 Regression: Sap Applied And Expires Correctly",
+  "description": "After Valeria applies Sap via Longsword mastery, the Hobgoblin Captain should have Sapped condition. Per D&D 5e 2024 Sap: disadvantage on next attack before start of your next turn. Condition expires at start of ATTACKER's next turn, not target's turn start.",
+  "setup": {
+    "character": {
+      "name": "Valeria Steelhand",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 5 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 60,
+        "currentHp": 60,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"],
+            "mastery": "sap"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Captain",
+        "position": { "x": 5, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 13
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 17,
+          "speed": 30,
+          "challengeRating": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start encounter",
+      "type": "initiate",
+      "input": { "text": "I attack Hobgoblin Captain with my longsword" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Go first",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Apply sap to captain",
+      "type": "action",
+      "input": { "text": "I attack Hobgoblin Captain with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage resolves, Sap mastery applies, EA chains",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": false, "messageContains": "Sap" }
+    },
+    {
+      "comment": "Consume chained attack with miss",
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Captain should still be sapped before its next attack",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Hobgoblin Captain",
+          "hasConditions": ["Sapped"]
+        }
+      }
+    },
+    {
+      "comment": "End turn — Captain AI endTurns, cycling back to Valeria's turn. Sapped expires at start of attacker's (Valeria's) next turn per RAW.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "After full cycle, Sapped correctly expired at start of attacker's next turn",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Hobgoblin Captain",
+          "doesNotHaveConditions": ["Sapped"]
+        }
+      }
+    }
+  ]
+}

@@ -109,7 +109,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 15" },
-      "comment": "Extra Attack chained: second attack against same target. Vex advantage should apply (server bug: chain copies original rollMode, not recomputed — advantage is stored as ActiveEffect but not applied to chained pending action).",
+      "comment": "Extra Attack chained: second attack against same target. Vex advantage should apply — the server recomputes rollMode from active effects and tells the player to roll 2d20 and report the highest.",
       "expect": {
         "hit": true,
         "requiresPlayerInput": true

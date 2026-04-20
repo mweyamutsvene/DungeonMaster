@@ -43,6 +43,7 @@ import { getWeaponMagicBonuses } from "../../../../../domain/entities/items/inve
 import { checkFlanking } from "../../../../../domain/rules/flanking.js";
 import { getWeaponThrownRange, lookupWeapon } from "../../../../../domain/entities/items/weapon-catalog.js";
 import type { CombatMap as FlankingCombatMap } from "../../../../../domain/rules/combat-map-types.js";
+import { rollModePrompt } from "../roll-state-machine.js";
 
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type {
@@ -338,6 +339,22 @@ export class AttackHandlers {
       const actorResources = normalizeResources(actorCombatant.resources ?? {});
       const reach = typeof (actorResources as any).reach === "number" ? (actorResources as any).reach : 5;
       if (dist > reach + 0.0001) {
+        // BUG-1 fix: If the player explicitly named a melee weapon (e.g. "attack with longsword"),
+        // don't silently switch to a thrown weapon — that's confusing and unexpected.
+        // Only auto-throw when no specific weapon was named or the named weapon has Thrown.
+        const allWeapons = (actorSheet?.attacks ?? actorSheet?.equipment?.weapons ?? []) as any[];
+        const namedMeleeWeapon = allWeapons.find((w: any) => {
+          if (!w.name) return false;
+          if (!lowered.includes(w.name.toLowerCase())) return false;
+          const props = (w.properties ?? []) as string[];
+          return !props.some((p: string) => /thrown/i.test(p));
+        });
+        if (namedMeleeWeapon) {
+          throw new ValidationError(
+            `Target is out of reach (${Math.round(dist)}ft > ${Math.round(reach)}ft). ${namedMeleeWeapon.name} doesn't have the Thrown property.`,
+          );
+        }
+
         // Auto-throw: if out of melee reach, check for a thrown weapon before rejecting
         const thrownWeapon = this.findThrownWeapon(actorSheet, lowered);
         if (thrownWeapon) {
@@ -604,11 +621,7 @@ export class AttackHandlers {
       weaponName: weaponSpec.name,
     });
 
-    const rollModeText = rollMode === "advantage"
-      ? " with advantage (roll 2d20, take higher)"
-      : rollMode === "disadvantage"
-        ? " with disadvantage (roll 2d20, take lower)"
-        : "";
+    const rollModeText = rollModePrompt(rollMode);
     const rollMessage = `Roll a d20${rollModeText} for attack against ${(target as any).name} (no modifiers; server applies bonuses).`;
 
     return {
@@ -617,7 +630,7 @@ export class AttackHandlers {
       rollType: "attack",
       message: rollMessage,
       narration,
-      diceNeeded: rollMode !== "normal" ? "2d20" : "d20",
+      diceNeeded: "d20",
       pendingAction,
       actionComplete: false,
       advantage: rollMode === "advantage",
@@ -905,6 +918,8 @@ export class AttackHandlers {
       }
       const hostileWithin5ft = combatantStates.some((c: any) => {
         if (c.id === actorCombatant.id) return false;
+        // BUG-2 fix: Dead combatants (HP 0) don't threaten — skip them
+        if (c.hpCurrent != null && c.hpCurrent <= 0) return false;
         const actorIsPC = actorCombatant.combatantType === "Character" || actorCombatant.combatantType === "NPC";
         const otherIsPC = c.combatantType === "Character" || c.combatantType === "NPC";
         if (actorIsPC === otherIsPC) return false;

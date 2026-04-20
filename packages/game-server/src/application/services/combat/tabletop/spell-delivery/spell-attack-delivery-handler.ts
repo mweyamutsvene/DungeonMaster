@@ -116,7 +116,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       actionComplete: false,
       type: "REQUEST_ROLL",
       rollType: "attack",
-      diceNeeded: rollMode !== "normal" ? "2d20" : "d20",
+      diceNeeded: "d20",
       advantage: rollMode === "advantage",
       disadvantage: rollMode === "disadvantage",
       message: `Casting ${castInfo.spellName} at ${targetName}${slotNote}${rollModeNote}${strikeNote}. Roll a d20 for spell attack.`,

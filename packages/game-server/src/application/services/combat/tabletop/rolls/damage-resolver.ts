@@ -70,6 +70,7 @@ import type { RollResultCommand } from "../../../../commands/game-command.js";
 import type { WeaponMasteryResolver } from "./weapon-mastery-resolver.js";
 import type { HitRiderResolver } from "./hit-rider-resolver.js";
 import { findCombatantByEntityId, getEntityId } from "../../helpers/combatant-lookup.js";
+import { rollModePrompt } from "../roll-state-machine.js";
 
 export class DamageResolver {
   constructor(
@@ -423,7 +424,6 @@ export class DamageResolver {
 
       await this.deps.combatRepo.setPendingAction(encounter.id, pendingAction2);
 
-      const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
       const ohtSuffix = ohtResult ? ` ${ohtResult.summary}` : "";
       const ssSuffix = stunningStrikeResult ? ` ${stunningStrikeResult.summary}` : "";
       const enhSuffix = genericEnhancements.map((r) => ` ${r.summary}`).join("");
@@ -440,8 +440,8 @@ export class DamageResolver {
         actionComplete: false,
         requiresPlayerInput: true,
         type: "REQUEST_ROLL",
-        diceNeeded: followUpDice,
-        message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a ${followUpDice}.`,
+        diceNeeded: "d20",
+        message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${ohtSuffix}${ssSuffix}${enhSuffix} Second strike: Roll a d20${rollModePrompt(action.rollMode)}.`,
         ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
         ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       };
@@ -467,7 +467,6 @@ export class DamageResolver {
 
         await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
 
-        const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
         return {
           rollType: "attack",
           rawRoll: rollValue,
@@ -481,8 +480,8 @@ export class DamageResolver {
           actionComplete: false,
           requiresPlayerInput: true,
           type: "REQUEST_ROLL",
-          diceNeeded: followUpDice,
-          message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a ${followUpDice}.`,
+          diceNeeded: "d20",
+          message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix} Beam ${nextStrike} of ${action.spellStrikeTotal}: Roll a d20${rollModePrompt(action.rollMode)}.`,
         };
       }
       // Target dead — remaining beams are lost (D&D 5e: can't target dead creature)
@@ -575,6 +574,21 @@ export class DamageResolver {
       if (freshActor && canMakeAttack(freshActor.resources ?? {})) {
         const weaponName = action.weaponSpec?.name ?? "weapon";
         const enhSuffix = genericEnhancements.map((r) => ` ${r.summary}`).join("");
+
+        // BUG-3 fix: Recompute rollMode for chained EA instead of copying from previous action.
+        // Weapon mastery (e.g. Vex) may have just applied advantage effects to the actor.
+        // Check the fresh actor's active effects for advantage/disadvantage on attack rolls
+        // targeting this specific target (Vex uses targetCombatantId).
+        const freshEffects = getActiveEffects(freshActor.resources ?? {});
+        let chainedRollMode: "normal" | "advantage" | "disadvantage" = action.rollMode ?? "normal";
+        const hasVexAdvantage = freshEffects.some(
+          e => e.type === "advantage" && e.target === "attack_rolls"
+            && e.duration === "until_triggered" && e.targetCombatantId === action.targetId,
+        );
+        if (hasVexAdvantage && chainedRollMode !== "disadvantage") {
+          chainedRollMode = "advantage";
+        }
+
         if (hpAfter > 0) {
           // Target alive — chain to same target with same weapon
           const nextPending: AttackPendingAction = {
@@ -585,10 +599,9 @@ export class DamageResolver {
             target: action.targetId,
             targetId: action.targetId,
             weaponSpec: action.weaponSpec,
-            rollMode: action.rollMode,
+            rollMode: chainedRollMode,
           };
           await this.deps.combatRepo.setPendingAction(encounter.id, nextPending);
-          const followUpDice = action.rollMode && action.rollMode !== "normal" ? "2d20" : "d20";
           return {
             rollType: "attack",
             rawRoll: rollValue,
@@ -602,9 +615,9 @@ export class DamageResolver {
             actionComplete: false,
             requiresPlayerInput: true,
             type: "REQUEST_ROLL",
-            diceNeeded: followUpDice,
+            diceNeeded: "d20",
             nextRollType: "attack",
-            message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a ${followUpDice} for ${weaponName} vs ${targetName}.`,
+            message: `${equationPrefix} = ${totalDamage} damage to ${targetName}! HP: ${hpBefore} → ${hpAfter}.${masterySuffix}${enhSuffix} Extra Attack: Roll a d20${rollModePrompt(chainedRollMode)} for ${weaponName} vs ${targetName}.`,
             ...(ohtResult ? { openHandTechnique: ohtResult } : {}),
             ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
           };

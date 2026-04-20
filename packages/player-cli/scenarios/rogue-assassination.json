@@ -1,0 +1,157 @@
+{
+  "name": "Rogue Assassination: Stealth & Tactical Retreat",
+  "description": "A level 7 Rogue in a multi-enemy encounter designed for hit-and-run tactics. Tests hide → attack with advantage → sneak attack → Cunning Action disengage/dash → reposition cycle. Also tests Evasion (DEX save half→zero), Uncanny Dodge (halve damage on reaction), and expertise skills.",
+  "setup": {
+    "character": {
+      "name": "Shade Veilwalker",
+      "className": "Rogue",
+      "level": 7,
+      "subclass": "Assassin",
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 20,
+          "constitution": 14,
+          "intelligence": 14,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 45,
+        "currentHp": 45,
+        "armorClass": 17,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Rapier",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 5 },
+            "damageType": "piercing",
+            "properties": ["Finesse"]
+          },
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320 ft",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 5 },
+            "damageType": "piercing"
+          },
+          {
+            "name": "Dagger",
+            "kind": "ranged",
+            "range": "20/60 ft",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 5 },
+            "damageType": "piercing",
+            "properties": ["Finesse", "Light", "Thrown"]
+          }
+        ],
+        "features": [
+          { "name": "Sneak Attack", "description": "4d6 extra damage once per turn when you have advantage or an ally is within 5 ft of the target." },
+          { "name": "Cunning Action", "description": "Bonus action: Dash, Disengage, or Hide." },
+          { "name": "Uncanny Dodge", "description": "Reaction: Halve the damage of an attack you can see." },
+          { "name": "Evasion", "description": "DEX saves for half damage become zero damage on success, half on failure." },
+          { "name": "Expertise", "description": "Double proficiency in Stealth and Perception." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Guard Sergeant",
+        "position": { "x": 25, "y": 0 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 13,
+            "charisma": 10
+          },
+          "maxHp": 45,
+          "hp": 45,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Halberd",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 10, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Guard Archer",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 11,
+            "dexterity": 14,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 13,
+            "charisma": 10
+          },
+          "maxHp": 22,
+          "hp": 22,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "range": "150/600 ft",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Guard Patrol",
+        "position": { "x": 20, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 16,
+          "hp": 16,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

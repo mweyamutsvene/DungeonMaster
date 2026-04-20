@@ -29,6 +29,7 @@ import { ClassFeatureResolver } from "../../../../../domain/entities/classes/cla
 import { getAbilityModifier, getProficiencyBonus } from "../../../../../domain/rules/ability-checks.js";
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import { isTargetTooLarge, type CreatureSize } from "../../../../../domain/rules/grapple-shove.js";
+import { rollModePrompt } from "../roll-state-machine.js";
 
 export class GrappleHandlers {
   constructor(
@@ -249,12 +250,8 @@ export class GrappleHandlers {
     await this.deps.combatRepo.setPendingAction(encounterId, pendingAction);
 
     // ── 11. Return REQUEST_ROLL ──
-    const rollModeText = rollMode === "advantage"
-      ? " with advantage (roll 2d20, take higher)"
-      : rollMode === "disadvantage"
-        ? " with disadvantage (roll 2d20, take lower)"
-        : "";
-    const diceNeeded = rollMode !== "normal" ? "2d20" : "d20";
+    const rollModeText = rollModePrompt(rollMode);
+    const diceNeeded = "d20";
     const targetDisplayName = (targetEntity as any)?.name ?? targetName;
 
     return {
@@ -266,7 +263,7 @@ export class GrappleHandlers {
       diceNeeded,
       advantage: rollMode === "advantage",
       disadvantage: rollMode === "disadvantage",
-      message: `Roll a ${diceNeeded}${rollModeText} for Unarmed Strike (${actionLabel}) vs ${targetDisplayName} (no modifiers; server applies bonuses).`,
+      message: `Roll a d20${rollModeText} for Unarmed Strike (${actionLabel}) vs ${targetDisplayName} (no modifiers; server applies bonuses).`,
       pendingAction,
     };
   }

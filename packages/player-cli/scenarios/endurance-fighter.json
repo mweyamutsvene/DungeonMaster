@@ -1,0 +1,197 @@
+{
+  "name": "Endurance Fight: Fighter vs Hobgoblin Squad",
+  "description": "A level 5 Fighter faces 4 Hobgoblin soldiers in a prolonged fight. The Fighter starts at full HP but enemies are plentiful. Tests Second Wind timing, Action Surge nova, multi-round resource management, HP attrition, and potentially death saves if the player takes too much damage. Designed for 3-4 round combat.",
+  "setup": {
+    "character": {
+      "name": "Valeria Steelhand",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 5 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          },
+          {
+            "name": "Handaxe",
+            "kind": "ranged",
+            "range": "20/60 ft",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["Light", "Thrown"]
+          },
+          {
+            "name": "Shield Bash",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Second Wind", "description": "Bonus action: Regain 1d10 + fighter level HP. Once per short rest." },
+          { "name": "Action Surge", "description": "Take an additional action on your turn. Once per short rest." },
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Captain",
+        "position": { "x": 25, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 13
+          },
+          "maxHp": 39,
+          "hp": 39,
+          "armorClass": 17,
+          "speed": 30,
+          "challengeRating": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Soldier A",
+        "position": { "x": 20, "y": 0 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 18,
+          "hp": 18,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "range": "150/600 ft",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Soldier B",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 18,
+          "hp": 18,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "range": "150/600 ft",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Soldier C",
+        "position": { "x": 30, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 18,
+          "hp": 18,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "range": "150/600 ft",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

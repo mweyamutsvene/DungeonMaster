@@ -1,0 +1,163 @@
+{
+  "name": "Solo Cleric vs Undead Horde",
+  "description": "A level 5 Life Domain Cleric faces a mix of undead. Tests Sacred Flame (save cantrip), Guiding Bolt (spell attack), Bless (concentration buff), Cure Wounds (healing), Spirit Guardians (aura zone), Turn Undead (channel divinity), Healing Word (bonus action heal), and Shield of Faith (bonus action concentration buff).",
+  "setup": {
+    "character": {
+      "name": "Brother Aldric",
+      "className": "Cleric",
+      "level": 5,
+      "subclass": "Life",
+      "position": { "x": 15, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14,
+          "dexterity": 10,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 18,
+          "charisma": 12
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Sacred Flame", "level": 0 },
+          { "name": "Toll the Dead", "level": 0 },
+          { "name": "Guiding Bolt", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 },
+          { "name": "Bless", "level": 1 },
+          { "name": "Shield of Faith", "level": 1 },
+          { "name": "Healing Word", "level": 1 },
+          { "name": "Spirit Guardians", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Mace",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Turn Undead", "description": "Channel Divinity: Each undead within 30 feet must make a WIS save or be turned for 1 minute." },
+          { "name": "Destroy Undead", "description": "Undead of CR 1/2 or lower that fail Turn Undead are destroyed." }
+        ],
+        "resourcePools": [
+          { "name": "channelDivinity", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Archer",
+        "position": { "x": 35, "y": 15 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 13,
+          "hp": 13,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320 ft",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ],
+          "vulnerabilities": ["radiant"],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"]
+        }
+      },
+      {
+        "name": "Zombie Brute",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 6,
+            "constitution": 16,
+            "intelligence": 3,
+            "wisdom": 6,
+            "charisma": 5
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 8,
+          "speed": 20,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"]
+        }
+      },
+      {
+        "name": "Ghoul",
+        "position": { "x": 10, "y": 20 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 15,
+            "constitution": 10,
+            "intelligence": 7,
+            "wisdom": 10,
+            "charisma": 6
+          },
+          "maxHp": 22,
+          "hp": 22,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Claws",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 4, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ],
+          "immunities": ["poison"],
+          "conditionImmunities": ["Poisoned", "Exhaustion", "Charmed"]
+        }
+      }
+    ]
+  }
+}

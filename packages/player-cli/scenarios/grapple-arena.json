@@ -1,0 +1,115 @@
+{
+  "name": "Grapple Arena: Barbarian vs Gladiators",
+  "description": "A level 5 Barbarian in a gladiator arena. Tests grapple-focused combat: grapple + drag, shove prone + advantage, escape grapple, grappled movement restrictions, Rage + grapple advantage, and combined grapple-shove-attack sequences.",
+  "setup": {
+    "character": {
+      "name": "Gruumash the Unchained",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 15, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 20,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 55,
+        "currentHp": 55,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 1, "modifier": 5 },
+            "damageType": "bludgeoning"
+          },
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 5 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Rage", "description": "Bonus action: enter Rage. Advantage on STR checks, +2 melee damage, resistance to B/P/S." },
+          { "name": "Reckless Attack", "description": "First melee attack gets advantage. Attacks against you have advantage until next turn." },
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Arena Champion",
+        "position": { "x": 25, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 14,
+            "constitution": 16,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 14
+          },
+          "maxHp": 52,
+          "hp": 52,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 3,
+          "savingThrows": {
+            "strength": 6,
+            "constitution": 5
+          },
+          "attacks": [
+            {
+              "name": "Greatsword",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Arena Brawler",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 8,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 32,
+          "hp": 32,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Fists",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

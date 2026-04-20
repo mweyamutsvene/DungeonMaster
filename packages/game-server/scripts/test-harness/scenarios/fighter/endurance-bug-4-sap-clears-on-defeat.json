@@ -1,0 +1,145 @@
+{
+  "name": "BUG-4 Regression: Defeated Target Should Not Keep Sapped",
+  "description": "A target killed by a Sap hit should be defeated without lingering [Sapped] condition clutter.",
+  "setup": {
+    "character": {
+      "name": "Valeria Steelhand",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 0, "y": 5 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Soldier A",
+        "position": { "x": 5, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 8,
+          "hp": 8,
+          "armorClass": 10,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Soldier B",
+        "position": { "x": 5, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start encounter",
+      "type": "initiate",
+      "input": { "text": "I attack Hobgoblin Soldier A with my longsword" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Go first",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Attack and apply sap on hit",
+      "type": "action",
+      "input": { "text": "I attack Hobgoblin Soldier A with my longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "10 damage defeats the target. Extra Attack auto-completes with miss.",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Target is defeated",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Soldier A", "exact": 0 } }
+    },
+    {
+      "comment": "Regression assertion: defeated target should not keep Sapped condition",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Hobgoblin Soldier A",
+          "doesNotHaveConditions": ["Sapped"]
+        }
+      }
+    }
+  ]
+}

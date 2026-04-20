@@ -87,10 +87,10 @@ export function printRollRequest(
   }
   print("");
   if (response.advantage) {
-    printColored("  ⬆ Advantage! Roll 2d20 and take the higher.", colors.green);
+    printColored("  ⬆ Advantage! Roll 2d20 and enter the highest.", colors.green);
   }
   if (response.disadvantage) {
-    printColored("  ⬇ Disadvantage! Roll 2d20 and take the lower.", colors.yellow);
+    printColored("  ⬇ Disadvantage! Roll 2d20 and enter the lowest.", colors.yellow);
   }
   print(response.message);
 }
