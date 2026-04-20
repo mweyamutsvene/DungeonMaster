@@ -114,12 +114,24 @@ respond to what the game actually says. Adapt if the server returns errors or un
 
 ### Combat decision guidelines
 
+***CRITICAL — ONE ACTION PER PROMPT***
+Never chain multiple actions into a single input. Each prompt you send must contain exactly ONE action, roll, or response. Examples:
+- ✅ `"I attack the Goblin with my longsword"` — then wait for the roll request
+- ✅ `"15"` — submit one roll value, then wait for the result
+- ❌ `"I attack the Goblin and then use Second Wind"` — this chains two actions
+- ❌ `"I move to the Goblin and attack it"` — move + attack is two actions
+- ❌ `"15 and then 8 for damage"` — submitting two rolls at once
+
+Always wait for the server to respond and prompt you before sending the next input.
+
 | Situation | Action |
 |-----------|--------|
 | Your turn, enemies in melee range | Attack the nearest living enemy |
 | Your turn, enemies out of range | Move toward the nearest living enemy, then attack |
-| Roll requested (initiative) | Send a d20 value between 8–18 |
-| Roll requested (attack) | Send a d20 value between 10–18 |
+| Roll requested (initiative) | Send a single d20 value between 8–18 |
+| Roll requested (attack, normal) | Send a single d20 value between 10–18 |
+| Roll requested (attack, advantage) | Roll 2d20, send only the HIGHER value |
+| Roll requested (attack, disadvantage) | Roll 2d20, send only the LOWER value |
 | Roll requested (damage) | Send the die face value only (server adds modifier) |
 | Roll requested (saving throw) | Send a d20 value between 8–15 |
 | HP < 50% and class ability available (e.g. Second Wind) | Use the healing ability before attacking |
@@ -131,14 +143,23 @@ respond to what the game actually says. Adapt if the server returns errors or un
 
 | CLI output contains | Expected response type |
 |---------------------|----------------------|
-| `Enter your d20 roll for initiative` | Send a d20 raw roll number |
-| `Enter your d20 roll for attack` | Send a d20 raw roll number |
-| `Enter your 2d20 rolls for attack` | Send two numbers separated by space (e.g. `"14 9"`) |
+| `Enter your d20 roll for initiative` | Send a single d20 raw roll number |
+| `Enter your d20 roll for attack` | Send a single d20 raw roll number (if advantage/disadvantage is shown, the server already told you to roll 2d20 — send only the highest or lowest) |
 | `Enter your 1dX+Y roll for damage` | Send the die face value (e.g. `"6"`) |
-| `Enter your d20 roll for saving throw` | Send a d20 raw roll number |
-| `Enter your d20 roll for ability check` | Send a d20 raw roll number |
+| `Enter your d20 roll for saving throw` | Send a single d20 raw roll number |
+| `Enter your d20 roll for ability check` | Send a single d20 raw roll number |
 | `Choose:` (post-combat menu) | Send `"5"` to quit |
 | `> ` action prompt | Send your next combat action as natural language |
+
+### Advantage / Disadvantage rolls
+
+The server ALWAYS requests a single d20 value, even for advantage/disadvantage.
+When advantage or disadvantage applies, the server message will say:
+- **Advantage**: "(roll 2d20, take the highest)" — you roll two imaginary d20s and send ONLY the higher value
+- **Disadvantage**: "(roll 2d20, take the lowest)" — you roll two imaginary d20s and send ONLY the lower value
+- **Normal**: just send a single d20 value
+
+Never send two numbers for a d20 roll. Always send exactly one number.
 
 ---
 
