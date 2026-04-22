@@ -73,6 +73,7 @@ export const Rogue: CharacterClassDefinition = {
     "sneak-attack": 1,
     "weapon-mastery": 1,
     "cunning-action": 2,
+    "cunning-strike": 5,
     "uncanny-dodge": 5,
     "evasion": 7,
   },

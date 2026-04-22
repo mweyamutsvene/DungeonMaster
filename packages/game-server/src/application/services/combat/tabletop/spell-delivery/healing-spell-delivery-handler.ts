@@ -21,6 +21,8 @@ import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casti
 import { hasPreventHealingEffect, normalizeResources, patchResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
+import { classHasFeature } from '../../../../../domain/entities/classes/registry.js';
+import { DISCIPLE_OF_LIFE } from '../../../../../domain/entities/classes/feature-keys.js';
 
 export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -109,7 +111,26 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     }
 
     const healRoll = deps.diceRoller!.rollDie(healing.diceSides, healDiceCount);
-    const healTotal = Math.max(0, healRoll.total + spellMod);
+    let healTotal = Math.max(0, healRoll.total + spellMod);
+
+    // D&D 5e 2024 Life Domain: Disciple of Life — add 2 + slot level to any heal spell of L1+
+    const effectiveSlotLevel = castAtLevel ?? spellLevel;
+    const casterSheetRec = (sheet as Record<string, unknown> | null) ?? {};
+    const casterClassId =
+      (casterSheetRec.classId as string | undefined) ??
+      (casterSheetRec.className as string | undefined);
+    const casterSubclassId = casterSheetRec.subclass as string | undefined;
+    const casterLevel = (casterSheetRec.level as number | undefined) ?? 1;
+    let discipleOfLifeBonus = 0;
+    if (
+      effectiveSlotLevel >= 1 &&
+      casterClassId &&
+      classHasFeature(casterClassId, DISCIPLE_OF_LIFE, casterLevel, casterSubclassId)
+    ) {
+      discipleOfLifeBonus = 2 + effectiveSlotLevel;
+      healTotal += discipleOfLifeBonus;
+      if (debugLogsEnabled) console.log(`[HealingSpellDeliveryHandler] Disciple of Life: +${discipleOfLifeBonus} healing bonus`);
+    }
 
     // Apply healing (clamp to maxHp)
     const hpBefore = targetCombatant.hpCurrent;
@@ -177,6 +198,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
     }`;
     const reviveNote = revivedFromUnconscious ? ` ${targetName} regains consciousness!` : "";
     const bonusNote = isBonusAction ? " [bonus action]" : "";
+    const discipleNote = discipleOfLifeBonus > 0 ? ` [Disciple of Life +${discipleOfLifeBonus}]` : "";
 
     if (debugLogsEnabled)
       console.log(
@@ -188,7 +210,7 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
       actionComplete: true,
       type: "SIMPLE_ACTION_COMPLETE",
       action: "CastSpell",
-      message: `Cast ${castInfo.spellName} on ${targetName}.${slotNote}${bonusNote} Healed ${actualHealing} HP (${healFormula} rolled ${healRoll.total}+${spellMod}=${healTotal}). HP: ${hpBefore} → ${hpAfter}.${reviveNote}`,
+      message: `Cast ${castInfo.spellName} on ${targetName}.${slotNote}${bonusNote}${discipleNote} Healed ${actualHealing} HP (${healFormula} rolled ${healRoll.total}+${spellMod}=${healTotal}). HP: ${hpBefore} → ${hpAfter}.${reviveNote}`,
     };
   }
 
@@ -226,7 +248,26 @@ export class HealingSpellDeliveryHandler implements SpellDeliveryHandler {
 
     // Roll once — all targets receive the same healing (D&D 5e mass healing spells)
     const healRoll = deps.diceRoller!.rollDie(healing.diceSides, healDiceCount);
-    const healTotal = Math.max(0, healRoll.total + spellMod);
+    let healTotal = Math.max(0, healRoll.total + spellMod);
+
+    // D&D 5e 2024 Life Domain: Disciple of Life — +2+slotLevel to each target
+    const effectiveSlotLevelAoe = castAtLevel ?? spellLevel;
+    const casterSheetRecAoe = (sheet as Record<string, unknown> | null) ?? {};
+    const casterClassIdAoe =
+      (casterSheetRecAoe.classId as string | undefined) ??
+      (casterSheetRecAoe.className as string | undefined);
+    const casterSubclassIdAoe = casterSheetRecAoe.subclass as string | undefined;
+    const casterLevelAoe = (casterSheetRecAoe.level as number | undefined) ?? 1;
+    let discipleOfLifeBonusAoe = 0;
+    if (
+      effectiveSlotLevelAoe >= 1 &&
+      casterClassIdAoe &&
+      classHasFeature(casterClassIdAoe, DISCIPLE_OF_LIFE, casterLevelAoe, casterSubclassIdAoe)
+    ) {
+      discipleOfLifeBonusAoe = 2 + effectiveSlotLevelAoe;
+      healTotal += discipleOfLifeBonusAoe;
+      if (debugLogsEnabled) console.log(`[HealingSpellDeliveryHandler] Disciple of Life (AoE): +${discipleOfLifeBonusAoe} per target`);
+    }
 
     // Determine caster faction to find friendly combatants
     const actorCombatant = findCombatantByEntityId(combatants, actorId);

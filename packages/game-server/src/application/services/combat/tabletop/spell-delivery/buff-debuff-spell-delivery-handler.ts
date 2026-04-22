@@ -187,6 +187,24 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
           resolvedValue = Math.max(1, getSpellcastingModifier(sheet));
         }
 
+        // Resolve DC=0 placeholders on triggerSave / saveToEnd to the caster's spell save DC.
+        // Smite spells (Searing/Thunderous/Wrathful) and Ensnaring Strike declare DC=0 in the
+        // catalog; the real DC comes from the caster's sheet at cast time.
+        const casterSpellSaveDC = computeSpellSaveDC(sheet);
+        const resolvedTriggerSave = effDef.triggerSave
+          ? {
+              ability: effDef.triggerSave.ability as Ability,
+              dc: effDef.triggerSave.dc && effDef.triggerSave.dc > 0 ? effDef.triggerSave.dc : casterSpellSaveDC,
+              halfDamageOnSave: effDef.triggerSave.halfDamageOnSave,
+            }
+          : undefined;
+        const resolvedSaveToEnd = effDef.saveToEnd
+          ? {
+              ability: effDef.saveToEnd.ability as Ability,
+              dc: effDef.saveToEnd.dc && effDef.saveToEnd.dc > 0 ? effDef.saveToEnd.dc : casterSpellSaveDC,
+            }
+          : undefined;
+
         const effect = createEffect(
           nanoid(),
           effDef.type,
@@ -203,17 +221,9 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
             sourceCombatantId: actorId,
             description: `${castInfo.spellName} (${effDef.type} on ${effDef.target})`,
             triggerAt: effDef.triggerAt,
-            saveToEnd: effDef.saveToEnd
-              ? { ability: effDef.saveToEnd.ability as Ability, dc: effDef.saveToEnd.dc }
-              : undefined,
+            saveToEnd: resolvedSaveToEnd,
             conditionName: effDef.conditionName,
-            triggerSave: effDef.triggerSave
-              ? {
-                  ability: effDef.triggerSave.ability as Ability,
-                  dc: effDef.triggerSave.dc,
-                  halfDamageOnSave: effDef.triggerSave.halfDamageOnSave,
-                }
-              : undefined,
+            triggerSave: resolvedTriggerSave,
             triggerConditions: effDef.triggerConditions,
             // For effects that target "attacks against this creature" (e.g., Dodge, Faerie Fire)
             // OR caster-side damage riders scoped to a specific target (Hex, Hunter's Mark)

@@ -157,6 +157,29 @@ export const BOOMING_BLADE = {
   description: 'Make a melee attack that wraps the target in booming energy. If the target voluntarily moves, it takes thunder damage.',
 } as const satisfies CanonicalSpell;
 
+export const VICIOUS_MOCKERY = {
+  name: 'Vicious Mockery',
+  level: 0,
+  saveAbility: 'wisdom',
+  damage: { diceCount: 1, diceSides: 4 },
+  damageType: 'psychic',
+  halfDamageOnSave: false,
+  onHitEffects: [
+    {
+      type: 'disadvantage' as const,
+      target: 'next_attack' as const,
+      duration: 'until_triggered' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'enchantment',
+  castingTime: 'action',
+  range: 60,
+  components: { v: true },
+  classLists: ['Bard'],
+  description: 'Mock a creature. WIS save or take 1d4 psychic damage and disadvantage on the next attack roll they make before end of your next turn. Cantrip scaling: 2d4 at level 5, 3d4 at 11, 4d4 at 17.',
+} as const satisfies CanonicalSpell;
+
 export const CANTRIP_CATALOG: readonly CanonicalSpell[] = [
   ELDRITCH_BLAST,
   FIRE_BOLT,
@@ -166,4 +189,5 @@ export const CANTRIP_CATALOG: readonly CanonicalSpell[] = [
   TOLL_THE_DEAD,
   CHILL_TOUCH,
   BOOMING_BLADE,
+  VICIOUS_MOCKERY,
 ];

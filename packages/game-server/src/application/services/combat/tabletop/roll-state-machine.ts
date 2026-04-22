@@ -63,6 +63,7 @@ import {
 } from "../../../../domain/rules/death-saves.js";
 
 import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
+import { mergeFightingStyleFeatId } from "../../../../domain/entities/classes/fighting-style.js";
 import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/ability-checks.js";
 import { doubleDiceInFormula } from "./combat-text-parser.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
@@ -427,7 +428,9 @@ export class RollStateMachine {
     // Apply feat modifiers to attack bonus (e.g. Archery +2 for ranged)
     const attackerChar = characters.find((c) => c.id === actorId);
     const attackerSheet = (attackerChar?.sheet ?? {}) as Record<string, unknown>;
-    const featIds: string[] = (attackerSheet.featIds as string[] | undefined) ?? (attackerSheet.feats as string[] | undefined) ?? [];
+    const rawFeatIds: string[] = (attackerSheet.featIds as string[] | undefined) ?? (attackerSheet.feats as string[] | undefined) ?? [];
+    const fightingStyleSheet = attackerSheet.fightingStyle as string | undefined;
+    const featIds = mergeFightingStyleFeatId(rawFeatIds, fightingStyleSheet);
     const attackerFeatMods = computeFeatModifiers(featIds);
     if (action.weaponSpec?.kind === "ranged" && attackerFeatMods.rangedAttackBonus) {
       attackBonus += attackerFeatMods.rangedAttackBonus;

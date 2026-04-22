@@ -11,6 +11,9 @@ import {
   PRECISE_HUNTER,
   FERAL_SENSES,
   FOE_SLAYER,
+  HUNTERS_LORE,
+  HUNTERS_PREY,
+  COLOSSUS_SLAYER,
 } from "./feature-keys.js";
 import { getSpellSlots } from "../spells/spell-progression.js";
 
@@ -59,8 +62,9 @@ const Hunter: SubclassDefinition = {
   name: "Hunter",
   classId: "ranger",
   features: {
-    "hunters-lore": 3,
-    "hunters-prey": 3,
+    [HUNTERS_LORE]: 3,
+    [HUNTERS_PREY]: 3,
+    [COLOSSUS_SLAYER]: 3,
     "defensive-tactics": 7,
     "superior-hunters-prey": 11,
     "superior-hunters-defense": 15,

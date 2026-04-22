@@ -99,9 +99,18 @@ export class WildShapeExecutor implements AbilityExecutor {
 
       updatedResources = addActiveEffectsToResources(updatedResources, wildShapeEffect);
 
+      // D&D 5e 2024: Wild Shape grants temp HP = 5 × druid level (not HP replacement).
+      // Druid keeps their own HP; temp HP absorbs damage first.
+      const tempHpGranted = 5 * level;
+      const existingTempHp = typeof (resources as any)?.tempHp === "number"
+        ? ((resources as any).tempHp as number)
+        : 0;
+      const newTempHp = Math.max(existingTempHp, tempHpGranted);
+
       // Store beast form data for combat service consumption
       updatedResources = {
         ...(updatedResources as Record<string, unknown>),
+        tempHp: newTempHp,
         wildShapeActive: true,
         wildShapeForm: form,
         wildShapeHp: statBlock.hp,
@@ -115,7 +124,7 @@ export class WildShapeExecutor implements AbilityExecutor {
 
       return {
         success: true,
-        summary: `Transforms into ${form}! AC ${statBlock.ac}, ${statBlock.hp} temp HP, +${statBlock.attackBonus} to hit, ${statBlock.damage} damage${statBlock.multiattack ? " with Multiattack" : ""}.`,
+        summary: `Transforms into ${form}! AC ${statBlock.ac}, ${tempHpGranted} temp HP, +${statBlock.attackBonus} to hit, ${statBlock.damage} damage${statBlock.multiattack ? " with Multiattack" : ""}.`,
         resourcesSpent: { wildShape: 1 },
         data: {
           abilityName: "Wild Shape",

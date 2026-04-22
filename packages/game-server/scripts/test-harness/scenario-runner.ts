@@ -30,6 +30,8 @@ export interface CharacterSetup {
   name: string;
   className: string;
   level: number;
+  /** Optional subclass identifier (e.g. "draconic-sorcery-red", "Hunter"). Merged into sheet. */
+  subclass?: string;
   position?: { x: number; y: number };
   sheet?: Record<string, unknown>;
 }
@@ -770,7 +772,7 @@ export async function runScenario(
     }
 
     for (const charSetup of charSetups) {
-      // Merge position into sheet if provided
+      // Merge position + subclass into sheet if provided
       const charSheet = {
         ...(charSetup.sheet ?? {
           abilityScores: { strength: 16, dexterity: 14, constitution: 15, intelligence: 10, wisdom: 12, charisma: 8 },
@@ -779,6 +781,7 @@ export async function runScenario(
           speed: 30,
           proficiencyBonus: 3,
         }),
+        ...(charSetup.subclass ? { subclass: charSetup.subclass } : {}),
         ...(charSetup.position ? { position: charSetup.position } : {}),
       };
 

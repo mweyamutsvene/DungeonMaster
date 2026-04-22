@@ -13,6 +13,7 @@ import { isCharacterClassId, type CharacterClassId } from "../../../domain/entit
 import { getClassDefinition } from "../../../domain/entities/classes/registry.js";
 import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalog.js";
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
+import { enrichSheetClassFeatures } from "../../../domain/entities/classes/class-feature-enrichment.js";
 import type { AbilityScoresData } from "../../../domain/entities/core/ability-scores.js";
 
 /**
@@ -59,7 +60,11 @@ export class CharacterService {
 
     // Enrich sheet with canonical weapon properties and armor metadata from catalogs
     let sheet = (typeof input.sheet === "object" && input.sheet !== null)
-      ? enrichSheetArmor(enrichSheetAttacks(input.sheet as Record<string, unknown>))
+      ? enrichSheetClassFeatures(
+          enrichSheetArmor(enrichSheetAttacks(input.sheet as Record<string, unknown>)),
+          input.level,
+          input.className ?? null,
+        )
       : input.sheet;
 
     // Store classLevels in sheet JSON when provided (multiclass support)

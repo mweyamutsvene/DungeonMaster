@@ -539,6 +539,242 @@ export const SLEEP = {
   description: 'Creatures in a 20-foot-radius sphere make WIS save or fall Unconscious. The spell ends for a creature if it takes damage or someone uses an action to wake it.',
 } as const satisfies CanonicalSpell;
 
+// ── Paladin smite-spell kit + Divine Favor (2024 RAW) ──
+
+export const ENTANGLE = {
+  name: 'Entangle',
+  level: 1,
+  concentration: true,
+  saveAbility: 'strength',
+  area: { type: 'cube' as const, size: 20 },
+  conditions: { onFailure: ['Restrained'] },
+  turnEndSave: { ability: 'strength', removeConditionOnSuccess: true },
+  school: 'conjuration',
+  castingTime: 'action',
+  range: 90,
+  components: { v: true, s: true },
+  classLists: ['Druid'],
+  description: 'Grasping weeds and vines sprout from the ground in a 20-foot square. Each creature in the area makes a STR save or is Restrained for the duration (concentration, up to 1 minute). Repeats save at end of each turn.',
+} as const satisfies CanonicalSpell;
+
+// Smite spells install an `on_next_weapon_hit` rider on the caster.
+
+export const SEARING_SMITE = {
+  name: 'Searing Smite',
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'fire',
+      duration: 'concentration' as const,
+      triggerAt: 'on_next_weapon_hit' as const,
+      appliesTo: 'self' as const,
+      triggerSave: { ability: 'constitution', dc: 0 }, // DC is resolved at cast from caster sheet
+      triggerConditions: ['Ignited'],
+    },
+    {
+      type: 'ongoing_damage' as const,
+      target: 'hit_points' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'fire',
+      duration: 'concentration' as const,
+      triggerAt: 'start_of_turn' as const,
+      appliesTo: 'target' as const,
+      saveToEnd: { ability: 'constitution', dc: 0 },
+    },
+  ],
+  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 6 } },
+  school: 'evocation',
+  castingTime: 'bonus_action',
+  range: 'self',
+  components: { v: true },
+  classLists: ['Paladin'],
+  description: 'The next time you hit a target with a weapon this turn, the attack deals +1d6 fire damage and the target must make a CON save or burn for 1d6 fire at the start of each of its turns (save ends).',
+} as const satisfies CanonicalSpell;
+
+export const THUNDEROUS_SMITE = {
+  name: 'Thunderous Smite',
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 2, sides: 6 },
+      damageType: 'thunder',
+      duration: 'concentration' as const,
+      triggerAt: 'on_next_weapon_hit' as const,
+      appliesTo: 'self' as const,
+      triggerSave: { ability: 'strength', dc: 0 },
+      triggerConditions: ['Prone'],
+    },
+  ],
+  school: 'evocation',
+  castingTime: 'bonus_action',
+  range: 'self',
+  components: { v: true },
+  classLists: ['Paladin'],
+  description: 'The next time you hit a target with a melee weapon this turn, the attack deals +2d6 thunder damage and the target must make a STR save or be pushed 10 ft and knocked Prone.',
+} as const satisfies CanonicalSpell;
+
+export const WRATHFUL_SMITE = {
+  name: 'Wrathful Smite',
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'psychic',
+      duration: 'concentration' as const,
+      triggerAt: 'on_next_weapon_hit' as const,
+      appliesTo: 'self' as const,
+      triggerSave: { ability: 'wisdom', dc: 0 },
+      triggerConditions: ['Frightened'],
+    },
+  ],
+  school: 'evocation',
+  castingTime: 'bonus_action',
+  range: 'self',
+  components: { v: true },
+  classLists: ['Paladin'],
+  description: 'The next time you hit a target with a weapon this turn, the attack deals +1d6 psychic damage and the target must make a WIS save or be Frightened (save-to-end each turn).',
+} as const satisfies CanonicalSpell;
+
+export const DIVINE_FAVOR = {
+  name: 'Divine Favor',
+  level: 1,
+  // NOTE: 2024 RAW made Divine Favor bonus action, no concentration, 1-minute duration,
+  // adding +1d4 radiant to weapon damage rolls for the duration.
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 4 },
+      damageType: 'radiant',
+      duration: 'rounds' as const,
+      roundsRemaining: 10,
+      appliesTo: 'self' as const,
+    },
+  ],
+  school: 'evocation',
+  castingTime: 'bonus_action',
+  range: 'self',
+  components: { v: true, s: true },
+  classLists: ['Paladin'],
+  description: 'Your weapon attacks deal an extra 1d4 radiant damage for 1 minute.',
+} as const satisfies CanonicalSpell;
+
+export const ENSNARING_STRIKE = {
+  name: 'Ensnaring Strike',
+  level: 1,
+  concentration: true,
+  isBonusAction: true,
+  effects: [
+    {
+      type: 'bonus' as const,
+      target: 'damage_rolls' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'piercing',
+      duration: 'concentration' as const,
+      triggerAt: 'on_next_weapon_hit' as const,
+      appliesTo: 'self' as const,
+      triggerSave: { ability: 'strength', dc: 0 },
+      triggerConditions: ['Restrained'],
+    },
+    {
+      type: 'ongoing_damage' as const,
+      target: 'hit_points' as const,
+      diceValue: { count: 1, sides: 6 },
+      damageType: 'piercing',
+      duration: 'concentration' as const,
+      triggerAt: 'start_of_turn' as const,
+      appliesTo: 'target' as const,
+      saveToEnd: { ability: 'strength', dc: 0 },
+    },
+  ],
+  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 6 } },
+  school: 'conjuration',
+  castingTime: 'bonus_action',
+  range: 'self',
+  components: { v: true, s: true },
+  classLists: ['Ranger'],
+  description: 'The next time you hit a target with a weapon this turn, thorny vines deal +1d6 piercing and the target must make a STR save or be Restrained. Restrained target takes 1d6 piercing at the start of each of its turns (save ends).',
+} as const satisfies CanonicalSpell;
+
+export const PROTECTION_FROM_EVIL_AND_GOOD = {
+  name: 'Protection from Evil and Good',
+  level: 1,
+  concentration: true,
+  effects: [
+    {
+      type: 'disadvantage' as const,
+      target: 'attack_rolls' as const,
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+    {
+      type: 'condition_immunity' as const,
+      target: 'custom' as const,
+      conditionName: 'Charmed',
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+    {
+      type: 'condition_immunity' as const,
+      target: 'custom' as const,
+      conditionName: 'Frightened',
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'abjuration',
+  castingTime: 'action',
+  range: 'touch',
+  components: { v: true, s: true, m: 'holy water or silver dust' },
+  classLists: ['Cleric', 'Paladin', 'Warlock', 'Wizard'],
+  description: 'Creature you touch has protection against aberrations, celestials, elementals, fey, fiends, undead. Those creatures have disadvantage on attacks against the target, and the target is immune to Charmed and Frightened from them.',
+} as const satisfies CanonicalSpell;
+
+export const CHROMATIC_ORB = {
+  name: 'Chromatic Orb',
+  level: 1,
+  attackType: 'ranged_spell',
+  damage: { diceCount: 3, diceSides: 8 },
+  damageType: 'fire', // Default; caster chooses acid/cold/fire/lightning/poison/thunder at cast time
+  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 8 } },
+  school: 'evocation',
+  castingTime: 'action',
+  range: 90,
+  components: { v: true, s: true, m: 'a diamond worth 50+ GP' },
+  classLists: ['Sorcerer', 'Wizard'],
+  description: 'Hurl a 4-inch orb. Choose acid, cold, fire, lightning, poison, or thunder. Ranged spell attack; 3d8 of chosen type. +1d8 per slot level above 1st.',
+} as const satisfies CanonicalSpell;
+
+export const WITCH_BOLT = {
+  name: 'Witch Bolt',
+  level: 1,
+  concentration: true,
+  attackType: 'ranged_spell',
+  damage: { diceCount: 1, diceSides: 12 },
+  damageType: 'lightning',
+  upcastScaling: { additionalDice: { diceCount: 1, diceSides: 12 } },
+  school: 'evocation',
+  castingTime: 'action',
+  range: 30,
+  components: { v: true, s: true, m: 'a twig from a tree struck by lightning' },
+  classLists: ['Sorcerer', 'Warlock', 'Wizard'],
+  description: 'A crackling beam: 1d12 lightning on hit. On each subsequent turn you can spend an action to re-invoke the beam without attacking roll, dealing 1d12 lightning (concentration).',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
   BANE,
@@ -548,6 +784,9 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   COMMAND,
   CURE_WOUNDS,
   DETECT_MAGIC,
+  DIVINE_FAVOR,
+  ENSNARING_STRIKE,
+  ENTANGLE,
   FAERIE_FIRE,
   GUIDING_BOLT,
   HEALING_WORD,
@@ -559,10 +798,16 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   LONGSTRIDER,
   MAGE_ARMOR,
   MAGIC_MISSILE,
+  PROTECTION_FROM_EVIL_AND_GOOD,
+  SEARING_SMITE,
   SHIELD_SPELL,
   SHIELD_OF_FAITH,
   SILVERY_BARBS,
   SLEEP,
+  THUNDEROUS_SMITE,
   THUNDERWAVE,
   THUNDEROUS_WARD,
+  WRATHFUL_SMITE,
+  CHROMATIC_ORB,
+  WITCH_BOLT,
 ];

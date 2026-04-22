@@ -36,6 +36,8 @@ export interface SpellEffectDeclaration {
   readonly valueSource?: 'spellcastingModifier';
   readonly diceValue?: { count: number; sides: number };
   readonly damageType?: string;
+  /** When present, limits the effect to a specific ability (e.g. Haste grants advantage on DEX saves only). */
+  readonly ability?: string;
   readonly duration: EffectDuration;
   readonly roundsRemaining?: number;
   readonly triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move' | 'on_next_weapon_hit';

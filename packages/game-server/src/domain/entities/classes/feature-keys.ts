@@ -62,6 +62,7 @@ export const PERFECT_FOCUS = "perfect-focus";
 // ── Rogue ───────────────────────────────────────────────────
 export const SNEAK_ATTACK = "sneak-attack";
 export const CUNNING_ACTION = "cunning-action";
+export const CUNNING_STRIKE = "cunning-strike";
 export const UNCANNY_DODGE = "uncanny-dodge";
 export const EVASION = "evasion";
 // Thief subclass
@@ -160,3 +161,27 @@ export const EVOCATION_SAVANT = "evocation-savant";
 export const CUTTING_WORDS = "cutting-words";
 export const ADDITIONAL_MAGICAL_SECRETS = "additional-magical-secrets";
 export const BONUS_PROFICIENCIES = "bonus-proficiencies";
+
+// ── Ranger subclasses ───────────────────────────────────────
+// Hunter → Hunter's Prey (L3)
+export const HUNTERS_LORE = "hunters-lore";
+export const HUNTERS_PREY = "hunters-prey";
+export const COLOSSUS_SLAYER = "colossus-slayer";
+
+// ── Warlock invocations (Eldritch Invocations) ──────────────
+export const AGONIZING_BLAST = "agonizing-blast";
+export const REPELLING_BLAST = "repelling-blast";
+export const DEVILS_SIGHT = "devils-sight";
+
+// ── Sorcerer Metamagic options ──────────────────────────────
+export const METAMAGIC_QUICKENED = "metamagic-quickened";
+export const METAMAGIC_TWINNED = "metamagic-twinned";
+export const METAMAGIC_CAREFUL = "metamagic-careful";
+export const METAMAGIC_DISTANT = "metamagic-distant";
+export const METAMAGIC_EMPOWERED = "metamagic-empowered";
+export const METAMAGIC_EXTENDED = "metamagic-extended";
+export const METAMAGIC_HEIGHTENED = "metamagic-heightened";
+export const METAMAGIC_SUBTLE = "metamagic-subtle";
+
+// ── Sorcerer Font of Magic / Flexible Casting ───────────────
+export const FLEXIBLE_CASTING = "flexible-casting";

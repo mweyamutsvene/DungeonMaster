@@ -72,3 +72,25 @@ export function getFightingStyleFeatId(id: string): string | undefined {
 export function isFightingStyleId(value: string): value is FightingStyleId {
   return (ALL_FIGHTING_STYLE_IDS as readonly string[]).includes(value);
 }
+
+/**
+ * Merge a character's fightingStyle field into its feat IDs list.
+ * This is the unification point for code paths that read raw sheet JSON
+ * (as opposed to going through the Character entity's `getFeatIds()`).
+ *
+ * If `fightingStyle` is set and its corresponding feat is not already in the
+ * list, the feat ID is appended. The input array is never mutated.
+ */
+export function mergeFightingStyleFeatId(
+  featIds: readonly string[] | undefined,
+  fightingStyle: string | undefined,
+): string[] {
+  const result = featIds ? [...featIds] : [];
+  if (fightingStyle && isFightingStyleId(fightingStyle)) {
+    const featId = FIGHTING_STYLE_TO_FEAT[fightingStyle];
+    if (featId && !result.includes(featId)) {
+      result.push(featId);
+    }
+  }
+  return result;
+}

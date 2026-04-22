@@ -1,7 +1,45 @@
 # Plan: Complete Class Abilities L1-5 + E2E Test Coverage
 ## Round: 1
-## Status: IN_PROGRESS — Phase 0 complete (238/238 E2E, 1876 unit tests passing)
+## Status: IN_PROGRESS — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 PARTIAL
 ## Affected Flows: ClassAbilities, SpellSystem, CombatRules, CombatOrchestration, Testing
+
+## 🔖 Resume Checkpoint (last update: session paused after Phase 3 rate limit)
+
+**Last verified**: typecheck clean · 1931 unit tests passing · 237/250 E2E pass (13 failing are Phase 2 intended-fail scenarios + 1 pre-existing cleric/solo-cleric-replay BUG-4).
+
+**Completed this session**:
+- Phase 0: saveToEnd primitive + casing fix + Danger Sense + speed stacking + GAP-6/7/10 lock-in tests + GAP-11 Bane fix + `on_next_weapon_hit` rider mechanism (+9 test files, +45 cases).
+- Phase 1: 7 subclass shells (Life Cleric, Oath of Devotion, Fiend Warlock, Evocation Wizard, Lore Bard, Circle of Land Druid, Draconic Red Sorcerer) + 19 feature-keys + INNATE_SORCERY at L1 + 32 new tests.
+- Phase 2: 12 E2E scenarios authored (Bard/Druid/Ranger/Sorcerer × 3), all intentionally failing at specific feature gaps that drive Phase 3.
+- Phase 3 partial (one agent, rate-limited mid-batch):
+  - 3.1 Fighting Styles: Archery/Defense/Dueling/TWF offhand done; GWF + Protection/Interception deferred.
+  - 3.2 Cunning Strike: groundwork only (feature-key + L5 gate).
+  - 3.5 Disciple of Life: COMPLETE.
+  - 3.11 Draconic Resilience: `class-feature-enrichment.ts` created (needs wire-in verification).
+  - 3.12 Catalog expansion: partial (cantrips + L1/L2/L3 expansion + Wild Shape + buff-debuff + ranger + healing handler edits present, need verification).
+
+**Next actions in order** (when resuming):
+1. Commit current uncommitted state.
+2. Run `test:e2e:combat:mock -- --all` to snapshot current pass count and identify which Phase 2 scenarios now pass.
+3. Dispatch remaining Phase 3 work in priority order:
+   - 3.12 VERIFY: Wild Shape temp HP write, Ranger Favored Enemy pool, catalog stubs (Entangle, Pass Without Trace, Ensnaring Strike, Vicious Mockery, Heroism, Moonbeam, Spike Growth, Call Lightning).
+   - 3.2 Cunning Strike executor + SA-die deduction.
+   - 3.8 Colossus Slayer (once/turn +1d8 wounded).
+   - 3.3 Spiritual Weapon loop.
+   - 3.4 Arcane Recovery.
+   - 3.6 Paladin smite kit (needs `on_next_weapon_hit` rider from Phase 0.3).
+   - 3.7 Fiend Warlock Dark One's Blessing + Agonizing Blast.
+   - 3.9 Bard Cutting Words reaction.
+   - 3.10 Sorcerer Metamagic breadth (6 missing).
+   - 3.11 finish: Elemental Affinity + Flexible Casting.
+4. Phase 4 remaining spell catalog.
+5. Final verify + cleanup of `.github/plans/sme-research-*.md` + `sme-feedback-*.md`.
+
+**Files modified (uncommitted at checkpoint)**: see `git status` \u2014 roll-state-machine, damage-resolver, healing-spell-delivery-handler, buff-debuff-spell-delivery-handler, wild-shape-executor, character-service, feature-keys, fighting-style, ranger, rogue, spells catalog/cantrips/level-1/-2/-3, prepared-spell-definition, new file `class-feature-enrichment.ts`.
+
+---
+
+## Affected Flows Detail
 
 ## Objective
 Deliver full implementation + E2E coverage of every D&D 5e 2024 class ability (and class-essential spell) for levels 1-5 across all 12 classes. Tests MUST fail when a feature is broken or missing, so the suite doubles as a regression net. The plan is built from three SME research briefs:
@@ -57,10 +95,10 @@ Bugs/gaps in this phase must ship before any new class scenario to avoid brittle
 - [ ] Warlock → **The Fiend** shell (`dark-ones-blessing` temp HP, L3/5 patron spells)
 - [ ] Wizard → **School of Evocation** shell (`sculpt-spells`, `potent-cantrip-L6`, L3/5 school spells)
 - [ ] Bard → **College of Lore** shell (`cutting-words` reaction, `additional-magical-secrets-L6`)
-- [ ] Druid → **Circle of the Land** shell (`lands-aid` CD, terrain spell list — Grassland)
-- [ ] Sorcerer → **Draconic Sorcery (Red)** shell (`draconic-resilience` +HP/+AC13, `elemental-affinity` fire)
+- [x] Druid → **Circle of the Land** shell (`lands-aid` CD, terrain spell list — Grassland)
+- [x] Sorcerer → **Draconic Sorcery (Red)** shell (`draconic-resilience` +HP/+AC13, `elemental-affinity` fire)
 
-Each shell registers in `registry.ts` and may be mostly data + feature-map with executors deferred to Phase 3.
+Phase 1 complete: 7 subclass shells + 19 new `feature-keys` constants + 32 new tests (1908 total passing). INNATE_SORCERY added to base Sorcerer L1.
 
 ---
 
@@ -68,24 +106,26 @@ Each shell registers in `registry.ts` and may be mostly data + feature-map with 
 Each class gets 3 scenarios following the established pattern (solo core loop + party synergy + resource depletion). Use `queueMonsterActions` + `queueDiceRolls` for determinism. Target HP bumped to 100-150 on heroes/monsters.
 
 #### Bard (College of Lore) — 3 scenarios
-- [ ] `bard/inspiration-support.json` — **party** (Bard + Fighter + Rogue) vs Orc Warchief + Bandit. Tests Bardic Inspiration dice handed out, consumed on ally attacks, Font of Inspiration (L5) refresh on short rest.
-- [ ] `bard/cutting-words-control.json` — solo vs Hobgoblin Captain + Gnoll. Tests Cutting Words reaction (subtract Bardic Inspiration die from attack/check/damage) + Vicious Mockery cantrip disadvantage.
-- [ ] `bard/spell-suite.json` — solo vs Skeleton Archer + Bandit. Tests Healing Word / Heroism / Hold Person / Suggestion (pending catalog) / Dispel Magic awareness.
+- [x] `bard/inspiration-support.json` — fails at step 11 (BI target parsing bug + Vicious Mockery stub). Drives fix.
+- [x] `bard/cutting-words-control.json` — fails at step 7 (Cutting Words reaction not implemented). Drives Phase 3.9.
+- [x] `bard/spell-suite.json` — fails at step 6 (Heroism temp HP RAW timing — applies at start of turn not on cast).
 
 #### Druid (Circle of the Land) — 3 scenarios
-- [ ] `druid/wild-shape-combat.json` — solo vs 2× Gnoll. Tests Wild Shape transform (beast form HP override, attack swap) + revert on HP=0 / bonus action.
-- [ ] `druid/nature-control.json` — solo vs 3× Goblin. Tests Entangle (Restrained, STR save-to-end) + Spike Growth (difficult terrain damage) + Moonbeam (concentration zone + repeat CON save).
-- [ ] `druid/party-support.json` — **party** (Druid + Fighter + Ranger) vs Ogre + Bandit. Tests Pass Without Trace aura + Healing Word + Call Lightning.
+- [x] `druid/wild-shape-combat.json` — fails at step 7 (Wild Shape executor logs "25 temp HP" but doesn't write resources).
+- [x] `druid/nature-control.json` — fails at step 8 (Entangle catalog stub — no effects).
+- [x] `druid/party-support.json` — fails at step 7 (Pass Without Trace catalog stub).
 
 #### Ranger (Hunter, Colossus Slayer) — 3 scenarios
-- [ ] `ranger/hunters-mark-colossus.json` — solo vs Ogre + Thug. Tests Hunter's Mark rider + Colossus Slayer bonus damage on wounded target + mark transfer on kill (2024 rule).
-- [ ] `ranger/favored-enemy-slot-economy.json` — solo vs Orc + Gnoll. Tests Favored Enemy pool spent for free Hunter's Mark (GAP-13 fix) vs slot-cast fallback.
-- [ ] `ranger/party-scout.json` — **party** (Ranger + Rogue + Cleric) vs Hobgoblin Captain + 2× Hobgoblin. Tests Ensnaring Strike on-hit rider + Pass Without Trace + Extra Attack.
+- [x] `ranger/hunters-mark-colossus.json` — fails at step 25 (mark-transfer-on-kill parser missing + Colossus Slayer bonus damage not firing).
+- [x] `ranger/favored-enemy-slot-economy.json` — fails at step 8 (Favored Enemy pool not routed as free Hunter's Mark).
+- [x] `ranger/party-scout.json` — fails at step 6 (Pass Without Trace stub + Ensnaring Strike blocked behind it).
 
 #### Sorcerer (Draconic Red) — 3 scenarios
-- [ ] `sorcerer/metamagic-burst.json` — solo vs 3× Skeleton. Tests Quickened Spell (Fireball as bonus) + Twinned Scorching Ray + Sorcery Point spend.
-- [ ] `sorcerer/draconic-resilience.json` — solo vs Ogre + Bandit. Tests Draconic Resilience (AC 13 + DEX, +HP per level) + Elemental Affinity (fire cantrip +CHA damage).
-- [ ] `sorcerer/slot-sp-conversion.json` — solo vs Hobgoblin + Goblin. Tests Sorcery Points ↔ Spell Slots conversion (Flexible Casting) across rounds.
+- [x] `sorcerer/metamagic-burst.json` — fails at step 9 (Quickened doesn't chain inner cast).
+- [x] `sorcerer/draconic-resilience.json` — fails at step 5 (Draconic Resilience +HP not applied to sheet hydration).
+- [x] `sorcerer/slot-sp-conversion.json` — fails at step 15 (Flexible Casting parser missing).
+
+Phase 2 complete: 12 scenarios, all failing at intended feature gaps per user directive — drives Phase 3 implementation.
 
 ---
 
@@ -112,30 +152,38 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [ ] Implement short-rest action `wizard arcane recovery` that refunds slot levels up to `ceil(level/2)` using `arcaneRecovery` pool.
 - [ ] Extend `wizard/spell-slot-economy.json` to include mid-fight short rest + arcane recovery, then more casting.
 
-#### 3.5 Cleric Life-Domain Disciple of Life
-- [ ] Implement `+2 + slot level` bonus HP on heal spells when caster has Life subclass.
-- [ ] Extend `cleric/party-healer.json` to assert boosted healing magnitude.
+#### 3.6 Paladin smite spell kit (depends on Phase 0.3 rider extension) — NOT STARTED
+- [ ] Add Searing, Thunderous, Wrathful, Branding, Divine Favor smite spells using `on_next_weapon_hit` rider (Phase 0.3 mechanism).
+- [ ] New scenario `paladin/smite-spell-kit.json`.
 
-#### 3.6 Paladin smite spell kit (depends on Phase 0.3 rider extension)
-- [ ] Add Searing Smite, Thunderous Smite, Wrathful Smite, Divine Favor, Branding Smite to spell catalog as `nextHitRider` spells.
-- [ ] New scenario `paladin/smite-spell-kit.json` — solo vs Fiend + Zombie, casts each smite spell across rounds.
+#### 3.7 Warlock Fiend subclass + Hex rider fix — NOT STARTED
+- [ ] Dark One's Blessing (temp HP on kill).
+- [ ] Agonizing Blast (+CHA to each EB beam).
+- [ ] Revive `warlock/hex-and-blast.json` assertions.
 
-#### 3.7 Warlock Fiend subclass + Hex rider fix (depends on Phase 0.2 GAP-6)
-- [ ] Implement Dark One's Blessing (temp HP on kill = CHA+warlockLevel).
-- [ ] Implement Agonizing Blast invocation (+CHA to each EB beam damage).
-- [ ] Revive `warlock/hex-and-blast.json` — assert Hex bonus damage applied + Agonizing Blast adds CHA + Dark One's Blessing temp HP on kill.
+#### 3.8 Ranger Colossus Slayer — NOT STARTED
+- [ ] Implement Colossus Slayer bonus 1d8 once/turn vs wounded.
+- [ ] Coverage by `ranger/hunters-mark-colossus.json` (already authored in Phase 2).
 
-#### 3.8 Ranger Hunter's Lore + Colossus Slayer
-- [ ] Implement Colossus Slayer bonus 1d8 damage vs wounded targets once/turn.
-- [ ] Covered by `ranger/hunters-mark-colossus.json` from Phase 2.
+#### 3.9 Bard Cutting Words + Magical Inspiration — NOT STARTED
+- [ ] Implement Cutting Words reaction (attack/check/damage subtract BI die).
+- [ ] Coverage by `bard/cutting-words-control.json`.
 
-#### 3.9 Bard Cutting Words + Magical Inspiration
-- [ ] Implement Cutting Words as a reaction that subtracts a Bardic Inspiration die from an enemy's attack roll / damage / ability check within 60ft.
-- [ ] Covered by `bard/cutting-words-control.json` from Phase 2.
+#### 3.10 Sorcerer Metamagic breadth — NOT STARTED
+- [ ] Implement Careful/Distant/Empowered/Extended/Heightened/Subtle.
+- [ ] Extend `sorcerer/metamagic-burst.json`.
 
-#### 3.10 Sorcerer Metamagic breadth
-- [ ] Implement Careful/Distant/Empowered/Extended/Heightened/Subtle (add 6 missing options). Quickened + Twinned already exist.
-- [ ] Extend `sorcerer/metamagic-burst.json` to assert each option's effect on cast payload.
+#### 3.11 Sorcerer subclass mechanics (Draconic Red) — PARTIAL
+- [x] `class-feature-enrichment.ts` created — applies Draconic Resilience +1 HP/sorcerer-level + unarmored AC = 13 + DEX to sheet at creation time.
+- [ ] Wire `enrichSheetClassFeatures` into `character-service.ts` create path (may already be wired — needs verification).
+- [ ] Elemental Affinity (L5 fire +CHA once/round).
+- [ ] Flexible Casting SP↔slot parser + handler.
+
+#### 3.12 Spell catalog stubs filled in (surfaced by Phase 2) — PARTIAL
+- [x] Some expansion in `cantrips.ts`, `level-1.ts`, `level-2.ts`, `level-3.ts` (catalog.test.ts updated). **Verify coverage**: Vicious Mockery, Entangle, Pass Without Trace, Ensnaring Strike, Heroism, Moonbeam, Spike Growth, Call Lightning.
+- [ ] Wild Shape executor: write temp HP to caster resources (currently logs without applying). File: `executors/druid/wild-shape-executor.ts` (modified but needs verification).
+- [ ] Buff-debuff spell delivery handler modifications (`buff-debuff-spell-delivery-handler.ts` modified — verify behavior).
+- [ ] Ranger spells (`ranger.ts` modified — verify Favored Enemy pool spends for HM).
 
 ---
 

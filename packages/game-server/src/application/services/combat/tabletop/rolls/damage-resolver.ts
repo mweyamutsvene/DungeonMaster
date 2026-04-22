@@ -71,6 +71,8 @@ import type { WeaponMasteryResolver } from "./weapon-mastery-resolver.js";
 import type { HitRiderResolver } from "./hit-rider-resolver.js";
 import { findCombatantByEntityId, getEntityId } from "../../helpers/combatant-lookup.js";
 import { rollModePrompt } from "../roll-state-machine.js";
+import { computeFeatModifiers, shouldApplyDueling } from "../../../../../domain/rules/feat-modifiers.js";
+import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
 
 export class DamageResolver {
   constructor(
@@ -132,6 +134,46 @@ export class DamageResolver {
 
     const damageModifier = parseDamageModifier(action.weaponSpec?.damageFormula, action.weaponSpec?.damage?.modifier);
     let totalDamage = rollValue + damageModifier;
+
+    // ── Fighting Style: Dueling (+2 damage one-handed melee, no other weapons) ──
+    // Also TWF-style ability modifier on offhand attacks, and GWF die-min transform.
+    const actorCharForStyle = characters.find((c) => c.id === action.actorId);
+    const actorSheetForStyle = (actorCharForStyle?.sheet ?? {}) as Record<string, unknown>;
+    const rawFeatIdsDmg = (actorSheetForStyle.featIds as string[] | undefined)
+      ?? (actorSheetForStyle.feats as string[] | undefined) ?? [];
+    const fightingStyleDmg = actorSheetForStyle.fightingStyle as string | undefined;
+    const mergedFeatsDmg = mergeFightingStyleFeatId(rawFeatIdsDmg, fightingStyleDmg);
+    const dmgFeatMods = computeFeatModifiers(mergedFeatsDmg);
+    // Dueling: +2 bonus to damage when wielding a melee weapon in one hand and no two-handed
+    if (
+      dmgFeatMods.duelingDamageBonus &&
+      shouldApplyDueling({
+        attackKind: action.weaponSpec?.kind,
+        weapon: {
+          hands: action.weaponSpec?.hands,
+          properties: action.weaponSpec?.properties,
+        },
+      })
+    ) {
+      totalDamage += dmgFeatMods.duelingDamageBonus;
+      if (this.debugLogsEnabled) console.log(`[DamageResolver] Dueling fighting style: +${dmgFeatMods.duelingDamageBonus} damage`);
+    }
+    // Two-Weapon Fighting: add ability modifier to offhand damage
+    // (Normally offhand attack omits the mod; TWF style restores it.)
+    if (
+      dmgFeatMods.twoWeaponFightingAddsAbilityModifierToBonusAttackDamage &&
+      action.bonusAction === "offhand-attack"
+    ) {
+      // Compute STR or DEX mod (whichever is higher for a light weapon per 2024 RAW)
+      const abilityScores = (actorSheetForStyle.abilityScores as Record<string, number> | undefined) ?? {};
+      const strMod = Math.floor(((abilityScores.strength ?? 10) - 10) / 2);
+      const dexMod = Math.floor(((abilityScores.dexterity ?? 10) - 10) / 2);
+      const useMod = action.weaponSpec?.kind === "ranged" ? dexMod : Math.max(strMod, dexMod);
+      if (useMod > 0) {
+        totalDamage += useMod;
+        if (this.debugLogsEnabled) console.log(`[DamageResolver] TWF fighting style: +${useMod} offhand damage`);
+      }
+    }
 
     // ── ActiveEffect: extra damage (flat + dice) ──
     // Both flat bonuses (Rage +2) and dice bonuses (Hex 1d6) are added server-side.
