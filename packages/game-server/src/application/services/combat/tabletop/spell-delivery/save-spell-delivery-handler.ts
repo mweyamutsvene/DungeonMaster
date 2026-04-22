@@ -355,6 +355,32 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       }
     }
 
+    // Apply onHitEffects (save-based spells treat save-fail as the "on-hit" trigger).
+    // Covers Vicious Mockery's disadvantage on next_attack, etc.
+    if (!saveSuccess && spellMatch.onHitEffects?.length) {
+      const freshList = await deps.combatRepo.listCombatants(encounter.id);
+      let freshTarget = freshList.find(c => c.id === findCombatantByEntityId(combatants, targetId)?.id);
+      if (freshTarget) {
+        for (const effDef of spellMatch.onHitEffects) {
+          if (effDef.appliesTo && effDef.appliesTo !== 'target') continue;
+          const effect = createEffect(
+            nanoid(),
+            effDef.type,
+            effDef.target,
+            spellMatch.concentration ? 'concentration' : effDef.duration,
+            {
+              source: castInfo.spellName,
+              sourceCombatantId: actorId,
+              description: `${castInfo.spellName} (${effDef.type} on ${effDef.target})`,
+            },
+          );
+          const updatedResources = addActiveEffectsToResources(freshTarget.resources ?? {}, effect);
+          await deps.combatRepo.updateCombatantState(freshTarget.id, { resources: updatedResources as JsonValue });
+          freshTarget = { ...freshTarget, resources: updatedResources as JsonValue };
+        }
+      }
+    }
+
     // Mark action spent
     await deps.actions.castSpell(sessionId, {
       encounterId,

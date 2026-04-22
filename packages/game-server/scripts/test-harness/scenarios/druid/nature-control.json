@@ -254,11 +254,9 @@
       "input": { "values": [8] }
     },
     {
-      "comment": "Goblin 2 should have taken 2d10 radiant on initial exposure (full on fail, half on pass). Starting HP 7 → likely dead.",
+      "comment": "Moonbeam zones live on the encounter map, not as ActiveEffects on combatants — verify concentration + slot consumption instead. Zone damage fires on entry and on_start_turn for creatures inside.",
       "type": "assertState",
-      "expect": {
-        "monsterActiveEffects": { "name": "Goblin 2", "hasSources": ["Moonbeam"] }
-      }
+      "expect": { "characterConcentration": "Moonbeam" }
     },
     {
       "comment": "Queue Goblin 2 (if alive) or Goblin 3 to end turn inside beam area.",
