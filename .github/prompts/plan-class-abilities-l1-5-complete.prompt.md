@@ -5,7 +5,21 @@
 
 ## 🔖 Resume Checkpoint (last update: session paused after Phase 3 rate limit)
 
-**Last verified**: typecheck clean · 1931 unit tests passing · 237/250 E2E pass (13 failing are Phase 2 intended-fail scenarios + 1 pre-existing cleric/solo-cleric-replay BUG-4).
+**Last verified**: typecheck clean · 1931 unit tests passing · **238/250 E2E passing** (12 failing = all 12 Phase 2 intended-fail scenarios).
+
+**Failing E2E scenarios** (each drives a specific Phase 3 sub-task):
+- `bard/cutting-words-control` (6/17) → 3.9 Cutting Words reaction
+- `bard/inspiration-support` (10/35) → BI target parser + Vicious Mockery
+- `bard/spell-suite` (5/22) → Heroism timing + Hold Person tick
+- `druid/nature-control` (9/31) → Entangle / Spike Growth / Moonbeam
+- `druid/party-support` (8/44) → Pass Without Trace aura + Call Lightning
+- `druid/wild-shape-combat` (14/30) → Wild Shape temp HP write
+- `ranger/favored-enemy-slot-economy` (7/33) → Favored Enemy pool spend
+- `ranger/hunters-mark-colossus` (24/34) → Colossus Slayer + mark transfer
+- `ranger/party-scout` (22/39) → Ensnaring Strike rider + Pass Without Trace
+- `sorcerer/draconic-resilience` (15/19) → Wire enrichSheetClassFeatures into service
+- `sorcerer/metamagic-burst` (8/37) → Quickened chain + Twinned + Elemental Affinity
+- `sorcerer/slot-sp-conversion` (14/26) → Flexible Casting parser
 
 **Completed this session**:
 - Phase 0: saveToEnd primitive + casing fix + Danger Sense + speed stacking + GAP-6/7/10 lock-in tests + GAP-11 Bane fix + `on_next_weapon_hit` rider mechanism (+9 test files, +45 cases).
