@@ -93,9 +93,9 @@
   },
   "actions": [
     {
-      "comment": "Queue Cutting Words reaction: when Hobgoblin attacks with queued d20=15 and Bard reacts, subtract d8=6 from attack. Gnoll attacks with d20=10+4=14 — Cutting Words unavailable (reaction spent this round).",
+      "comment": "Queue dice: [Hob init=15 (→17), Gnoll init=10 (→11), Hob attack d20=15 (→20), CW d8=6 (20-6=14<15 miss), Gnoll attack d20=5 (→9<15 miss)].",
       "type": "queueDiceRolls",
-      "input": { "values": [15, 10, 6] }
+      "input": { "values": [15, 10, 15, 6, 5] }
     },
     {
       "type": "queueMonsterActions",

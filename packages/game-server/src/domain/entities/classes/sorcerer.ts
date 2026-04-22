@@ -4,6 +4,7 @@ import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } fr
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
 import {
   INNATE_SORCERY,
+  FLEXIBLE_CASTING,
   DRACONIC_RESILIENCE, DRACONIC_ANCESTRY, ELEMENTAL_AFFINITY,
 } from "./feature-keys.js";
 
@@ -71,6 +72,7 @@ export const Sorcerer: CharacterClassDefinition = {
     "spellcasting": 1,
     [INNATE_SORCERY]: 1,
     "sorcery-points": 2,
+    [FLEXIBLE_CASTING]: 2,
     "metamagic": 2,
   },
   resourcesAtLevel: (level) => {
@@ -98,6 +100,8 @@ export const SORCERER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   actionMappings: [
     { keyword: "quickened-spell", normalizedPatterns: [/quickenedspell|quickenspell|quicken/], abilityId: "class:sorcerer:quickened-spell", category: "bonusAction" },
     { keyword: "twinned-spell", normalizedPatterns: [/twinnedspell|twinspell|twin/], abilityId: "class:sorcerer:twinned-spell", category: "classAction" },
+    // Flexible Casting — Font of Magic bonus action, either direction
+    { keyword: "flexible-casting", normalizedPatterns: [/convert.*sorcerypoint|convert.*spellslot.*sorcery|convert.*slot.*sorcery/], abilityId: "class:sorcerer:flexible-casting", category: "bonusAction" },
   ],
   attackEnhancements: [],
 };

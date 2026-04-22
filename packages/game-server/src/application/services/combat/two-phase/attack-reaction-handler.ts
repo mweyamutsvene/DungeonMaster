@@ -407,6 +407,15 @@ export class AttackReactionHandler {
         pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "uncanny_dodge",
     );
 
+    // Check if Cutting Words was used (Bard College of Lore L3+)
+    const cuttingWordsReaction = pendingAction.resolvedReactions.find(
+      (r: ReactionResponse) => r.choice === "use" &&
+        pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "cutting_words",
+    );
+    const cuttingWordsOpp = cuttingWordsReaction
+      ? pendingAction.reactionOpportunities.find((o) => o.id === cuttingWordsReaction.opportunityId)
+      : null;
+
     const targetResources = normalizeResources(target.resources);
     let finalAC: number;
     if (typeof attackData.targetAC === "number") {
@@ -472,9 +481,56 @@ export class AttackReactionHandler {
       }
     }
 
+    // Apply Cutting Words (Bard College of Lore L3+) — subtracts BI die from attack roll.
+    let cuttingWordsApplied = false;
+    let cuttingWordsRoll = 0;
+    if (cuttingWordsReaction && cuttingWordsOpp && input.diceRoller) {
+      const cwCtx = cuttingWordsOpp.context as { dieSize?: number };
+      const dieSize = typeof cwCtx.dieSize === "number" ? cwCtx.dieSize : 8;
+      const cwRoll = input.diceRoller.rollDie(dieSize);
+      cuttingWordsRoll = cwRoll.total;
+      attackData.attackRoll = Math.max(0, attackData.attackRoll - cwRoll.total);
+      cuttingWordsApplied = true;
+
+      // Spend bardicInspiration and consume reaction.
+      const { spendResourceFromPool } = await import("../helpers/resource-utils.js");
+      const targetRes = normalizeResources(target.resources);
+      let updatedRes: JsonValue;
+      try {
+        updatedRes = spendResourceFromPool(target.resources, "bardicInspiration", 1);
+      } catch {
+        updatedRes = target.resources;
+      }
+      const normalizedUpdated = normalizeResources(updatedRes);
+      await this.combat.updateCombatantState(target.id, {
+        resources: { ...normalizedUpdated, reactionUsed: true } as JsonValue,
+      });
+
+      if (this.events) {
+        const targetName = await this.combatants.getName(attackData.target, target);
+        await this.events.append(sessionId, {
+          id: nanoid(),
+          type: "CuttingWords",
+          payload: {
+            encounterId: encounter.id,
+            bardId: target.id,
+            bardName: targetName,
+            attackerId: String((pendingAction.actor as any)?.monsterId ?? (pendingAction.actor as any)?.characterId ?? (pendingAction.actor as any)?.npcId ?? pendingAction.actor),
+            dieSize,
+            roll: cwRoll.total,
+            previousAttackRoll: attackData.attackRoll + cwRoll.total,
+            newAttackRoll: attackData.attackRoll,
+          },
+        });
+      }
+      void targetRes;
+    }
+
     const hit = attackData.attackRoll >= finalAC;
     let damageApplied = 0;
     let redirectResult: { hit: boolean; attackRoll: number; targetAC: number; damage: number } | undefined;
+    void cuttingWordsApplied;
+    void cuttingWordsRoll;
 
     // If attack hits, roll and apply damage
     if (hit && attackData.damageSpec && input.diceRoller) {

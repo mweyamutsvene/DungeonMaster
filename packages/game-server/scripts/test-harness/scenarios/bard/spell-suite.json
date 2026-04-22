@@ -126,12 +126,12 @@
       "timeout": 15000
     },
     {
-      "comment": "Pre-queue Bandit's WIS save: 1 -> 1+0 = 1 < DC 15 -> FAIL -> Paralyzed.",
+      "comment": "Pre-queue Bandit's WIS save + end-of-turn save-to-end ticks (extras for safety): all 1s so Paralyzed persists through R2 end.",
       "type": "queueDiceRolls",
-      "input": { "values": [1] }
+      "input": { "values": [1, 1, 1, 1] }
     },
     {
-      "comment": "R2: Cast Hold Person on Bandit. Consumes L2 slot. Concentration switches to Hold Person (Heroism drops).",
+      "comment": "R2: Cast Hold Person on Bandit (action). Consumes L2 slot. Concentration switches to Hold Person (Heroism drops).",
       "type": "action",
       "input": { "text": "cast Hold Person on Bandit" },
       "expect": { "actionComplete": true }
@@ -148,7 +148,16 @@
       }
     },
     {
-      "comment": "R2 melee: Rapier attack on Paralyzed Bandit within 5ft -> auto-crit per RAW.",
+      "comment": "End Bard R2 — Hold Person was the action. Rapier attack has to wait for R3.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait through the Bandit's R2 (they're Paralyzed and can't act; save-to-end ticks with queued 1 -> stays paralyzed).",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 melee: Rapier attack on Paralyzed Bandit within 5ft -> auto-crit per RAW.",
       "type": "action",
       "input": { "text": "I attack the Bandit with my Rapier" },
       "expect": { "rollType": "attack", "requiresPlayerInput": true }
@@ -175,25 +184,18 @@
       "type": "endTurn"
     },
     {
-      "comment": "=== ROUND 3: Bandit's end-of-turn save (if still alive/relevant) — since we killed Bandit in R2, skip straight to Skeleton cleanup. Test the Phase 0.1 saveToEnd primitive on the wider picture: Heroism's temp HP should be gone since concentration switched. ===",
+      "comment": "=== ROUND 4: Bonus-action Healing Word self-cast + cantrip Vicious Mockery on Skeleton. Since Hold Person was dropped via kill earlier, concentration should now be free. ===",
       "type": "waitForTurn",
       "timeout": 15000
     },
     {
-      "type": "assertState",
-      "expect": {
-        "characterConcentration": "Hold Person",
-        "characterTempHp": { "exact": 0 }
-      }
-    },
-    {
-      "comment": "R3: Vicious Mockery at Skeleton Archer. WIS save DC 15 (Skeleton WIS -1 needs 16+). On fail: 1d4 psychic + disadvantage next attack. Skeleton has bludgeoning vuln — not relevant to psychic dmg. Cantrip scales to 2d4 at L5.",
+      "comment": "R4 action: Vicious Mockery at Skeleton Archer. WIS save DC 15 (Skeleton WIS -1 needs 16+). On fail: 1d4 psychic + disadvantage next attack. Cantrip scales to 2d4 at L5.",
       "type": "action",
       "input": { "text": "cast Vicious Mockery at Skeleton Archer" },
       "expect": { "actionComplete": true }
     },
     {
-      "comment": "R3 bonus: Healing Word on self. 2d4 + 4 (2024 baseline). Consumes L1 slot.",
+      "comment": "R4 bonus: Healing Word on self. 2d4 + 4 (2024 baseline). Consumes L1 slot.",
       "type": "action",
       "input": { "text": "cast Healing Word on Lyra" },
       "expect": { "actionComplete": true }

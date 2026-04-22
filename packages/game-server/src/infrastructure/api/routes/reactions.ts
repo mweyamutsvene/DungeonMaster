@@ -294,7 +294,7 @@ export function registerReactionRoutes(
           // Expected: AI turn may have ended naturally
         }
 
-        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : opportunity.reactionType === "uncanny_dodge" ? "Uncanny Dodge" : opportunity.reactionType === "sentinel_attack" ? "Sentinel reaction attack" : "Reaction";
+        const reactionLabel = opportunity.reactionType === "shield" ? "Shield spell" : opportunity.reactionType === "deflect_attacks" ? "Deflect Attacks" : opportunity.reactionType === "uncanny_dodge" ? "Uncanny Dodge" : opportunity.reactionType === "sentinel_attack" ? "Sentinel reaction attack" : opportunity.reactionType === "cutting_words" ? "Cutting Words" : "Reaction";
         return {
           success: true,
           pendingActionId,

@@ -91,6 +91,9 @@ function buildCombatantResources(
   if (combatRes.hasHellishRebukePrepared) {
     (resources as any).hasHellishRebukePrepared = true;
   }
+  if (combatRes.hasCuttingWords) {
+    (resources as any).hasCuttingWords = true;
+  }
   if (combatRes.warCasterEnabled) {
     (resources as any).warCasterEnabled = true;
   }

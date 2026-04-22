@@ -438,11 +438,15 @@ export class RollStateMachine {
     }
 
     // ── ActiveEffect: attack bonus + AC modifiers ──
-    // CO-M5: Pre-load combatants once for the entire attack roll resolution
+    // CO-M5: Pre-load combatants once for the entire attack roll resolution.
+    // actorId / targetId are entity IDs (characterId/monsterId/npcId), not combatant
+    // record IDs — use findCombatantByEntityId to resolve them. Previously this
+    // code used `c.id === targetId`, which silently missed every target's
+    // combatant record (conditions, ActiveEffects, position).
     let combatants = await this.deps.combatRepo.listCombatants(encounter.id);
-    const attackerCombatant = combatants.find((c: any) => c.id === actorId);
+    const attackerCombatant = findCombatantByEntityId(combatants, actorId);
     const attackerEffects = getActiveEffects(attackerCombatant?.resources ?? {});
-    const targetCombatant = combatants.find((c: any) => c.id === targetId);
+    const targetCombatant = findCombatantByEntityId(combatants, targetId);
     const targetEffects = getActiveEffects(targetCombatant?.resources ?? {});
 
     // Attack bonus from effects (flat + dice)

@@ -31,8 +31,8 @@ export interface CombatResourcesResult {
   /** Whether the character has Absorb Elements prepared. */
   hasAbsorbElementsPrepared: boolean;
   /** Whether the character has Hellish Rebuke prepared. */
-  hasHellishRebukePrepared: boolean;
-  /** Whether the character has the War Caster feat. */
+  hasHellishRebukePrepared: boolean;  /** Whether the character has the Cutting Words subclass feature (College of Lore, L3+). */
+  hasCuttingWords: boolean;  /** Whether the character has the War Caster feat. */
   warCasterEnabled: boolean;
   /** Whether the character has the Sentinel feat. */
   sentinelEnabled: boolean;
@@ -163,5 +163,18 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
     }
   }
 
-  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, warCasterEnabled, sentinelEnabled, pactSlotLevel };
+  // 8. Cutting Words (College of Lore Bard, L3+).
+  //    Subclass-gated subclass feature — checked by class entries.
+  let hasCuttingWords = false;
+  for (const entry of classEntries) {
+    if (entry.classId.toLowerCase() !== "bard") continue;
+    if (entry.level < 3) continue;
+    const sub = (entry.subclass ?? "").toLowerCase().replace(/\s+/g, "-");
+    if (sub === "college-of-lore" || sub === "lore") {
+      hasCuttingWords = true;
+      break;
+    }
+  }
+
+  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, hasCuttingWords, warCasterEnabled, sentinelEnabled, pactSlotLevel };
 }

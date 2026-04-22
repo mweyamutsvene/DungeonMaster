@@ -39,7 +39,7 @@ import type { Position } from "../../rules/movement.js";
 import type { CombatantRef } from "../../../application/services/combat/helpers/combatant-ref.js";
 
 export type PendingActionType = "move" | "spell_cast" | "attack" | "damage_reaction" | "lucky_reroll" | "ability_check";
-export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection";
+export type ReactionType = "opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection" | "cutting_words";
 
 /**
  * Tracks an action awaiting reaction resolution.

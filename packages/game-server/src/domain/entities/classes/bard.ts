@@ -1,7 +1,12 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
 import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
-import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import type {
+  ClassCombatTextProfile,
+  AttackReactionDef,
+  AttackReactionInput,
+  DetectedAttackReaction,
+} from "./combat-text-profile.js";
 import {
   JACK_OF_ALL_TRADES, FONT_OF_INSPIRATION, COUNTERCHARM,
   CUTTING_WORDS, ADDITIONAL_MAGICAL_SECRETS, BONUS_PROFICIENCIES,
@@ -139,10 +144,46 @@ export const Bard: CharacterClassDefinition = {
   subclasses: [CollegeOfLoreSubclass],
 };
 
+// ----- Reactions -----
+
+/**
+ * Cutting Words (College of Lore L3 — D&D 5e 2024).
+ *
+ * Reaction: when a creature within 60 feet makes an attack roll, ability check,
+ * or damage roll, the Bard spends one Bardic Inspiration use to subtract the BI
+ * die from the roll. Currently wired for attack rolls; damage/check variants
+ * can be added in follow-up work.
+ */
+const CUTTING_WORDS_REACTION: AttackReactionDef = {
+  reactionType: "cutting_words",
+  classId: "bard",
+  detect(input: AttackReactionInput): DetectedAttackReaction | null {
+    if (!input.hasReaction || !input.isCharacter) return null;
+    if (input.resources.hasCuttingWords !== true) return null;
+
+    const pools = input.resources.resourcePools ?? [];
+    const bi = pools.find((p) => p.name === "bardicInspiration");
+    if (!bi || bi.current <= 0) return null;
+
+    const dieSize = bardicInspirationDieForLevel(Math.max(1, input.level));
+
+    return {
+      reactionType: "cutting_words",
+      context: {
+        attackerId: input.attackerId,
+        attackRoll: input.attackRoll,
+        currentAC: input.targetAC,
+        dieSize,
+      },
+    };
+  },
+};
+
 export const BARD_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "bard",
   actionMappings: [
     { keyword: "bardic-inspiration", normalizedPatterns: [/bardicinspiration|usebardicinspiration|inspire/], abilityId: "class:bard:bardic-inspiration", category: "bonusAction" },
   ],
   attackEnhancements: [],
+  attackReactions: [CUTTING_WORDS_REACTION],
 };

@@ -224,6 +224,17 @@ export interface DeflectAttacksPayload {
   damageAfterReduction: number;
 }
 
+export interface CuttingWordsPayload {
+  encounterId: string;
+  bardId: string;
+  bardName: string;
+  attackerId: string;
+  dieSize: number;
+  roll: number;
+  previousAttackRoll: number;
+  newAttackRoll: number;
+}
+
 export interface DeflectAttacksRedirectPayload {
   encounterId: string;
   deflectorId: string;
@@ -348,6 +359,7 @@ export type GameEventInput =
   | { type: "Counterspell"; payload: CounterspellPayload }
   | { type: "ShieldCast"; payload: ShieldCastPayload }
   | { type: "DeflectAttacks"; payload: DeflectAttacksPayload }
+  | { type: "CuttingWords"; payload: CuttingWordsPayload }
   | { type: "DeflectAttacksRedirect"; payload: DeflectAttacksRedirectPayload }
   | { type: "UncannyDodge"; payload: UncannyDodgePayload }
   | { type: "AbsorbElements"; payload: AbsorbElementsPayload }

@@ -32,6 +32,8 @@ export interface ReactionResources {
   hasAbsorbElementsPrepared?: boolean;
   hasCounterspellPrepared?: boolean;
   hasHellishRebukePrepared?: boolean;
+  /** Bard College of Lore L3+ Cutting Words subclass feature. */
+  hasCuttingWords?: boolean;
   /** Equipment/fighting-style flags for ally-protection reactions. */
   hasProtectionStyle?: boolean;
   hasInterceptionStyle?: boolean;

@@ -39,7 +39,7 @@ export { MoveHuntersMarkExecutor } from "./ranger/index.js";
 export { CunningActionExecutor } from "./rogue/index.js";
 
 // Sorcerer abilities
-export { QuickenedSpellExecutor, TwinnedSpellExecutor } from "./sorcerer/index.js";
+export { QuickenedSpellExecutor, TwinnedSpellExecutor, FlexibleCastingExecutor } from "./sorcerer/index.js";
 
 // Monster abilities
 export { NimbleEscapeExecutor } from "./monster/index.js";
