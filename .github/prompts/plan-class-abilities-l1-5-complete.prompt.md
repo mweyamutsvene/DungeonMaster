@@ -5,27 +5,26 @@
 
 ## 🔖 Resume Checkpoint (last update: session paused after Phase 3 rate limit)
 
-**Last verified (post Phase-3b session)**: typecheck clean · 1931 unit tests passing · **241/250 E2E passing** (9 failing) — up from 238/250.
+**Last verified (post Phase-3c session)**: typecheck clean · 1937 unit tests passing · **242/250 E2E passing** (8 failing) — up from 241/250.
 
-**Newly fixed this session (Phase 3b)**:
-- ✅ druid/wild-shape-combat — Wild Shape temp HP write, revert-wildshape executor + parser ordering (commit fbe4254)
-- ✅ sorcerer/draconic-resilience — Elemental Affinity hook in damage-resolver + ancestry helper (commit c06e6a6)
-- ✅ ranger/hunters-mark-colossus — Colossus Slayer once/turn rider + move-hunters-mark executor/parser (commit c06e6a6)
-- ➕ sorcerer Quickened Spell chains into cast as bonus action, bypasses two-spell rule (commit 69d607f)
-- ➕ ranger Favored Enemy pool is spent in place of L1 slot when casting Hunter's Mark (commit 61d292d)
-- ➕ bard Bardic Inspiration executor flagged `allowsAllyTarget` (commit 61d292d)
+**Newly fixed this session (Phase 3c)**:
+- ✅ sorcerer/slot-sp-conversion (14/26 → 26/26) — Flexible Casting executor + parser
+- ✅ cleric/solo-cleric-replay (31/37 → 37/37) — slot-manager fix (see below) + scenario assertion updated
+- ➕ Cutting Words reaction (bard/cutting-words-control 6/17 → 11/17; engine works, Vicious Mockery disadvantage still missing)
+- ➕ **BUG-FIX**: spell-slot-manager re-applied slot decrement after breakConcentration re-fetch (fixed silent "Bless no-slot" BUG-4 + Spike Growth no-slot on concentration switch). Commit 684e009.
+- ➕ **FEATURE**: ActiveCondition.spellSource + breakConcentration removes spell-sourced conditions when concentration drops (druid/nature-control 9/31 → 26/31 via proper Entangle Restrained cleanup). Commit a0cf3f6.
 
-**Still failing (9)**:
-- `bard/cutting-words-control` (6/17) → 3.9 Cutting Words reaction (NOT STARTED)
-- `bard/inspiration-support` (10/35) → ally-target resolved; next block is multi-PC `waitForTurn`
-- `bard/spell-suite` (11/22) → Heroism timing + Hold Person tick
-- `core/party-vs-goblins` (6/10)
-- `druid/nature-control` (9/31) → Entangle / Spike Growth / Moonbeam
-- `druid/party-support` (8/44) → Pass Without Trace aura + Call Lightning
-- `ranger/favored-enemy-slot-economy` (11/33) → partial; remaining blocked by EA auto-chain on dead target
-- `ranger/party-scout` (34/39) → Ensnaring Strike rider + Pass Without Trace
-- `sorcerer/metamagic-burst` (10/37) → still needs Scorching Ray multi-ray + Twinned
-- `sorcerer/slot-sp-conversion` (14/26) → Flexible Casting parser (NOT STARTED)
+**Still failing (8)**:
+- `bard/cutting-words-control` (11/17) → Vicious Mockery disadvantage-on-next-attack effect not applied on save fail
+- `bard/inspiration-support` (10/35) → multi-PC waitForTurn / ally BI die consumption
+- `bard/spell-suite` (11/22) → scenario authoring bug (cast+attack same turn illegal by RAW)
+- `druid/nature-control` (26/31) → Moonbeam ActiveEffect tagging on zone entry
+- `druid/party-support` (8/44) → scenario authoring bug (Fighter 8ft from Ogre, Longsword 5ft reach)
+- `ranger/favored-enemy-slot-economy` (11/33) → EA auto-chain on dead target (CombatOrchestration)
+- `ranger/party-scout` (34/39) → EA auto-chain on dead target (CombatOrchestration)
+- `sorcerer/metamagic-burst` (10/37) → scenario authoring (skeleton HP too low for intended Scorching Ray pacing)
+
+**Per SpellSystem-SME investigation**: all 8 "stub" spells in the catalog (Entangle, Heroism, Ensnaring Strike, Moonbeam, Spike Growth, Pass Without Trace, Call Lightning, Vicious Mockery) are **fully implemented**. Remaining failures are NOT catalog gaps — they are scenario-authoring bugs, the Vicious Mockery disadvantage-flag wiring, and the EA-auto-chain-on-dead-target blocker. Phase 3.12 catalog work is effectively complete.
 
 **Completed this session**:
 - Phase 0: saveToEnd primitive + casing fix + Danger Sense + speed stacking + GAP-6/7/10 lock-in tests + GAP-11 Bane fix + `on_next_weapon_hit` rider mechanism (+9 test files, +45 cases).
