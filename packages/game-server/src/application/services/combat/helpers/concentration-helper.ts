@@ -16,6 +16,7 @@ import {
 } from "./resource-utils.js";
 import { removeConcentrationZones } from "../../../../domain/entities/combat/zones.js";
 import { getMapZones, setMapZones } from "../../../../domain/rules/combat-map.js";
+import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
 
 // ───────────────────────── Reading / Writing ─────────────────────────
@@ -90,14 +91,34 @@ export async function breakConcentration(
           (e.sourceCombatantId === casterId || e.source === spellName)
         ),
     );
-    if (filtered.length !== effects.length) {
-      const updatedRes = setActiveEffects(c.resources ?? {}, filtered);
+    const effectsChanged = filtered.length !== effects.length;
+
+    // Also remove conditions whose spellSource matches the dropped spell name
+    // (e.g., Entangle's Restrained on goblins should end when Entangle drops).
+    const currentConds = normalizeConditions(c.conditions);
+    const lowerSpell = spellName.toLowerCase();
+    const keptConds = currentConds.filter(
+      (cond) => !(cond.spellSource && cond.spellSource.toLowerCase() === lowerSpell),
+    );
+    const conditionsChanged = keptConds.length !== currentConds.length;
+
+    if (effectsChanged || conditionsChanged) {
+      let updatedRes: JsonValue = (c.resources ?? {}) as JsonValue;
+      if (effectsChanged) updatedRes = setActiveEffects(updatedRes, filtered) as JsonValue;
       await combatRepo.updateCombatantState(c.id, {
-        resources: updatedRes as JsonValue,
+        resources: updatedRes,
+        ...(conditionsChanged ? { conditions: keptConds as unknown as JsonValue } : {}),
       });
-      debugLog?.(
-        `Removed ${effects.length - filtered.length} concentration effects from ${c.id}`,
-      );
+      if (effectsChanged) {
+        debugLog?.(
+          `Removed ${effects.length - filtered.length} concentration effects from ${c.id}`,
+        );
+      }
+      if (conditionsChanged) {
+        debugLog?.(
+          `Removed ${currentConds.length - keptConds.length} ${spellName} condition(s) from ${c.id}`,
+        );
+      }
     }
   }
 

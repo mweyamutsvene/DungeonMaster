@@ -55,6 +55,12 @@ export interface ActiveCondition {
   readonly duration: ConditionDuration;
   readonly roundsRemaining?: number; // For 'rounds' duration
   readonly source?: string; // What caused the condition (ability name, creature ID, etc.)
+  /**
+   * When applied by a spell, the name of the source spell.
+   * Used by `breakConcentration` to remove conditions whose source spell lost
+   * concentration (e.g., Entangle dropping Restrained when Spike Growth takes over).
+   */
+  readonly spellSource?: string;
   readonly appliedAtRound?: number; // Combat round when applied
   readonly appliedAtTurnIndex?: number; // Turn index when applied
   /** When and whose turn triggers automatic expiry */
@@ -581,6 +587,7 @@ export function createCondition(
   options?: {
     roundsRemaining?: number;
     source?: string;
+    spellSource?: string;
     appliedAtRound?: number;
     appliedAtTurnIndex?: number;
     expiresAt?: { event: 'start_of_turn' | 'end_of_turn'; combatantId: string };
@@ -591,6 +598,7 @@ export function createCondition(
     duration,
     roundsRemaining: options?.roundsRemaining,
     source: options?.source,
+    spellSource: options?.spellSource,
     appliedAtRound: options?.appliedAtRound,
     appliedAtTurnIndex: options?.appliedAtTurnIndex,
     expiresAt: options?.expiresAt,

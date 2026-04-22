@@ -169,6 +169,9 @@ export class SavingThrowResolver {
               const condSource = action.sourceId ?? action.reason;
               const newCond = createCondition(condName as Condition, expiresAt ? 'until_start_of_next_turn' : 'until_removed', {
                 source: condSource,
+                // action.reason is the spell/ability name; used by breakConcentration
+                // to remove conditions whose source spell lost concentration.
+                spellSource: action.reason,
                 expiresAt,
               });
               conditions = addCondition(conditions, newCond);
@@ -482,6 +485,9 @@ export class SavingThrowResolver {
             const condSource = action.sourceId ?? action.reason;
             const newCond = createCondition(condName as Condition, expiresAt ? 'until_start_of_next_turn' : 'until_removed', {
               source: condSource,
+              // action.reason is the spell/ability name; used by breakConcentration
+              // to remove conditions whose source spell lost concentration.
+              spellSource: action.reason,
               expiresAt,
             });
             conditions = addCondition(conditions, newCond);
