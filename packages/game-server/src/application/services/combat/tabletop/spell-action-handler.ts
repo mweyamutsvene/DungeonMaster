@@ -99,7 +99,7 @@ export class SpellActionHandler {
     sessionId: string,
     encounterId: string,
     actorId: string,
-    castInfo: { spellName: string; targetName?: string; castAtLevel?: number; isBonusActionFromText?: boolean },
+    castInfo: { spellName: string; targetName?: string; castAtLevel?: number; isBonusActionFromText?: boolean; bypassTwoSpellRule?: boolean },
     characters: SessionCharacterRecord[],
     roster: LlmRoster,
   ): Promise<ActionParseResult> {
@@ -159,7 +159,10 @@ export class SpellActionHandler {
     // D&D 5e 2024: Bonus action spell restriction
     // If a bonus action spell (leveled) was cast this turn, only cantrips as action spells.
     // If a leveled action spell was cast this turn, only cantrip bonus action spells allowed.
-    {
+    //
+    // Quickened Spell metamagic (sorcerer) bypasses this rule when converting
+    // an action spell into a bonus action spell.
+    if (!castInfo.bypassTwoSpellRule) {
       if (actorCombatant) {
         const res = normalizeResources(actorCombatant.resources);
         if (isBonusAction && !isCantrip && res.actionSpellCastThisTurn === true) {

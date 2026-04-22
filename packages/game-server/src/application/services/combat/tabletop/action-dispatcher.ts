@@ -8,6 +8,8 @@
 import { ValidationError } from "../../../errors.js";
 import {
   normalizeResources,
+  hasResourceAvailable,
+  spendResourceFromPool,
 } from "../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { normalizeConditions, canTakeActions } from "../../../../domain/entities/combat/conditions.js";
@@ -389,6 +391,55 @@ export class ActionDispatcher {
             return this.socialHandlers.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
           }
           return this.socialHandlers.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
+        },
+      },
+
+      // 4.5. Metamagic + cast chain (must run BEFORE classAction so the
+      // "quickened spell" prefix doesn't resolve to the plain metamagic
+      // executor without chaining into the spell cast).
+      {
+        id: "metamagicCast",
+        tryParse: (text) => {
+          const m = /^\s*quickened\s+spell\s+(cast\s+.+)$/i.exec(text.trim());
+          if (!m) return null;
+          const rest = m[1];
+          const parsed = tryParseCastSpellText(rest);
+          if (!parsed) return null;
+          return { metamagic: "quickened", ...parsed };
+        },
+        handle: async (parsed, ctx) => {
+          const encounters = await this.deps.combatRepo.listEncountersBySession(ctx.sessionId);
+          const encounter = encounters.find((e: any) => e.status === "Active") ?? encounters[0];
+          if (!encounter) throw new ValidationError("No active encounter");
+          const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+          const actorCombatant = combatants.find(
+            (c: any) => c.combatantType === "Character" && c.characterId === ctx.actorId,
+          );
+          if (!actorCombatant) throw new ValidationError("Actor not found in encounter");
+
+          const resources = (actorCombatant.resources as Record<string, unknown>) ?? {};
+          if (!hasResourceAvailable(resources as any, "sorceryPoints", 2)) {
+            throw new ValidationError("Not enough sorcery points (Quickened Spell costs 2)");
+          }
+          const updatedResources = spendResourceFromPool(resources as any, "sorceryPoints", 2);
+          await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+            resources: updatedResources as any,
+          });
+
+          return this.spellHandler.handleCastSpell(
+            ctx.sessionId,
+            ctx.encounterId,
+            ctx.actorId,
+            {
+              spellName: parsed.spellName,
+              targetName: parsed.targetName,
+              castAtLevel: parsed.castAtLevel,
+              isBonusActionFromText: true,
+              bypassTwoSpellRule: true,
+            },
+            ctx.characters,
+            ctx.roster,
+          );
         },
       },
 
