@@ -90,14 +90,16 @@ describe("DRUID_COMBAT_TEXT_PROFILE", () => {
   });
 
   it("maps wild-shape keyword", () => {
-    const mapping = DRUID_COMBAT_TEXT_PROFILE.actionMappings[0];
-    expect(mapping.keyword).toBe("wild-shape");
-    expect(mapping.abilityId).toBe("class:druid:wild-shape");
-    expect(mapping.category).toBe("bonusAction");
+    const mapping = DRUID_COMBAT_TEXT_PROFILE.actionMappings.find((m) => m.keyword === "wild-shape");
+    expect(mapping).toBeDefined();
+    expect(mapping!.abilityId).toBe("class:druid:wild-shape");
+    expect(mapping!.category).toBe("bonusAction");
   });
 
   it("matches wildshape patterns", () => {
-    const patterns = DRUID_COMBAT_TEXT_PROFILE.actionMappings[0].normalizedPatterns;
+    const mapping = DRUID_COMBAT_TEXT_PROFILE.actionMappings.find((m) => m.keyword === "wild-shape");
+    expect(mapping).toBeDefined();
+    const patterns = mapping!.normalizedPatterns;
     expect("wildshape").toMatch(patterns[0]);
     expect("usewildshape").toMatch(patterns[0]);
   });

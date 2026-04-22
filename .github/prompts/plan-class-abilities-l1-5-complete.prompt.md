@@ -5,21 +5,27 @@
 
 ## 🔖 Resume Checkpoint (last update: session paused after Phase 3 rate limit)
 
-**Last verified**: typecheck clean · 1931 unit tests passing · **238/250 E2E passing** (12 failing = all 12 Phase 2 intended-fail scenarios).
+**Last verified (post Phase-3b session)**: typecheck clean · 1931 unit tests passing · **241/250 E2E passing** (9 failing) — up from 238/250.
 
-**Failing E2E scenarios** (each drives a specific Phase 3 sub-task):
-- `bard/cutting-words-control` (6/17) → 3.9 Cutting Words reaction
-- `bard/inspiration-support` (10/35) → BI target parser + Vicious Mockery
-- `bard/spell-suite` (5/22) → Heroism timing + Hold Person tick
+**Newly fixed this session (Phase 3b)**:
+- ✅ druid/wild-shape-combat — Wild Shape temp HP write, revert-wildshape executor + parser ordering (commit fbe4254)
+- ✅ sorcerer/draconic-resilience — Elemental Affinity hook in damage-resolver + ancestry helper (commit c06e6a6)
+- ✅ ranger/hunters-mark-colossus — Colossus Slayer once/turn rider + move-hunters-mark executor/parser (commit c06e6a6)
+- ➕ sorcerer Quickened Spell chains into cast as bonus action, bypasses two-spell rule (commit 69d607f)
+- ➕ ranger Favored Enemy pool is spent in place of L1 slot when casting Hunter's Mark (commit 61d292d)
+- ➕ bard Bardic Inspiration executor flagged `allowsAllyTarget` (commit 61d292d)
+
+**Still failing (9)**:
+- `bard/cutting-words-control` (6/17) → 3.9 Cutting Words reaction (NOT STARTED)
+- `bard/inspiration-support` (10/35) → ally-target resolved; next block is multi-PC `waitForTurn`
+- `bard/spell-suite` (11/22) → Heroism timing + Hold Person tick
+- `core/party-vs-goblins` (6/10)
 - `druid/nature-control` (9/31) → Entangle / Spike Growth / Moonbeam
 - `druid/party-support` (8/44) → Pass Without Trace aura + Call Lightning
-- `druid/wild-shape-combat` (14/30) → Wild Shape temp HP write
-- `ranger/favored-enemy-slot-economy` (7/33) → Favored Enemy pool spend
-- `ranger/hunters-mark-colossus` (24/34) → Colossus Slayer + mark transfer
-- `ranger/party-scout` (22/39) → Ensnaring Strike rider + Pass Without Trace
-- `sorcerer/draconic-resilience` (15/19) → Wire enrichSheetClassFeatures into service
-- `sorcerer/metamagic-burst` (8/37) → Quickened chain + Twinned + Elemental Affinity
-- `sorcerer/slot-sp-conversion` (14/26) → Flexible Casting parser
+- `ranger/favored-enemy-slot-economy` (11/33) → partial; remaining blocked by EA auto-chain on dead target
+- `ranger/party-scout` (34/39) → Ensnaring Strike rider + Pass Without Trace
+- `sorcerer/metamagic-burst` (10/37) → still needs Scorching Ray multi-ray + Twinned
+- `sorcerer/slot-sp-conversion` (14/26) → Flexible Casting parser (NOT STARTED)
 
 **Completed this session**:
 - Phase 0: saveToEnd primitive + casing fix + Danger Sense + speed stacking + GAP-6/7/10 lock-in tests + GAP-11 Bane fix + `on_next_weapon_hit` rider mechanism (+9 test files, +45 cases).
