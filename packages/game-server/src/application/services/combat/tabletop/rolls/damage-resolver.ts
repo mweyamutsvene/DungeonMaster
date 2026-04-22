@@ -74,6 +74,24 @@ import { findCombatantByEntityId, getEntityId } from "../../helpers/combatant-lo
 import { rollModePrompt } from "../roll-state-machine.js";
 import { computeFeatModifiers, shouldApplyDueling } from "../../../../../domain/rules/feat-modifiers.js";
 import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { ELEMENTAL_AFFINITY, COLOSSUS_SLAYER } from "../../../../../domain/entities/classes/feature-keys.js";
+
+/**
+ * Map a Draconic Sorcery subclass id (e.g., "draconic-sorcery-red") to the
+ * damage type granted by its draconic ancestry. Returns undefined when the
+ * subclass id does not match a known ancestry or is absent.
+ */
+function draconicAncestryDamageType(subclassId: string | undefined): string | undefined {
+  if (!subclassId) return undefined;
+  const id = subclassId.toLowerCase();
+  if (id.includes("red") || id.includes("gold") || id.includes("brass")) return "fire";
+  if (id.includes("blue") || id.includes("bronze")) return "lightning";
+  if (id.includes("green")) return "poison";
+  if (id.includes("black") || id.includes("copper")) return "acid";
+  if (id.includes("white") || id.includes("silver")) return "cold";
+  return undefined;
+}
 
 export class DamageResolver {
   constructor(
@@ -226,6 +244,73 @@ export class DamageResolver {
       // Build human-readable suffix showing dice contributions in damage messages
       if (effectDiceLabels.length > 0) {
         effectBonusSuffix = ` ${effectDiceLabels.join(" ")}`;
+      }
+    }
+
+    // ── Class feature damage riders (Elemental Affinity, Colossus Slayer) ──
+    // Applied after active-effect bonuses but before damage-type defenses so that
+    // resistance/vulnerability applies to the total. Both features are
+    // once-per-turn, tracked via resource flags that reset on turn start.
+    {
+      const className = typeof actorCharForStyle?.className === "string" ? actorCharForStyle.className : null;
+      const level = typeof actorCharForStyle?.level === "number"
+        ? actorCharForStyle.level
+        : (typeof (actorSheetForStyle.level) === "number" ? (actorSheetForStyle.level as number) : 0);
+      const subclass = typeof actorSheetForStyle.subclass === "string" ? actorSheetForStyle.subclass : undefined;
+      const dmgType = action.weaponSpec?.damageType?.toLowerCase();
+      const actorResRec = actorRes as Record<string, unknown>;
+
+      // Elemental Affinity (Draconic Sorcery, L5): +CHA mod to one instance of
+      // damage per turn whose type matches draconic ancestry.
+      if (
+        className &&
+        dmgType &&
+        classHasFeature(className, ELEMENTAL_AFFINITY, level, subclass) &&
+        !actorResRec.elementalAffinityUsedThisTurn
+      ) {
+        const ancestryDamageType = draconicAncestryDamageType(subclass);
+        if (ancestryDamageType && ancestryDamageType === dmgType) {
+          const abilityScores = (actorSheetForStyle.abilityScores as Record<string, number> | undefined) ?? {};
+          const chaMod = Math.floor(((abilityScores.charisma ?? 10) - 10) / 2);
+          if (chaMod > 0) {
+            totalDamage += chaMod;
+            effectBonusSuffix += ` + ${chaMod}[elemental-affinity]`;
+            // Mark flag immediately on the in-memory resource snapshot so the
+            // next damage event this turn won't re-apply.
+            actorResRec.elementalAffinityUsedThisTurn = true;
+            if (actorCombatant) {
+              await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+                resources: { ...actorResRec, elementalAffinityUsedThisTurn: true } as any,
+              });
+            }
+            if (this.debugLogsEnabled) console.log(`[DamageResolver] Elemental Affinity: +${chaMod} ${dmgType} damage`);
+          }
+        }
+      }
+
+      // Colossus Slayer (Ranger — Hunter, L3): +1d8 damage once per turn when
+      // target has taken any damage (HP below max).
+      if (
+        className &&
+        classHasFeature(className, COLOSSUS_SLAYER, level, subclass) &&
+        !actorResRec.colossusSlayerUsedThisTurn &&
+        this.deps.diceRoller
+      ) {
+        const targetForCS = findCombatantByEntityId(combatants, action.targetId);
+        const csHpMax = targetForCS?.hpMax ?? 0;
+        const csHpBefore = targetForCS?.hpCurrent ?? 0;
+        if (targetForCS && csHpMax > 0 && csHpBefore > 0 && csHpBefore < csHpMax) {
+          const csDie = this.deps.diceRoller.rollDie(8).total;
+          totalDamage += csDie;
+          effectBonusSuffix += ` + ${csDie}[colossus-slayer]`;
+          actorResRec.colossusSlayerUsedThisTurn = true;
+          if (actorCombatant) {
+            await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+              resources: { ...actorResRec, colossusSlayerUsedThisTurn: true } as any,
+            });
+          }
+          if (this.debugLogsEnabled) console.log(`[DamageResolver] Colossus Slayer: +${csDie} damage (wounded target)`);
+        }
       }
     }
 

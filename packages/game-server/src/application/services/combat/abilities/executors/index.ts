@@ -32,6 +32,9 @@ export {
 // Paladin abilities
 export { LayOnHandsExecutor, ChannelDivinityExecutor } from "./paladin/index.js";
 
+// Ranger abilities
+export { MoveHuntersMarkExecutor } from "./ranger/index.js";
+
 // Rogue abilities
 export { CunningActionExecutor } from "./rogue/index.js";
 

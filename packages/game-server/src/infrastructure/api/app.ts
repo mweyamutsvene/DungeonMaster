@@ -36,6 +36,7 @@ import {
   BardicInspirationExecutor,
   WildShapeExecutor,
   RevertWildShapeExecutor,
+  MoveHuntersMarkExecutor,
   QuickenedSpellExecutor,
   TwinnedSpellExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
@@ -277,6 +278,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new BardicInspirationExecutor());
   abilityRegistry.register(new WildShapeExecutor());
   abilityRegistry.register(new RevertWildShapeExecutor());
+  abilityRegistry.register(new MoveHuntersMarkExecutor());
   abilityRegistry.register(new QuickenedSpellExecutor());
   abilityRegistry.register(new TwinnedSpellExecutor());
   

@@ -158,6 +158,13 @@ export const Ranger: CharacterClassDefinition = {
 
 export const RANGER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "ranger",
-  actionMappings: [],
+  actionMappings: [
+    {
+      keyword: "move-hunters-mark",
+      normalizedPatterns: [/move.*hunter.*mark|shift.*hunter.*mark|transfer.*hunter.*mark|movemark|movehuntersmark/],
+      abilityId: "class:ranger:move-hunters-mark",
+      category: "bonusAction",
+    },
+  ],
   attackEnhancements: [],
 };
