@@ -203,6 +203,42 @@ export async function prepareSpellCast(
   const poolName = `spellSlot_${effectiveLevel}`;
   const resources = actorCombatant.resources;
 
+  // Ranger: Favored Enemy — casting Hunter's Mark spends 1 favoredEnemy pool
+  // use *instead of* a spell slot, provided the pool has charges remaining
+  // and the caster is not upcasting. D&D 5e 2024 Ranger L1 feature.
+  const spellNameLower = spellName.toLowerCase();
+  if (
+    spellNameLower === "hunter's mark" &&
+    castAtLevel === undefined &&
+    hasResourceAvailable(resources, "favoredEnemy", 1)
+  ) {
+    let feResources = spendResourceFromPool(resources, "favoredEnemy", 1);
+
+    // ── Concentration management (Hunter's Mark IS a concentration spell) ──
+    if (isConcentration) {
+      const normalized = normalizeResources(feResources);
+      if (normalized.concentrationSpellName) {
+        log?.(
+          `[SpellSlotManager] Concentration on "${normalized.concentrationSpellName}" ended (replaced by ${spellName})`,
+        );
+        await breakConcentration(actorCombatant, encounterId, combatRepo, log);
+        const freshCombatants = await combatRepo.listCombatants(encounterId);
+        const freshCombatant = freshCombatants.find((c) => c.id === actorCombatantId);
+        feResources = freshCombatant?.resources ?? feResources;
+        // Re-spend the pool on fresh resources (breakConcentration may have rewritten)
+        if (hasResourceAvailable(feResources, "favoredEnemy", 1)) {
+          feResources = spendResourceFromPool(feResources, "favoredEnemy", 1);
+        }
+      }
+      const normalizedAfter = normalizeResources(feResources);
+      feResources = { ...normalizedAfter, concentrationSpellName: spellName } as JsonValue;
+    }
+
+    log?.(`[SpellSlotManager] Hunter's Mark cast via Favored Enemy pool — no spell slot consumed`);
+    await combatRepo.updateCombatantState(actorCombatantId, { resources: feResources });
+    return;
+  }
+
   // Try standard spell slot first, then fall back to Pact Magic, then legacy spellSlots object format.
   // NOTE: prepareSpellCast is creature-type agnostic — it works for Characters, Monsters, and NPCs
   // as long as they have spellSlot_N resource pools or a legacy spellSlots object in resources.

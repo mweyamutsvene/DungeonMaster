@@ -26,6 +26,8 @@ import { nanoid } from "nanoid";
 import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 
 export class BardicInspirationExecutor implements AbilityExecutor {
+  readonly allowsAllyTarget = true;
+
   canExecute(abilityId: string): boolean {
     const normalized = abilityId.toLowerCase().replace(/[^a-z0-9]+/g, "");
     return normalized === "classbardbardicinspiration" || normalized === "bardicinspiration";
