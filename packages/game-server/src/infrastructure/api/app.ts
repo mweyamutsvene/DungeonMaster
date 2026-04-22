@@ -35,6 +35,7 @@ import {
   TurnUndeadExecutor,
   BardicInspirationExecutor,
   WildShapeExecutor,
+  RevertWildShapeExecutor,
   QuickenedSpellExecutor,
   TwinnedSpellExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
@@ -275,6 +276,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new TurnUndeadExecutor());
   abilityRegistry.register(new BardicInspirationExecutor());
   abilityRegistry.register(new WildShapeExecutor());
+  abilityRegistry.register(new RevertWildShapeExecutor());
   abilityRegistry.register(new QuickenedSpellExecutor());
   abilityRegistry.register(new TwinnedSpellExecutor());
   

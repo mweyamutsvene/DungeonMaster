@@ -920,8 +920,11 @@ export class RollStateMachine {
             // Skip attacker and target
             if (c.id === actorCombatantForSneak?.id || c.id === targetCombatantForSneak.id) continue;
             // Skip dead/unconscious allies
-            const conds = Array.isArray(c.conditions) ? c.conditions as string[] : [];
-            if (conds.some((cd: string) => cd.toLowerCase() === "unconscious" || cd.toLowerCase() === "dead")) continue;
+            const conds = Array.isArray(c.conditions) ? (c.conditions as unknown[]) : [];
+            const condNames = conds.map((cd) =>
+              (typeof cd === "string" ? cd : (cd as { name?: string })?.name ?? "").toLowerCase()
+            );
+            if (condNames.some((n) => n === "unconscious" || n === "dead")) continue;
             // Must be same faction as attacker (Characters/NPCs vs Monsters)
             const attackerIsPC = actorCombatantForSneak?.combatantType === "Character" || actorCombatantForSneak?.combatantType === "NPC";
             const allyIsPC = c.combatantType === "Character" || c.combatantType === "NPC";

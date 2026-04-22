@@ -45,6 +45,7 @@ import {
   createEffect,
 } from "../../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../../helpers/ko-handler.js";
+import { applyDamageWithTempHp, readTempHp, withTempHp } from "../../helpers/temp-hp.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
 import type { CombatVictoryStatus } from "../../combat-victory-policy.js";
 import { parseDamageModifier } from "../combat-text-parser.js";
@@ -268,9 +269,15 @@ export class DamageResolver {
     let hpAfter = hpBefore;
 
     if (targetCombatant) {
-      hpAfter = Math.max(0, targetCombatant.hpCurrent - totalDamage);
-      if (this.debugLogsEnabled) console.log(`[DamageResolver] HP change: ${hpBefore} -> ${hpAfter} (target: ${targetCombatant.id}, damage: ${totalDamage})`);
+      const tempBefore = readTempHp(targetCombatant.resources);
+      const abs = applyDamageWithTempHp(targetCombatant.hpCurrent, tempBefore, totalDamage);
+      hpAfter = abs.hpAfter;
+      if (this.debugLogsEnabled) console.log(`[DamageResolver] HP change: ${hpBefore} -> ${hpAfter} (target: ${targetCombatant.id}, damage: ${totalDamage}, tempAbsorbed: ${abs.tempAbsorbed})`);
       await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
+      if (abs.tempAbsorbed > 0 || tempBefore > 0) {
+        const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
+        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
+      }
       await this.eventEmitter.emitDamageEvents(sessionId, encounter.id, actorId, action.targetId, characters, monsters, totalDamage, hpAfter);
 
       // D&D 5e 2024: Rage damage-taken tracking — track when a raging creature takes damage

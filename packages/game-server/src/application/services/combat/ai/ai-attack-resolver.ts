@@ -19,6 +19,7 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { nanoid } from "nanoid";
 import { normalizeResources, getActiveEffects, readBoolean, useAttack, getPosition } from "../helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
+import { applyDamageWithTempHp, readTempHp, withTempHp } from "../helpers/temp-hp.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -467,10 +468,19 @@ export class AiAttackResolver {
         }
       }
 
+      let actualHpAfter = targetCombatant.hpCurrent;
       if (damageApplied > 0) {
         const hpBefore = targetCombatant.hpCurrent;
-        const hpAfter = Math.max(0, hpBefore - damageApplied);
+        const tempBefore = readTempHp(targetCombatant.resources);
+        const abs = applyDamageWithTempHp(hpBefore, tempBefore, damageApplied);
+        const hpAfter = abs.hpAfter;
+        actualHpAfter = hpAfter;
         await combat.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
+        if (abs.tempAbsorbed > 0 || tempBefore > 0) {
+          const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
+          await combat.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
+          aiLog(`Temp HP absorbed ${abs.tempAbsorbed} of ${damageApplied} damage (tempHp ${tempBefore} → ${abs.tempHpAfter}).`);
+        }
 
         await applyKoEffectsIfNeeded(
           targetCombatant,
@@ -540,7 +550,7 @@ export class AiAttackResolver {
       // Emit AttackResolved + DamageApplied events
       if (events) {
         const hpAfterForEvent = damageApplied > 0
-          ? Math.max(0, targetCombatant.hpCurrent - damageApplied)
+          ? actualHpAfter
           : targetCombatant.hpCurrent;
         await events.append(sessionId, {
           id: nanoid(),
@@ -584,7 +594,7 @@ export class AiAttackResolver {
           hasReactionAvailable({ reactionUsed: readBoolean(freshTargetResources, "reactionUsed") ?? false }) &&
           !readBoolean(freshTargetResources, "reactionUsed");
 
-        if (stillHasReaction && targetCombatant.hpCurrent - damageApplied > 0) {
+        if (stillHasReaction && actualHpAfter > 0) {
           try {
             const tgtStats = await combatantResolver.getCombatStats(targetRef as CombatantRef);
             const attackerEntityId =

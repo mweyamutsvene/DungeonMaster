@@ -167,6 +167,12 @@ export const DRUID_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   classId: "druid",
   actionMappings: [
     {
+      keyword: "revert-wild-shape",
+      normalizedPatterns: [/revert.*wildshape|endwildshape|dropwildshape|leavewildshape/],
+      abilityId: "class:druid:revert-wild-shape",
+      category: "bonusAction",
+    },
+    {
       keyword: "wild-shape",
       normalizedPatterns: [/wildshape|usewildshape/],
       abilityId: "class:druid:wild-shape",

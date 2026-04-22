@@ -243,13 +243,26 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
         const recipientC = recipientCId ? combatants.find(c => c.id === recipientCId) : undefined;
         if (recipientC) {
           const updatedResources = addActiveEffectsToResources(recipientC.resources ?? {}, effect);
+
+          // Heroism / recurring_temp_hp RAW 2024: apply first tick immediately on cast.
+          // The effect's `triggerAt: start_of_turn` handles subsequent turns; without this
+          // on-cast application, a caster who casts during their own turn would wait a
+          // full round before any temp HP applies.
+          let resourcesWithOnCast: Record<string, unknown> = updatedResources as Record<string, unknown>;
+          if (effDef.type === 'recurring_temp_hp' && typeof resolvedValue === 'number' && resolvedValue > 0) {
+            const currentTempHp = typeof resourcesWithOnCast.tempHp === 'number' ? resourcesWithOnCast.tempHp : 0;
+            if (resolvedValue > currentTempHp) {
+              resourcesWithOnCast = { ...resourcesWithOnCast, tempHp: resolvedValue };
+            }
+          }
+
           await deps.combatRepo.updateCombatantState(recipientC.id, {
-            resources: updatedResources as JsonValue,
+            resources: resourcesWithOnCast as JsonValue,
           });
           // Mutate the in-memory snapshot so subsequent effectDeclarations that target
           // the same combatant accumulate with earlier effects (fixes Bane / Bless
           // multi-effect-on-same-target overwrite: SPELL-BANE audit).
-          (recipientC as any).resources = updatedResources;
+          (recipientC as any).resources = resourcesWithOnCast;
           if (!appliedTo.includes(entityId)) appliedTo.push(entityId);
           if (debugLogsEnabled)
             console.log(
