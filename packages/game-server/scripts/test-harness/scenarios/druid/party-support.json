@@ -98,7 +98,7 @@
     "monsters": [
       {
         "name": "Ogre",
-        "position": { "x": 18, "y": 10 },
+        "position": { "x": 11, "y": 10 },
         "statBlock": {
           "type": "giant",
           "abilityScores": {
@@ -213,11 +213,11 @@
       "expect": { "actionComplete": true }
     },
     {
-      "comment": "Verify Ranger L1 slot consumed: 3 -> 2.",
+      "comment": "D&D 5e 2024: Ranger Favored Enemy (L1) lets Hunter's Mark cast WITHOUT a spell slot while favoredEnemy charges remain. Verify favoredEnemy spent and spellSlot_1 untouched.",
       "type": "assertState",
       "actor": "Lyra",
       "expect": {
-        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 3 }
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 3 }
       }
     },
     {
