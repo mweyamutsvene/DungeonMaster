@@ -309,10 +309,23 @@ export async function prepareSpellCast(
       );
       // Clean up effects/zones from the old concentration spell
       await breakConcentration(actorCombatant, encounterId, combatRepo, log);
-      // Re-fetch resources after breakConcentration modified them
+      // Re-fetch resources after breakConcentration modified them, then
+      // re-apply the slot decrement on top of the fresh state (otherwise the
+      // in-memory slot deduction is discarded when the concentration-switch
+      // path overwrites `updatedResources`).
       const freshCombatants = await combatRepo.listCombatants(encounterId);
       const freshCombatant = freshCombatants.find((c) => c.id === actorCombatantId);
-      updatedResources = freshCombatant?.resources ?? updatedResources;
+      const freshResources = freshCombatant?.resources ?? updatedResources;
+      if (legacySlotDeduction) {
+        const freshNorm = normalizeResources(freshResources);
+        const currentLegacy = (freshNorm.spellSlots as Record<string, unknown>) ?? {};
+        const levelKey = String(effectiveLevel);
+        const slotsAtLevel = typeof currentLegacy[levelKey] === "number" ? (currentLegacy[levelKey] as number) : 0;
+        const updatedLegacy = { ...currentLegacy, [levelKey]: Math.max(0, slotsAtLevel - 1) };
+        updatedResources = { ...freshNorm, spellSlots: updatedLegacy } as JsonValue;
+      } else {
+        updatedResources = spendResourceFromPool(freshResources, slotPoolName, 1);
+      }
     }
     const normalizedAfter = normalizeResources(updatedResources);
     updatedResources = { ...normalizedAfter, concentrationSpellName: spellName } as JsonValue;

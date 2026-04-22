@@ -113,9 +113,9 @@
       "expect": { "combatStarted": true }
     },
     {
-      "comment": "Queue STR saves for 3 goblins: 5 (fail), 6 (fail), 17 (pass). STR 8 = -1, DC 15. Needs 16+ raw to succeed.",
+      "comment": "Queue STR saves for 3 goblins in server iteration order (G3, G1, G2): 17 (G3 pass), 5 (G1 fail), 6 (G2 fail). STR 8 = -1, DC 15.",
       "type": "queueDiceRolls",
-      "input": { "values": [5, 6, 17] }
+      "input": { "values": [17, 5, 6] }
     },
     {
       "comment": "R1: Cast Entangle (L1, concentration). 20ft square at the goblins. STR save DC 15 or Restrained save-to-end.",

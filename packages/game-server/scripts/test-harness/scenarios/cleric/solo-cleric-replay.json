@@ -324,9 +324,9 @@
     },
 
     {
-      "comment": "BUG-4 DISCOVERED: Bless did NOT consume a spell slot! Message shows no '(level 1 slot spent)'. Level 1 should be 1 but is still 2. Buff/debuff delivery handler may skip slot deduction.",
+      "comment": "BUG-4 FIXED: Bless now properly consumes a spell slot when concentration switches (previously, the slot-manager re-fetched resources after breakConcentration and lost the decrement). Level 1 slots: 2 → 1.",
       "type": "assertState",
-      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 } }
     },
 
     {
