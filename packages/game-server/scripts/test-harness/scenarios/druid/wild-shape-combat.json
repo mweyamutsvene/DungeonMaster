@@ -1,0 +1,263 @@
+{
+  "name": "Druid: Wild Shape Combat — Transform + Beast Multiattack + Revert-on-Zero",
+  "description": "A level 5 Circle of the Land (Grassland) Druid faces two Gnolls. Round 1: Druid uses Wild Shape as a bonus action to transform into Beast of the Land form (Brown Bear equivalent per 2024 rules). In beast form, HP becomes 25 (5 × druid level), AC 14, attack bonus +6, 2d6 damage, Multiattack active at L5+. Round 2: Beast form attacks Gnoll 1 with two-attack Multiattack. Round 3: Gnoll 2 drops beast form HP to 0 — druid must REVERT to own form (40 HP intact) rather than die. EXPECTED FAILURES (raw 2024 RAW): Wild Shape ability likely not registered in AbilityRegistry, beast-form attack swap not implemented, revert-on-zero HP not wired. Scenario drives implementation. Uses characterResource assertion on 'wildShape' pool (max 3 at L5).",
+  "setup": {
+    "character": {
+      "name": "Keyleth",
+      "className": "Druid",
+      "subclass": "circle-of-the-land-grassland",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 12, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 10
+        },
+        "maxHp": 40, "currentHp": 40, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Produce Flame", "level": 0 },
+          { "name": "Healing Word", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 3,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Wild Shape", "description": "Bonus action to transform into a beast form. Uses PB (3 at L5). HP in beast form = 5 × druid level. Revert on 0 HP without dying." },
+          { "name": "Circle of the Land (Grassland)", "description": "Grassland circle spells known in addition." }
+        ],
+        "resourcePools": [
+          { "name": "wildShape", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Gnoll 1",
+        "position": { "x": 14, "y": 10 },
+        "statBlock": {
+          "type": "fiend",
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 11,
+            "intelligence": 6, "wisdom": 10, "charisma": 7
+          },
+          "maxHp": 22, "hp": 22, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Bite", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll 2",
+        "position": { "x": 10, "y": 14 },
+        "statBlock": {
+          "type": "fiend",
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 11,
+            "intelligence": 6, "wisdom": 10, "charisma": 7
+          },
+          "maxHp": 22, "hp": 22, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Bite", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Druid uses Wild Shape (bonus action) to transform into Beast of the Land ===",
+      "type": "initiate",
+      "input": { "text": "I ready my staff against the gnolls" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll 20 to guarantee Druid goes first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Wild Shape into Beast of the Land (Brown Bear). Bonus action, consumes 1 of 3 wild-shape uses. HP switches to 25 (5 × level).",
+      "type": "action",
+      "input": { "text": "wild shape into Beast of the Land" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Wild Shape resource decrement: 3 -> 2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "wildShape", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "RAW 2024: Wild Shape grants TEMP HP equal to 5 × druid level. Actual HP (40) is untouched — temp HP absorbs damage first.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 40, "max": 40 },
+        "characterTempHp": { "exact": 25 }
+      }
+    },
+    {
+      "comment": "R1 action: Beast-form Multiattack strike #1 against Gnoll 1. Uses beast attack bonus +6 (not druid's +3), 2d6 damage.",
+      "type": "action",
+      "input": { "text": "I attack Gnoll 1 with my claws" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 18 vs AC 12 = hit.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 10 (2d6). Multiattack auto-chains to second attack at L5.",
+      "type": "rollResult",
+      "input": { "text": "10" }
+    },
+    {
+      "comment": "Gnoll 1 took at least 7-12 damage from first beast attack.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll 1", "min": 2, "max": 15 }
+      }
+    },
+    {
+      "comment": "Queue Gnoll turns: both bite the beast form.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Keyleth", "attackName": "Bite", "endTurn": true },
+          { "action": "attack", "target": "Keyleth", "attackName": "Bite", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Druid R1.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for Druid R2 (gnolls bite beast form).",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "Beast form should have taken some damage from gnoll bites — applied to temp HP first. Actual HP still 40.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 40, "max": 40 }
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Beast Multiattack on Gnoll 1 to kill it ===",
+      "type": "action",
+      "input": { "text": "I attack Gnoll 1 with my claws" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 19 vs AC 12 = hit.",
+      "type": "rollResult",
+      "input": { "text": "19" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 12 — should finish Gnoll 1.",
+      "type": "rollResult",
+      "input": { "text": "12" }
+    },
+    {
+      "comment": "Gnoll 1 should be dead.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll 1", "max": 0 }
+      }
+    },
+    {
+      "comment": "Queue Gnoll 2 to attack until beast HP reaches 0.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Keyleth", "attackName": "Bite", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Druid R2.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait through Gnoll 2 R2.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "=== ROUND 3: Take enough damage to revert. We trigger more Gnoll 2 turns via queued actions. ===",
+      "type": "action",
+      "input": { "text": "I attack Gnoll 2 with my claws" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 16 vs AC 12 = hit.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 4 (low roll — enough to hurt but not kill Gnoll 2).",
+      "type": "rollResult",
+      "input": { "text": "4" }
+    },
+    {
+      "comment": "Queue Gnoll 2 continued bites.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Keyleth", "attackName": "Bite", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Druid R3.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for Druid R4.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "R4: Voluntarily revert Wild Shape as a bonus action.",
+      "type": "action",
+      "input": { "text": "I revert from wild shape" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "After revert, HP returns to druid's original 40 (or whatever druid HP was before Wild Shape — RAW: druid's HP is untouched while in beast form, so reverts to full pre-Wild-Shape value).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 40, "max": 40 },
+        "characterResource": { "poolName": "wildShape", "current": 2, "max": 3 }
+      }
+    }
+  ]
+}

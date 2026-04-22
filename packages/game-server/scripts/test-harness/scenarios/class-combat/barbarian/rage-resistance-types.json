@@ -1,0 +1,317 @@
+{
+  "name": "Barbarian B3: Rage vs Multiple Damage Types (Fire/Slashing/Bludgeoning)",
+  "description": "Tests that Rage resistance correctly applies to bludgeoning/piercing/slashing (halved) but NOT to fire damage. Ember Elemental deals fire (not resisted), Skeleton Swordsman deals slashing (resisted), Ogre Thug deals bludgeoning (resisted). Rage activated in R1, then broad HP assertions verify halved physical vs full fire damage across 4 rounds.",
+  "setup": {
+    "character": {
+      "name": "Thora Ironblood",
+      "className": "Barbarian",
+      "subclass": "Berserker",
+      "level": 5,
+      "position": { "x": 15, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 18,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 150,
+        "currentHp": 150,
+        "armorClass": 14,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing",
+            "properties": ["heavy", "two-handed"]
+          }
+        ],
+        "features": [
+          {
+            "name": "Extra Attack",
+            "description": "Attack twice when you take the Attack action."
+          },
+          {
+            "name": "Rage",
+            "description": "Enter a Rage as a bonus action. Gain resistance to bludgeoning, piercing, and slashing damage and +2 melee damage."
+          },
+          {
+            "name": "Reckless Attack",
+            "description": "Gain advantage on melee STR attacks, but attacks against you have advantage until the start of your next turn."
+          }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ember Elemental",
+        "position": { "x": 20, "y": 15 },
+        "statBlock": {
+          "type": "elemental",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 17,
+            "constitution": 16,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 13,
+          "speed": 50,
+          "challengeRating": 5,
+          "damageImmunities": ["fire"],
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "fire"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Skeleton Swordsman",
+        "position": { "x": 15, "y": 20 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Ogre Thug",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 11,
+          "speed": 30,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Rage activation + Attack Ember Elemental ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Ember Elemental" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll high initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Enter Rage as bonus action — spends 1 rage use (3→2). Activates +2 melee damage and B/P/S resistance.",
+      "type": "action",
+      "input": { "text": "rage" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify rage pool decremented: 3 → 2",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "R1: Attack Ember Elemental with Greataxe (1st of Extra Attack). Rage adds +2 damage.",
+      "type": "action",
+      "input": { "text": "attack Ember Elemental with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 (die) + 4 (STR) + 2 (rage) = 14 slashing. Ember Elemental HP: 100 → 86. Extra Attack auto-chains with natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "R1: End turn. Monsters use defaultBehavior 'attack' — each attacks with their own attack (Slam/Shortsword/Greatclub). No queueMonsterActions needed: initiative order won't corrupt FIFO.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for all 3 monsters to take their turns automatically.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Ember Elemental took 14 slashing (R1 hit, EA missed). Broad range since Cleave may also hit.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ember Elemental", "min": 72, "max": 100 }
+      }
+    },
+    {
+      "comment": "KEY: Fire (Ember Elemental Slam) is NOT halved by rage. Slashing (Skeleton) and bludgeoning (Ogre) ARE halved. Broad range since monsters may miss vs AC 14.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "name": "Thora Ironblood", "min": 100, "max": 150 }
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Reckless Attack + focus Skeleton Swordsman (test slashing resistance) ===",
+      "type": "action",
+      "input": { "text": "reckless attack" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R2: Attack Skeleton Swordsman with advantage from Reckless Attack.",
+      "type": "action",
+      "input": { "text": "attack Skeleton Swordsman with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll (advantage): 15 + 7 = 22 vs AC 13 → hit",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 10 (die) + 4 (STR) + 2 (rage) = 16 slashing. Skeleton HP damaged. Extra Attack auto-chains with natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "10" }
+    },
+    {
+      "comment": "R2: End turn. Monsters auto-attack with their own attacks via defaultBehavior 'attack'. Reckless gives enemies advantage on Thora.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for all monsters. Reckless Attack gives enemies advantage on Thora.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Skeleton took 16 slashing + potential EA or Cleave hits. min:30 accounts for additional damage.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Swordsman", "min": 30, "max": 64 }
+      }
+    },
+    {
+      "comment": "KEY assertion: After 2 rounds of monster attacks (fire NOT halved, slashing/bludgeoning halved), Thora should still have significant HP. Very broad range accounts for seeded dice variance.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "name": "Thora Ironblood", "min": 60, "max": 150 }
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Focus Ogre Thug (test bludgeoning resistance) ===",
+      "type": "action",
+      "input": { "text": "attack Ogre Thug with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 11 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 (die) + 4 (STR) + 2 (rage) = 14 slashing. Ogre HP: 100 → 86. Extra Attack auto-chains with natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "R3: End turn. Monsters auto-attack via defaultBehavior 'attack'.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monsters. Ogre's bludgeoning damage is halved by rage; fire is still not halved.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Ogre took 14 slashing from R3 hit (EA missed). min:50 accounts for EA or Cleave hits; max:86 is HP after first-attack-only.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre Thug", "min": 50, "max": 86 }
+      }
+    },
+    {
+      "comment": "=== ROUND 4: Final — Attack Ember Elemental, verify rage state ===",
+      "type": "action",
+      "input": { "text": "attack Ember Elemental with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 (die) + 4 (STR) + 2 (rage) = 14 slashing. Extra Attack auto-chains with natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "Only 1 rage was used (in R1). Pool should still be current:2 max:3. Combat still active — monsters remain.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

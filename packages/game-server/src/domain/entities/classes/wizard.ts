@@ -1,6 +1,6 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type {
   ClassCombatTextProfile,
   AttackReactionDef, AttackReactionInput, DetectedAttackReaction,
@@ -9,6 +9,7 @@ import type {
 } from "./combat-text-profile.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { computeSpellSaveDC } from "../../rules/spell-casting.js";
+import { SCULPT_SPELLS, EVOCATION_SAVANT } from "./feature-keys.js";
 
 export interface ArcaneRecoveryState {
   pool: ResourcePool;
@@ -52,6 +53,23 @@ export function resetArcaneRecoveryOnLongRest(
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+// ----- Subclasses -----
+
+/**
+ * School of Evocation subclass (D&D 5e 2024).
+ * Shell definition — executors for Sculpt Spells (exclude allies from evocation AoE)
+ * and Evocation Savant (half-cost spellbook copy) are deferred to Phase 3.
+ */
+export const SchoolOfEvocationSubclass: SubclassDefinition = {
+  id: "school-of-evocation",
+  name: "School of Evocation",
+  classId: "wizard",
+  features: {
+    [SCULPT_SPELLS]: 3,
+    [EVOCATION_SAVANT]: 3,
+  },
+};
+
 export const Wizard: CharacterClassDefinition = {
   id: "wizard",
   name: "Wizard",
@@ -75,6 +93,7 @@ export const Wizard: CharacterClassDefinition = {
     ];
     return caps;
   },
+  subclasses: [SchoolOfEvocationSubclass],
 };
 
 // ----- Attack Reaction: Shield Spell -----

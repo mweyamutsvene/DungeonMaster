@@ -38,7 +38,7 @@ export interface SpellEffectDeclaration {
   readonly damageType?: string;
   readonly duration: EffectDuration;
   readonly roundsRemaining?: number;
-  readonly triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move';
+  readonly triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move' | 'on_next_weapon_hit';
   readonly saveToEnd?: { ability: string; dc: number };
   readonly conditionName?: string;
   readonly triggerSave?: { ability: string; dc: number; halfDamageOnSave?: boolean };

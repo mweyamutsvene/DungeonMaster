@@ -53,7 +53,15 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
 
   canHandle(spell: PreparedSpellDefinition): boolean {
-    return !!(spell.saveAbility && this.handlerDeps.deps.diceRoller);
+    if (!spell.saveAbility || !this.handlerDeps.deps.diceRoller) return false;
+    // Defer Bane-style spells (saveAbility + effects-only, no damage/conditions on failure)
+    // to BuffDebuffSpellDeliveryHandler which runs the save per-target and applies effects
+    // only to creatures that fail.
+    const hasDamage = !!spell.damage;
+    const hasFailureConditions = !!spell.conditions?.onFailure?.length;
+    const hasEffects = !!spell.effects && spell.effects.length > 0;
+    if (hasEffects && !hasDamage && !hasFailureConditions) return false;
+    return true;
   }
 
   async handle(ctx: SpellCastingContext): Promise<ActionParseResult> {

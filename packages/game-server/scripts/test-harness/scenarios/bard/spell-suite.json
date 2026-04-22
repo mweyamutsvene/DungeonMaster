@@ -1,0 +1,212 @@
+{
+  "name": "Bard: Spell Suite — Heroism + Hold Person save-to-end + Healing Word + Vicious Mockery",
+  "description": "A level 5 College of Lore Bard solos a Skeleton Archer (HP 13, vulnerable bludgeoning) and a Bandit (HP 11). Tests (1) Heroism: concentration, Frightened immunity + recurring temp HP = CHA mod (4) at start of each turn, (2) Hold Person on Bandit (humanoid) with queued failed WIS save -> Paralyzed + auto-crit from melee within 5ft, (3) end-of-turn repeat WIS save with queued PASS (15) -> Paralyzed removed per Phase 0.1 saveToEnd primitive, (4) Healing Word self-cast for 2d4 + CHA (2024 baseline healing dice), (5) Vicious Mockery cantrip cleanup on Skeleton. Per RAW 2024 — scenario is expected to EXPOSE gaps: GAP-8 (Hold Person save-to-end hardcodes WIS 0 and bypasses QueueableDiceRoller) may prevent the passed save from registering, and Vicious Mockery is not in the spell catalog.",
+  "setup": {
+    "character": {
+      "comment": "Solo Bard L5 College of Lore. CHA 18 (+4), proficiency +3, spellSaveDC 15, spellAttackBonus +7.",
+      "name": "Lyra",
+      "className": "Bard",
+      "subclass": "college-of-lore",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 14, "wisdom": 10, "charisma": 18
+        },
+        "maxHp": 40, "currentHp": 40, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Vicious Mockery", "level": 0 },
+          { "name": "Healing Word", "level": 1 },
+          { "name": "Heroism", "level": 1 },
+          { "name": "Hold Person", "level": 2 }
+        ],
+        "attacks": [
+          {
+            "name": "Rapier", "kind": "melee", "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ],
+        "features": [
+          { "name": "Bardic Inspiration", "description": "Bonus action d8" }
+        ],
+        "resourcePools": [
+          { "name": "bardicInspiration", "current": 4, "max": 4 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Skeleton Archer — undead, bludgeoning vulnerability. Low HP (13).",
+        "name": "Skeleton Archer",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 13, "hp": 13, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "damageVulnerabilities": ["bludgeoning"],
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Bandit — humanoid (Hold Person valid). Positioned adjacent to Lyra so Paralyzed auto-crit from melee applies.",
+        "name": "Bandit",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 11, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 11, "hp": 11, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.125, "experienceValue": 25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Heroism self-cast ===",
+      "type": "initiate",
+      "input": { "text": "I ready my spells" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Cast Heroism on self. Concentration, immediate + per-turn temp HP = CHA mod (4), Frightened immunity.",
+      "type": "action",
+      "input": { "text": "cast Heroism on Lyra" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Heroism",
+        "characterTempHp": { "min": 4 },
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "=== ROUND 2: Hold Person on Bandit with queued failed save ===",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "Pre-queue Bandit's WIS save: 1 -> 1+0 = 1 < DC 15 -> FAIL -> Paralyzed.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1] }
+    },
+    {
+      "comment": "R2: Cast Hold Person on Bandit. Consumes L2 slot. Concentration switches to Hold Person (Heroism drops).",
+      "type": "action",
+      "input": { "text": "cast Hold Person on Bandit" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person",
+        "resources": { "spellSlot_2": { "current": 2, "max": 3 } },
+        "monsterConditions": {
+          "name": "Bandit",
+          "hasConditions": ["Paralyzed"]
+        }
+      }
+    },
+    {
+      "comment": "R2 melee: Rapier attack on Paralyzed Bandit within 5ft -> auto-crit per RAW.",
+      "type": "action",
+      "input": { "text": "I attack the Bandit with my Rapier" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack hits (Paralyzed grants advantage; melee within 5ft = auto-crit on hit).",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "isCritical": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Crit damage: 2d8+2 rapier. Roll 10 -> 12 dmg, kills Bandit (HP 11).",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Bandit", "max": 0 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "=== ROUND 3: Bandit's end-of-turn save (if still alive/relevant) — since we killed Bandit in R2, skip straight to Skeleton cleanup. Test the Phase 0.1 saveToEnd primitive on the wider picture: Heroism's temp HP should be gone since concentration switched. ===",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person",
+        "characterTempHp": { "exact": 0 }
+      }
+    },
+    {
+      "comment": "R3: Vicious Mockery at Skeleton Archer. WIS save DC 15 (Skeleton WIS -1 needs 16+). On fail: 1d4 psychic + disadvantage next attack. Skeleton has bludgeoning vuln — not relevant to psychic dmg. Cantrip scales to 2d4 at L5.",
+      "type": "action",
+      "input": { "text": "cast Vicious Mockery at Skeleton Archer" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R3 bonus: Healing Word on self. 2d4 + 4 (2024 baseline). Consumes L1 slot.",
+      "type": "action",
+      "input": { "text": "cast Healing Word on Lyra" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 2, "max": 4 } },
+        "characterHp": { "min": 40, "max": 40 }
+      }
+    },
+    {
+      "type": "endTurn"
+    }
+  ]
+}

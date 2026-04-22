@@ -41,6 +41,38 @@ export const ABSORB_ELEMENTS = {
   description: 'Grants resistance to triggering elemental damage type until start of your next turn and adds 1d6 of that type to your next melee attack. +1d6 per slot level above 1st.',
 } as const satisfies CanonicalSpell;
 
+export const BANE = {
+  name: 'Bane',
+  level: 1,
+  concentration: true,
+  saveAbility: 'charisma',
+  // Effects apply only on failed CHA save (handled by BuffDebuffSpellDeliveryHandler
+  // when `saveAbility` is set and there is no `damage`/`conditions.onFailure`).
+  effects: [
+    {
+      type: 'penalty' as const,
+      target: 'attack_rolls' as const,
+      diceValue: { count: 1, sides: 4 },
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+    {
+      type: 'penalty' as const,
+      target: 'saving_throws' as const,
+      diceValue: { count: 1, sides: 4 },
+      duration: 'concentration' as const,
+      appliesTo: 'target' as const,
+    },
+  ],
+  school: 'enchantment',
+  castingTime: 'action',
+  range: 30,
+  components: { v: true, s: true, m: 'a drop of blood' },
+  classLists: ['Bard', 'Cleric'],
+  description:
+    'Up to three creatures of your choice make a CHA save. On a failed save, target subtracts 1d4 from attack rolls and saving throws for the duration (up to 1 minute, concentration). +1 target per slot level above 1st.',
+} as const satisfies CanonicalSpell;
+
 export const BLESS = {
   name: 'Bless',
   level: 1,
@@ -509,6 +541,7 @@ export const SLEEP = {
 
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
+  BANE,
   BLESS,
   BURNING_HANDS,
   CAUSE_FEAR,

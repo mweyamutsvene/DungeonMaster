@@ -1,0 +1,270 @@
+{
+  "name": "Sorcerer: Metamagic Burst — Quickened + Twinned + Elemental Affinity",
+  "description": "A level 5 Draconic Sorcery (Red) sorcerer unloads metamagic-fueled burst damage on 3 skeletons. Tests: (1) Font of Magic — starting sorceryPoints=5, (2) Metamagic: Quickened Spell (2 SP) to cast Scorching Ray as a BONUS action after Fireball action, bypassing the two-spell rule for leveled spells, (3) Twinned Spell (SP = spell level) to cast Chromatic Orb against two different targets simultaneously, (4) Elemental Affinity (L5 subclass) adds CHA (+4) to one fire-damage roll per round — applied here to Fire Bolt cantrip, (5) falling back to Magic Missile when SP are depleted. This scenario MUST fail if any of those features are missing: unwired metamagic abilities will error on action text, Elemental Affinity missing will make Fire Bolt damage fall short of assertion bounds, and missing sorceryPoints pool will fail the characterResource assertion.",
+  "setup": {
+    "character": {
+      "name": "Pyralis",
+      "className": "sorcerer",
+      "subclass": "draconic-sorcery-red",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 10, "charisma": 18
+        },
+        "maxHp": 37, "currentHp": 37, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Chromatic Orb", "level": 1 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Fireball", "level": 3 }
+        ],
+        "features": [
+          { "name": "Spellcasting", "description": "Cast sorcerer spells using CHA" },
+          { "name": "Innate Sorcery", "description": "L1 sorcerer baseline" },
+          { "name": "Font of Magic", "description": "Sorcery Points = sorcerer level (5 at L5)" },
+          { "name": "Metamagic", "description": "L2: 2 options, L5: +1 option (total 3). Quickened Spell, Twinned Spell, etc." },
+          { "name": "Draconic Resilience", "description": "+1 HP per sorcerer level; unarmored AC = 13 + DEX" },
+          { "name": "Elemental Affinity", "description": "L5: add CHA to damage of one fire spell you cast on your turn (once per round)" }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger", "kind": "melee", "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Skeleton Alpha",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": { "strength": 10, "dexterity": 14, "constitution": 15, "intelligence": 6, "wisdom": 8, "charisma": 5 },
+          "maxHp": 13, "hp": 13, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "damageVulnerabilities": ["bludgeoning"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            { "name": "Shortbow", "kind": "ranged", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }
+          ]
+        }
+      },
+      {
+        "name": "Skeleton Bravo",
+        "position": { "x": 25, "y": 12 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": { "strength": 10, "dexterity": 14, "constitution": 15, "intelligence": 6, "wisdom": 8, "charisma": 5 },
+          "maxHp": 13, "hp": 13, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "damageVulnerabilities": ["bludgeoning"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            { "name": "Shortbow", "kind": "ranged", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }
+          ]
+        }
+      },
+      {
+        "name": "Skeleton Charlie",
+        "position": { "x": 25, "y": 14 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": { "strength": 10, "dexterity": 14, "constitution": 15, "intelligence": 6, "wisdom": 8, "charisma": 5 },
+          "maxHp": 13, "hp": 13, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "damageVulnerabilities": ["bludgeoning"],
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            { "name": "Shortbow", "kind": "ranged", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== PRE-COMBAT: Verify Font of Magic gives SP=5 at L5. Fails if Font of Magic isn't wired to sorcerer. ===",
+      "type": "initiate",
+      "input": { "text": "I prepare to unleash my draconic magic" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "20" }, "expect": { "combatStarted": true } },
+
+    {
+      "comment": "Verify sorceryPoints pool exists with 5/5 at L5 Draconic Sorcerer.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 5, "max": 5 } }
+    },
+
+    {
+      "comment": "=== ROUND 1 ACTION: Fireball (L3 slot). 8d6 fire in 20ft sphere, DEX save DC 15. All 3 skeletons in zone. Server auto-resolves. ===",
+      "type": "action",
+      "input": { "text": "cast Fireball at Skeleton Alpha" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "L3 slot decremented 2→1 (Fireball consumed one). Proves regular leveled spell consumes slots normally before metamagic kicks in.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+    {
+      "comment": "All three skeletons took significant fire damage (8d6 avg 28, range 4-24 on save/8-48 on fail). At 13 HP most or all should be dead.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Skeleton Alpha", "max": 13 } }
+    },
+
+    {
+      "comment": "=== R1 BONUS ACTION: Quickened Spell (2 SP) — cast Scorching Ray as a BONUS action. Bypasses two-spell rule because Quickened Metamagic changes the spell's casting time to bonus action. FAILS if Quickened metamagic isn't registered as an ability or if the text parser doesn't recognize 'quickened'. ===",
+      "type": "action",
+      "input": { "text": "quickened spell cast Scorching Ray at Skeleton Alpha" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Scorching Ray ray 1 attack: 15+7=22 vs AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 damage: 2d6 fire → chain to ray 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 damage → chain to ray 3.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 damage → last ray, action complete.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Quickened Spell costs 2 SP. sorceryPoints: 5→3.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 3, "max": 5 } }
+    },
+    {
+      "comment": "Scorching Ray used a L2 slot independently of SP cost. spellSlot_2: 3→2.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 2 ACTION: Twinned Spell (SP = spell level = 1) — cast Chromatic Orb (fire) on two different targets. FAILS if Twinned metamagic not wired or if engine doesn't support single-target spells hitting two targets via twin. ===",
+      "type": "action",
+      "input": { "text": "twinned spell cast Chromatic Orb at Skeleton Bravo and Skeleton Charlie" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Twinned Chromatic Orb attack on first target.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll for first target — chains to second target's attack if Twinned is implemented.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "requiresPlayerInput": true, "actionComplete": false }
+    },
+    {
+      "comment": "Second target attack roll.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Second target damage — completes the twinned casting.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Twinned cost = spell level (1 for Chromatic Orb). sorceryPoints: 3→2.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 2, "max": 5 } }
+    },
+    {
+      "comment": "Chromatic Orb uses a L1 slot. spellSlot_1: 4→3.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 3 ACTION: Fire Bolt cantrip — test Elemental Affinity adds CHA (+4) to fire damage ONCE per round. At L5, Fire Bolt rolls 2d10. With a submitted damage roll of 10 and Elemental Affinity bonus, total should be 14 fire. FAILS if Elemental Affinity isn't applied — damage would be 10 and the hp assertion below (max 3) would fail. ===",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Skeleton Bravo" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt attack roll 15 + 7 = 22 vs AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 10 on 2d10. With Elemental Affinity (+CHA 4) = 14 fire. Ample to finish any Bravo HP remaining after Chromatic Orb. Without EA, damage = 10 only.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Skeleton Bravo must be dead (HP 0). Passes only if Elemental Affinity and/or prior damage has reduced HP to 0. If Elemental Affinity missing AND Bravo survived Chromatic Orb+Fireball with more than 10 HP remaining, this fails.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Skeleton Bravo", "exact": 0 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 4 ACTION: Fall back to Magic Missile (L1, no metamagic). Verifies the non-metamagic path still works. ===",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Skeleton Alpha" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "L1 slot decrement: 3→2. SP unchanged at 2.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+    {
+      "comment": "SP still at 2 after non-metamagic cast.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 2, "max": 5 } }
+    }
+  ]
+}

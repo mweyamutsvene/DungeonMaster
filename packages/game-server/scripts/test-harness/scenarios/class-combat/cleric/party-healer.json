@@ -1,0 +1,264 @@
+{
+  "name": "Cleric: Party Healer (Guiding Bolt + Healing Word + Cure Wounds + Sacred Flame)",
+  "description": "A level 5 Life Cleric supports a wounded Fighter ally against a Skeleton Archer. Tests Guiding Bolt (L1 spell attack, 4d6 radiant), Sacred Flame (cantrip, DEX save, no slot), Healing Word (L1 bonus action ranged heal, allowed after cantrip action), two-spell rule (can't Healing Word after Guiding Bolt on same turn), Cure Wounds (L1 action touch heal), and spell slot economy.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Fighter starts wounded (15/40 HP) to need healing.",
+        "name": "Valeria",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 14, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 40, "currentHp": 15, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Cleric L5 Life Domain. WIS 18, proficiency +3, spellSaveDC 15, spellAttackBonus +7.",
+        "name": "Brother Aldric",
+        "className": "Cleric",
+        "subclass": "Life",
+        "level": 5,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 38, "currentHp": 38, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Guiding Bolt", "level": 1 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Sacred Flame", "level": 0 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Single ranged skeleton with Shortbow. High HP to survive 3 rounds.",
+        "name": "Skeleton Archer",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 15,
+            "intelligence": 6, "wisdom": 8, "charisma": 5
+          },
+          "maxHp": 80, "hp": 80, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Guiding Bolt + two-spell rule test ===",
+      "type": "initiate",
+      "actor": "Brother Aldric",
+      "input": { "text": "I channel divine power against the skeleton" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Aldric rolls 20 to guarantee going first.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Cast Guiding Bolt at Skeleton Archer. L1 spell attack: 4d6 radiant.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Guiding Bolt at Skeleton Archer" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack: 14 + 7 = 21 vs AC 13 -> hit.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 14 (4d6 radiant).",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed: 4 -> 3.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "comment": "Verify Skeleton took radiant damage.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Archer", "min": 40, "max": 75 }
+      }
+    },
+    {
+      "comment": "TWO-SPELL RULE: Healing Word after Guiding Bolt on same turn. Both leveled -> BLOCKED.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Healing Word on Valeria" },
+      "expect": { "error": true, "errorContains": "leveled" }
+    },
+    {
+      "comment": "Queue skeleton to attack Valeria during monster turn.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Valeria", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Aldric R1.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+    {
+      "comment": "Wait for Valeria's turn (skeleton acts between).",
+      "type": "waitForTurn",
+      "actor": "Valeria",
+      "timeout": 15000
+    },
+    {
+      "comment": "Valeria ends R1 (wounded, cleric heals next round).",
+      "type": "endTurn",
+      "actor": "Valeria"
+    },
+    {
+      "comment": "=== ROUND 2: Sacred Flame (cantrip) + Healing Word (bonus, leveled) ===",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2: Sacred Flame cantrip at Skeleton Archer. DEX save auto-resolved. No slot.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Sacred Flame at Skeleton Archer" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R2 bonus: Healing Word on Valeria. Cantrip action + leveled bonus = ALLOWED.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Healing Word on Valeria" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed by Healing Word: 3 -> 2.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 2, "max": 4 } }
+      }
+    },
+    {
+      "comment": "Verify Valeria healed some (Healing Word: 1d4+4 WIS = 5-8 HP).",
+      "type": "assertState",
+      "actor": "Valeria",
+      "expect": {
+        "characterHp": { "min": 1, "max": 40 }
+      }
+    },
+    {
+      "comment": "Queue skeleton R2 attack.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Valeria", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Aldric R2.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+    {
+      "comment": "Wait for Valeria R2.",
+      "type": "waitForTurn",
+      "actor": "Valeria",
+      "timeout": 15000
+    },
+    {
+      "comment": "Valeria ends R2.",
+      "type": "endTurn",
+      "actor": "Valeria"
+    },
+    {
+      "comment": "=== ROUND 3: Cure Wounds on Valeria (action, touch, L1) ===",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3: Cure Wounds on Valeria. L1 action: 1d8+4 healing. Touch range — Aldric(5,10) adjacent to Valeria(10,10).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Cure Wounds on Valeria" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed by Cure Wounds: 2 -> 1.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 1, "max": 4 } }
+      }
+    },
+    {
+      "comment": "Verify Valeria still alive and has been healed.",
+      "type": "assertState",
+      "actor": "Valeria",
+      "expect": {
+        "characterHp": { "min": 1, "max": 40 }
+      }
+    }
+  ]
+}

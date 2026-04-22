@@ -1,0 +1,484 @@
+{
+  "name": "Cleric C2: Bless + Bane + Multi-PC Party (Buff/Debuff)",
+  "description": "Multi-PC party scenario: Life Cleric L5 + Fighter Champion L5 + Paladin Devotion L5 vs 3 Hobgoblins. Tests: (1) Cleric casts Bless on all allies — concentration set, +1d4 to attack rolls/saves for whole party, L1 slot consumed (GAP-2/BUG-4 appears fixed). (2) Multi-PC turn flow: Fighter and Paladin make attacks while Bless is active. (3) Guiding Bolt (L1 non-concentration) correctly consumes a slot while Bless concentration persists. (4) Bane cast attempt in R3 — expected error (Bane not yet in spell catalog; GAP-BANE documented).",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Brother Aldric: Life Cleric L5. WIS 18 (+4), spellSaveDC 15, spellAttackBonus +7. Concentrates on Bless R1-R2. Attempts Bane in R3 (GAP: not in catalog → expected error).",
+        "name": "Brother Aldric",
+        "className": "Cleric",
+        "subclass": "Life",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 12, "constitution": 14,
+            "intelligence": 12, "wisdom": 18, "charisma": 14
+          },
+          "maxHp": 100, "currentHp": 100, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Sacred Flame", "level": 0 },
+            { "name": "Bless", "level": 1 },
+            { "name": "Bane", "level": 1 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Guiding Bolt", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee", "range": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "resourcePools": [
+            { "name": "channelDivinity", "current": 1, "max": 1 }
+          ]
+        }
+      },
+      {
+        "comment": "Sir Gareth: Fighter Champion L5. STR 18 (+4), DEX 12 (+1). Extra Attack: 2 attacks per Attack action (second attack auto-chained by test harness). actionSurge and secondWind available but not used in this scenario.",
+        "name": "Sir Gareth",
+        "className": "Fighter",
+        "subclass": "Champion",
+        "level": 5,
+        "position": { "x": 14, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 100, "currentHp": 100, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+            { "name": "Action Surge", "description": "Take an additional action on your turn (1/short rest)" },
+            { "name": "Second Wind", "description": "Regain 1d10 + Fighter level HP as a bonus action (1/short rest)" }
+          ],
+          "resourcePools": [
+            { "name": "actionSurge", "current": 1, "max": 1 },
+            { "name": "secondWind", "current": 1, "max": 1 }
+          ]
+        }
+      },
+      {
+        "comment": "Lord Harwick: Paladin Devotion L5. STR 18 (+4), CHA 16 (+3). Extra Attack: 2 attacks per Attack action (second auto-chained). layOnHands 25 HP pool and channelDivinity available but not tested in this scenario.",
+        "name": "Lord Harwick",
+        "className": "Paladin",
+        "subclass": "Devotion",
+        "level": 5,
+        "position": { "x": 14, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 10, "constitution": 16,
+            "intelligence": 10, "wisdom": 12, "charisma": 16
+          },
+          "maxHp": 100, "currentHp": 100, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 4, "2": 2 },
+          "preparedSpells": [
+            { "name": "Bless", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+            { "name": "Divine Smite", "description": "Expend a spell slot after hitting to deal extra radiant damage (not tested here)" }
+          ],
+          "resourcePools": [
+            { "name": "layOnHands", "current": 25, "max": 25 },
+            { "name": "channelDivinity", "current": 1, "max": 1 }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Hobgoblin Vanguard: high HP (100), heavy AC (18). Primary target for Sir Gareth. Attacks with Longsword +3.",
+        "name": "Hobgoblin Vanguard",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 18, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Hobgoblin Guard: high HP (100), heavy AC (18). Primary target for Lord Harwick. Same stats as Vanguard.",
+        "name": "Hobgoblin Guard",
+        "position": { "x": 15, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 18, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Hobgoblin Scout: lighter AC (16), HP 80. Ranged attacker. Target for Aldric's Guiding Bolt in R2.",
+        "name": "Hobgoblin Scout",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 80, "hp": 80, "armorClass": 16, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Longbow", "kind": "ranged", "range": "150/600",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "Queue 12 endTurn decisions for all 3 monsters across 4 rounds (3 monsters × 4 rounds). This prevents monsters from attacking PCs, keeping HP deterministic and avoiding reactions/OA complications. Remaining queue entries are consumed once and the queue goes empty (falling back to attack) after R4 monster turns.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+
+    {
+      "comment": "=== ROUND 1: COMBAT START + BLESS === Aldric initiates. DEX 12 → +1 mod. Roll 20 → 20+1=21 initiative. Gareth and Harwick auto-roll. Hobgoblins auto-roll (DEX 12, max 21). Aldric guaranteed to go first at initiative 21.",
+      "type": "initiate",
+      "actor": "Brother Aldric",
+      "input": { "text": "I raise my holy symbol and prepare the party for battle" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Aldric rolls 20 (20 + DEX +1 = 21 initiative). combatStarted: true confirms all combatants entered initiative order.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1 Aldric action: cast Bless on all allies. Bless (L1, concentration) applies +1d4 to attack rolls AND saving throws for up to 3 creatures. 'cast Bless' with no explicit target applies to all allies in the party (Bless effects.appliesTo = 'allies'). Returns SIMPLE_ACTION_COMPLETE — no attack or damage roll needed. NOTE: GAP-2/BUG-4 (Bless not consuming a slot) appears to be FIXED — Bless now correctly consumes a L1 slot (4 → 3). We assert the slot after this cast.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Bless" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "PRIMARY C2 ASSERTION: Aldric is now concentrating on Bless. This confirms the concentration mechanic works for buff spells.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    {
+      "comment": "Assert L1 slot consumed by Bless: 4 → 3. NOTE: GAP-2/BUG-4 appears fixed — Bless now correctly consumes a slot. Combat active, all 3 enemies alive.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    {
+      "comment": "Aldric ends R1 turn after casting Bless.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+
+    {
+      "comment": "Wait for Sir Gareth's R1 turn. Monsters may act between (queued to endTurn — no damage). waitForTurn skips any intervening turns.",
+      "type": "waitForTurn",
+      "actor": "Sir Gareth",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Sir Gareth action: attack Hobgoblin Vanguard with Longsword. Fighter L5 has Extra Attack — 2 attacks per action. First attack is submitted explicitly; second attack auto-completes (test harness sends natural-1 miss). Bless is active: server adds +1d4 to Gareth's attack roll.",
+      "type": "action",
+      "actor": "Sir Gareth",
+      "input": { "text": "attack Hobgoblin Vanguard with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 15. Total: 15 + 7 (attack bonus) + Bless 1d4 (server-side 1-4) = 23–26 vs Vanguard AC 18 → guaranteed hit.",
+      "type": "rollResult",
+      "actor": "Sir Gareth",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 6. Longsword: 1d8+4 = 10 slashing. Vanguard HP: 100 - 10 = 90. Extra Attack chain auto-completes with natural-1 (1+7+Bless ≤ 12 vs AC 18 → miss, 0 damage). actionComplete: true after chain exhausted.",
+      "type": "rollResult",
+      "actor": "Sir Gareth",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert Hobgoblin Vanguard took 10 damage from Gareth's first attack. Exact 90 HP (Extra Attack auto-miss deals 0).",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Vanguard", "exact": 90 } }
+    },
+    {
+      "comment": "Sir Gareth ends R1 turn.",
+      "type": "endTurn",
+      "actor": "Sir Gareth"
+    },
+
+    {
+      "comment": "Wait for Lord Harwick's R1 turn.",
+      "type": "waitForTurn",
+      "actor": "Lord Harwick",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Lord Harwick action: attack Hobgoblin Guard with Longsword. Paladin L5 has Extra Attack. Bless active: +1d4 to Harwick's attack roll (server-side).",
+      "type": "action",
+      "actor": "Lord Harwick",
+      "input": { "text": "attack Hobgoblin Guard with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 12. Total: 12 + 7 + Bless 1d4 (1-4) = 20–23 vs Guard AC 18 → hit.",
+      "type": "rollResult",
+      "actor": "Lord Harwick",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 5. Longsword: 1d8+4 = 9 slashing. Guard HP: 100 - 9 = 91. Extra Attack auto-misses.",
+      "type": "rollResult",
+      "actor": "Lord Harwick",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert Hobgoblin Guard took 9 damage. Exact 91 HP.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Guard", "exact": 91 } }
+    },
+    {
+      "comment": "Lord Harwick ends R1 turn.",
+      "type": "endTurn",
+      "actor": "Lord Harwick"
+    },
+
+    {
+      "comment": "=== ROUND 2: BLESS MAINTAINED — GUIDING BOLT + PARTY ATTACKS === Verify Bless concentration persists through a non-concentration spell cast.",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Aldric action: cast Guiding Bolt at Hobgoblin Scout. Ranged spell attack (+7). 4d6 radiant damage. Guiding Bolt is NOT a concentration spell — Bless concentration should remain active after this cast. Consumes a L1 slot (slot tracking works for attack spells).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Guiding Bolt at Hobgoblin Scout" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Guiding Bolt spell attack: roll 14. Total: 14 + 7 (spellAttackBonus) + Bless 1d4 (1-4) = 22–25 vs Scout AC 16 → hit.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Guiding Bolt damage: roll 20 (4d6 radiant). Scout HP: 80 - 20 = 60.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "CONCENTRATION CHECK: Bless must still be 'Bless' after casting Guiding Bolt. Guiding Bolt is a non-concentration spell, so it does not drop or replace Bless.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    {
+      "comment": "Assert Guiding Bolt consumed L1 slot: 3 → 2 (Bless consumed 4→3 in R1, Guiding Bolt consumes 3→2 here).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+    {
+      "comment": "Assert Hobgoblin Scout took 20 radiant damage from Guiding Bolt. HP: 80 - 20 = 60.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Scout", "exact": 60 } }
+    },
+    {
+      "comment": "Aldric ends R2 turn.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+
+    {
+      "comment": "Wait for Sir Gareth's R2 turn.",
+      "type": "waitForTurn",
+      "actor": "Sir Gareth",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Sir Gareth action: second round of attacks on Hobgoblin Vanguard. Bless still active (+1d4 to attack). Extra Attack auto-chain for second hit.",
+      "type": "action",
+      "actor": "Sir Gareth",
+      "input": { "text": "attack Hobgoblin Vanguard with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 13. Total: 13 + 7 + Bless 1d4 = 21–24 vs AC 18 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Gareth",
+      "input": { "text": "13" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 5. Longsword: 1d8+4 = 9 slashing. Vanguard HP: 90 - 9 = 81. Extra Attack auto-misses (0 damage).",
+      "type": "rollResult",
+      "actor": "Sir Gareth",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Sir Gareth ends R2 turn.",
+      "type": "endTurn",
+      "actor": "Sir Gareth"
+    },
+
+    {
+      "comment": "Wait for Lord Harwick's R2 turn.",
+      "type": "waitForTurn",
+      "actor": "Lord Harwick",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Lord Harwick action: second round of attacks on Hobgoblin Guard. Bless active.",
+      "type": "action",
+      "actor": "Lord Harwick",
+      "input": { "text": "attack Hobgoblin Guard with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 11. Total: 11 + 7 = 18, equals AC 18 → HIT (meeting AC is a hit in D&D 5e). Bless adds +1d4 on top → even more reliable.",
+      "type": "rollResult",
+      "actor": "Lord Harwick",
+      "input": { "text": "11" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 6. Longsword: 1d8+4 = 10 slashing. Guard HP: 91 - 10 = 81. Extra Attack auto-misses.",
+      "type": "rollResult",
+      "actor": "Lord Harwick",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Lord Harwick ends R2 turn.",
+      "type": "endTurn",
+      "actor": "Lord Harwick"
+    },
+
+    {
+      "comment": "=== ROUND 3: BANE (GAP-11 FIXED) === Aldric casts Bane, replacing Bless concentration. Bane is now in the spell catalog (level-1.ts) with saveAbility: 'charisma' and appliesTo: 'enemies'. The hobgoblins roll CHA saves via the live dice roller (non-deterministic) — effects apply only to those that fail. Regardless of per-target save outcomes, concentration switches from Bless to Bane immediately on a successful cast.",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3: Cast Bane on Hobgoblin Vanguard. After GAP-11 fix, this is a successful cast (level 1 slot spent, concentration replaces Bless). Per-target CHA saves determine whether the effect actually applies, but concentration switch is unconditional.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Bane on Hobgoblin Vanguard" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert: concentration now on Bane (replaces Bless). Case matches engine storage (lowercase).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "bane" }
+    },
+    {
+      "comment": "R3 Aldric ends his turn. The failed Bane did not consume his action in terms of game rules, but ending the turn here completes the scenario.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+
+    {
+      "comment": "=== FINAL STATE ASSERTIONS === Verify accumulated HP damage across 2 rounds of PC attacks. All monsters alive (high HP, monsters only endTurned).",
+      "type": "assertState",
+      "expect": { "monstersAlive": 3, "combatStatus": "Active" }
+    },
+    {
+      "comment": "Hobgoblin Vanguard: R1 Gareth attack −10 (6+4), R2 Gareth attack −9 (5+4). 100 − 10 − 9 = 81.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Vanguard", "exact": 81 } }
+    },
+    {
+      "comment": "Hobgoblin Guard: R1 Harwick attack −9 (5+4), R2 Harwick attack −10 (6+4). 100 − 9 − 10 = 81.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Guard", "exact": 81 } }
+    },
+    {
+      "comment": "Hobgoblin Scout: R2 Guiding Bolt −20. 80 − 20 = 60.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Hobgoblin Scout", "exact": 60 } }
+    }
+  ]
+}

@@ -1,0 +1,288 @@
+{
+  "name": "Druid: Nature Control — Entangle + Spike Growth + Moonbeam (Concentration Switching)",
+  "description": "A level 5 Circle of the Land (Grassland) Druid traps 3 Goblins with nature-control spells. Tests Entangle (L1, 20ft square, STR save DC 15 or Restrained until save-to-end), Spike Growth (L2, difficult terrain dealing 2d4 piercing per 5ft moved), Moonbeam (L2, 5ft radius, 2d10 radiant, CON save half, re-invoke on subsequent turns), concentration switching (Entangle → Moonbeam drops Entangle), and save-to-end ticking. EXPECTED FAILURES (RAW 2024): Entangle may not be in the spell catalog (drives implementation). If Entangle exists, its save-to-end ticker integration with Restrained condition may be incomplete. Spike Growth's per-5ft movement damage aura likely not implemented. Moonbeam zone entry/start-of-turn damage may be missing. Scenario asserts full RAW behavior to drive implementation work.",
+  "setup": {
+    "character": {
+      "name": "Keyleth",
+      "className": "Druid",
+      "subclass": "circle-of-the-land-grassland",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 12, "constitution": 14,
+          "intelligence": 10, "wisdom": 18, "charisma": 10
+        },
+        "maxHp": 40, "currentHp": 40, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Entangle", "level": 1 },
+          { "name": "Spike Growth", "level": 2 },
+          { "name": "Moonbeam", "level": 2 },
+          { "name": "Produce Flame", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 3,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin 1",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 7, "hp": 7, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin 2",
+        "position": { "x": 16, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 7, "hp": 7, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin 3",
+        "position": { "x": 17, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 7, "hp": 7, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Cast Entangle on the goblin cluster (20ft square centered ~(16,10)) ===",
+      "type": "initiate",
+      "input": { "text": "I cast Entangle on the goblins" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll 20 to go first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Queue STR saves for 3 goblins: 5 (fail), 6 (fail), 17 (pass). STR 8 = -1, DC 15. Needs 16+ raw to succeed.",
+      "type": "queueDiceRolls",
+      "input": { "values": [5, 6, 17] }
+    },
+    {
+      "comment": "R1: Cast Entangle (L1, concentration). 20ft square at the goblins. STR save DC 15 or Restrained save-to-end.",
+      "type": "action",
+      "input": { "text": "cast Entangle at the goblins" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed: 4 -> 3.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "Verify concentration on Entangle.",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Entangle" }
+    },
+    {
+      "comment": "Verify Goblins 1 and 2 are Restrained (failed saves); Goblin 3 is NOT (passed).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Goblin 1", "hasConditions": ["Restrained"] }
+      }
+    },
+    {
+      "comment": "Goblin 2 also Restrained.",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Goblin 2", "hasConditions": ["Restrained"] }
+      }
+    },
+    {
+      "comment": "Goblin 3 NOT Restrained (saved).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Goblin 3", "doesNotHaveConditions": ["Restrained"] }
+      }
+    },
+    {
+      "comment": "Queue monster R1: G1 and G2 are Restrained (can't move) — they'll try to attack or use action to escape. G3 moves toward druid.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Keyleth", "desiredRange": 5, "endTurn": false },
+          { "action": "attack", "target": "Keyleth", "attackName": "Scimitar", "endTurn": true },
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "comment": "End druid R1.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for druid R2 (goblins act — G1/G2 attempt save-to-end at end of their turn per RAW).",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "=== ROUND 2: Cast Spike Growth on the restrained goblins' area (concentration SWITCHES, dropping Entangle) ===",
+      "type": "queueDiceRolls",
+      "input": { "values": [] }
+    },
+    {
+      "comment": "R2: Cast Spike Growth (L2, concentration). 20ft radius difficult terrain. Each 5ft moved = 2d4 piercing.",
+      "type": "action",
+      "input": { "text": "cast Spike Growth on the goblins" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L2 slot consumed: 3 -> 2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "Concentration switched to Spike Growth (Entangle dropped → Restrained removed).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Spike Growth",
+        "monsterConditions": { "name": "Goblin 1", "doesNotHaveConditions": ["Restrained"] }
+      }
+    },
+    {
+      "comment": "Queue Goblin 1 to try to move out of Spike Growth — should take 2d4 piercing per 5ft moved.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "moveAwayFrom", "target": "Keyleth", "desiredRange": 40, "endTurn": true },
+          { "action": "attack", "target": "Keyleth", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Keyleth", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End druid R2.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for druid R3.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "Goblin 1 should have taken Spike Growth damage from movement (2d4 per 5ft). Starting HP 7.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin 1", "max": 7 }
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Drop Spike Growth, cast Moonbeam (concentration switch again) ===",
+      "type": "action",
+      "input": { "text": "cast Moonbeam on Goblin 2" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L2 slot consumed by Moonbeam: 2 -> 1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 3 }
+      }
+    },
+    {
+      "comment": "Concentration switched to Moonbeam (Spike Growth dropped).",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Moonbeam" }
+    },
+    {
+      "comment": "Queue CON saves for Goblin 2 (initial Moonbeam exposure): 8 (fail full damage). CON +0, DC 15.",
+      "type": "queueDiceRolls",
+      "input": { "values": [8] }
+    },
+    {
+      "comment": "Goblin 2 should have taken 2d10 radiant on initial exposure (full on fail, half on pass). Starting HP 7 → likely dead.",
+      "type": "assertState",
+      "expect": {
+        "monsterActiveEffects": { "name": "Goblin 2", "hasSources": ["Moonbeam"] }
+      }
+    },
+    {
+      "comment": "Queue Goblin 2 (if alive) or Goblin 3 to end turn inside beam area.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "comment": "End druid R3.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for druid R4 — Moonbeam should deal damage again when affected creature STARTS its turn in the area (RAW 2024).",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "Final concentration still on Moonbeam.",
+      "type": "assertState",
+      "expect": { "characterConcentration": "Moonbeam" }
+    }
+  ]
+}

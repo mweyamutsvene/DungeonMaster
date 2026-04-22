@@ -1,0 +1,189 @@
+{
+  "name": "Bard: Cutting Words Control — Reactive BI die subtraction + Vicious Mockery disadvantage",
+  "description": "A level 5 College of Lore Bard solos a Hobgoblin Captain and a Gnoll. Tests the College of Lore L3 subclass feature 'Cutting Words' — as a reaction when a creature within 60ft makes an attack roll, ability check, or damage roll, expend one Bardic Inspiration use to subtract the rolled die from that roll. Per RAW: Hobgoblin rolls 15 to hit -> Bard reacts -> subtract d8 (queued 6) -> 15-6=9 vs AC 15 -> miss. Second enemy attack has Cutting Words unavailable (only 1 reaction/round) -> hits. Then Vicious Mockery imposes disadvantage on Hobgoblin's next attack. EXPECTED FAILURE: Cutting Words is Phase 3.9 (not yet implemented), so the reaction prompt will not fire; this scenario is the deliverable that drives implementation.",
+  "setup": {
+    "character": {
+      "comment": "Solo Bard L5 College of Lore. CHA 18 (+4), proficiency +3. bardicInspiration pool = 4 uses of d8. Spell save DC 15.",
+      "name": "Lyra",
+      "className": "Bard",
+      "subclass": "college-of-lore",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 14, "wisdom": 10, "charisma": 18
+        },
+        "maxHp": 40, "currentHp": 40, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Vicious Mockery", "level": 0 },
+          { "name": "Healing Word", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Rapier", "kind": "melee", "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ],
+        "features": [
+          { "name": "Bardic Inspiration", "description": "Bonus action, grant d8 to ally" },
+          { "name": "Cutting Words", "description": "College of Lore L3 — reaction: spend BI to subtract d8 from an enemy attack/check/damage roll within 60ft" },
+          { "name": "Font of Inspiration", "description": "BI recharges on short rest" }
+        ],
+        "resourcePools": [
+          { "name": "bardicInspiration", "current": 4, "max": 4 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Hobgoblin Captain — melee +5 attack. Positioned adjacent for melee.",
+        "name": "Hobgoblin Captain",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15, "dexterity": 14, "constitution": 14,
+            "intelligence": 12, "wisdom": 10, "charisma": 13
+          },
+          "maxHp": 39, "hp": 39, "armorClass": 17, "speed": 30,
+          "challengeRating": 3, "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Gnoll — +4 attack melee. Also adjacent.",
+        "name": "Gnoll",
+        "position": { "x": 10, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 11,
+            "intelligence": 6, "wisdom": 10, "charisma": 7
+          },
+          "maxHp": 22, "hp": 22, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Bite", "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Queue Cutting Words reaction: when Hobgoblin attacks with queued d20=15 and Bard reacts, subtract d8=6 from attack. Gnoll attacks with d20=10+4=14 — Cutting Words unavailable (reaction spent this round).",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 10, 6] }
+    },
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Lyra", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Lyra", "attackName": "Bite", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare a cutting remark" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Lyra rolls 5 for initiative so monsters act first, triggering reaction opportunity.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Wait for Hobgoblin attack. Server should prompt a Cutting Words reaction because this is Lore Bard subclass. Expected failure: Phase 3.9 not implemented -> prompt never fires.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "cutting_words" },
+      "timeout": 5000
+    },
+    {
+      "comment": "Use Cutting Words: subtract 1d8 from Hobgoblin's attack roll. Consumes 1 BI use + reaction.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "ASSERT: Hobgoblin missed (15 - 6 = 9 vs AC 15) AND BI pool 4 -> 3 AND Lyra took no damage from Hobgoblin.",
+      "type": "assertState",
+      "expect": {
+        "resources": { "bardicInspiration": { "current": 3, "max": 4 } },
+        "characterHp": { "min": 36, "max": 40 }
+      }
+    },
+    {
+      "comment": "Wait for Lyra's turn — Gnoll's attack should have RESOLVED NORMALLY (hits on 10+4=14 vs AC 15 -> miss, actually) because reaction already consumed. Actually 14 < 15 so Gnoll also misses by rolls; assertion adjusted in later step.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 ACTION: Vicious Mockery on Hobgoblin Captain — DC 15 WIS save (Hob WIS 10 +0 = needs 15+). On fail: 1d4 psychic + disadvantage on next attack roll before end of its next turn.",
+      "type": "action",
+      "input": { "text": "cast Vicious Mockery at Hobgoblin Captain" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: Vicious Mockery applied 'disadvantage on next attack' debuff to Hobgoblin. RAW 2024 spell effect.",
+      "type": "assertState",
+      "expect": {
+        "monsterActiveEffects": {
+          "name": "Hobgoblin Captain",
+          "hasSources": ["Vicious Mockery"]
+        }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "R2: queue Hobgoblin attack at 18 total (would hit) — but disadvantage should force lower of two rolls. Queue [18, 4, 6] — with disadvantage take 4 -> 4+5=9 miss.",
+      "type": "queueDiceRolls",
+      "input": { "values": [18, 4] }
+    },
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Lyra", "attackName": "Longsword", "endTurn": true },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+    {
+      "comment": "ASSERT: Hobgoblin attack rolled with disadvantage -> took 4, miss. Lyra still undamaged by Hob.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 36, "max": 40 }
+      }
+    }
+  ]
+}

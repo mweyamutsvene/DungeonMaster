@@ -162,4 +162,12 @@ export interface AbilityExecutor {
    * @returns Result of execution
    */
   execute(context: AbilityExecutionContext): Promise<AbilityExecutionResult>;
+
+  /**
+   * When `true`, the tabletop handler (`handleBonusAbility`) will resolve ally
+   * Characters as valid targets when the player types the ability with an ally
+   * name (e.g., `lay on hands Elara`). Defaults to `false`: ability resolves
+   * monsters only (hostile target) or self.
+   */
+  readonly allowsAllyTarget?: boolean;
 }

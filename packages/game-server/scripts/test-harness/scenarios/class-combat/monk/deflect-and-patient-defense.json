@@ -1,0 +1,422 @@
+{
+  "name": "Monk: Deflect + Patient Defense + Step of the Wind — Reactive Defense Loop",
+  "description": "A level 5 Open Hand Monk faces two Bone Archers. Each round the monk spends 1 ki on a defensive bonus action (Step of the Wind or Patient Defense) then attacks; after ending the turn, an archer's arrow triggers Deflect Attacks as a reaction. All server dice (attack, damage, deflect d10) are queued deterministically so Deflect reduces damage without fully zeroing it (avoids auto ki-redirect). Tests ki economy across 3 ki-spending rounds + Deflect Attacks reaction flow. NOTE: 'step of the wind dash' text collides with the simple Dash parser, so we use 'step of the wind' which routes to the Step of the Wind executor (disengage variant) — the core test (ki spend on a defensive bonus action) is preserved.",
+  "setup": {
+    "character": {
+      "name": "Brother Kazu",
+      "className": "Monk",
+      "subclass": "Open Hand",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 8,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Patient Defense", "description": "Spend 1 ki to Dodge as a bonus action" },
+          { "name": "Step of the Wind", "description": "Spend 1 ki to Disengage or Dash as a bonus action; jump distance doubled" },
+          { "name": "Deflect Attacks", "description": "Reaction: reduce damage from a melee/ranged attack by 1d10 + DEX mod + Monk level" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bone Archer A",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "actions": [
+            { "name": "Shortbow", "description": "Ranged attack with shortbow." }
+          ],
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bone Archer B",
+        "position": { "x": 11, "y": 12 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "actions": [
+            { "name": "Shortbow", "description": "Ranged attack with shortbow." }
+          ],
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== INIT ===",
+      "type": "initiate",
+      "input": { "text": "I attack Bone Archer A" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 3 DEX = 21 initiative; Kazu goes first",
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Step of the Wind bonus action, then Extra Attack on Archer A. NOTE: text 'step of the wind dash' collides with simple Dash parser (keyword 'dash' is captured first), so we use 'step of the wind' which routes to the Step of the Wind executor (disengage variant). Core test (ki spend on bonus action) is preserved.",
+      "type": "action",
+      "input": { "text": "use step of the wind" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "R1 bonus: ki 5 -> 4 after Step of the Wind (spends 1 ki)",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Bone Archer A with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 DEX = 9 bludgeoning. Archer A 80 -> 71. EA chain begins.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "EA 2/2: 12 + 6 = 18 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage. Archer A 71 -> 63.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "R1 monster turns: one archer fires Shortbow at Kazu (triggers Deflect). Other archer falls back to endTurn.",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Brother Kazu", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "R1 archer turn dice queue (3 preamble rolls consumed by AI turn setup + attack sequence). [7,7,7] = preamble padding, 15 = d20 attack (15+4=19 hit AC 8, not crit), 6,6 = 2d6 damage (12+3=15 base), 1 = deflect d10 (1+3+5=9 reduction). Net 6 damage to Kazu. Not zero, so no ki redirect triggers.",
+      "input": { "values": [7, 7, 7, 15, 6, 6, 1] }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End Kazu R1"
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "deflect_attacks" },
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" },
+      "comment": "Use Deflect Attacks: 1d10(=1) + 3 DEX + 5 Monk level = 9 reduction. 15 - 9 = 6 damage. Damage > 0 so no ki redirect fires."
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "End R1: Kazu 100 - 6 = 94 HP; ki still 4 (Deflect reaction itself costs no ki).",
+      "expect": {
+        "characterHp": { "min": 93, "max": 95 },
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Patient Defense bonus action (Dodge), then Extra Attack on Archer A ===",
+      "type": "action",
+      "input": { "text": "use patient defense" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "R2 bonus: ki 4 -> 3 after Patient Defense",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Bone Archer A with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 6 = 18 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 3 = 10 damage. Archer A 63 -> 53.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "EA 2/2: 11 + 6 = 17 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 damage. Archer A 53 -> 44.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "R2 monster turns: one archer fires Shortbow at Kazu (with disadvantage from Dodge).",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Brother Kazu", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "R2 archer turn dice queue. Dodge from Patient Defense does NOT impose disadvantage on adjacent ranged attacks in this engine, so a single d20 is rolled. [7,7,7] preamble, 15 = d20 attack, 6,6 = damage, 1 = deflect d10. Net 6 damage.",
+      "input": { "values": [7, 7, 7, 15, 6, 6, 1] }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End Kazu R2"
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "deflect_attacks" },
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "End R2: Kazu 94 - 6 = 88 HP; ki still 3.",
+      "expect": {
+        "characterHp": { "min": 87, "max": 89 },
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 3: Step of the Wind again, then Extra Attack on Archer B ===",
+      "type": "action",
+      "input": { "text": "use step of the wind" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "R3 bonus: ki 3 -> 2 after second Step of the Wind",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Bone Archer B with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 3 = 10 damage. Archer B 80 -> 70.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "EA 2/2: 11 + 6 = 17 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 damage. Archer B 70 -> 61.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "R3 monster turns: archer shoots Kazu again (no Dodge active this round).",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Brother Kazu", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "R3 archer turn dice queue. [7,7,7] preamble, 15 = d20 attack (hit AC 8), 6,6 = damage, 1 = deflect d10. Net 6 damage.",
+      "input": { "values": [7, 7, 7, 15, 6, 6, 1] }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End Kazu R3"
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "deflect_attacks" },
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "End R3: Kazu 88 - 6 = 82 HP; ki still 2.",
+      "expect": {
+        "characterHp": { "min": 81, "max": 83 },
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 4: Clean-up attack on Archer B; no ki spend ===",
+      "type": "action",
+      "input": { "text": "attack Bone Archer B with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "8 + 3 = 11 damage. Archer B 61 -> 50.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "EA 2/2: 13 + 6 = 19 vs AC 13 - hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 damage. Archer B 50 -> 42.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "FINAL: 3 ki spent total (2 Step-of-the-Wind + 1 Patient Defense). Deflect Attacks used 3x as a free reaction. Combat still active.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

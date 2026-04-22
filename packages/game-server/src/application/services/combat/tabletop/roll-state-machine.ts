@@ -34,7 +34,7 @@ import {
 } from "../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
-import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
+import { classHasFeature, getCriticalHitThreshold } from "../../../../domain/entities/classes/registry.js";
 import { SNEAK_ATTACK } from "../../../../domain/entities/classes/feature-keys.js";
 import { getEligibleOnHitEnhancements } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
@@ -469,10 +469,41 @@ export class RollStateMachine {
     }
 
     const total = rollValue + attackBonus;
-    // D&D 5e 2024: Natural 20 always hits (critical), natural 1 always misses
-    const isCritical = rollValue === 20;
+    // D&D 5e 2024: Natural 20 always hits (critical), natural 1 always misses.
+    // Champion Fighter: Improved Critical (19+) at L3, Superior Critical (18+) at L15.
+    let critThreshold = 20;
+    if (attackerChar) {
+      const classId =
+        (attackerSheet.classId as string | undefined) ??
+        attackerChar.className?.toLowerCase() ??
+        undefined;
+      const subclassId = attackerSheet.subclass as string | undefined;
+      const level = ClassFeatureResolver.getLevel(attackerSheet, attackerChar.level);
+      if (classId && level) {
+        critThreshold = getCriticalHitThreshold(classId, level, subclassId);
+      }
+    }
+    let isCritical = rollValue >= critThreshold;
     const isCriticalMiss = rollValue === 1;
-    const hit = isCriticalMiss ? false : (isCritical ? true : total >= effectAdjustedAC);
+    let hit = isCriticalMiss ? false : (isCritical ? true : total >= effectAdjustedAC);
+
+    // D&D 5e 2024: A melee hit on a Paralyzed or Unconscious creature is an auto-crit
+    // if the attacker is within 5 feet.
+    if (hit && !isCritical && action.weaponSpec?.kind !== "ranged") {
+      const targetConds = normalizeConditions(targetCombatant?.conditions as unknown[]);
+      const hasAutoCritCondition = targetConds.some(
+        (c) => c.condition === "Paralyzed" || c.condition === "Unconscious",
+      );
+      if (hasAutoCritCondition) {
+        const attackerPos = getPosition(attackerCombatant?.resources);
+        const targetPos = getPosition(targetCombatant?.resources);
+        const dist =
+          attackerPos && targetPos ? calculateDistance(attackerPos, targetPos) : undefined;
+        if (dist === undefined || dist <= 5.0001) {
+          isCritical = true;
+        }
+      }
+    }
 
     // Emit events
     await this.eventEmitter.emitAttackEvents(sessionId, encounter.id, actorId, targetId, characters, monsters, hit, rollValue, total, {

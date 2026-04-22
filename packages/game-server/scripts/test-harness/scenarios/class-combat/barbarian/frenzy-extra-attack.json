@@ -1,0 +1,381 @@
+{
+  "name": "Barbarian: Frenzy + Extra Attack + Sustained Rage",
+  "description": "A level 5 Berserker Barbarian fights three Gnolls across 4 rounds. Tests Frenzy (Berserker subclass L3 bonus action melee attack while raging) combined with Extra Attack = up to 3 melee attacks per turn. R1: Enter Rage (bonus action) + Attack x2 via Extra Attack (main action). R2-R4: Attack x2 via Extra Attack + Frenzy bonus attack = 3 attacks per turn. Rage persists because Bjornvar attacks every round. Monsters use defaultBehavior endTurn so no incoming damage — asserting Bjornvar stays at full HP demonstrates rage resistance bookkeeping without noise.",
+  "setup": {
+    "character": {
+      "name": "Bjornvar",
+      "className": "Barbarian",
+      "subclass": "Berserker",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "subclass": "berserker",
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 120,
+        "currentHp": 120,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action." },
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain +2 melee damage and resistance to B/P/S damage." },
+          { "name": "Reckless Attack", "description": "Gain advantage on melee STR attacks, but attacks against you have advantage." },
+          { "name": "Frenzy", "description": "While raging, make one extra melee weapon attack as a bonus action (Berserker subclass L3)." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Gnoll Warrior",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "beast",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 11,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll Berserker",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "beast",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 11,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll Ravager",
+        "position": { "x": 20, "y": 12 },
+        "statBlock": {
+          "type": "beast",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 11,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Enter Rage (bonus action) + Attack Gnoll Warrior via Extra Attack ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Gnoll Warrior" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll high initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Enter Rage — bonus action. Spends 1 rage charge (3→2). Grants +2 melee damage (ActiveEffect) and B/P/S resistance. Bonus action is now spent — no Frenzy this round.",
+      "type": "action",
+      "input": { "text": "rage" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify rage pool decremented: 3 → 2",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "R1: Attack Gnoll Warrior with Greataxe (main action). Extra Attack will auto-chain after this hit/damage sequence. Rage active: server adds +2 damage from ActiveEffect.",
+      "type": "action",
+      "input": { "text": "attack Gnoll Warrior with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 8 (die) + 4 (STR mod) + 2 (rage ActiveEffect) = 14 slashing. Gnoll Warrior: 100 → 86. Scenario runner auto-completes the Extra Attack chain with a natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "Verify 14 damage landed. Gnoll Berserker at (20,10) is 10ft from Bjornvar — outside Greataxe cleave reach (5ft) — so no cleave secondary hit.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 86 }
+      }
+    },
+    {
+      "comment": "R1: Bonus action (Rage) already spent — Frenzy not available this round. Monsters use defaultBehavior endTurn, so they do nothing.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for all 3 gnoll turns (they each endTurn automatically — no attacks).",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Bjornvar took no damage (gnolls ended turn). Full HP confirms rage resource bookkeeping didn't corrupt state.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 120, "max": 120 }
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Attack (Extra Attack) + Frenzy = 3 melee attack actions ===",
+      "type": "action",
+      "input": { "text": "attack Gnoll Warrior with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 8 + 4 + 2 = 14. Gnoll Warrior: 86 → 72. Auto-complete handles Extra Attack.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "Verify main-action attacks landed.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 72 }
+      }
+    },
+    {
+      "comment": "R2: Frenzy bonus attack. Requires: Rage active (checked via ActiveEffects), bonus action available, Attack action used this turn. Text includes monster name for target resolution.",
+      "type": "action",
+      "input": { "text": "frenzy attack Gnoll Warrior" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy attack roll: 15 + 7 = 22 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy damage: 6 + 4 + 2 = 12. Gnoll Warrior: 72 → 60. bonusAction flag on pending action prevents Extra Attack chain — actionComplete immediately.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify frenzy damage applied. Gnoll Warrior at 60 HP after both main + frenzy attacks.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 60 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Bjornvar still at full HP (gnolls do nothing).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 120, "max": 120 }
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Reckless Attack + Attack (advantage) + Frenzy (also advantage on STR melee) ===",
+      "type": "action",
+      "input": { "text": "reckless attack" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R3: Attack with advantage from Reckless Attack (STR melee advantage ActiveEffect). Rage still active.",
+      "type": "action",
+      "input": { "text": "attack Gnoll Warrior with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll (advantage): 16 + 7 = 23 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 10 + 4 + 2 = 16. Gnoll Warrior: 60 → 44. Auto-complete handles Extra Attack.",
+      "type": "rollResult",
+      "input": { "text": "10" }
+    },
+    {
+      "comment": "Verify main-action attacks.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 44 }
+      }
+    },
+    {
+      "comment": "R3: Frenzy bonus attack. Reckless Attack advantage also applies to Frenzy (it's a STR-based melee attack).",
+      "type": "action",
+      "input": { "text": "frenzy attack Gnoll Warrior" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy attack roll: 13 + 7 = 20 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy damage: 8 + 4 + 2 = 14. Gnoll Warrior: 44 → 30. No EA chain (bonusAction guard).",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Gnoll Warrior critically weakened after 3 rounds of triple-attack pressure.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 30 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Still full HP — rage resistance intact.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 120, "max": 120 }
+      }
+    },
+    {
+      "comment": "=== ROUND 4: Attack + Frenzy. Verify rage pool still 2 (only spent once at combat start). ===",
+      "type": "action",
+      "input": { "text": "attack Gnoll Warrior with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 8 + 4 + 2 = 14. Gnoll Warrior: 30 → 16. Auto-complete handles Extra Attack.",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "R4: Frenzy — 3rd wave of melee attacks. Rage maintained by attacking each round.",
+      "type": "action",
+      "input": { "text": "frenzy attack Gnoll Warrior" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy attack roll: 15 + 7 = 22 vs AC 12 → hit",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Frenzy damage: 6 + 4 + 2 = 12. Gnoll Warrior: 16 → 4.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Final assertions: Gnoll Warrior nearly dead (4 HP), Bjornvar at full HP, rage pool still at 2 (entered rage once and sustained it by attacking). Combat still active with 3 monsters alive.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Gnoll Warrior", "exact": 4 },
+        "characterHp": { "min": 115, "max": 120 },
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

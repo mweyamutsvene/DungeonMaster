@@ -1,0 +1,174 @@
+{
+  "name": "Warlock: Hex and Blast — Eldritch Blast Multi-Beam + Hex Concentration",
+  "description": "A level 5 Fiend Warlock uses Hex (bonus action, concentration, Pact L3 slot) then Eldritch Blast (2 beams, each attack roll + server-rolled Hex 1d6 bonus). Tests: Hex sets concentration, EB fires 2 beams (cantrip scaling at L5), Hex damage applied server-side per beam, Pact Magic slot depletion (2 L3 slots), cantrip fallback after slots are spent. Monsters have no attacks (training dummies) to avoid interrupting the flow.",
+  "setup": {
+    "character": {
+      "name": "Malachar",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 18
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 },
+          { "name": "Hex", "level": 1 }
+        ],
+        "attacks": [],
+        "features": [
+          { "name": "Pact Magic", "description": "Cast warlock spells using Pact Magic slots (recharge on short rest)" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "High HP target, no actions — pure spell testing dummy.",
+        "name": "Shadow Construct",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 6, "dexterity": 10, "constitution": 16,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 200, "hp": 200, "armorClass": 10, "speed": 0,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Slam", "kind": "melee", "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Hex (bonus) + Eldritch Blast (action, 2 beams) ===",
+      "type": "initiate",
+      "input": { "text": "I ready my eldritch power" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Warlock rolls 20 → goes first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "R1 bonus: Cast Hex on Shadow Construct. Costs 1 Pact Magic slot (L3), sets concentration.",
+      "type": "action",
+      "input": { "text": "cast Hex on Shadow Construct" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "comment": "Verify Hex set concentration.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hex"
+      }
+    },
+
+    {
+      "comment": "R1 action: Eldritch Blast at Shadow Construct. At L5, fires 2 beams (cantrip scaling). Each beam = 1d10 force + server-rolled Hex 1d6 necrotic.",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Shadow Construct" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack: 15 + 7 = 22 vs AC 10 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: player rolls 8 (d10). Server adds Hex 1d6 automatically. Chains to beam 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack: 12 + 7 = 19 vs AC 10 → hit.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: player rolls 6 (d10). Server adds Hex 1d6. Last beam → action complete.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Shadow Construct took 2 beams of 1d10 + 1d6 each. Min = (8+1)+(6+1) = 16, max includes hex dice.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Shadow Construct", "min": 170, "max": 184 }
+      }
+    },
+
+    {
+      "comment": "End R1. Monster endTurn AI does nothing.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "=== ROUND 2: Eldritch Blast only (Hex persists via concentration, no slot needed) ===",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R2: EB again. Hex is still active (concentration), so bonus damage continues without spending another slot.",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Shadow Construct" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack: 14 + 7 = 21 → hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: 7.",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack: 10 + 7 = 17 → hit.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: 5. Last beam → action complete.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify Hex still active after R2 (concentration persists).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hex"
+      }
+    }
+  ]
+}

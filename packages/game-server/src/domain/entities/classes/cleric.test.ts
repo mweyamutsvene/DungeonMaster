@@ -6,6 +6,17 @@ import {
   spendChannelDivinity,
   getDestroyUndeadCRThreshold,
 } from "./cleric.js";
+import { classHasFeature, hasFeature } from "./registry.js";
+import { DISCIPLE_OF_LIFE, TURN_UNDEAD } from "./feature-keys.js";
+
+describe("Cleric with Life Domain subclass", () => {
+  it("exposes both base Turn Undead (L2) and subclass Disciple of Life (L3)", () => {
+    const classLevels = [{ classId: "cleric", level: 3 }];
+    expect(hasFeature(classLevels, TURN_UNDEAD)).toBe(true);
+    expect(classHasFeature("cleric", DISCIPLE_OF_LIFE, 3, "life-domain")).toBe(true);
+    expect(classHasFeature("cleric", DISCIPLE_OF_LIFE, 3)).toBe(false);
+  });
+});
 
 describe("Cleric channel divinity", () => {
   it("computes uses by level (2024 rules)", () => {

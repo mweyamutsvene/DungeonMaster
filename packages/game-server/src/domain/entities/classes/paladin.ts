@@ -1,7 +1,8 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { SACRED_WEAPON, OATH_OF_DEVOTION_SPELLS } from "./feature-keys.js";
 
 export interface ChannelDivinityState {
   pool: ResourcePool;
@@ -136,6 +137,22 @@ export const PALADIN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   ],
 };
 
+// ----- Subclasses -----
+
+/**
+ * Oath of Devotion subclass (D&D 5e 2024).
+ * Shell definition — executor for Sacred Weapon Channel Divinity is deferred to Phase 3.
+ */
+export const OathOfDevotionSubclass: SubclassDefinition = {
+  id: "oath-of-devotion",
+  name: "Oath of Devotion",
+  classId: "paladin",
+  features: {
+    [SACRED_WEAPON]: 3,
+    [OATH_OF_DEVOTION_SPELLS]: 3,
+  },
+};
+
 export const Paladin: CharacterClassDefinition = {
   id: "paladin",
   name: "Paladin",
@@ -188,4 +205,5 @@ export const Paladin: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [OathOfDevotionSubclass],
 };

@@ -1,11 +1,14 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type {
   ClassCombatTextProfile,
   DamageReactionDef, DamageReactionInput, DetectedDamageReaction,
 } from "./combat-text-profile.js";
-import { ELDRITCH_INVOCATIONS, PACT_BOON, MYSTIC_ARCANUM_6, MYSTIC_ARCANUM_7, MYSTIC_ARCANUM_8, MYSTIC_ARCANUM_9, ELDRITCH_MASTER } from "./feature-keys.js";
+import {
+  ELDRITCH_INVOCATIONS, PACT_BOON, MYSTIC_ARCANUM_6, MYSTIC_ARCANUM_7, MYSTIC_ARCANUM_8, MYSTIC_ARCANUM_9, ELDRITCH_MASTER,
+  DARK_ONES_BLESSING, FIEND_EXPANDED_SPELLS,
+} from "./feature-keys.js";
 import { proficiencyBonusForLevel } from "../../rules/proficiency.js";
 import { computeSpellSaveDC } from "../../rules/spell-casting.js";
 
@@ -55,6 +58,23 @@ export function resetPactMagicOnShortRest(level: number, state: PactMagicState):
   };
 }
 
+// ----- Subclasses -----
+
+/**
+ * The Fiend subclass (D&D 5e 2024).
+ * Shell definition — executors for Dark One's Blessing (temp HP on kill) and
+ * Fiend-expanded spells are deferred to Phase 3.
+ */
+export const TheFiendSubclass: SubclassDefinition = {
+  id: "the-fiend",
+  name: "The Fiend",
+  classId: "warlock",
+  features: {
+    [DARK_ONES_BLESSING]: 3,
+    [FIEND_EXPANDED_SPELLS]: 3,
+  },
+};
+
 export const Warlock: CharacterClassDefinition = {
   id: "warlock",
   name: "Warlock",
@@ -89,6 +109,7 @@ export const Warlock: CharacterClassDefinition = {
   restRefreshPolicy: [
     { poolKey: "pactMagic", refreshOn: "both", computeMax: (level) => pactMagicSlotsForLevel(level).slots },
   ],
+  subclasses: [TheFiendSubclass],
 };
 
 // ----- Damage Reaction: Hellish Rebuke -----

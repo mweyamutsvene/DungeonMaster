@@ -1,0 +1,172 @@
+{
+  "name": "Sorcerer: Flexible Casting — Sorcery Points ↔ Spell Slot Conversion",
+  "description": "A level 5 Draconic Sorcery (Red) sorcerer exercises Font of Magic's Flexible Casting: converting Sorcery Points into spell slots and back. Tests the D&D 5e 2024 conversion costs: SP→slot costs {L1:2, L2:3, L3:5, L4:6, L5:7}; slot→SP yields SP equal to the spent slot's level. Flow: (R1) cast Fireball to drain one L3 slot; (R2) burn second L3 Fireball to reach 0 L3 slots; (R3) convert 5 SP → L3 slot (Flexible Casting — bonus action); (R4) cast Fireball from the newly-created slot; (R5) convert L2 slot → 2 SP (Flexible Casting reverse). Asserts sorceryPoints and spellSlot_N resource pools after each conversion. MUST FAIL if Flexible Casting action isn't wired — the 'convert' action text will be rejected by the parser, or the slot/SP pools won't mutate.",
+  "setup": {
+    "character": {
+      "name": "Vaelen",
+      "className": "sorcerer",
+      "subclass": "draconic-sorcery-red",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 10, "charisma": 18
+        },
+        "maxHp": 37, "currentHp": 37, "armorClass": 15, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Fireball", "level": 3 }
+        ],
+        "features": [
+          { "name": "Spellcasting", "description": "Cast sorcerer spells using CHA" },
+          { "name": "Font of Magic", "description": "L2: Sorcery Points pool" },
+          { "name": "Flexible Casting", "description": "Use Font of Magic to convert Sorcery Points into spell slots (bonus action) or sacrifice a slot on your turn to regain SP equal to the slot's level." },
+          { "name": "Metamagic", "description": "L2 + L5 metamagic options" }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger", "kind": "melee", "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "High-HP punching bag so combat doesn't end before all conversions are tested.",
+        "name": "Hobgoblin Captain",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": { "strength": 15, "dexterity": 14, "constitution": 14, "intelligence": 12, "wisdom": 10, "charisma": 13 },
+          "maxHp": 400, "hp": 400, "armorClass": 17, "speed": 30,
+          "challengeRating": 3, "experienceValue": 700,
+          "attacks": [
+            { "name": "Longsword", "kind": "melee", "attackBonus": 3, "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 }, "damageType": "slashing" }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 30, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 100, "hp": 100, "armorClass": 15, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            { "name": "Shortbow", "kind": "ranged", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I channel my draconic bloodline" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "20" }, "expect": { "combatStarted": true } },
+
+    {
+      "comment": "Baseline resource state: SP=5/5, L3 slots=2/2.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 5, "max": 5 } }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 } }
+    },
+
+    {
+      "comment": "=== ROUND 1: Fireball to drain first L3 slot. spellSlot_3: 2→1. ===",
+      "type": "action",
+      "input": { "text": "cast Fireball at Hobgoblin Captain" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 2: Second Fireball drains L3 slots to zero. spellSlot_3: 1→0. ===",
+      "type": "action",
+      "input": { "text": "cast Fireball at Hobgoblin Captain" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 0, "max": 2 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 3: FLEXIBLE CASTING — convert 5 SP → one L3 slot (bonus action). Expected state change: sorceryPoints 5→0, spellSlot_3 0→1. FAILS if the action isn't wired — the parser will reject 'convert sorcery points' or the pools won't mutate. ===",
+      "type": "action",
+      "input": { "text": "convert 5 sorcery points to a level 3 spell slot" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Flexible Casting assertion: SP consumed (5→0).",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 0, "max": 5 } }
+    },
+    {
+      "comment": "Flexible Casting assertion: L3 slot restored (0→1).",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+    {
+      "comment": "End round 3 — action economy used SP→slot conversion as bonus action, main action still available for a non-leveled-bonus-spell flow next round.",
+      "type": "endTurn"
+    },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 4: Cast Fireball using the newly-converted L3 slot. spellSlot_3: 1→0. Proves the converted slot is fully functional. ===",
+      "type": "action",
+      "input": { "text": "cast Fireball at Hobgoblin Captain" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 0, "max": 2 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 5: FLEXIBLE CASTING REVERSE — sacrifice one L2 slot to regain 2 SP. Expected: spellSlot_2 3→2, sorceryPoints 0→2. FAILS if slot→SP conversion isn't wired. ===",
+      "type": "action",
+      "input": { "text": "convert a level 2 spell slot to sorcery points" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Slot consumed: spellSlot_2 3→2.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 } }
+    },
+    {
+      "comment": "SP regained: 0→2 (L2 slot yields SP equal to slot level).",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "sorceryPoints", "current": 2, "max": 5 } }
+    }
+  ]
+}

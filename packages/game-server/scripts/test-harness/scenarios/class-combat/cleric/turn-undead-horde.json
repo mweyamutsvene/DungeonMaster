@@ -1,0 +1,436 @@
+{
+  "name": "Cleric C3: Turn Undead (Destroy + Frighten) + Spirit Guardians Zone vs Undead Horde",
+  "description": "L5 Life Cleric tests Turn Undead Channel Divinity (CR 0.25 skeletons destroyed via Destroy Undead, CR 3 Grimwight Frightened) then Spirit Guardians (L3 concentration aura, 3d8 radiant on monster turn starts) over 4 rounds. Covers: CD resource spend, Destroy Undead threshold, Frightened condition, zone spell creation, zone damage tick, concentration tracking, Sacred Flame cantrip fallback.",
+  "setup": {
+    "character": {
+      "name": "Priestess Mara",
+      "className": "Cleric",
+      "subclass": "Life",
+      "level": 5,
+      "position": { "x": 15, "y": 15 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 18,
+          "charisma": 14
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Sacred Flame", "level": 0 },
+          { "name": "Spirit Guardians", "level": 3 },
+          { "name": "Healing Word", "level": 1 },
+          { "name": "Guiding Bolt", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Mace",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 3,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          {
+            "name": "Channel Divinity",
+            "description": "2 uses per short rest at level 5. Used for Turn Undead and other divine effects."
+          },
+          {
+            "name": "Turn Undead",
+            "description": "Channel Divinity: Each Undead within 30 ft must succeed on a Wisdom saving throw or be Frightened for 1 minute."
+          },
+          {
+            "name": "Destroy Undead",
+            "description": "When an Undead of CR 1/2 or lower fails its Turn Undead saving throw, it is destroyed (at level 5)."
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "CR 0.25 skeleton — within 15ft Spirit Guardians aura. WIS mod -1 vs DC 15 → almost certain Turn Undead fail → Destroyed at L5 (threshold CR 0.5).",
+        "name": "Skeleton Minion A",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "CR 0.25 skeleton — within 15ft zone. Same WIS → Destroyed on Turn Undead fail.",
+        "name": "Skeleton Minion B",
+        "position": { "x": 20, "y": 15 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "CR 0.25 skeleton — within 15ft zone. Same WIS → Destroyed on Turn Undead fail.",
+        "name": "Skeleton Minion C",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "CR 3 Grimwight — within 15ft zone. WIS mod +1 vs DC 15 → likely fails Turn Undead → Frightened (not destroyed: CR 3 > 0.5 threshold). Takes Spirit Guardians damage each turn.",
+        "name": "Grimwight",
+        "position": { "x": 15, "y": 20 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 16,
+            "intelligence": 10,
+            "wisdom": 13,
+            "charisma": 15
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Life Drain",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Initiative + Turn Undead ===",
+      "type": "initiate",
+      "actor": "Priestess Mara",
+      "input": { "text": "I call upon divine light to smite the undead horde!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Mara rolls 20 — goes first before all monsters.",
+      "type": "rollResult",
+      "actor": "Priestess Mara",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Queue server-side WIS saves for Turn Undead (4 monsters). Low values (2) ensure all fail. Skeletons WIS mod -1: 2+(-1)=1 vs DC 15 → fail → Destroyed (CR 0.25 ≤ 0.5 at L5). Grimwight WIS mod +1: 2+1=3 vs DC 15 → fail → Frightened (CR 3 > 0.5).",
+      "type": "queueDiceRolls",
+      "input": { "values": [2, 2, 2, 2] }
+    },
+    {
+      "comment": "R1 ACTION: Turn Undead — Channel Divinity. Server resolves AoE WIS saves against all undead within 30ft. All fail (queued dice). 3 skeletons destroyed (Destroy Undead), Grimwight frightened.",
+      "type": "action",
+      "actor": "Priestess Mara",
+      "input": { "text": "turn undead" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Verify CD spent: channelDivinity:cleric 2 → 1. Class hydration auto-creates this pool at 2/2 for L5 cleric.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterResource": { "poolName": "channelDivinity:cleric", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "Skeleton Minion A (CR 0.25): failed save → Destroyed by Destroy Undead (CR ≤ 0.5 at L5). HP → 0.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Minion A", "exact": 0 }
+      }
+    },
+    {
+      "comment": "Skeleton Minion B destroyed same way.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Minion B", "exact": 0 }
+      }
+    },
+    {
+      "comment": "Skeleton Minion C destroyed same way.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Skeleton Minion C", "exact": 0 }
+      }
+    },
+    {
+      "comment": "Grimwight (CR 3): failed save → Frightened (not destroyed, CR > 0.5). Should have Frightened condition.",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Grimwight",
+          "hasConditions": ["Frightened"]
+        }
+      }
+    },
+    {
+      "comment": "Queue Grimwight's R1 turn action — Frightened: can't willingly approach Mara. Just end turn.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Mara ends R1. Grimwight takes its turn (queued endTurn).",
+      "type": "endTurn",
+      "actor": "Priestess Mara"
+    },
+    {
+      "comment": "Wait for R2 Mara turn. Grimwight acted (endTurn) between rounds.",
+      "type": "waitForTurn",
+      "actor": "Priestess Mara",
+      "timeout": 15000
+    },
+    {
+      "comment": "Mara survived monster round (only Grimwight remains, was Frightened and ended turn).",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterHp": { "min": 85, "max": 100 }
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Cast Spirit Guardians (L3 concentration zone spell, 15ft aura) ===",
+      "type": "action",
+      "actor": "Priestess Mara",
+      "input": { "text": "cast Spirit Guardians" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Verify concentration switches to Spirit Guardians.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterConcentration": "Spirit Guardians"
+      }
+    },
+    {
+      "comment": "Verify L3 slot consumed: 2 → 1.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "Queue Grimwight R2 turn. At START of its turn, Spirit Guardians triggers (3d8 radiant, WIS DC 15 save for half). Grimwight is within 15ft (at y=20, Mara at y=15 → 5 ft). Let it attack as default behavior.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Priestess Mara", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End Mara R2. Grimwight starts its turn → Spirit Guardians zone damage fires (3d8 radiant, WIS save). Then Grimwight attacks.",
+      "type": "endTurn",
+      "actor": "Priestess Mara"
+    },
+    {
+      "comment": "Wait for R3 Mara turn.",
+      "type": "waitForTurn",
+      "actor": "Priestess Mara",
+      "timeout": 15000
+    },
+    {
+      "comment": "Verify Spirit Guardians zone damage applied to Grimwight. 3d8 radiant = 3–24 damage. Grimwight started at 100 HP — should be reduced (exact depends on WIS save and dice).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Grimwight", "min": 0, "max": 97 }
+      }
+    },
+    {
+      "comment": "Verify Mara HP reasonable (Grimwight may have hit during R2).",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterHp": { "min": 60, "max": 100 }
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Sacred Flame (cantrip) — maintain Spirit Guardians concentration ===",
+      "type": "action",
+      "actor": "Priestess Mara",
+      "input": { "text": "cast Sacred Flame at Grimwight" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Sacred Flame consumes no spell slot (cantrip). L1 slots unchanged from end of R2.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 }
+      }
+    },
+    {
+      "comment": "Concentration on Spirit Guardians must still be active after Sacred Flame (not concentration spell).",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterConcentration": "Spirit Guardians"
+      }
+    },
+    {
+      "comment": "Queue Grimwight R3 turn — zone damage fires again at turn start.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Priestess Mara", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Mara ends R3.",
+      "type": "endTurn",
+      "actor": "Priestess Mara"
+    },
+    {
+      "comment": "Wait for R4 Mara turn. Grimwight took another zone damage tick in R3.",
+      "type": "waitForTurn",
+      "actor": "Priestess Mara",
+      "timeout": 15000
+    },
+    {
+      "comment": "=== ROUND 4: Final assertions — CD spent, slot spent, concentration active ===",
+      "type": "action",
+      "actor": "Priestess Mara",
+      "input": { "text": "cast Sacred Flame at Grimwight" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Final: channelDivinity:cleric still at 1 (only used once in R1). Recharges on short rest.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterResource": { "poolName": "channelDivinity:cleric", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "Final: L3 slot still at 1 (Spirit Guardians cost 1 slot in R2).",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "Final: Spirit Guardians concentration still active (unless broken by sustained damage). Grimwight has taken at least 2 rounds of zone damage + Sacred Flame hits.",
+      "type": "assertState",
+      "actor": "Priestess Mara",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

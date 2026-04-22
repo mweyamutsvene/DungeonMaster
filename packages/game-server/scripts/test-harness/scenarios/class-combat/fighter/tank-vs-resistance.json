@@ -1,0 +1,444 @@
+{
+  "name": "Fighter: Tank vs Resistance — High AC + Zombie Resistance + Ogre Heavy Damage",
+  "description": "A level 5 Champion Fighter (AC 20 from Defense Fighting Style) uses a slashing Longsword to bypass Zombie bludgeoning resistance, survives Cave Ogre Greatclub hits, and unleashes Action Surge for a burst round. Tests: (1) slashing damage bypasses bludgeoning resistance on Zombie, (2) AC 20 limits incoming damage from lower-accuracy enemies, (3) Extra Attack every round for sustained pressure, (4) Action Surge burst on round 4.",
+  "setup": {
+    "character": {
+      "name": "Sir Reginald",
+      "className": "Fighter",
+      "subclass": "Champion",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 12,
+          "constitution": 18,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 120,
+        "currentHp": 120,
+        "armorClass": 20,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Action Surge", "description": "Take an additional action (1/short rest)" },
+          { "name": "Second Wind", "description": "Regain 1d10 + Fighter level HP as a bonus action (1/short rest)" },
+          { "name": "Defense Fighting Style", "description": "+1 AC while wearing armor (baked into armorClass 20)" }
+        ],
+        "resourcePools": [
+          { "name": "actionSurge", "current": 1, "max": 1 },
+          { "name": "secondWind", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Rotting Zombie",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 6,
+            "constitution": 16,
+            "intelligence": 3,
+            "wisdom": 6,
+            "charisma": 5
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 8,
+          "speed": 20,
+          "challengeRating": 0.25,
+          "damageResistances": ["bludgeoning"],
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Cave Ogre",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 120,
+          "hp": 120,
+          "armorClass": 11,
+          "speed": 30,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Open combat — attack Rotting Zombie with slashing Longsword (bypasses bludgeoning resistance) ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Rotting Zombie" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative roll — Sir Reginald acts first",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+
+    {
+      "comment": "R1 — Extra Attack 1/2: Attack Rotting Zombie (slashing bypasses bludgeoning resistance)",
+      "type": "action",
+      "input": { "text": "attack Rotting Zombie with Longsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 7 = 19 vs AC 8 → hit. Zombie's bludgeoning resistance does NOT apply — this is slashing damage.",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 slashing damage (full, not halved — slashing bypasses bludgeoning resistance). Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Extra Attack 2/2: 14 + 7 = 21 vs AC 8 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 4 = 9 slashing damage (full). Total R1: 19 slashing damage → Zombie ~81 HP.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R1 checkpoint: Zombie took ~19 slashing damage (resistance did NOT apply). Resources untouched.",
+      "expect": {
+        "monsterHp": { "name": "Rotting Zombie", "min": 75, "max": 100 },
+        "characterResource": { "poolName": "actionSurge", "current": 1, "max": 1 },
+        "characterResource2": { "poolName": "secondWind", "current": 1, "max": 1 }
+      }
+    },
+
+    {
+      "comment": "Queue monster turns: Zombie Slam (+3 vs AC 20 — needs 17+ to hit), Ogre Greatclub (+6 vs AC 20 — needs 14+ to hit)",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Slam", "endTurn": true },
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R1 player turn — monsters attack (AC 20 deflects most low rolls)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster turns"
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R1 aftermath: AC 20 limits incoming damage (Zombie +3 needs 17+, Ogre +6 needs 14+ to hit)",
+      "expect": {
+        "characterHp": { "min": 100, "max": 120 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Continue pressing Rotting Zombie — Extra Attack again ===",
+      "type": "action",
+      "input": { "text": "attack Rotting Zombie with Longsword" },
+      "comment": "R2 — Extra Attack 1/2: sustained slashing damage on Zombie",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 8 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 4 = 11 slashing. Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Extra Attack 2/2: 13 + 7 = 20 vs AC 8 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "4 + 4 = 8 slashing. Total R2: 19 more damage → Zombie ~62 HP after 2 rounds.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R2 checkpoint: Zombie has absorbed ~38 total slashing damage (no resistance applied)",
+      "expect": {
+        "monsterHp": { "name": "Rotting Zombie", "min": 40, "max": 80 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R2 turns",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Slam", "endTurn": true },
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R2 player turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster R2 turns"
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R2 aftermath: Sir Reginald may have absorbed some Ogre hits, but AC 20 reduces frequency",
+      "expect": {
+        "characterHp": { "min": 85, "max": 120 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 3: Switch targets — attack Cave Ogre to spread pressure ===",
+      "type": "action",
+      "input": { "text": "attack Cave Ogre with Longsword" },
+      "comment": "R3 — Extra Attack 1/2: target switches to the high-damage Ogre",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 7 = 19 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 slashing. Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "Extra Attack 2/2: 15 + 7 = 22 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 4 = 9 slashing. Total R3: 19 slashing to Ogre → Ogre ~101 HP.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R3 checkpoint: Cave Ogre took opening damage, Zombie still wounded from earlier rounds",
+      "expect": {
+        "monsterHp": { "name": "Cave Ogre", "min": 85, "max": 115 },
+        "monsterHp2": { "name": "Rotting Zombie", "min": 40, "max": 80 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R3 turns",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Slam", "endTurn": true },
+          { "action": "attack", "target": "Sir Reginald", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R3 player turn — Ogre Greatclub hits can hurt if they land (2d8+4 bludgeoning)"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster R3 turns"
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R3 aftermath: Sir Reginald survived; Ogre Greatclub does 12 avg damage per hit when it connects (needs 14+)",
+      "expect": {
+        "characterHp": { "min": 65, "max": 120 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 4: Action Surge burst — Attack twice + Action Surge + Attack twice = 4 total attacks on Cave Ogre ===",
+      "type": "action",
+      "input": { "text": "attack Cave Ogre with Longsword" },
+      "comment": "R4 — First action: Extra Attack 1/2 on Cave Ogre",
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 7 = 21 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 4 = 10 slashing. Extra Attack chains to attack 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "Extra Attack 2/2: 11 + 7 = 18 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 4 = 11 slashing. First action complete (2 attacks). Now use Action Surge.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R4 — Use Action Surge: grants a full second action this turn (resets action economy)",
+      "type": "action",
+      "input": { "text": "use action surge" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Action Surge spent — confirmed resource depletion",
+      "expect": {
+        "characterResource": { "poolName": "actionSurge", "current": 0, "max": 1 }
+      }
+    },
+
+    {
+      "comment": "R4 — Second action (Action Surge): Extra Attack 3/4 on Cave Ogre",
+      "type": "action",
+      "input": { "text": "attack Cave Ogre with Longsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "comment": "16 + 7 = 23 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "8 + 4 = 12 slashing. Extra Attack chains to attack 4/4.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Extra Attack 4/4: 13 + 7 = 20 vs AC 11 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 4 = 9 slashing. Total R4: 42 slashing to Ogre across all 4 attacks.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R4 final checkpoint: Action Surge depleted, Second Wind untouched, Cave Ogre heavily damaged from burst round",
+      "expect": {
+        "monsterHp": { "name": "Cave Ogre", "min": 40, "max": 90 },
+        "characterResource": { "poolName": "actionSurge", "current": 0, "max": 1 },
+        "characterResource2": { "poolName": "secondWind", "current": 1, "max": 1 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "type": "endTurn",
+      "comment": "End R4 — scenario complete. Fighter demonstrated: slashing bypass of Zombie resistance, AC 20 tank survivability, sustained Extra Attack pressure, Action Surge burst."
+    }
+  ]
+}

@@ -451,6 +451,17 @@ export class AiTurnOrchestrator {
         break; // End the turn — main action was already spent before the reaction
       }
 
+      // Check for deferred turn end (stored when attack was paused by a reaction
+      // and the decision had endTurn: true — prevents consuming the next
+      // combatant's queued decision on resume)
+      if ((currentRes as any).turnShouldEndAfterReaction === true) {
+        await this.combat.updateCombatantState(currentAiCombatant.id, {
+          resources: { ...currentRes, turnShouldEndAfterReaction: undefined } as any,
+        });
+        this.aiLog("[AiTurnOrchestrator] Turn ending after reaction resolved (deferred endTurn)");
+        break;
+      }
+
       // Build combat context for LLM
       const context = await this.contextBuilder.build(
         entityData,
@@ -582,6 +593,15 @@ export class AiTurnOrchestrator {
 
       // If action is awaiting player input (e.g., player OA roll), pause AI turn
       if (result.data?.awaitingPlayerInput) {
+        // If the decision wanted to end the turn, store a flag so when the turn
+        // resumes after the reaction resolves, we immediately end instead of
+        // consuming the next queued decision (which belongs to the next combatant).
+        if (decision.endTurn !== false) {
+          const currentRes = normalizeResources(currentAiCombatant.resources);
+          await this.combat.updateCombatantState(aiCombatantId, {
+            resources: { ...currentRes, turnShouldEndAfterReaction: true } as any,
+          });
+        }
         this.aiLog("[AiTurnOrchestrator] Pausing turn - awaiting player input for opportunity attack");
         return false; // Do NOT call nextTurn() - turn pauses until player responds
       }

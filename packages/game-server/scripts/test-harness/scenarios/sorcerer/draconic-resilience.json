@@ -1,0 +1,165 @@
+{
+  "name": "Sorcerer: Draconic Resilience — Unarmored AC + HP Bonus + Elemental Affinity",
+  "description": "A level 5 Draconic Sorcery (Red) sorcerer fights an Ogre and a Bandit with NO armor equipped. Tests: (1) Draconic Resilience unarmored AC = 13 + DEX mod (should be 15 with DEX 14), (2) Draconic Resilience +1 HP per sorcerer level bonus (at L5 that's +5 on top of base HP), (3) Elemental Affinity adding CHA to fire cantrip damage. The character sheet INTENTIONALLY sets armorClass=10 (bare unarmored default) so that the scenario fails if Draconic Resilience doesn't override it to 15. The bandit's attack roll of 11+3=14 hits AC 10 but misses AC 15. If Draconic Resilience is not wired, the bandit WILL land the hit and the 'character unharmed by bandit' assertion will fail. MaxHp is also set to 32 (base L5 sorcerer 6 + 4d6-avg + CON 2×5 ≈ 32) so that an assertion of maxHp=37 fails when Draconic Resilience's +1/level isn't applied.",
+  "setup": {
+    "character": {
+      "name": "Ignis Kaldros",
+      "className": "sorcerer",
+      "subclass": "draconic-sorcery-red",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 10, "charisma": 18
+        },
+        "maxHp": 32, "currentHp": 32,
+        "armorClass": 10,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Magic Missile", "level": 1 }
+        ],
+        "features": [
+          { "name": "Spellcasting", "description": "Cast sorcerer spells using CHA" },
+          { "name": "Draconic Resilience", "description": "Your hit point maximum increases by 1 per sorcerer level. Also, if you aren't wearing armor, your AC equals 13 + your Dexterity modifier." },
+          { "name": "Draconic Ancestry", "description": "Red Dragon — fire affinity" },
+          { "name": "Elemental Affinity", "description": "L5: add your CHA modifier to one instance of fire damage you deal per turn." }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger", "kind": "melee", "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+            "damageType": "piercing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Bandit (MM): HP 11, AC 12, Scimitar/Shortbow. Shortbow +3 to hit, 1d6+1 piercing. Used to verify AC — a roll of 11 yields 14, which MISSES AC 15 (Draconic Resilience) but HITS AC 10 (sheet default).",
+        "name": "Bandit",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": { "strength": 11, "dexterity": 12, "constitution": 12, "intelligence": 10, "wisdom": 10, "charisma": 10 },
+          "maxHp": 11, "hp": 11, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.125, "experienceValue": 25,
+          "attacks": [
+            { "name": "Shortbow", "kind": "ranged", "attackBonus": 3, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 }, "damageType": "piercing" }
+          ]
+        }
+      },
+      {
+        "comment": "Ogre (MM): HP 59, Greatclub +6 to hit, 2d8+4 bludgeoning. Used to apply known damage that character survives thanks to Draconic Resilience HP bonus.",
+        "name": "Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": { "strength": 19, "dexterity": 8, "constitution": 16, "intelligence": 5, "wisdom": 7, "charisma": 7 },
+          "maxHp": 59, "hp": 59, "armorClass": 11, "speed": 30,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            { "name": "Greatclub", "kind": "melee", "attackBonus": 6, "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 }, "damageType": "bludgeoning" }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== PRE-COMBAT: Verify Draconic Resilience applied HP bonus. maxHp should be 32 + 5 (sorcerer level 5) = 37. If feature not wired, maxHp stays at the sheet-passed 32. ===",
+      "type": "initiate",
+      "input": { "text": "I brace against the ogre's approach" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "combatStarted": true } },
+
+    {
+      "comment": "Draconic Resilience assertion: character maxHp must be 37 (sheet 32 + feature +5). This FAILS with current state because the feature is a shell (phase 3.7 pending).",
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 37, "max": 37 } }
+    },
+
+    {
+      "comment": "=== ROUND 1: Script bandit to shoot player with a roll that only hits if AC is still 10. Roll 11 + 3 attack bonus = 14. Misses AC 15 (Draconic Resilience) but hits AC 10 (sheet value). ===",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Ignis Kaldros", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Ignis Kaldros", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+
+    {
+      "comment": "Player casts Burning Hands L1 on both enemies. 3d6 fire, DEX save DC 15, 15ft cone. Server auto-resolves saves.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Ogre" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "L1 slot decrement: 4→3.",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== AFTER R1 MONSTER TURN: Assert bandit MISSED (because AC=15 via Draconic Resilience) and only the ogre landed. Ogre greatclub 2d8+4 (avg 13, max 20). Character HP: 37 - (at most 20 ogre dmg) >= 17, and must NOT be below 17 which would imply bandit also hit (adding 2-7 more damage). ===",
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 17, "max": 37 } }
+    },
+
+    {
+      "comment": "=== ROUND 2: Fire Bolt cantrip at the Bandit to finish it. L5 Fire Bolt = 2d10. With Elemental Affinity, +CHA (4) fire damage. Bandit has 11 HP. Player submits damage roll of 8 → without EA = 8 (bandit survives at 3 HP). With EA = 12 (bandit dies). ===",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Ignis Kaldros", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Ignis Kaldros", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Bandit" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt attack: 15 + 7 = 22 vs AC 12 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 8 on 2d10. Without Elemental Affinity = 8 damage (bandit at 3 HP). With Elemental Affinity = 12 damage (bandit dies).",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Elemental Affinity assertion: Bandit must be DEAD (HP exactly 0). Fails if feature not wired, since 8 damage to 11 HP leaves bandit alive at 3 HP.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Bandit", "exact": 0 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== END: Character must still be alive, proving HP bonus kept them standing through 2 rounds of ogre beatings. If Draconic Resilience HP bonus missing, the ogre's two hits may drop character to 0 or lower. ===",
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 1 }, "combatStatus": "Active" }
+    }
+  ]
+}

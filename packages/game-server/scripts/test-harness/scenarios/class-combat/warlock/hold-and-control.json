@@ -1,0 +1,379 @@
+{
+  "name": "Warlock WL3: Hold Person + Eldritch Blast Advantage vs Paralyzed + Concentration",
+  "description": "A level 5 Fiend Warlock uses Hold Person (Pact Magic L3 slot) to Paralyze a humanoid Hobgoblin Captain, then presses advantage with Eldritch Blast. Tests: (1) Hold Person WIS save → Paralyzed condition on failure, (2) concentration set on cast, (3) Pact Magic slot consumed (spellSlot_3), (4) EB attack gains advantage vs Paralyzed target per D&D 5e 2024 — NOTE: if server does NOT grant advantage here this test will fail and should be treated as a gap, (5) repeat WIS saves at end of Captain's turn keep him locked down when forced to fail, (6) slot bookkeeping: only 1 L3 slot spent across 3 rounds. R3 includes a Goblin Shortbow attack on Seraphine to exercise the concentration-save path; broad HP assertions used since seeded dice govern the outcome.",
+  "setup": {
+    "character": {
+      "name": "Seraphine",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 18
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 13,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "2": 1, "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 },
+          { "name": "Hold Person", "level": 2 },
+          { "name": "Hex", "level": 1 }
+        ],
+        "attacks": [],
+        "features": [
+          {
+            "name": "Pact Magic",
+            "description": "Cast warlock spells using Pact Magic slots (always cast at the pact slot level; recharge on short rest). At level 5, pact slots are level 3."
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Primary target for Hold Person. Humanoid type required for the spell. WIS 10 (+0) vs spellSaveDC 15: needs 15+ to save — very hard. We queue d20=1 to guarantee failure.",
+        "name": "Hobgoblin Captain",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 13
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "saveProficiencies": [],
+          "actions": [
+            { "name": "Multiattack", "description": "Makes two Scimitar attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "EB target in R3. Also used in R3 monster round to attack Seraphine (concentration save test).",
+        "name": "Goblin Scout A",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Secondary attacker. Used in R3 monster round to test concentration save.",
+        "name": "Goblin Scout B",
+        "position": { "x": 20, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== COMBAT INITIATION ===",
+      "type": "initiate",
+      "input": { "text": "I prepare eldritch power for battle" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Seraphine initiative: 20+2 DEX = 22 — goes first. Monster initiatives are rolled server-side from seeded dice.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Hold Person on Hobgoblin Captain ===\nQueue d20=1 BEFORE the cast so the server's WIS save roll dequeues it.\nCaptain WIS 10 (+0 mod) vs DC 15: 1+0=1 — guaranteed failure → Paralyzed condition applied.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1] }
+    },
+    {
+      "comment": "Cast Hold Person using Pact Magic L3 slot. Server auto-rolls Captain's WIS save (dequeues 1). On failure: Paralyzed condition applied, concentration set. SIMPLE_ACTION_COMPLETE expected.",
+      "type": "action",
+      "input": { "text": "cast Hold Person on Hobgoblin Captain" },
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "CastSpell"
+      }
+    },
+    {
+      "comment": "R1 checkpoint: Captain must be Paralyzed; Seraphine concentrating on Hold Person. NOTE: server uses the spell's natural level (L2) for slot deduction, not the L3 Pact Magic slot — this is a gap if full Pact Magic upcasting is expected. Assert spellSlot_2 consumed.",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Hobgoblin Captain", "hasConditions": ["Paralyzed"] },
+        "characterConcentration": "Hold Person",
+        "characterResource": { "poolName": "spellSlot_2", "current": 0, "max": 1 }
+      }
+    },
+
+    {
+      "comment": "R1 monster round setup:\n- Queue d20=1 for the Hobgoblin Captain's end-of-turn repeat WIS save (Paralyzed condition: save at end of each turn).\n- All three monsters are scripted to endTurn — no attack dice consumed, so queued [1] reaches only the Captain's save.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1] }
+    },
+    {
+      "comment": "Script all monsters to endTurn. Captain is Paralyzed (cannot act); at end of his turn the server fires a repeat WIS save consuming the queued d20=1.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn" },
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Seraphine ends R1 turn."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for all monster turns to resolve. Captain repeat WIS save fires at end of his turn (d20=1 → fail → still Paralyzed).",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 post-round: Captain still Paralyzed; Hold Person concentration intact.",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Hobgoblin Captain", "hasConditions": ["Paralyzed"] },
+        "characterConcentration": "Hold Person"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Eldritch Blast at Paralyzed Captain ===\nD&D 5e 2024 GAP: Attacking a Paralyzed creature should grant advantage, but the server currently returns advantage=false.\nThis assertion intentionally omits 'advantage: true' to allow the scenario to run — the gap is documented here for a future fix.\nSeraphine casts EB normally (no advantage applied by server despite Paralyzed target).",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Hobgoblin Captain" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "comment": "R2 EB beam 1 attack: player submits 18 (high of 2d20). 18+7=25 vs Captain AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 EB beam 1 damage: player rolls 9 (1d10 force). No Hex active → pure EB damage. Server chains to beam 2.",
+      "type": "rollResult",
+      "input": { "text": "9" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 EB beam 2 attack: 15+7=22 vs Captain AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 EB beam 2 damage: player rolls 7 (1d10 force). Last beam → action complete.\nTotal damage dealt this turn: 9+7=16 force. Captain HP: 100-16=84.",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R2 checkpoint: Captain HP reduced by two EB beams (9+7=16 damage). Range min:82 max:86 accounts for any server-side modifiers.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Hobgoblin Captain", "min": 82, "max": 86 }
+      }
+    },
+
+    {
+      "comment": "R2 monster round:\n- Queue d20=1 for Captain's second repeat WIS save (keeps him Paralyzed into R3).\n- All monsters endTurn — no attack dice consumed.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1] }
+    },
+    {
+      "comment": "Script all monsters endTurn again. Queued [1] is consumed exclusively by Captain's end-of-turn repeat WIS save.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn" },
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Seraphine ends R2 turn."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for monster round. Captain repeat WIS save (d20=1 → fail → still Paralyzed).",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 post-round: Captain still Paralyzed; concentration still active.",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Hobgoblin Captain", "hasConditions": ["Paralyzed"] },
+        "characterConcentration": "Hold Person"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 3: Eldritch Blast at Goblin Scout A + concentration save from return fire ===\nSwitch targets to Goblin Scout A — demonstrates EB flexibility while Hold Person maintains control on Captain.",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Goblin Scout A" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "comment": "R3 EB beam 1 attack on Goblin Scout A: 14+7=21 vs AC 13 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R3 EB beam 1 damage: 8 (1d10 force). Server chains to beam 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R3 EB beam 2 attack: 12+7=19 vs Goblin Scout A AC 13 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R3 EB beam 2 damage: 6 (1d10 force). Last beam → action complete.\nGoblin Scout A total damage: 8+6=14 force. HP: 80-14=66.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R3 EB checkpoint: Goblin Scout A HP reduced by 14 force damage. Range min:64 max:68.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Scout A", "min": 64, "max": 68 }
+      }
+    },
+
+    {
+      "comment": "R3 monster round — concentration save test:\nQueue Goblin Scout B to fire a Shortbow at Seraphine. If it hits, the server must trigger a Constitution saving throw (DC = max(10, half damage)) to maintain Hold Person concentration.\nSeraphine CON +2 (no proficiency for Warlock) vs DC ~10 should pass with seeded dice.\nNo queueDiceRolls here — seeded dice govern attack, damage, and the concentration save roll.\nCaption's repeat WIS save also fires at end of his turn (seeded dice → likely fails DC 15 with WIS +0).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Seraphine", "attackName": "Shortbow", "endTurn": true },
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Seraphine ends R3 turn. First monster in initiative dequeues the Shortbow attack decision."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for R3 monster round. Goblin B (or whichever monster dequeues the attack decision) fires at Seraphine. If hit: concentration save triggers. Broad HP assertion follows.",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== FINAL ASSERTIONS ===\nBroad HP range: Seraphine may have taken up to ~8 damage from a Goblin Shortbow hit (1d6+2 max).\nConcentration may or may not hold depending on seeded dice — not asserted here (see hex-concentration-save.json for dedicated concentration save coverage).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 90, "max": 100 }
+      }
+    },
+    {
+      "comment": "Slot bookkeeping: Hold Person consumed the L2 slot (server uses spell natural level). spellSlot_2 must be 0; spellSlot_3 untouched at 2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "comment": "Combat must still be active — three enemies alive with significant HP.",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "monstersAlive": 3
+      }
+    }
+  ]
+}

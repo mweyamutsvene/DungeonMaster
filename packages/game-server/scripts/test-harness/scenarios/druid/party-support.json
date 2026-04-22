@@ -1,0 +1,424 @@
+{
+  "name": "Druid: Party Support — Pass Without Trace + Call Lightning + Hunter's Mark + Colossus Slayer",
+  "description": "A level 5 Druid (Circle of the Land — Grassland) supports a Fighter L3 and Ranger L3 (Hunter) against an Ogre and a Bandit. Tests Pass Without Trace (L2 concentration, +10 Stealth aura within 30ft), Produce Flame cantrip attack, concentration switch from Pass Without Trace → Call Lightning (L3, 4d10 lightning, DEX save half, re-invoke as action on subsequent turns for same slot), Ranger Hunter's Mark rider damage, Hunter subclass Colossus Slayer (once/turn bonus 1d8 on a wounded target), Fighter Extra Attack, and Healing Word (2d4+WIS baseline 2024 per stored repo memory). EXPECTED FAILURES (RAW 2024): Pass Without Trace aura stat boost not implemented, Hunter's Mark rider likely not implemented, Colossus Slayer not implemented, Call Lightning missing from catalog and its re-invoke action mechanic absent. Scenario drives Phase-1 Druid support implementation.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Druid L5 Circle of the Land (Grassland). Party support caster.",
+        "name": "Keyleth",
+        "className": "Druid",
+        "subclass": "circle-of-the-land-grassland",
+        "level": 5,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 10
+          },
+          "maxHp": 40, "currentHp": 40, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Produce Flame", "level": 0 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Pass Without Trace", "level": 2 },
+            { "name": "Call Lightning", "level": 3 }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee", "range": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Fighter L3. Has Extra Attack at L5 per prompt — NOTE: prompt says Fighter L3 + Extra Attack (L5). Extra Attack actually requires Fighter L5. Keeping at L3 per prompt; assertions won't rely on Extra Attack chaining. If 2-attack flow works at L3, the feature is incorrectly gated.",
+        "name": "Marcus",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 30, "currentHp": 30, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Ranger L3 Hunter subclass. Colossus Slayer feature: once/turn, bonus 1d8 damage against a creature that has taken damage (is wounded).",
+        "name": "Lyra",
+        "className": "Ranger",
+        "subclass": "Hunter",
+        "level": 3,
+        "position": { "x": 6, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 16, "constitution": 14,
+            "intelligence": 10, "wisdom": 14, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 12,
+          "spellAttackBonus": 4,
+          "spellSlots": { "1": 3 },
+          "preparedSpells": [
+            { "name": "Hunter's Mark", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Longbow", "kind": "ranged", "range": "150/600",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ],
+          "features": [
+            { "name": "Colossus Slayer", "description": "Hunter's Prey: Once per turn, deal +1d8 damage to a target below its hit point max." }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Ogre",
+        "position": { "x": 18, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 59, "hp": 59, "armorClass": 11, "speed": 40,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit",
+        "position": { "x": 20, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 11, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 11, "hp": 11, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.125,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Druid opens with Pass Without Trace + Produce Flame cantrip ===",
+      "type": "initiate",
+      "actor": "Keyleth",
+      "input": { "text": "I call on nature to hide my allies" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Druid initiative: 20 (all PCs auto-initiative; high roll guarantees party goes first).",
+      "type": "rollResult",
+      "actor": "Keyleth",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1 Druid action: Cast Pass Without Trace (L2 concentration). +10 Stealth aura 30ft.",
+      "type": "action",
+      "actor": "Keyleth",
+      "input": { "text": "cast Pass Without Trace" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L2 slot consumed: 3 -> 2.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "Verify concentration on Pass Without Trace.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": { "characterConcentration": "Pass Without Trace" }
+    },
+    {
+      "comment": "NOTE: Pass Without Trace in 5e RAW is an action spell (not bonus), so no follow-up leveled bonus possible. Produce Flame cantrip is action-tier. Two-spell rule blocks leveled+leveled, not leveled action + cantrip. But since Pass Without Trace consumed Keyleth's action, she can only move/bonus now. End turn.",
+      "type": "endTurn",
+      "actor": "Keyleth"
+    },
+    {
+      "comment": "Fighter R1: Move to Ogre, attack with Longsword.",
+      "type": "action",
+      "actor": "Marcus",
+      "input": { "text": "I attack the Ogre with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 17 vs AC 11 = hit.",
+      "type": "rollResult",
+      "actor": "Marcus",
+      "input": { "text": "17" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 8 (1d8+3).",
+      "type": "rollResult",
+      "actor": "Marcus",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "End Fighter R1.",
+      "type": "endTurn",
+      "actor": "Marcus"
+    },
+    {
+      "comment": "Ranger R1: Cast Hunter's Mark on Ogre (bonus action, L1). Then attack with Longbow.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "cast Hunter's Mark on the Ogre" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify Ranger L1 slot consumed: 3 -> 2.",
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "Ranger concentration on Hunter's Mark.",
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": { "characterConcentration": "Hunter's Mark" }
+    },
+    {
+      "comment": "Ranger action: Longbow attack on wounded Ogre. Colossus Slayer should add 1d8 (wounded target, once/turn). Hunter's Mark adds 1d6 on hit.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "I attack the Ogre with my Longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 16 vs AC 11 = hit.",
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 9 base (1d8+3). Hunter's Mark rider (1d6) + Colossus Slayer rider (1d8) should auto-apply.",
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "9" }
+    },
+    {
+      "comment": "Ogre HP: 59 - 8 (Fighter) - 9 base - Hunter's Mark 1-6 - Colossus Slayer 1-8 = 28-37 if all riders applied; 42 if none applied.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "min": 28, "max": 42 }
+      }
+    },
+    {
+      "comment": "End Ranger R1.",
+      "type": "endTurn",
+      "actor": "Lyra"
+    },
+    {
+      "comment": "Queue monster R1: Ogre moves+attacks Fighter, Bandit attacks Fighter.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Marcus", "desiredRange": 5, "endTurn": false },
+          { "action": "attack", "target": "Marcus", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Marcus", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Druid concentration switch to Call Lightning (L3), re-invoke next round ===",
+      "type": "waitForTurn",
+      "actor": "Keyleth",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Druid: Cast Call Lightning (L3 concentration). 4d10 lightning, DEX save half. Drops Pass Without Trace.",
+      "type": "action",
+      "actor": "Keyleth",
+      "input": { "text": "cast Call Lightning on the Ogre" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L3 slot consumed: 2 -> 1.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "Concentration switched to Call Lightning.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": { "characterConcentration": "Call Lightning" }
+    },
+    {
+      "comment": "End druid R2.",
+      "type": "endTurn",
+      "actor": "Keyleth"
+    },
+    {
+      "comment": "Fighter R2: attack Ogre again.",
+      "type": "waitForTurn",
+      "actor": "Marcus",
+      "timeout": 15000
+    },
+    {
+      "comment": "Fighter attacks Ogre.",
+      "type": "action",
+      "actor": "Marcus",
+      "input": { "text": "I attack the Ogre with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 18 = hit.",
+      "type": "rollResult",
+      "actor": "Marcus",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 9.",
+      "type": "rollResult",
+      "actor": "Marcus",
+      "input": { "text": "9" }
+    },
+    {
+      "comment": "End Fighter R2.",
+      "type": "endTurn",
+      "actor": "Marcus"
+    },
+    {
+      "comment": "Ranger R2: Longbow attack on Ogre again (Hunter's Mark rider persists from R1).",
+      "type": "waitForTurn",
+      "actor": "Lyra",
+      "timeout": 15000
+    },
+    {
+      "comment": "Ranger attacks Ogre.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "I attack the Ogre with my Longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 19 = hit.",
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "19" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 8 base + Hunter's Mark 1d6 + Colossus Slayer 1d8 (once/turn).",
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "End Ranger R2.",
+      "type": "endTurn",
+      "actor": "Lyra"
+    },
+    {
+      "comment": "Queue monster R2: Ogre attacks Fighter, Bandit attacks Fighter.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Marcus", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Marcus", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Druid RE-INVOKES Call Lightning as an ACTION (no new slot) ===",
+      "type": "waitForTurn",
+      "actor": "Keyleth",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 Druid: Re-invoke Call Lightning (action, same spell, no slot consumed per RAW 2024).",
+      "type": "action",
+      "actor": "Keyleth",
+      "input": { "text": "call lightning on the Ogre" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L3 slot NOT consumed again: still 1/2.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "R3 Druid bonus: Healing Word on Marcus. RAW 2024: 2d4 + WIS.",
+      "type": "action",
+      "actor": "Keyleth",
+      "input": { "text": "cast Healing Word on Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed by Healing Word: 4 -> 3.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "End druid R3 — concentration still on Call Lightning.",
+      "type": "assertState",
+      "actor": "Keyleth",
+      "expect": { "characterConcentration": "Call Lightning" }
+    },
+    {
+      "comment": "Final turn end.",
+      "type": "endTurn",
+      "actor": "Keyleth"
+    }
+  ]
+}

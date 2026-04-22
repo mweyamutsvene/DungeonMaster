@@ -299,6 +299,7 @@ export class MemoryCombatRepository implements ICombatRepository {
       return a.id.localeCompare(b.id);
     });
 
+
     // Resolve relations if entity repos are linked (mirrors Prisma include)
     if (this.characterRepo || this.monsterRepo || this.npcRepo) {
       const results: CombatantStateRecord[] = [];

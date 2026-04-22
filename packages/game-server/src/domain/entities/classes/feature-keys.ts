@@ -121,7 +121,42 @@ export const ELDRITCH_MASTER = "eldritch-master";
 
 // ── Druid ───────────────────────────────────────────────────
 export const WILD_SHAPE = "wild-shape";
+// Circle of the Land subclass
+export const CIRCLE_SPELLS = "circle-spells";
+export const LANDS_AID = "lands-aid";
 
 // ── Sorcerer ────────────────────────────────────────────────
 export const SORCERY_POINTS = "sorcery-points";
 export const METAMAGIC = "metamagic";
+export const INNATE_SORCERY = "innate-sorcery";
+// Draconic Sorcery subclass
+export const DRACONIC_RESILIENCE = "draconic-resilience";
+export const DRACONIC_ANCESTRY = "draconic-ancestry";
+export const ELEMENTAL_AFFINITY = "elemental-affinity";
+
+// ── Cleric subclasses ───────────────────────────────────────
+// Life Domain
+export const DISCIPLE_OF_LIFE = "disciple-of-life";
+export const PRESERVE_LIFE = "preserve-life";
+export const LIFE_DOMAIN_SPELLS = "life-domain-spells";
+
+// ── Paladin subclasses ──────────────────────────────────────
+// Oath of Devotion
+export const SACRED_WEAPON = "sacred-weapon";
+export const OATH_OF_DEVOTION_SPELLS = "oath-of-devotion-spells";
+
+// ── Warlock subclasses ──────────────────────────────────────
+// The Fiend
+export const DARK_ONES_BLESSING = "dark-ones-blessing";
+export const FIEND_EXPANDED_SPELLS = "fiend-expanded-spells";
+
+// ── Wizard subclasses ───────────────────────────────────────
+// School of Evocation
+export const SCULPT_SPELLS = "sculpt-spells";
+export const EVOCATION_SAVANT = "evocation-savant";
+
+// ── Bard subclasses ─────────────────────────────────────────
+// College of Lore
+export const CUTTING_WORDS = "cutting-words";
+export const ADDITIONAL_MAGICAL_SECRETS = "additional-magical-secrets";
+export const BONUS_PROFICIENCIES = "bonus-proficiencies";

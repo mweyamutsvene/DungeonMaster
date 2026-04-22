@@ -1,0 +1,415 @@
+{
+  "name": "Paladin: Channel Divinity + Divine Smite burst vs undead",
+  "description": "Tests the complete Paladin bonus action economy: (1) Channel Divinity (Divine Sense) consumes the bonus action + 1 CD use, blocking smite that round; (2) Divine Smite on-hit opt-in via 'with divine smite' in damage text consumes the lowest available spell slot (L1 first, L2 only when L1 exhausted); (3) Lay on Hands as bonus action self-heal; (4) bonus action contention — CD, Smite, and LoH all compete for one bonus action per turn. Level 5 Devotion Paladin vs undead. CD at L5 = 1 use/rest. Character starts at 75/100 HP to enable LoH self-heal test in R4.",
+  "setup": {
+    "character": {
+      "name": "Brother Aldric",
+      "className": "paladin",
+      "subclass": "Devotion",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "className": "paladin",
+        "subclass": "Devotion",
+        "level": 5,
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 10,
+          "constitution": 16,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 16
+        },
+        "maxHp": 100,
+        "currentHp": 75,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Bless", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Divine Smite", "description": "After a melee hit, expend a spell slot + bonus action for 2d8+ radiant damage (L1 slot = 2d8, L2 = 3d8)" },
+          { "name": "Lay on Hands", "description": "Bonus action: restore HP from a 25-point healing pool (5 x level)" },
+          { "name": "Channel Divinity", "description": "1/rest at L5: use Divine Sense as a bonus action to detect celestials, fiends, and undead within 60 feet" }
+        ],
+        "resourcePools": [
+          { "name": "layOnHands", "current": 25, "max": 25 },
+          { "name": "channelDivinity:paladin", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Shadow Wight — undead tank with 100 HP to survive 3+ rounds of smiting for spell slot economy tests.",
+        "name": "Shadow Wight",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 16,
+            "intelligence": 10,
+            "wisdom": 13,
+            "charisma": 15
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Life Drain",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "necrotic"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Skeleton Warrior A — undead minion. Queued to endTurn throughout for deterministic paladin HP tracking.",
+        "name": "Skeleton Warrior A",
+        "position": { "x": 15, "y": 12 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Skeleton Warrior B — undead minion. Queued to endTurn throughout.",
+        "name": "Skeleton Warrior B",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "undead",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 14,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Initiative + Channel Divinity (Divine Sense) + Attack without Smite (BA contention) ===",
+      "type": "initiate",
+      "input": { "text": "I advance on the undead, calling upon my divine power" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Paladin rolls 18 on initiative — goes first in the order.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1 bonus action: Divine Sense (Channel Divinity). Consumes 1 CD use + bonus action. Detects undead within 60 ft.",
+      "type": "action",
+      "input": { "text": "divine sense" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify: channelDivinity:paladin pool depleted from 1 to 0. L5 paladin gets exactly 1 CD use per rest.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "channelDivinity:paladin", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "comment": "R1 main action: Attack Shadow Wight. Bonus action spent on Divine Sense → smite NOT eligible (BA already consumed).",
+      "type": "action",
+      "input": { "text": "attack Shadow Wight with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 → hit. Smite ineligible this turn (BA consumed by Divine Sense). No eligibleEnhancements asserted.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 6 + 4 = 10 slashing. No 'with divine smite' — BA is already spent. Extra Attack auto-chains via scenario runner (natural-1 miss).",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify: L1 spell slots UNCHANGED at 4/4. No smite used this round (BA was blocked by Divine Sense).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue all 3 monsters to endTurn in R1. Keeps paladin HP stable at 75 for the LoH self-heal test in R4.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 2: Attack + Divine Smite with L1 slot (opt-in via damage text) ===",
+      "type": "action",
+      "input": { "text": "attack Shadow Wight with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 → hit. Fresh bonus action available — server shows Divine Smite as eligible enhancement.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage + Smite: '5 with divine smite' → 5+4=9 slashing base + server rolls 2d8 radiant (L1 slot). Costs L1 slot + bonus action. EA auto-chains.",
+      "type": "rollResult",
+      "input": { "text": "5 with divine smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify: L1 spell slots decremented from 4 → 3. Divine Smite always picks the lowest available slot (L1 over L2).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "Verify: L2 spell slots UNCHANGED at 2/2. Smite used L1 (lowest available) — L2 is untouched.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "Queue all 3 monsters to endTurn in R2. Preserving paladin HP for LoH test.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 3: Second Divine Smite (L1 slot again — lowest slot rule) ===",
+      "type": "action",
+      "input": { "text": "attack Shadow Wight with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 7 = 22 vs AC 13 → hit. Smite still eligible (fresh BA, 3 L1 slots remain).",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage + Smite: 7+4=11 slashing base + server 2d8 radiant. Second L1 slot consumed: 3 → 2. L2 still untouched.",
+      "type": "rollResult",
+      "input": { "text": "7 with divine smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify: L1 spell slots at 2/4 after two smites (R2 and R3). Lowest-slot rule: both used L1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 }
+      }
+    },
+    {
+      "comment": "Verify: L2 slots STILL at 2/2. Smite never used L2 because L1 was always available (lowest slot preference).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "Queue all 3 monsters to endTurn in R3. Preserving paladin HP at 75 for LoH test.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 4: Lay on Hands (bonus action) + Attack without Smite (BA contention test) ===",
+      "comment2": "Paladin HP is 75 (monsters queued endTurn kept HP stable). LoH pool = 25. Healing: min(25 missing, 25 pool) = 25 → HP to 100.",
+      "type": "action",
+      "input": { "text": "lay on hands" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify: LoH pool fully spent (25 → 0). Healed all 25 missing HP (75+25=100).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "layOnHands", "current": 0, "max": 25 }
+      }
+    },
+    {
+      "comment": "Verify: Paladin HP restored to full (75 + 25 LoH = 100). Missing HP = 0 so pool was fully consumed.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 99, "max": 100 }
+      }
+    },
+    {
+      "comment": "R4 main action: Attack Shadow Wight. Bonus action spent on LoH → smite NOT eligible (same BA contention as R1 with CD).",
+      "type": "action",
+      "input": { "text": "attack Shadow Wight with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 → hit. BA already consumed by LoH — no smite eligible.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 6 + 4 = 10 slashing. No smite declared (BA spent on LoH). EA auto-chains.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "=== FINAL STATE ASSERTIONS ===",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 }
+      }
+    },
+    {
+      "comment": "L1 still 2/4: no smite in R4 (BA was spent on LoH). Smites only used in R2 and R3.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "L2 untouched at 2/2: Divine Smite always consumes the lowest available slot. L1 was available in both smite rounds, so L2 was never used.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "channelDivinity:paladin", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "comment": "CD exhausted: 0/1 (used in R1 for Divine Sense). Recharges on short or long rest.",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "monstersAlive": 3
+      }
+    }
+  ]
+}

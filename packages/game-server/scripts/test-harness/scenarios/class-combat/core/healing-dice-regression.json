@@ -1,0 +1,317 @@
+{
+  "name": "Cross-Class Healing Regression: Dice-Based Healing Must Not Auto-Max",
+  "description": "Regression scenario to ensure healing respects rolled amounts instead of auto-healing to full. Covers Fighter Second Wind (1d10+5), Cleric Healing Word (2d4+4), Cleric Cure Wounds (2d8+4), and Paladin Lay on Hands explicit-amount control.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Sir Marcus",
+        "className": "Fighter",
+        "subclass": "Champion",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 14,
+            "constitution": 16,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 100,
+          "currentHp": 10,
+          "armorClass": 18,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "resourcePools": [
+            { "name": "secondWind", "current": 1, "max": 1 }
+          ]
+        }
+      },
+      {
+        "name": "Cleric Lumen",
+        "className": "Cleric",
+        "subclass": "Life",
+        "level": 5,
+        "position": { "x": 11, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 10,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 18,
+            "charisma": 14
+          },
+          "maxHp": 38,
+          "currentHp": 25,
+          "armorClass": 18,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Sacred Flame", "level": 0 }
+          ],
+          "attacks": []
+        }
+      },
+      {
+        "name": "Paladin Aegis",
+        "className": "Paladin",
+        "subclass": "Devotion",
+        "level": 5,
+        "position": { "x": 12, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 10,
+            "constitution": 14,
+            "intelligence": 8,
+            "wisdom": 12,
+            "charisma": 16
+          },
+          "maxHp": 44,
+          "currentHp": 15,
+          "armorClass": 18,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ],
+          "resourcePools": [
+            { "name": "layOnHands", "current": 25, "max": 25 }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 4,
+            "constitution": 18,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 200,
+          "hp": 200,
+          "armorClass": 10,
+          "speed": 0,
+          "challengeRating": 0,
+          "experienceValue": 0,
+          "attacks": [
+            {
+              "name": "None",
+              "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "Start combat as Fighter; roll high to guarantee first turn.",
+      "type": "initiate",
+      "actor": "Sir Marcus",
+      "input": { "text": "I steel myself for this healing drill" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Sir Marcus",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "Fighter: Second Wind from 10 HP. Must heal 6..15 (1d10+5), never auto-max.",
+      "type": "action",
+      "actor": "Sir Marcus",
+      "input": { "text": "use second wind" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sir Marcus",
+      "expect": {
+        "characterResource": { "poolName": "secondWind", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "comment": "10 + (6..15) => 16..25.",
+      "type": "assertState",
+      "actor": "Sir Marcus",
+      "expect": {
+        "characterHp": { "min": 16, "max": 25 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sir Marcus"
+    },
+
+    {
+      "comment": "Next player in initiative order: Cleric Lumen. Skip this turn to reach Paladin turn.",
+      "type": "waitForTurn",
+      "actor": "Cleric Lumen",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Cleric Lumen"
+    },
+
+    {
+      "type": "waitForTurn",
+      "actor": "Paladin Aegis",
+      "timeout": 15000
+    },
+    {
+      "comment": "Paladin: Lay on Hands explicit amount should be exact, not maxed.",
+      "type": "action",
+      "actor": "Paladin Aegis",
+      "input": { "text": "lay on hands 3" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Paladin Aegis",
+      "expect": {
+        "characterHp": { "exact": 18 }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Paladin Aegis",
+      "expect": {
+        "characterResource": { "poolName": "layOnHands", "current": 22, "max": 25 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Paladin Aegis"
+    },
+
+    {
+      "comment": "Cycle to Sir Marcus and end turn so Cleric can act next.",
+      "type": "waitForTurn",
+      "actor": "Sir Marcus",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sir Marcus"
+    },
+
+    {
+      "type": "waitForTurn",
+      "actor": "Cleric Lumen",
+      "timeout": 15000
+    },
+    {
+      "comment": "Cleric: Healing Word on Sir Marcus. If Sir Marcus is 16..25 after Second Wind, Healing Word adds 6..12 -> 22..37.",
+      "type": "action",
+      "actor": "Cleric Lumen",
+      "input": { "text": "cast Healing Word on Sir Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Cleric Lumen",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sir Marcus",
+      "expect": {
+        "characterHp": { "min": 22, "max": 37 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Cleric Lumen"
+    },
+
+    {
+      "comment": "Advance through remaining player turns to get Cleric's next turn for Cure Wounds.",
+      "type": "waitForTurn",
+      "actor": "Paladin Aegis",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Paladin Aegis"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Sir Marcus",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sir Marcus"
+    },
+
+    {
+      "type": "waitForTurn",
+      "actor": "Cleric Lumen",
+      "timeout": 15000
+    },
+    {
+      "comment": "Cleric: Cure Wounds on Sir Marcus. From 22..37, Cure Wounds adds 6..20 -> 28..57.",
+      "type": "action",
+      "actor": "Cleric Lumen",
+      "input": { "text": "cast Cure Wounds on Sir Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Cleric Lumen",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 2, "max": 4 } }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sir Marcus",
+      "expect": {
+        "characterHp": { "min": 28, "max": 57 }
+      }
+    }
+  ]
+}

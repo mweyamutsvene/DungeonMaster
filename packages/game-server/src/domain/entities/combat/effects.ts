@@ -103,7 +103,7 @@ export interface ActiveEffect {
   readonly appliedAtRound?: number;        // Combat round when applied
   readonly appliedAtTurnIndex?: number;    // Turn index when applied
   readonly targetCombatantId?: string;     // "effects on attacks against THIS creature" (Dodge, Faerie Fire)
-  readonly triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move'; // When ongoing effects fire
+  readonly triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move' | 'on_next_weapon_hit'; // When ongoing effects fire
   readonly saveToEnd?: SaveToEnd;          // Optional save to end the effect each round
   readonly conditionName?: string;         // For condition_immunity: which condition is blocked
 
@@ -152,7 +152,7 @@ export function createEffect(
     appliedAtRound?: number;
     appliedAtTurnIndex?: number;
     targetCombatantId?: string;
-    triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move';
+    triggerAt?: 'start_of_turn' | 'end_of_turn' | 'on_voluntary_move' | 'on_next_weapon_hit';
     saveToEnd?: SaveToEnd;
     conditionName?: string;
     triggerSave?: { ability: Ability; dc: number; halfDamageOnSave?: boolean };

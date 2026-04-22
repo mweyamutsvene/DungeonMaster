@@ -285,18 +285,21 @@ export class AttackActionHandler {
       classId: attackerStats.className,
       level: attackerStats.level,
       hpCurrent: attackerState.hpCurrent,
+      conditions: attackerConditions.map((c) => String(c.condition)),
     }).creature as unknown as any;
 
     const targetAdapter = buildCreatureAdapter({
       armorClass: effectAdjustedTargetAC,
       abilityScores: targetAbilityScores,
       hpCurrent: targetState.hpCurrent,
+      conditions: targetConditions.map((c) => String(c.condition)),
     });
 
     const target = targetAdapter.creature as unknown as any;
     const result = resolveAttack(diceRoller, attacker, target, spec, {
       targetDefenses: mergedDefenses,
       elevationAdvantage,
+      attackerDistance: distanceFt,
     });
 
     const newHp = targetAdapter.getHpCurrent();

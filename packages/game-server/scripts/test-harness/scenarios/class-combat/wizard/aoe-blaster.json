@@ -1,0 +1,237 @@
+{
+  "name": "Wizard: AoE Blaster (Fireball + Burning Hands + Fire Bolt)",
+  "description": "A level 5 Evocation Wizard fights a cluster of 3 Goblins. Tests Fireball (L3 AoE, 8d6 fire, DEX save), Burning Hands (L1 AoE, 3d6 fire, 15ft cone, DEX save), Fire Bolt cantrip (2d10 at L5, attack roll, unlimited), and spell slot economy (L5 wizard: 4×L1, 3×L2, 2×L3). R1 opens with Fireball for massive AoE. R2 follows with Burning Hands on survivors. R3 falls back to Fire Bolt cantrip. Verifies slot consumption, AoE multi-target resolution, and cantrip as zero-cost fallback.",
+  "setup": {
+    "character": {
+      "name": "Elara",
+      "className": "Wizard",
+      "subclass": "Evocation",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 32, "currentHp": 32, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fireball", "level": 3 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Goblin cluster at (30,10). All within 20ft sphere for Fireball and 15ft cone for Burning Hands.",
+        "name": "Goblin Pyro",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 60, "hp": 60, "armorClass": 13, "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Archer",
+        "position": { "x": 30, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 60, "hp": 60, "armorClass": 13, "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Scout",
+        "position": { "x": 35, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 60, "hp": 60, "armorClass": 13, "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Open with Fireball (L3 slot) ===",
+      "type": "initiate",
+      "input": { "text": "I unleash a fireball at the goblin cluster" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "R1: Cast Fireball centered on Goblin Pyro. 20ft radius sphere hits all 3 goblins. 8d6 fire, DEX save DC 15. Each goblin saves independently. Uses 1 L3 slot.",
+      "type": "action",
+      "input": { "text": "cast Fireball at Goblin Pyro" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Verify L3 slot consumed. Started with 2, should now have 1.",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_3": { "current": 1, "max": 2 } }
+      }
+    },
+    {
+      "comment": "Fireball deals 8d6 (avg 28, range 8-48). Half on save. All goblins should have taken significant damage.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Pyro", "min": 12, "max": 52 }
+      }
+    },
+
+    {
+      "comment": "Queue R1 monster attacks: all 3 goblins shoot at wizard.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End R1.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster turns.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 2: Cast Burning Hands (L1 slot) ===",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 10, "max": 32 }
+      }
+    },
+
+    {
+      "comment": "R2: Cast Burning Hands at Goblin Pyro. 15ft cone, 3d6 fire, DEX save DC 15. Uses 1 L1 slot.",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin Pyro" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed. Started with 4, should now have 3.",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+
+    {
+      "comment": "Queue R2 monster attacks.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Elara", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 3: Fire Bolt cantrip (free, unlimited, 2d10 at L5) ===",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin Pyro" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 12 + 7 = 19 vs AC 13 -> hit.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 2d10 fire (cantrip scaling at L5). Player rolls total dice value.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify spell slots unchanged after cantrip (cantrips don't use slots).",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_3": { "current": 1, "max": 2 }, "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+
+    {
+      "comment": "Final state: Goblin Pyro took Fireball + Burning Hands + Fire Bolt. Should be heavily damaged or dead.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Pyro", "min": 0, "max": 40 }
+      }
+    }
+  ]
+}

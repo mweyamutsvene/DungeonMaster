@@ -106,3 +106,16 @@ describe("DRUID_COMBAT_TEXT_PROFILE", () => {
     expect(DRUID_COMBAT_TEXT_PROFILE.attackEnhancements).toEqual([]);
   });
 });
+
+
+import { classHasFeature as __chf_dr, hasFeature as __hf_dr } from "./registry.js";
+import { CIRCLE_SPELLS, WILD_SHAPE } from "./feature-keys.js";
+import { describe as __d_dr, it as __i_dr, expect as __e_dr } from "vitest";
+__d_dr("Druid with Circle of the Land (Grassland) subclass", () => {
+  __i_dr("exposes both base Wild Shape (L2) and subclass Circle Spells (L3)", () => {
+    const classLevels = [{ classId: "druid", level: 3 }];
+    __e_dr(__hf_dr(classLevels, WILD_SHAPE)).toBe(true);
+    __e_dr(__chf_dr("druid", CIRCLE_SPELLS, 3, "circle-of-the-land-grassland")).toBe(true);
+    __e_dr(__chf_dr("druid", CIRCLE_SPELLS, 3)).toBe(false);
+  });
+});

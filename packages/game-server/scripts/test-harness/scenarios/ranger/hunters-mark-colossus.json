@@ -1,0 +1,303 @@
+{
+  "name": "Ranger (Hunter): Hunter's Mark + Colossus Slayer + Mark Transfer on Kill",
+  "description": "A level 5 Hunter Ranger (Longbow +2) fights an Ogre (HP 59) and a Thug (HP 32). Tests (1) Hunter's Mark 1d6 force rider on weapon hits, (2) Colossus Slayer +1d8 once/turn when target is below max HP, (3) 2024 mark-transfer-on-kill (as bonus action, move the mark to a new target when the current target drops to 0 HP). Scenario is intentionally strict on RAW 2024 Hunter behavior — will fail if Colossus Slayer or mark-transfer rider are not wired.",
+  "setup": {
+    "character": {
+      "name": "Kaelith",
+      "className": "Ranger",
+      "subclass": "Hunter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12, "dexterity": 18, "constitution": 14,
+          "intelligence": 10, "wisdom": 16, "charisma": 10
+        },
+        "maxHp": 50, "currentHp": 50,
+        "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Hunter's Mark", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longbow +2",
+            "kind": "ranged",
+            "range": "ranged",
+            "attackBonus": 9,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 6 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action (L5)" },
+          { "name": "Favored Enemy", "description": "Hunter's Mark without a spell slot, N times per long rest" },
+          { "name": "Hunter's Prey: Colossus Slayer", "description": "Once per turn, when you hit a creature that is missing any HP, you deal an extra 1d8 damage to it" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "2024 Ogre: AC 11, HP 59 (per user directive).",
+        "name": "Ogre",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 59, "hp": 59,
+          "armorClass": 11, "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "actions": [
+            { "name": "Multiattack", "description": "Two greatclub attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Thug (MM 2024): AC 11, HP 32.",
+        "name": "Thug",
+        "position": { "x": 22, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15, "dexterity": 11, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 11
+          },
+          "maxHp": 32, "hp": 32,
+          "armorClass": 11, "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "actions": [
+            { "name": "Multiattack", "description": "Two mace attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start combat by declaring an attack on the Ogre.",
+      "type": "initiate",
+      "input": { "text": "I attack the Ogre with my Longbow" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Initiative 20: Kaelith goes first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1 ===",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": null,
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 }
+      }
+    },
+    {
+      "comment": "R1 bonus: cast Hunter's Mark on the Ogre (bonus action, concentration, L1 slot spent unless Favored Enemy consumed first).",
+      "type": "action",
+      "input": { "text": "cast Hunter's Mark on Ogre" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Concentration must be on Hunter's Mark after cast.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "comment": "R1 action: first longbow attack on Ogre (Extra Attack 1/2).",
+      "type": "action",
+      "input": { "text": "attack Ogre with Longbow +2" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 1 hits: 17 + 9 = 26 vs AC 11. Ogre is at FULL HP -> Colossus Slayer must NOT trigger yet.",
+      "type": "rollResult",
+      "input": { "text": "17" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 1 damage: player rolls weapon 1d8 = 5. Server auto-adds Hunter's Mark 1d6 force rider. No Colossus Slayer (target was at full HP). Expect Extra Attack to chain.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 2/2: 18 + 9 = 27 hits AC 11. Ogre is NOW below max HP -> Colossus Slayer must trigger (first eligible hit of the turn, +1d8).",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 2 damage: player rolls weapon 1d8 = 5. Server adds Hunter's Mark 1d6 rider + Colossus Slayer 1d8. Action completes after final attack.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R1 checkpoint: Ogre took attack1 (5+6 weapon + 1..6 mark = 12..17) + attack2 (5+6 weapon + 1..6 mark + 1..8 CS = 13..25). Total min 25, max 42. HP 59 - 42..25 = 17..34. TIGHT bound REQUIRES both rider + CS to fire.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "min": 17, "max": 34 },
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "comment": "End R1.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for R2 (monsters idle).",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 2: Two more attacks on Ogre. Colossus Slayer eligible on FIRST hit (once/turn).",
+      "type": "action",
+      "input": { "text": "attack Ogre with Longbow +2" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 attack 1 hits: 15 + 9 = 24 vs AC 11.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 attack 1 damage: weapon 1d8 = 7. Server adds mark 1d6 + Colossus Slayer 1d8 (wounded, first eligible hit of turn).",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 attack 2 hit: 16 + 9 = 25.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R2 attack 2 damage: weapon 1d8 = 7. Server adds mark 1d6 rider. NO Colossus Slayer (already used this turn).",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Ogre should now be dead or near-dead. R1 total 25-42 damage, R2 total 16-28 -> Ogre HP min -10, max 18. Expect Ogre at 0 HP (dead) or at most 18 HP.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "min": 0, "max": 18 }
+      }
+    },
+    {
+      "comment": "End R2.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for R3.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "Ogre must be dead after R2.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre", "exact": 0 }
+      }
+    },
+    {
+      "comment": "R3 bonus action: 2024 RAW — when the marked target drops to 0 HP, you can use a bonus action on a subsequent turn to move the mark. Assert mark transfer to Thug (RAW 2024). FAILS if mark-transfer-on-kill is not implemented.",
+      "type": "action",
+      "input": { "text": "move Hunter's Mark to Thug" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Concentration remains on Hunter's Mark after transfer.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "comment": "End R3.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for R4.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 4: Attack Thug. Mark rider should apply now that mark is on Thug. Colossus Slayer eligible (Thug at full HP for attack 1: NO; then wounded for attack 2: YES).",
+      "type": "action",
+      "input": { "text": "attack Thug with Longbow +2" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R4 attack 1 hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R4 attack 1 damage: weapon 1d8 = 4. + mark 1d6 rider (NEW mark target). No CS (full HP).",
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R4 attack 2 hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R4 attack 2 damage: weapon 1d8 = 4. + mark 1d6 + CS 1d8 (Thug wounded).",
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Thug HP bound REQUIRES mark rider to be applied to the transferred target AND CS to fire once. min per attack1: 4+6+1 = 11, max: 4+6+6 = 16. attack2 min: 4+6+1+1 = 12, max: 4+6+6+8 = 24. Total 23..40 dmg -> HP 32 - 23..40 = -8..9. Thug should be dead or nearly dead.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Thug", "min": 0, "max": 9 }
+      }
+    }
+  ]
+}

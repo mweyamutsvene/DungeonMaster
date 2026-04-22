@@ -17,7 +17,7 @@ import type { ActorRef } from "./ai-types.js";
 import type { CombatantRef } from "../helpers/combatant-ref.js";
 import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { nanoid } from "nanoid";
-import { normalizeResources, getActiveEffects, readBoolean, spendAction, getPosition } from "../helpers/resource-utils.js";
+import { normalizeResources, getActiveEffects, readBoolean, useAttack, getPosition } from "../helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -289,7 +289,7 @@ export class AiAttackResolver {
       }
 
       await combat.updateCombatantState(aiCombatant.id, {
-        resources: spendAction(aiCombatant.resources),
+        resources: useAttack(aiCombatant.resources),
       });
 
       // Readied action triggers: "creature_attacks" fires even on a miss
@@ -330,7 +330,7 @@ export class AiAttackResolver {
       });
 
       await combat.updateCombatantState(aiCombatant.id, {
-        resources: spendAction(aiCombatant.resources),
+        resources: useAttack(aiCombatant.resources),
       });
 
       return {
@@ -532,9 +532,9 @@ export class AiAttackResolver {
         }
       }
 
-      // Mark action as spent
+      // Mark attack as used (respects multiattack counter)
       await combat.updateCombatantState(aiCombatant.id, {
-        resources: spendAction(aiCombatant.resources),
+        resources: useAttack(aiCombatant.resources),
       });
 
       // Emit AttackResolved + DamageApplied events

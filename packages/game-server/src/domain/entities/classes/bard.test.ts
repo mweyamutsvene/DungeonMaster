@@ -109,3 +109,16 @@ describe("BARD_COMBAT_TEXT_PROFILE", () => {
     expect(BARD_COMBAT_TEXT_PROFILE.attackEnhancements).toEqual([]);
   });
 });
+
+
+import { classHasFeature as __chf_bd, hasFeature as __hf_bd } from "./registry.js";
+import { CUTTING_WORDS, BARDIC_INSPIRATION } from "./feature-keys.js";
+import { describe as __d_bd, it as __i_bd, expect as __e_bd } from "vitest";
+__d_bd("Bard with College of Lore subclass", () => {
+  __i_bd("exposes both base Bardic Inspiration (L1) and subclass Cutting Words (L3)", () => {
+    const classLevels = [{ classId: "bard", level: 3 }];
+    __e_bd(__hf_bd(classLevels, BARDIC_INSPIRATION)).toBe(true);
+    __e_bd(__chf_bd("bard", CUTTING_WORDS, 3, "college-of-lore")).toBe(true);
+    __e_bd(__chf_bd("bard", CUTTING_WORDS, 3)).toBe(false);
+  });
+});

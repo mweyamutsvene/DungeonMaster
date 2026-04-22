@@ -9,12 +9,38 @@ import {
   EXTRA_ATTACK,
   ACTION_SURGE,
   RAGE,
+  DISCIPLE_OF_LIFE,
+  PRESERVE_LIFE,
+  LIFE_DOMAIN_SPELLS,
+  SACRED_WEAPON,
+  OATH_OF_DEVOTION_SPELLS,
+  DARK_ONES_BLESSING,
+  FIEND_EXPANDED_SPELLS,
+  SCULPT_SPELLS,
+  EVOCATION_SAVANT,
+  CUTTING_WORDS,
+  ADDITIONAL_MAGICAL_SECRETS,
+  BONUS_PROFICIENCIES,
+  CIRCLE_SPELLS,
+  LANDS_AID,
+  DRACONIC_RESILIENCE,
+  DRACONIC_ANCESTRY,
+  ELEMENTAL_AFFINITY,
+  INNATE_SORCERY,
+  TURN_UNDEAD,
 } from "./feature-keys.js";
 import { ClassFeatureResolver } from "./class-feature-resolver.js";
 import { ChampionSubclass } from "./fighter.js";
 import { BerserkerSubclass } from "./barbarian.js";
 import { ThiefSubclass } from "./rogue.js";
 import { OpenHandSubclass } from "./monk.js";
+import { LifeDomainSubclass } from "./cleric.js";
+import { OathOfDevotionSubclass } from "./paladin.js";
+import { TheFiendSubclass } from "./warlock.js";
+import { SchoolOfEvocationSubclass } from "./wizard.js";
+import { CollegeOfLoreSubclass } from "./bard.js";
+import { CircleOfTheLandGrasslandSubclass } from "./druid.js";
+import { DraconicSorceryRedSubclass } from "./sorcerer.js";
 
 // ── Subclass Framework ──────────────────────────────────────
 
@@ -221,5 +247,147 @@ describe("getAllCombatTextProfiles", () => {
     expect(classIds).toContain("fighter");
     expect(classIds).toContain("barbarian");
     expect(classIds).toContain("rogue");
+  });
+});
+
+// ── Phase 1 subclass shells (7 new) ─────────────────────────
+
+describe("Life Domain Cleric subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(LifeDomainSubclass.id).toBe("life-domain");
+    expect(LifeDomainSubclass.classId).toBe("cleric");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("cleric", "life-domain")).toBeDefined();
+    expect(getSubclassDefinition("cleric", "Life Domain")).toBeDefined();
+  });
+
+  it("grants Life Domain features at level 3", () => {
+    expect(classHasFeature("cleric", DISCIPLE_OF_LIFE, 3, "life-domain")).toBe(true);
+    expect(classHasFeature("cleric", DISCIPLE_OF_LIFE, 2, "life-domain")).toBe(false);
+    expect(classHasFeature("cleric", PRESERVE_LIFE, 3, "life-domain")).toBe(true);
+    expect(classHasFeature("cleric", LIFE_DOMAIN_SPELLS, 3, "life-domain")).toBe(true);
+  });
+
+  it("does not grant Life features without subclassId", () => {
+    expect(classHasFeature("cleric", DISCIPLE_OF_LIFE, 20)).toBe(false);
+  });
+
+  it("still exposes base Cleric features when subclass set", () => {
+    expect(classHasFeature("cleric", TURN_UNDEAD, 2, "life-domain")).toBe(true);
+  });
+});
+
+describe("Oath of Devotion Paladin subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(OathOfDevotionSubclass.id).toBe("oath-of-devotion");
+    expect(OathOfDevotionSubclass.classId).toBe("paladin");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("paladin", "oath-of-devotion")).toBeDefined();
+  });
+
+  it("grants Devotion features at level 3", () => {
+    expect(classHasFeature("paladin", SACRED_WEAPON, 3, "oath-of-devotion")).toBe(true);
+    expect(classHasFeature("paladin", SACRED_WEAPON, 2, "oath-of-devotion")).toBe(false);
+    expect(classHasFeature("paladin", OATH_OF_DEVOTION_SPELLS, 3, "oath-of-devotion")).toBe(true);
+  });
+});
+
+describe("The Fiend Warlock subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(TheFiendSubclass.id).toBe("the-fiend");
+    expect(TheFiendSubclass.classId).toBe("warlock");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("warlock", "the-fiend")).toBeDefined();
+    expect(getSubclassDefinition("warlock", "The Fiend")).toBeDefined();
+  });
+
+  it("grants Fiend features at level 3", () => {
+    expect(classHasFeature("warlock", DARK_ONES_BLESSING, 3, "the-fiend")).toBe(true);
+    expect(classHasFeature("warlock", DARK_ONES_BLESSING, 2, "the-fiend")).toBe(false);
+    expect(classHasFeature("warlock", FIEND_EXPANDED_SPELLS, 3, "the-fiend")).toBe(true);
+  });
+});
+
+describe("School of Evocation Wizard subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(SchoolOfEvocationSubclass.id).toBe("school-of-evocation");
+    expect(SchoolOfEvocationSubclass.classId).toBe("wizard");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("wizard", "school-of-evocation")).toBeDefined();
+  });
+
+  it("grants Evocation features at level 3", () => {
+    expect(classHasFeature("wizard", SCULPT_SPELLS, 3, "school-of-evocation")).toBe(true);
+    expect(classHasFeature("wizard", SCULPT_SPELLS, 2, "school-of-evocation")).toBe(false);
+    expect(classHasFeature("wizard", EVOCATION_SAVANT, 3, "school-of-evocation")).toBe(true);
+  });
+});
+
+describe("College of Lore Bard subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(CollegeOfLoreSubclass.id).toBe("college-of-lore");
+    expect(CollegeOfLoreSubclass.classId).toBe("bard");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("bard", "college-of-lore")).toBeDefined();
+  });
+
+  it("grants Lore features at the correct levels", () => {
+    expect(classHasFeature("bard", CUTTING_WORDS, 3, "college-of-lore")).toBe(true);
+    expect(classHasFeature("bard", CUTTING_WORDS, 2, "college-of-lore")).toBe(false);
+    expect(classHasFeature("bard", BONUS_PROFICIENCIES, 3, "college-of-lore")).toBe(true);
+    expect(classHasFeature("bard", ADDITIONAL_MAGICAL_SECRETS, 6, "college-of-lore")).toBe(true);
+    expect(classHasFeature("bard", ADDITIONAL_MAGICAL_SECRETS, 5, "college-of-lore")).toBe(false);
+  });
+});
+
+describe("Circle of the Land (Grassland) Druid subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(CircleOfTheLandGrasslandSubclass.id).toBe("circle-of-the-land-grassland");
+    expect(CircleOfTheLandGrasslandSubclass.classId).toBe("druid");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("druid", "circle-of-the-land-grassland")).toBeDefined();
+  });
+
+  it("grants Land features at level 3", () => {
+    expect(classHasFeature("druid", CIRCLE_SPELLS, 3, "circle-of-the-land-grassland")).toBe(true);
+    expect(classHasFeature("druid", CIRCLE_SPELLS, 2, "circle-of-the-land-grassland")).toBe(false);
+    expect(classHasFeature("druid", LANDS_AID, 3, "circle-of-the-land-grassland")).toBe(true);
+  });
+});
+
+describe("Draconic Sorcery (Red) Sorcerer subclass", () => {
+  it("is exported and well-formed", () => {
+    expect(DraconicSorceryRedSubclass.id).toBe("draconic-sorcery-red");
+    expect(DraconicSorceryRedSubclass.classId).toBe("sorcerer");
+  });
+
+  it("is resolvable via getSubclassDefinition", () => {
+    expect(getSubclassDefinition("sorcerer", "draconic-sorcery-red")).toBeDefined();
+  });
+
+  it("grants Draconic features at level 1 (Sorcerous Origin in 2024)", () => {
+    expect(classHasFeature("sorcerer", DRACONIC_RESILIENCE, 1, "draconic-sorcery-red")).toBe(true);
+    expect(classHasFeature("sorcerer", DRACONIC_ANCESTRY, 1, "draconic-sorcery-red")).toBe(true);
+  });
+
+  it("grants Elemental Affinity at level 5", () => {
+    expect(classHasFeature("sorcerer", ELEMENTAL_AFFINITY, 5, "draconic-sorcery-red")).toBe(true);
+    expect(classHasFeature("sorcerer", ELEMENTAL_AFFINITY, 4, "draconic-sorcery-red")).toBe(false);
+  });
+
+  it("base Sorcerer class now grants Innate Sorcery at level 1", () => {
+    expect(classHasFeature("sorcerer", INNATE_SORCERY, 1)).toBe(true);
   });
 });

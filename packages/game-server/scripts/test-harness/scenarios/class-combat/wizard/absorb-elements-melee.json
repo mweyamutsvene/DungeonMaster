@@ -1,0 +1,298 @@
+{
+  "name": "Wizard W3: Absorb Elements + Non-Fire Spells vs Fire-Immune Elemental",
+  "description": "Tests Absorb Elements damage reaction, fire immunity on a fire elemental, and non-fire cantrips (Ray of Frost, Fire Bolt, Chill Touch) vs a fire-immune enemy. R1: Ray of Frost (cold) deals damage to Flame Sprite. Monster turn: Sprite attacks with fire, triggering Absorb Elements reaction which halves fire damage and consumes a L1 slot. R2: Fire Bolt (fire) hits Sprite but deals 0 damage due to fire immunity — confirms fire immune mechanic. R3: Chill Touch (necrotic, melee touch) deals damage to adjacent Sprite — confirms necrotic bypasses fire immunity.",
+  "setup": {
+    "character": {
+      "name": "Elara Frostweave",
+      "className": "Wizard",
+      "subclass": "Evocation",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Absorb Elements", "level": 1 },
+          { "name": "Ray of Frost", "level": 0 },
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Chill Touch", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Dagger",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": -1 },
+            "damageType": "piercing"
+          }
+        ],
+        "features": [
+          { "name": "Evocation Savant", "description": "Copy evocation spells for free." },
+          { "name": "Sculpt Spells", "description": "Protect allies from evocation AoE spells." }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Fire elemental with fire immunity. Fire Slam attack triggers Absorb Elements on Wizard. Position 25ft from Wizard — reachable in 1 turn (speed 50).",
+        "name": "Flame Sprite",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "elemental",
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 17,
+            "constitution": 16,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 13,
+          "speed": 50,
+          "challengeRating": 5,
+          "damageImmunities": ["fire"],
+          "attacks": [
+            {
+              "name": "Fire Slam",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 3 },
+              "damageType": "fire"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Non-fire beast — secondary enemy that ends turns to keep scenario deterministic.",
+        "name": "Dire Wolf Pup",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "beast",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 13,
+            "constitution": 14,
+            "intelligence": 3,
+            "wisdom": 12,
+            "charisma": 7
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 40,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 2, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "Pre-queue low initiative rolls for monsters. Flame Sprite: 1+3(DEX)=4. Dire Wolf Pup: 1+1(DEX)=2. Wizard rolls 20+2=22 and acts first.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1, 1], "label": "Monster initiative rolls — keep Wizard first" }
+    },
+
+    {
+      "comment": "=== INITIATE COMBAT ===",
+      "type": "initiate",
+      "input": { "text": "I face the Flame Sprite, frost gathering around my fingers" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative roll — Wizard acts first (22 vs monster 4 and 2).",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Ray of Frost (cold) — non-fire damage works against fire-immune enemy ===",
+      "type": "action",
+      "input": { "text": "cast Ray of Frost at Flame Sprite" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 (spellAttackBonus) = 21 vs AC 13 → HIT",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 12 cold (2d8 at L5). Cold damage bypasses fire immunity. Sprite HP 100 → 88.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify cold damage applied — Sprite HP reduced from 100 to 88.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Flame Sprite", "exact": 88 }
+      }
+    },
+
+    {
+      "comment": "Pre-queue deterministic monster dice: Sprite attack roll d20=15 (15+5=20 vs AC12 → HIT), then Fire Slam damage 2d6: die1=3, die2=3 → total 3+3+3=9 fire damage.",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 3, 3], "label": "Sprite Fire Slam: guaranteed hit and 9 fire damage" }
+    },
+    {
+      "comment": "Queue R1 monster decisions: Sprite attacks Elara with Fire Slam (triggers Absorb Elements), Wolf ends turn.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara Frostweave", "attackName": "Fire Slam", "endTurn": true },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "comment": "End Wizard R1 turn → Sprite moves to Wizard and attacks with fire damage.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "Wait for Absorb Elements reaction prompt. Sprite Fire Slam hits Wizard and deals fire damage (9). Server detects Absorb Elements eligibility (fire damage + spell slot available + reaction not used).",
+      "type": "waitForReaction",
+      "input": { "reactionType": "absorb_elements" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Absorb Elements: heals back floor(9/2)=4 HP, consumes 1 L1 spell slot, marks reaction used.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for monster turns to finish and wizard's turn to return.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "After Absorb Elements: Wizard took 9 fire damage then healed 4 back → net 5 damage → HP 95. L1 slot consumed (4→3).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 93, "max": 97 },
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Fire Bolt (fire) — should deal 0 damage due to fire immunity ===",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Flame Sprite" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 7 = 22 vs AC 13 → HIT (the attack succeeds, but fire immunity nullifies damage).",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire damage: 15 fire damage rolled on 2d10 (L5 cantrip scaling). Fire immunity reduces to 0 — Sprite HP unchanged.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "FIRE IMMUNITY CONFIRMED: Sprite HP still 88 — fire bolt dealt 0 damage despite hitting.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Flame Sprite", "exact": 88 }
+      }
+    },
+
+    {
+      "comment": "Queue R2 monsters: both end turn (no attacks this round to simplify).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn" },
+          { "action": "endTurn" }
+        ]
+      }
+    },
+    {
+      "comment": "End Wizard R2 turn.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster turns to pass.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 3: Chill Touch (necrotic, melee touch) — Sprite is now adjacent after R1 move. Necrotic bypasses fire immunity. ===",
+      "type": "action",
+      "input": { "text": "cast Chill Touch at Flame Sprite" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Melee spell attack roll: 16 + 7 = 23 vs AC 13 → HIT",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 10 necrotic (2d10 at L5 scaling). Necrotic is not fire — Sprite takes full damage. HP 88 → 78.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "NECROTIC DAMAGE CONFIRMED: Sprite HP reduced from 88 to 78.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Flame Sprite", "exact": 78 }
+      }
+    },
+
+    {
+      "comment": "=== FINAL STATE ASSERTIONS === Combat ongoing, both monsters alive, Wizard at reduced HP but functional. spellSlot_1 consumed by Absorb Elements (4→3), cantrips unlimited (no slot cost).",
+      "type": "assertState",
+      "expect": {
+        "monstersAlive": 2,
+        "characterHp": { "min": 93, "max": 97 },
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "End Wizard R3 turn — scenario complete.",
+      "type": "endTurn"
+    }
+  ]
+}

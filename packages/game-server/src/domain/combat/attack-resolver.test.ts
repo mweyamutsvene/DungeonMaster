@@ -794,6 +794,28 @@ describe("isAutoCriticalHit", () => {
     target.addCondition("stunned");
     expect(isAutoCriticalHit(target, "melee", 5)).toBe(false);
   });
+
+  it("matches title-case condition literals against a case-sensitive adapter", () => {
+    // Regression guard: attack-resolver now calls hasCondition("Paralyzed") /
+    // hasCondition("Unconscious") (title-case). Case-sensitive adapters must
+    // still auto-crit when the condition is stored title-case.
+    const titleCaseTarget = {
+      hasCondition: (c: string) => c === "Paralyzed",
+    } as unknown as Parameters<typeof isAutoCriticalHit>[0];
+    expect(isAutoCriticalHit(titleCaseTarget, "melee", 5)).toBe(true);
+
+    const unconsciousTarget = {
+      hasCondition: (c: string) => c === "Unconscious",
+    } as unknown as Parameters<typeof isAutoCriticalHit>[0];
+    expect(isAutoCriticalHit(unconsciousTarget, "melee", 5)).toBe(true);
+
+    // Lowercase stored conditions should NOT trigger auto-crit on a
+    // case-sensitive adapter — this proves the fix is actually title-case.
+    const lowercaseOnly = {
+      hasCondition: (c: string) => c === "paralyzed",
+    } as unknown as Parameters<typeof isAutoCriticalHit>[0];
+    expect(isAutoCriticalHit(lowercaseOnly, "melee", 5)).toBe(false);
+  });
 });
 
 describe("Grappler feat advantage", () => {

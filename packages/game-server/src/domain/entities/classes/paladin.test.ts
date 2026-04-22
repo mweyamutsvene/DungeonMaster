@@ -130,3 +130,16 @@ describe("getPaladinAuraBonus", () => {
     expect(getPaladinAuraBonus({ charismaModifier: 3, level: 20 })).toBe(3);
   });
 });
+
+
+import { classHasFeature as __chf_pal, hasFeature as __hf_pal } from "./registry.js";
+import { SACRED_WEAPON, DIVINE_SMITE } from "./feature-keys.js";
+import { describe as __d_pal, it as __i_pal, expect as __e_pal } from "vitest";
+__d_pal("Paladin with Oath of Devotion subclass", () => {
+  __i_pal("exposes both base Divine Smite (L2) and subclass Sacred Weapon (L3)", () => {
+    const classLevels = [{ classId: "paladin", level: 3 }];
+    __e_pal(__hf_pal(classLevels, DIVINE_SMITE)).toBe(true);
+    __e_pal(__chf_pal("paladin", SACRED_WEAPON, 3, "oath-of-devotion")).toBe(true);
+    __e_pal(__chf_pal("paladin", SACRED_WEAPON, 3)).toBe(false);
+  });
+});

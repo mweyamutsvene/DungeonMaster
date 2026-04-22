@@ -89,3 +89,16 @@ describe("SORCERER_COMBAT_TEXT_PROFILE", () => {
     expect(SORCERER_COMBAT_TEXT_PROFILE.attackEnhancements).toEqual([]);
   });
 });
+
+
+import { classHasFeature as __chf_sc, hasFeature as __hf_sc } from "./registry.js";
+import { DRACONIC_RESILIENCE, INNATE_SORCERY } from "./feature-keys.js";
+import { describe as __d_sc, it as __i_sc, expect as __e_sc } from "vitest";
+__d_sc("Sorcerer with Draconic Sorcery (Red) subclass", () => {
+  __i_sc("exposes both base Innate Sorcery (L1) and subclass Draconic Resilience (L1)", () => {
+    const classLevels = [{ classId: "sorcerer", level: 1 }];
+    __e_sc(__hf_sc(classLevels, INNATE_SORCERY)).toBe(true);
+    __e_sc(__chf_sc("sorcerer", DRACONIC_RESILIENCE, 1, "draconic-sorcery-red")).toBe(true);
+    __e_sc(__chf_sc("sorcerer", DRACONIC_RESILIENCE, 1)).toBe(false);
+  });
+});

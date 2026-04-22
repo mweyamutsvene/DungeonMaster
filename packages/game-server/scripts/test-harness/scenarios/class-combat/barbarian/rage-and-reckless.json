@@ -1,0 +1,324 @@
+{
+  "name": "Barbarian: Rage + Reckless Attack + Extra Attack + Damage Resistance",
+  "description": "A level 5 Berserker Barbarian fights an Ogre (bludgeoning) and Hobgoblin Soldier (slashing) across 4 rounds. Tests Rage activation (bonus action, +2 melee damage, B/P/S resistance), Reckless Attack (advantage on melee, enemies get advantage), Extra Attack (2 attacks/action), and rage damage resistance against physical damage. Monsters attack via queueMonsterActions.",
+  "setup": {
+    "character": {
+      "name": "Korgath",
+      "className": "Barbarian",
+      "subclass": "Berserker",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain resistance to B/P/S damage and +2 melee damage." },
+          { "name": "Reckless Attack", "description": "Gain advantage on melee STR attacks, but attacks against you have advantage." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Ogre Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 120,
+          "hp": 120,
+          "armorClass": 11,
+          "speed": 30,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Soldier",
+        "position": { "x": 15, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 9
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 18,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Rage + Attack Ogre (Extra Attack) ===",
+      "type": "initiate",
+      "input": { "text": "I attack the ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll high initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "I rolled 18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Enter Rage — bonus action, spends 1 rage use. Activates +2 melee damage and B/P/S resistance.",
+      "type": "action",
+      "input": { "text": "rage" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify rage pool decremented: 3 → 2",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "R1: Attack Ogre with Greataxe (1st of Extra Attack). With rage: +2 damage bonus.",
+      "type": "action",
+      "input": { "text": "attack Ogre Brute with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 11 → hit",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 8 (die) + 4 (STR) + 2 (rage) = 14 slashing. Ogre HP: 120 → 106",
+      "type": "rollResult",
+      "input": { "text": "8" }
+    },
+    {
+      "comment": "Verify Ogre took 14 damage (8+4+2 rage bonus). Greataxe Cleave may also hit adjacent Hobgoblin.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre Brute", "exact": 106 }
+      }
+    },
+    {
+      "comment": "R1: End turn. Queue monster attacks: Ogre Greatclub + Hobgoblin Longsword",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Korgath", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Korgath", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monsters. Ogre bludgeoning halved by rage resistance, Hobgoblin slashing halved.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Verify Korgath's HP. Monster damage is halved by rage. Ogre: floor(2d8+4)/2, Hobgoblin: floor(1d8+1)/2. Both ranges are small. HP should be between ~88 and 98.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "name": "Korgath", "min": 85, "max": 99 }
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Reckless Attack + Attack Ogre (advantage) ===",
+      "type": "action",
+      "input": { "text": "reckless attack" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R2: Attack Ogre with advantage (Reckless). Roll the better of two d20s.",
+      "type": "action",
+      "input": { "text": "attack Ogre Brute with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll with advantage: 16 + 7 = 23 vs AC 11 → hit",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 10 (die) + 4 (STR) + 2 (rage) = 16. Ogre HP: 106 → 90",
+      "type": "rollResult",
+      "input": { "text": "10" }
+    },
+    {
+      "comment": "Verify Ogre HP after rage-boosted hit",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre Brute", "exact": 90 }
+      }
+    },
+    {
+      "comment": "R2: Queue monster attacks. Enemies may have advantage from Reckless Attack.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Korgath", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Korgath", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monsters. Damage still halved by rage resistance.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Verify Korgath still alive with rage resistance. HP range accounts for 2 rounds of halved monster damage.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "name": "Korgath", "min": 70, "max": 98 }
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Attack Hobgoblin (switch target) ===",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Soldier with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 7 = 22 vs AC 18 → hit",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 7 (die) + 4 (STR) + 2 (rage) = 13. Hobgoblin HP: 100 → 87",
+      "type": "rollResult",
+      "input": { "text": "7" }
+    },
+    {
+      "comment": "Verify Hobgoblin took rage-boosted damage. HP may be lower than 100 due to Cleave from Ogre attacks.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Hobgoblin Soldier", "min": 60, "max": 91 }
+      }
+    },
+    {
+      "comment": "R3: Queue monster attacks",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Korgath", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Korgath", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monsters. Rage resistance continues.",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "Verify Korgath HP. 3 rounds of halved damage.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "name": "Korgath", "min": 55, "max": 97 }
+      }
+    },
+    {
+      "comment": "=== ROUND 4: Reckless + Attack Ogre to finish ===",
+      "type": "action",
+      "input": { "text": "reckless attack" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "R4: Attack Ogre with advantage again",
+      "type": "action",
+      "input": { "text": "attack Ogre Brute with Greataxe" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 12 + 7 = 19 vs AC 11 → hit",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 11 (die) + 4 (STR) + 2 (rage) = 17. Ogre HP: 90 → 73",
+      "type": "rollResult",
+      "input": { "text": "11" }
+    },
+    {
+      "comment": "Verify Ogre took rage-boosted damage. Accounts for multiple rounds of attacks.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Ogre Brute", "min": 50, "max": 90 }
+      }
+    },
+    {
+      "comment": "Final state: rage pool = 2 (used 1 of 3), Ogre damaged, Hobgoblin damaged, Korgath alive with rage resistance reducing incoming damage",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "rage", "current": 2, "max": 3 },
+        "characterHp": { "name": "Korgath", "min": 40, "max": 97 }
+      }
+    }
+  ]
+}

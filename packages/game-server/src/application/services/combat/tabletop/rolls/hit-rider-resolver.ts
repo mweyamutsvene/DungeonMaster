@@ -20,6 +20,8 @@ import {
   spendResourceFromPool,
   hasBonusActionAvailable,
   useBonusAction,
+  getActiveEffects,
+  removeActiveEffectById,
 } from "../../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../../helpers/combatant-lookup.js";
 import {
@@ -112,9 +114,69 @@ export class HitRiderResolver {
 
     // Match player keywords in damage text
     const matched = matchOnHitEnhancementsInText(rawText, eligibleDefs);
-    if (matched.length === 0) return [];
+
+    // ── Generic `on_next_weapon_hit` rider consumption ──
+    // Spells like Searing Smite, Thunderous Smite, Wrathful Smite, Branding Smite,
+    // Divine Favor, Ensnaring Strike, and Hail of Thorns install an ActiveEffect on
+    // the caster with `triggerAt: 'on_next_weapon_hit'`. On a confirmed hit, each such
+    // effect contributes one HitRiderEnhancement (bonus dice + optional save) and is
+    // then consumed (removed) from the caster's resources. Multiple riders stack.
+    const nextHitRiders = actorCombatant
+      ? getActiveEffects(actorCombatant.resources ?? {}).filter((e) => e.triggerAt === "on_next_weapon_hit")
+      : [];
+
+    if (matched.length === 0 && nextHitRiders.length === 0) return [];
 
     const enhancements: HitRiderEnhancement[] = [];
+
+    if (actorCombatant && nextHitRiders.length > 0) {
+      let updatedResources: any = actorCombatant.resources ?? {};
+      for (const rider of nextHitRiders) {
+        const bonusDice =
+          rider.diceValue && rider.diceValue.count > 0 && rider.diceValue.sides > 0
+            ? {
+                diceCount: rider.diceValue.count,
+                diceSides: rider.diceValue.sides,
+                damageType: rider.damageType,
+              }
+            : undefined;
+        const enhancement: HitRiderEnhancement = {
+          abilityId: `spell:${(rider.source ?? "next-hit-rider").toLowerCase().replace(/\s+/g, "-")}`,
+          displayName: rider.source ?? "Next-Hit Rider",
+          ...(bonusDice ? { bonusDice } : {}),
+          ...(rider.triggerSave
+            ? {
+                postDamageEffect: "saving-throw",
+                context: {
+                  saveAbility: rider.triggerSave.ability,
+                  saveDC: rider.triggerSave.dc,
+                  saveReason: rider.source ?? "Rider save",
+                  sourceId: actorId,
+                  onSuccess: { summary: "Save succeeded." } satisfies SaveOutcome,
+                  onFailure: {
+                    conditions:
+                      rider.triggerConditions && rider.triggerConditions.length > 0
+                        ? { add: [...rider.triggerConditions] }
+                        : undefined,
+                    summary: "Save failed.",
+                  } satisfies SaveOutcome,
+                },
+              }
+            : {}),
+        };
+        enhancements.push(enhancement);
+        updatedResources = removeActiveEffectById(updatedResources, rider.id);
+        if (this.debugLogsEnabled) {
+          console.log(`[HitRiderResolver] Consumed on_next_weapon_hit rider: ${rider.source ?? rider.id}`);
+        }
+      }
+      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+        resources: updatedResources,
+      });
+    }
+
+    if (matched.length === 0) return enhancements;
+
     const actorSheet = (actorChar.sheet ?? {}) as any;
     const wisdomScore = actorSheet?.abilityScores?.wisdom ?? 10;
     const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);

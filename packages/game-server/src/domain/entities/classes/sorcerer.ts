@@ -1,7 +1,11 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import {
+  INNATE_SORCERY,
+  DRACONIC_RESILIENCE, DRACONIC_ANCESTRY, ELEMENTAL_AFFINITY,
+} from "./feature-keys.js";
 
 export interface SorceryPointsState {
   pool: ResourcePool;
@@ -36,6 +40,25 @@ export function resetSorceryPointsOnLongRest(
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+// ----- Subclasses -----
+
+/**
+ * Draconic Sorcery (Red Dragon) subclass (D&D 5e 2024).
+ * Sorcerous Origin is gained at L1 in the 2024 rules.
+ * Shell definition — executors for Draconic Resilience (+HP/AC), Draconic Ancestry
+ * (fire affinity), and Elemental Affinity (L5 cantrip damage bonus) are deferred to Phase 3.
+ */
+export const DraconicSorceryRedSubclass: SubclassDefinition = {
+  id: "draconic-sorcery-red",
+  name: "Draconic Sorcery (Red)",
+  classId: "sorcerer",
+  features: {
+    [DRACONIC_RESILIENCE]: 1,
+    [DRACONIC_ANCESTRY]: 1,
+    [ELEMENTAL_AFFINITY]: 5,
+  },
+};
+
 export const Sorcerer: CharacterClassDefinition = {
   id: "sorcerer",
   name: "Sorcerer",
@@ -46,6 +69,7 @@ export const Sorcerer: CharacterClassDefinition = {
   },
   features: {
     "spellcasting": 1,
+    [INNATE_SORCERY]: 1,
     "sorcery-points": 2,
     "metamagic": 2,
   },
@@ -66,6 +90,7 @@ export const Sorcerer: CharacterClassDefinition = {
   restRefreshPolicy: [
     { poolKey: "sorceryPoints", refreshOn: "long", computeMax: (level) => sorceryPointsForLevel(level) },
   ],
+  subclasses: [DraconicSorceryRedSubclass],
 };
 
 export const SORCERER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {

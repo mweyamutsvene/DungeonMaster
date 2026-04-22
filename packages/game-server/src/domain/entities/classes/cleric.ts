@@ -1,7 +1,8 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { DISCIPLE_OF_LIFE, PRESERVE_LIFE, LIFE_DOMAIN_SPELLS } from "./feature-keys.js";
 
 export interface ChannelDivinityState {
   pool: ResourcePool;
@@ -76,6 +77,24 @@ export const CLERIC_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   attackEnhancements: [],
 };
 
+// ----- Subclasses -----
+
+/**
+ * Life Domain subclass (D&D 5e 2024).
+ * Shell definition — executors for Disciple of Life (bonus heal) and
+ * Preserve Life (Channel Divinity pool heal) are deferred to Phase 3.
+ */
+export const LifeDomainSubclass: SubclassDefinition = {
+  id: "life-domain",
+  name: "Life Domain",
+  classId: "cleric",
+  features: {
+    [DISCIPLE_OF_LIFE]: 3,
+    [PRESERVE_LIFE]: 3,
+    [LIFE_DOMAIN_SPELLS]: 3,
+  },
+};
+
 export const Cleric: CharacterClassDefinition = {
   id: "cleric",
   name: "Cleric",
@@ -107,4 +126,5 @@ export const Cleric: CharacterClassDefinition = {
     }
     return caps;
   },
+  subclasses: [LifeDomainSubclass],
 };

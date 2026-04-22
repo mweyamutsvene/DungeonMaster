@@ -1,7 +1,8 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
+import { CIRCLE_SPELLS, LANDS_AID } from "./feature-keys.js";
 
 export interface WildShapeState {
   pool: ResourcePool;
@@ -103,6 +104,23 @@ export function resetWildShapeOnShortRest(level: number, state: WildShapeState):
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+// ----- Subclasses -----
+
+/**
+ * Circle of the Land (Grassland) subclass (D&D 5e 2024).
+ * Shell definition — executors for Circle Spells (terrain-bound spells) and
+ * Land's Aid (Channel Divinity-style necrotic burst / heal) are deferred to Phase 3.
+ */
+export const CircleOfTheLandGrasslandSubclass: SubclassDefinition = {
+  id: "circle-of-the-land-grassland",
+  name: "Circle of the Land (Grassland)",
+  classId: "druid",
+  features: {
+    [CIRCLE_SPELLS]: 3,
+    [LANDS_AID]: 3,
+  },
+};
+
 export const Druid: CharacterClassDefinition = {
   id: "druid",
   name: "Druid",
@@ -140,6 +158,7 @@ export const Druid: CharacterClassDefinition = {
   restRefreshPolicy: [
     { poolKey: "wildShape", refreshOn: "both", computeMax: (level) => wildShapeUsesForLevel(level) },
   ],
+  subclasses: [CircleOfTheLandGrasslandSubclass],
 };
 
 // ----- Combat Text Profile -----

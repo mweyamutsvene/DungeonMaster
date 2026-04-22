@@ -1,0 +1,617 @@
+{
+  "name": "Paladin P2: Party Support Tank — Bless + Divine Smite + Lay on Hands (Paladin+Wizard+Rogue)",
+  "description": "Multi-PC party scenario at L5: Devotion Paladin (Brother Aldric) + Evocation Wizard (Elara) + Thief Rogue (Shadow) face an Ogre Champion and two Hobgoblin Soldiers. Tests (1) Bless on all party members — concentration set, L1 slot consumed (BUG-4/GAP-2 confirmed fixed), (2) Divine Smite opt-in on a hit against the Ogre via 'N with divine smite' — consumes L1 slot + bonus action, (3) Lay on Hands bonus-action self-heal — decrements 25-HP pool, (4) Rogue Sneak Attack from ranged Shortbow with ally (Aldric) adjacent to the target. NOTE: Aura of Protection is a L6 feature so this scenario is the L5 party-support appropriate test for the Paladin.\n\nSetup deviations from spec (for deterministic E2E):\n  - Monster positions moved to be adjacent to Aldric so melee attack and Sneak-Attack-via-ally-adjacency land without movement steps.\n  - Ogre Champion AC raised from 11→15 so the Extra Attack auto-chain natural-1 miss stays a deterministic miss even with Bless (+1d4) active.\n  - All monsters are queued to endTurn every round so PC HP / concentration stays deterministic across the scenario (Bless concentration is never damage-tested).\n  - Aldric starts wounded at 80/100 HP so R3 Lay on Hands (self) actually applies healing; the spec asked for LoH on Wizard but see GAP-P2-1.\n\nGAP-P2-1: 'lay on hands on <ally>' is not currently supported. The class-ability target parser in packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts iterates monsters and NPCs only and explicitly filters out combatantType === 'Character', so PC-on-PC healing via tabletop text cannot be targeted. The executor (lay-on-hands-executor.ts) supports an ally target via params.targetEntityId + context.target, but the dispatcher never resolves those from a PC name. Workaround in this scenario: Aldric self-heals.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Brother Aldric: Devotion Paladin L5. CHA 16 (+3), STR 18 (+4). spellSaveDC 14, spellAttackBonus +6. Bless (R1) consumes L1 slot 4→3. Divine Smite (R2) consumes another L1 slot 3→2. Lay on Hands pool 25 HP (5 × level), used in R3 to heal Elara.",
+        "name": "Brother Aldric",
+        "className": "Paladin",
+        "subclass": "Devotion",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 10, "constitution": 16,
+            "intelligence": 10, "wisdom": 12, "charisma": 16
+          },
+          "maxHp": 100, "currentHp": 80, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 4, "2": 2 },
+          "preparedSpells": [
+            { "name": "Bless", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Shield of Faith", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+            { "name": "Divine Smite", "description": "After hit, expend spell slot + bonus action for 2d8 radiant (L1)" },
+            { "name": "Lay on Hands", "description": "Bonus action: heal from a 25-HP pool (5 × level)" }
+          ],
+          "resourcePools": [
+            { "name": "layOnHands", "current": 25, "max": 25 },
+            { "name": "channelDivinity", "current": 1, "max": 1 }
+          ]
+        }
+      },
+      {
+        "comment": "Elara: Evocation Wizard L5. INT 18 (+4). spellSaveDC 15, spellAttackBonus +7. Casts Magic Missile (R1, L1 auto-hit), Scorching Ray (R2, L2, 3 beams), Fire Bolt (R3 cantrip, 2d10 at L5).",
+        "name": "Elara",
+        "className": "Wizard",
+        "subclass": "Evocation",
+        "level": 5,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 80, "currentHp": 80, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Fire Bolt", "level": 0 },
+            { "name": "Magic Missile", "level": 1 },
+            { "name": "Scorching Ray", "level": 2 }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee", "range": "melee",
+              "attackBonus": 1,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Shadow: Thief Rogue L5. DEX 18 (+4). Shortbow +7, 1d6+4 piercing. Sneak Attack 3d6 server-applied when attacking with advantage OR when an ally is within 5 ft of the target (and Shadow has no disadvantage). Aldric at (10,10) is adjacent to all three monsters, so Shadow's shortbow fire at any of them qualifies for SA via ally adjacency.",
+        "name": "Shadow",
+        "className": "Rogue",
+        "subclass": "Thief",
+        "level": 5,
+        "position": { "x": 5, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 18, "constitution": 14,
+            "intelligence": 12, "wisdom": 12, "charisma": 14
+          },
+          "maxHp": 80, "currentHp": 80, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 3,
+          "skills": { "stealth": 7 },
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "range": "80/320",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+              "damageType": "piercing"
+            }
+          ],
+          "features": [
+            { "name": "Sneak Attack", "description": "3d6 extra damage with advantage or ally within 5 ft of target" },
+            { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as a bonus action" }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Ogre Champion. Spec said (15,10) / AC 11; moved to (11,10) adjacent to Aldric and bumped AC 11→15 so Paladin Extra-Attack auto-miss chain (natural-1 + 7 + Bless 1d4) still reliably misses. hp 120, Greatclub +6, 2d8+4.",
+        "name": "Ogre Champion",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 120, "hp": 120, "armorClass": 15, "speed": 30,
+          "challengeRating": 2, "experienceValue": 450,
+          "actions": [
+            { "name": "Greatclub", "description": "One melee weapon attack." }
+          ],
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Hobgoblin Soldier A. Spec said (20,10); moved to (11,11) adjacent to Aldric so Shadow's shortbow shot qualifies for Sneak Attack via ally adjacency. AC 18 keeps Aldric's potential chained miss rolls misses, and auto-chain natural-1 rolls against it are deterministic misses.",
+        "name": "Hobgoblin Soldier A",
+        "position": { "x": 11, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 18, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "actions": [
+            { "name": "Longsword", "description": "One melee weapon attack." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Hobgoblin Soldier B. Spec said (20,12); moved to (11,9) adjacent to Aldric for symmetric Sneak-Attack eligibility. Same stat block as A.",
+        "name": "Hobgoblin Soldier B",
+        "position": { "x": 11, "y": 9 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 18, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "actions": [
+            { "name": "Longsword", "description": "One melee weapon attack." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "Queue endTurn for all three monsters across 4 rounds (3 monsters × 4 rounds = 12 entries). This keeps PC HP deterministic and protects Aldric's Bless concentration from concentration-check damage. With the queue empty after R4, the scenario has already reached its final assertions.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+
+    {
+      "comment": "=== ROUND 1: BLESS PARTY + RANGED ATTACKS === Aldric initiates. DEX 10 (+0). Roll 20 → init 20 (guaranteed to beat ogre DEX −1 max 19 and hobgoblins DEX +1 max 21 most of the time; Elara DEX 14 +2 and Shadow DEX 18 +4 auto-roll separately — order between PCs handled by waitForTurn on each actor).",
+      "type": "initiate",
+      "actor": "Brother Aldric",
+      "input": { "text": "I raise my holy symbol over the party" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Aldric initiative 20.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Wait for Aldric's R1 turn. (He may or may not be first — waitForTurn skips to him.)",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Aldric: cast Bless on self + Elara + Shadow. 'cast Bless' with no explicit target applies to all allies (appliesTo: 'allies'). Sets concentration: 'Bless', consumes L1 slot 4→3 (BUG-4/GAP-2 fixed today — Bless now correctly decrements a slot).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Bless" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert Bless concentration active on Aldric.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    {
+      "comment": "Assert L1 slot consumed by Bless: 4 → 3.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn", "actor": "Brother Aldric" },
+
+    {
+      "comment": "Wait for Elara's R1 turn.",
+      "type": "waitForTurn",
+      "actor": "Elara",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Elara: Magic Missile (L1, auto-hit, 3 darts × 1d4+1 = 3d4+3 force ≈ 6–15 damage to Hobgoblin A). SIMPLE_ACTION_COMPLETE — no attack roll. Consumes L1 slot 4→3.",
+      "type": "action",
+      "actor": "Elara",
+      "input": { "text": "cast Magic Missile at Hobgoblin Soldier A" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Assert Elara L1 slot consumed: 4 → 3.",
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn", "actor": "Elara" },
+
+    {
+      "comment": "Wait for Shadow's R1 turn.",
+      "type": "waitForTurn",
+      "actor": "Shadow",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Shadow: shoot Hobgoblin Soldier A with Shortbow. Aldric at (10,10) is adjacent to Hobgoblin A at (11,11) → Sneak Attack eligible via ally adjacency. Bless adds +1d4 to Shadow's attack roll.",
+      "type": "action",
+      "actor": "Shadow",
+      "input": { "text": "attack Hobgoblin Soldier A with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 15. Total: 15 + 7 + Bless 1d4 = 23–26 vs AC 18 → hit.",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll 14 (weapon 1d6+4 + Sneak Attack 3d6 totalled by player). Server applies whatever damage it computed.",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+    { "type": "endTurn", "actor": "Shadow" },
+
+    {
+      "comment": "=== ROUND 2: PALADIN SMITES OGRE + WIZARD SCORCHING RAY + ROGUE SHORTBOW ===",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Aldric: attack Ogre Champion with Longsword. First attack is the primary; Extra Attack second swing auto-chains as a natural-1 miss after this attack completes.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "attack Ogre Champion with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 14. Total: 14 + 7 + Bless 1d4 = 22–25 vs Ogre AC 15 → hit. Server should surface eligibleEnhancements with divine-smite.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "14" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage 6 weapon + 'with divine smite' → server adds 2d8 radiant and consumes L1 slot + bonus action. Extra Attack second swing auto-chains (natural 1 + 7 + Bless 1–4 = 9–12 vs AC 15 → miss).",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "6 with divine smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert L1 slot consumed by Divine Smite: 3 → 2.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+    {
+      "comment": "Bless concentration must still be active (Divine Smite is a class feature, not a spell cast, so no concentration contest).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    { "type": "endTurn", "actor": "Brother Aldric" },
+
+    {
+      "comment": "R2 Elara: Scorching Ray at Ogre Champion — L2 slot, 3 separate attack rolls, each 2d6 fire on hit.",
+      "type": "waitForTurn",
+      "actor": "Elara",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Elara cast Scorching Ray at Ogre Champion. First of 3 rays will prompt for attack.",
+      "type": "action",
+      "actor": "Elara",
+      "input": { "text": "cast Scorching Ray at Ogre Champion" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 attack 15 + 7 + Bless = 23–26 vs AC 15 → hit.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 damage 8 (2d6 fire) → chain to ray 2.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 attack 15 → hit.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 damage 8 → chain to ray 3.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 attack 15 → hit.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 damage 8 → action complete.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert Elara L2 slot consumed: 3 → 2.",
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 } }
+    },
+    { "type": "endTurn", "actor": "Elara" },
+
+    {
+      "comment": "R2 Shadow: shoot Ogre Champion with Shortbow. Aldric is adjacent to Ogre → Sneak Attack eligible.",
+      "type": "waitForTurn",
+      "actor": "Shadow",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Shadow attack Ogre with Shortbow.",
+      "type": "action",
+      "actor": "Shadow",
+      "input": { "text": "attack Ogre Champion with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 16 + 7 + Bless = 24–27 vs AC 15 → hit.",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 12 total (weapon + SA).",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "12" },
+      "expect": { "actionComplete": true }
+    },
+    { "type": "endTurn", "actor": "Shadow" },
+
+    {
+      "comment": "=== ROUND 3: LAY ON HANDS + PALADIN ATTACK (NO SMITE) + FIRE BOLT + ROGUE SHOT ===",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 Aldric action: attack Ogre Champion with Longsword (no smite this round — save the slot, use bonus action for Lay on Hands).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "attack Ogre Champion with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 13 + 7 + Bless = 21–24 vs AC 15 → hit.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "13" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage 5 weapon — NO smite keyword, no slot/bonus action consumed. Extra Attack auto-chain (natural 1 vs AC 15 with Bless → miss).",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "DIAGNOSTIC: verify Aldric is wounded before LoH self-heal. Setup currentHp was 80.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterHp": { "min": 0, "max": 99 } }
+    },
+    {
+      "comment": "R3 Aldric bonus: Lay on Hands self-heal for 10 HP. Explicit amount supported (see healing-dice-regression). Decrements layOnHands pool 25 → 15. Aldric heals from 80 toward 100. GAP-P2-1: 'lay on hands on Elara' would be the spec'd flow but is unsupported by the current class-ability target parser — see scenario description.",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "lay on hands 10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert Lay on Hands pool decremented: 25 → 15.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "layOnHands", "current": 15, "max": 25 } }
+    },
+    {
+      "comment": "Assert L1 slot unchanged this round (no smite): still 2/4.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+    {
+      "comment": "Assert Aldric healed: 80 + 10 LoH = 90/100.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterHp": { "min": 90, "max": 90 } }
+    },
+    { "type": "endTurn", "actor": "Brother Aldric" },
+
+    {
+      "comment": "R3 Elara: Fire Bolt cantrip at Ogre Champion. 2d10 at L5, attack roll, no slot. Bless still applies to Elara's attack roll.",
+      "type": "waitForTurn",
+      "actor": "Elara",
+      "timeout": 15000
+    },
+    {
+      "comment": "Cast Fire Bolt at Ogre.",
+      "type": "action",
+      "actor": "Elara",
+      "input": { "text": "cast Fire Bolt at Ogre Champion" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 14 + 7 + Bless = 22–25 vs AC 15 → hit.",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 12 (2d10).",
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "12" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert no spell slots consumed this round (cantrip is free): L1 still 3/4 for Elara (she used one L1 for Magic Missile in R1).",
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn", "actor": "Elara" },
+
+    {
+      "comment": "R3 Shadow: shoot Hobgoblin Soldier B (Aldric adjacent → SA eligible).",
+      "type": "waitForTurn",
+      "actor": "Shadow",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 Shadow attack Hobgoblin Soldier B with Shortbow.",
+      "type": "action",
+      "actor": "Shadow",
+      "input": { "text": "attack Hobgoblin Soldier B with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 14 + 7 + Bless = 22–25 vs AC 18 → hit.",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 13 total (weapon + SA).",
+      "type": "rollResult",
+      "actor": "Shadow",
+      "input": { "text": "13" },
+      "expect": { "actionComplete": true }
+    },
+    { "type": "endTurn", "actor": "Shadow" },
+
+    {
+      "comment": "=== ROUND 4: FINAL STATE ASSERTIONS === No further actions — verify accumulated state.",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "monstersAlive": 3
+      }
+    },
+    {
+      "comment": "Bless concentration persists on Aldric through the whole fight (no concentration damage since monsters endTurn every round).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    {
+      "comment": "Aldric L1 slots: R1 Bless 4→3, R2 Divine Smite 3→2, R3 attack with no smite (no change). Final: 2/4.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } }
+    },
+    {
+      "comment": "Aldric Lay on Hands pool: 25 − 10 (R3 heal on Elara) = 15/25.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "layOnHands", "current": 15, "max": 25 } }
+    },
+    {
+      "comment": "Elara L1: R1 Magic Missile 4→3; R3 Fire Bolt is cantrip. Final: 3/4.",
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    {
+      "comment": "Elara L2: R2 Scorching Ray 3→2. Final: 2/3.",
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 } }
+    },
+    {
+      "comment": "Ogre Champion took significant damage across R2+R3 (Smite + Scorching Ray + Shortbow + Fire Bolt). Broad bound — at least some damage, possibly downed.",
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Ogre Champion", "min": 0, "max": 110 } }
+    },
+    {
+      "comment": "Aldric healed to 90 by LoH in R3 (started 80 + 10 healed).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "characterHp": { "min": 90, "max": 90 }
+      }
+    }
+  ]
+}

@@ -1,0 +1,401 @@
+{
+  "name": "Wizard: Spell Slot Economy (Full Slot Depletion)",
+  "description": "A Level 5 Evocation Wizard depletes all 9 spell slots (4xL1, 3xL2, 2xL3) across 9 rounds of combat, then falls back to cantrips. Monsters use defaultBehavior endTurn to keep focus on slot tracking.",
+  "setup": {
+    "character": {
+      "name": "Magnus Bookwyrm",
+      "className": "Wizard",
+      "subclass": "Evocation",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 120,
+        "currentHp": 120,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Misty Step", "level": 2 },
+          { "name": "Fireball", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Iron Skeleton — primary Fireball + Scorching Ray target. 120hp ensures it survives multiple rounds.",
+        "name": "Iron Skeleton",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 14, "constitution": 15, "intelligence": 6, "wisdom": 8, "charisma": 5 },
+          "maxHp": 120, "hp": 120, "armorClass": 13, "speed": 30,
+          "passivePerception": 9, "challengeRating": 0.25, "experienceValue": 50,
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [{ "name": "Shortsword", "kind": "melee", "range": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }]
+        }
+      },
+      {
+        "comment": "Steel Skeleton — secondary target for Scorching Ray R4 and Magic Missile R5.",
+        "name": "Steel Skeleton",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 14, "constitution": 15, "intelligence": 6, "wisdom": 8, "charisma": 5 },
+          "maxHp": 120, "hp": 120, "armorClass": 13, "speed": 30,
+          "passivePerception": 9, "challengeRating": 0.25, "experienceValue": 50,
+          "conditionImmunities": ["Poisoned", "Exhaustion"],
+          "attacks": [{ "name": "Shortsword", "kind": "melee", "range": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }]
+        }
+      },
+      {
+        "comment": "Goblin Sniper — target for Scorching Ray R8 and Fire Bolt R10.",
+        "name": "Goblin Sniper",
+        "position": { "x": 10, "y": 20 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 120, "hp": 120, "armorClass": 13, "speed": 30,
+          "passivePerception": 9, "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [{ "name": "Shortbow", "kind": "ranged", "range": "80/320", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "piercing" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Fireball (L3 slot) — spellSlot_3: 2→1 ===",
+      "type": "initiate",
+      "input": { "text": "Magnus unleashes a fireball at the Iron Skeleton" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll initiative 18 — wizard acts first.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1: Cast Fireball centered on Iron Skeleton. 8d6 fire, 20ft sphere, DEX save DC 15. Auto-resolves. Consumes 1 L3 slot.",
+      "type": "action",
+      "input": { "text": "cast Fireball at Iron Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R1: L3 slot consumed. spellSlot_3: 2→1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 2: Scorching Ray at Iron Skeleton (L2 slot) — spellSlot_2: 3→2 ===",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Iron Skeleton" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 attack: 15+7=22 vs AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 damage → chains to ray 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 attack: 15+7=22 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 damage → chains to ray 3.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 attack: 15+7=22 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 damage → last ray, action complete.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R2: L2 slot consumed. spellSlot_2: 3→2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 3: Burning Hands at Iron Skeleton (L1 slot) — spellSlot_1: 4→3 ===",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Iron Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R3: L1 slot consumed. spellSlot_1: 4→3.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 4: Scorching Ray at Steel Skeleton (L2 slot) — spellSlot_2: 2→1 ===",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Steel Skeleton" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 attack: 15+7=22 vs Steel Skeleton AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 damage → chains to ray 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 damage → chains to ray 3.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 damage → last ray, action complete.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R4: L2 slot consumed. spellSlot_2: 2→1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 3 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 5: Magic Missile at Steel Skeleton (L1 slot) — spellSlot_1: 3→2 ===",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Steel Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R5: L1 slot consumed. spellSlot_1: 3→2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 6: Burning Hands at Steel Skeleton (L1 slot) — spellSlot_1: 2→1 ===",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Steel Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R6: L1 slot consumed. spellSlot_1: 2→1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 7: Fireball (last L3 slot) — spellSlot_3: 1→0 ===",
+      "type": "action",
+      "input": { "text": "cast Fireball at Iron Skeleton" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R7: Last L3 slot consumed. spellSlot_3: 1→0.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 0, "max": 2 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 8: Scorching Ray at Goblin Sniper (last L2 slot) — spellSlot_2: 1→0 ===",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Goblin Sniper" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 attack: 15+7=22 vs Goblin Sniper AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 1 damage → chains to ray 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 2 damage → chains to ray 3.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 attack → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "SR ray 3 damage → last ray, action complete.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R8: Last L2 slot consumed. spellSlot_2: 1→0.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 0, "max": 3 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 9: Burning Hands (last L1 slot) — spellSlot_1: 1→0. ALL SLOTS DEPLETED ===",
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin Sniper" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT R9: Last L1 slot consumed. All 9 slots across all 3 tiers now spent.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 0, "max": 4 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 10: Fire Bolt cantrip (no slot cost) — all slot levels must remain at 0 ===",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin Sniper" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt attack roll: 14+7=21 vs Goblin Sniper AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt damage: 2d10 fire at L5. Action complete.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "KEY ASSERTION: L1 slots still 0 after cantrip. Cantrips must never consume spell slots.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 0, "max": 4 }
+      }
+    },
+    {
+      "comment": "KEY ASSERTION: L2 slots still 0 after cantrip.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 0, "max": 3 }
+      }
+    },
+    {
+      "comment": "KEY ASSERTION: L3 slots still 0 after cantrip.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 0, "max": 2 }
+      }
+    },
+    {
+      "comment": "Final HP check: monsters used endTurn every round so wizard took no damage.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 120, "max": 120 }
+      }
+    }
+  ]
+}

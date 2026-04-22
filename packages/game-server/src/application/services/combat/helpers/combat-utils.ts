@@ -81,6 +81,7 @@ export type CreatureAdapter = {
   getClassId(): string | undefined;
   getSubclass(): string | undefined;
   getLevel(): number | undefined;
+  hasCondition(condition: string): boolean;
   getD20TestModeForAbility?: (
     ability: Ability,
     baseMode: "normal" | "advantage" | "disadvantage",
@@ -95,8 +96,13 @@ export function buildCreatureAdapter(params: {
   subclass?: string;
   level?: number;
   hpCurrent: number;
+  conditions?: readonly string[];
 }): { creature: CreatureAdapter; getHpCurrent: () => number } {
   let hpCurrent = params.hpCurrent;
+  // Normalize conditions to lowercase for case-insensitive lookup.
+  const conditionSet = new Set<string>(
+    (params.conditions ?? []).map((c) => String(c).toLowerCase()),
+  );
 
   const creature: CreatureAdapter = {
     getAC: () => params.armorClass,
@@ -109,6 +115,7 @@ export function buildCreatureAdapter(params: {
     getClassId: () => params.classId,
     getSubclass: () => params.subclass,
     getLevel: () => params.level,
+    hasCondition: (c) => conditionSet.has(String(c).toLowerCase()),
   };
 
   return { creature, getHpCurrent: () => hpCurrent };

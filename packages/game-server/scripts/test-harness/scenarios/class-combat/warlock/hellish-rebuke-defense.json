@@ -1,0 +1,327 @@
+{
+  "name": "Warlock: Hellish Rebuke Defense + Pact Slot Economy (WL2)",
+  "description": "A level 5 Fiend Warlock (Malachar) faces Warlord Bane across three rounds. Tests: (1) Hellish Rebuke damage reaction fires when Malachar is hit — 2d10 fire back to attacker, DEX save DC 15 for half, costs 1 Pact Magic slot; (2) Pact Magic pool decrements correctly from 2→1→0 after two HR uses; (3) After both pact slots are spent, Hellish Rebuke NO LONGER fires — pactMagic=0 check in warlock.ts detect() returns null; (4) Eldritch Blast (cantrip, 2 beams at L5) never costs a pact slot. Warlord Bane uses behavior 'attack' each round. queueDiceRolls forces a deterministic hit each round. The third monster attack verifies no HR reaction prompt is generated when pactMagic=0.",
+  "setup": {
+    "character": {
+      "name": "Malachar",
+      "className": "Warlock",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 18
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 13,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "3": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 },
+          { "name": "Hellish Rebuke", "level": 1 }
+        ],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Warlord Bane",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 13,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 11,
+            "charisma": 14
+          },
+          "maxHp": 120,
+          "hp": 120,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit Thug",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 10,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn",
+      "monsterBehaviors": { "Warlord Bane": "attack" }
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== COMBAT START === Malachar initiates. DEX 14 → +2 mod. Roll 20 = 22 init. Warlord Bane max = 20+1=21, Bandit Thug max = 20+0=20. Malachar always goes first.",
+      "type": "initiate",
+      "input": { "text": "I channel my dark pact against Warlord Bane" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Initiative: 20 + 2 DEX = 22. Malachar leads the combat.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1 — Malachar's turn: Eldritch Blast (cantrip, 2 beams at L5, FREE — no pact slot) ===",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Warlord Bane" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack: 14 + 7 = 21 vs AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: 8 force. Warlord Bane: 120 - 8 = 112 HP. Beam 2 queued — actionComplete: false.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack: 12 + 7 = 19 vs AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: 6 force. Warlord Bane: 112 - 6 = 106 HP. Both beams done — actionComplete: true. pactMagic still 2 (cantrip costs nothing).",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify EB dealt force damage and pactMagic is untouched (cantrip).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Warlord Bane", "min": 100, "max": 110 },
+        "characterResource": { "poolName": "pactMagic", "current": 2, "max": 2 }
+      }
+    },
+
+    {
+      "comment": "Queue dice for Warlord Bane's attack: [15] = d20 attack (15+5=20 ≥ AC 13 → HIT), [5] = d8 damage (5+3=8 slashing to Malachar).",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 5] }
+    },
+
+    {
+      "comment": "Malachar ends his turn. Warlord Bane (behavior: attack) attacks with Longsword — dice queue ensures a hit.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "Warlord Bane's attack hits Malachar for 8 slashing. Hellish Rebuke reaction detected: Malachar has pactMagic>0 and hasHellishRebukePrepared=true. Reaction prompt fires.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "hellish_rebuke" },
+      "timeout": 10000
+    },
+
+    {
+      "comment": "Malachar uses Hellish Rebuke: 2d10 fire damage to Warlord Bane, DEX save DC 15 for half (WB DEX 13 → +1 mod). Spends 1 pactMagic slot: 2 → 1.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+
+    {
+      "comment": "Wait for Warlord Bane's turn to complete (Bandit Thug endTurns). Control returns to Malachar.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "R1 post-turn assertions: pactMagic decremented to 1, Malachar took 8 slashing (queued), Warlord Bane took EB force + Hellish Rebuke fire (random 2d10 save vs DC 15).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "pactMagic", "current": 1, "max": 2 },
+        "characterHp": { "min": 88, "max": 95 },
+        "monsterHp": { "name": "Warlord Bane", "min": 80, "max": 105 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2 — Malachar: Eldritch Blast again (cantrip, still free). pactMagic remains 1 until HR fires again. ===",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Warlord Bane" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack: 15 + 7 = 22 vs AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: 7 force. Beam 2 queued.",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack: 11 + 7 = 18 vs AC 14 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: 5 force. Last beam — actionComplete: true.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Queue dice for R2 Warlord Bane attack: [15] = hit (15+5=20 ≥ 13), [6] = d8 damage (6+3=9 slashing).",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 6] }
+    },
+
+    {
+      "comment": "End Malachar's R2 turn. Warlord Bane attacks again (behavior: attack).",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "Warlord Bane hits for 9 slashing. HR eligible (pactMagic=1>0, reaction not yet used this turn). Reaction prompt fires.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "hellish_rebuke" },
+      "timeout": 10000
+    },
+
+    {
+      "comment": "Malachar uses Hellish Rebuke again: 2d10 fire to Warlord Bane, DEX save DC 15 for half. This spends the LAST pactMagic slot: 1 → 0.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+
+    {
+      "comment": "Wait for monster turns to complete. Control returns to Malachar.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "R2 post-turn: pactMagic is now 0 (both L3 pact slots spent on Hellish Rebuke). Malachar at ~83 HP (92-9). Warlord Bane took additional EB + HR damage.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "pactMagic", "current": 0, "max": 2 },
+        "characterHp": { "min": 75, "max": 88 },
+        "monsterHp": { "name": "Warlord Bane", "min": 50, "max": 92 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 3 — pactMagic DEPLETED. Eldritch Blast cantrip still works (no slot needed). Target Bandit Thug to preserve Warlord Bane's HP range. ===",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Bandit Thug" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 attack: 12 + 7 = 19 vs Bandit Thug AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 1 damage: 9 force. Bandit Thug: 80 - 9 = 71 HP. Beam 2 queued.",
+      "type": "rollResult",
+      "input": { "text": "9" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 attack: 10 + 7 = 17 vs AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Beam 2 damage: 4 force. Bandit Thug: 71 - 4 = 67 HP. Both beams done.",
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Queue dice for R3 Warlord Bane attack: [15] = hit (15+5=20 ≥ 13), [6] = d8 damage (6+3=9 slashing). NOTE: pactMagic=0, so Hellish Rebuke CANNOT fire — detect() returns null when no pact slot is available.",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 6] }
+    },
+
+    {
+      "comment": "End R3 turn. Warlord Bane attacks and hits — but NO waitForReaction step follows. This proves HR is blocked when pactMagic=0.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "waitForTurn proceeds WITHOUT a reaction pause — HR was not offered because pactMagic=0. If HR mistakenly fired, this step would hang waiting for a reaction prompt, exposing the bug.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== FINAL ASSERTIONS: Both pact slots consumed, cantrip still dealt damage, both monsters alive, combat ongoing. ===",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "pactMagic", "current": 0, "max": 2 },
+        "characterHp": { "min": 60, "max": 82 },
+        "monsterHp": { "name": "Bandit Thug", "min": 62, "max": 71 },
+        "monstersAlive": 2,
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

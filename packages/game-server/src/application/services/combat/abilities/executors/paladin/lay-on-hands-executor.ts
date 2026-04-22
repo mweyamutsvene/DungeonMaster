@@ -18,6 +18,8 @@ import { requireSheet, requireResources, requireClassFeature } from "../executor
 import { hasResourceAvailable, hasBonusActionAvailable } from "../../../helpers/resource-utils.js";
 
 export class LayOnHandsExecutor implements AbilityExecutor {
+  readonly allowsAllyTarget = true;
+
   canExecute(abilityId: string): boolean {
     const normalized = abilityId.toLowerCase().replace(/[^a-z0-9]+/g, "");
     return normalized === "classpaladinlayonhands" || normalized === "layonhands";

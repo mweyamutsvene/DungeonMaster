@@ -96,7 +96,8 @@ export type ScenarioAction =
   | QueryAction
   | NpcActionAction
   | ApplyConditionAction
-  | QueueMonsterActionsAction;
+  | QueueMonsterActionsAction
+  | QueueDiceRollsAction;
 
 interface InitiateAction {
   type: "initiate";
@@ -312,6 +313,26 @@ interface ReactionRespondAction {
     spellName?: string;
     /** For War Caster spell-as-OA: optional upcast level */
     castAtLevel?: number;
+  };
+  comment?: string;
+}
+
+/**
+ * Queue specific raw d20/die values into the server's DiceRoller queue.
+ * These values are consumed FIFO by the NEXT server-side die rolls
+ * (e.g., CON saves for Stunning Strike, monster attack rolls, damage rolls).
+ * When the queue is empty, the server falls back to its seeded roller.
+ *
+ * Use this to make server-side rolls deterministic in E2E scenarios
+ * (e.g., force a natural 1 on a CON save so Stunning Strike always lands).
+ */
+interface QueueDiceRollsAction {
+  type: "queueDiceRolls";
+  input: {
+    /** Raw die values to queue (no modifiers applied — these are the die face values) */
+    values: number[];
+    /** Optional label for verbose logging */
+    label?: string;
   };
   comment?: string;
 }
@@ -621,6 +642,8 @@ export interface RunScenarioCallbacks {
   configureAi?: (config: { defaultBehavior: AiBehavior; defaultBonusAction?: string; monsterBehaviors?: Record<string, AiBehavior> }) => void;
   /** Queue specific AiDecision objects for deterministic monster turn reproduction */
   queueDecisions?: (decisions: Array<Record<string, unknown>>) => void;
+  /** Queue specific raw die values into the server's DiceRoller FIFO queue */
+  queueDiceRolls?: (values: number[]) => void;
 }
 
 export async function runScenario(
@@ -2394,6 +2417,18 @@ export async function runScenario(
             }
           } else {
             log(`${colors.yellow}⚠${colors.reset} Decision queueing not available (no callback provided)`);
+          }
+          break;
+        }
+
+        case "queueDiceRolls": {
+          const diceAction = action as QueueDiceRollsAction;
+          if (callbacks.queueDiceRolls) {
+            callbacks.queueDiceRolls(diceAction.input.values);
+            const label = diceAction.input.label ?? "server-side rolls";
+            log(`${colors.green}✓${colors.reset} Queued ${diceAction.input.values.length} die value(s) for ${label}: [${diceAction.input.values.join(", ")}]`);
+          } else {
+            log(`${colors.yellow}⚠${colors.reset} Dice roll queueing not available (no callback provided)`);
           }
           break;
         }

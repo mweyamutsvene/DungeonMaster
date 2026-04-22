@@ -1,8 +1,97 @@
-# SME Research — CombatOrchestration — Monster Action Queueing
+# SME Research: CombatOrchestration GAP-10 (ARCHIVED CONTENT BELOW — IGNORE)
 
-## Scope
-- Files read: `combat-service.ts` (endTurn ~L844-877, nextTurn ~L482), `ai-turn-orchestrator.ts` (~L1-830), `session-actions.ts` (~L1-170), `session-tabletop.ts` (~L1-350), `tabletop-combat-service.ts` (~L1-400), `action-dispatcher.ts` (~L110-170), `roll-state-machine.ts` (~L430-560), `scenario-runner.ts` (endTurn, configureAi, action types), `combat-e2e.ts` (~L50-170)
-- Task: Enable E2E test harness to script exact monster actions step-by-step instead of relying on AI decision maker
+<!-- New content starts here -->
+
+As you wish Papi....
+
+## Symptom
+`lay on hands on Elara` (ally PC) fails — caller gets "Already at full HP" or the HP update lands on the paladin. Self-heal works.
+
+---
+
+## Root Cause (4 bugs, all in `handleBonusAbility`)
+
+File: [packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts](packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts)
+
+### Bug 1 — Target resolver only scans monsters
+Lines **611–644**: first loop iterates `monsters` only; fallback picks nearest hostile filtered by `combatantType === "Monster"`. Characters are never searched, so "Elara" never matches.
+
+### Bug 2 — `params.targetEntityId` is never passed
+Lines **687–697**: params bag includes `target` and `targetName` but omits `targetEntityId`. Executor ([lay-on-hands-executor.ts#L55](packages/game-server/src/application/services/combat/abilities/executors/paladin/lay-on-hands-executor.ts#L55)) requires both `targetEntityId` **and** `target` to route to ally; otherwise falls through to `actor` (self). Compare to `handleClassAbility` at line **219** which correctly passes `targetId: combatantRefToEntityId(targetRef)`.
+
+### Bug 3 — `buildTargetActor` stubs HP as 0
+Lines **61–78**: stub actor returns `getCurrentHP: () => 0, getMaxHP: () => 0`. Even if a Character were resolved, executor computes `missingHP = 0 − 0 = 0` → returns `"Already at full HP — no healing needed"`.
+
+### Bug 4 — HP update is always written to the actor combatant
+Lines **895–899**: `updateData.hpCurrent` is applied to `actorCombatant.id`. Executor returns `targetEntityId` in `result.data` for ally heals (executor line **127**), but handler ignores it — would heal the paladin instead of Elara even after bugs 1–3 are fixed.
+
+---
+
+## Files
+- Handler (all bugs): [class-ability-handlers.ts#L598-L820](packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts#L598-L820) (`handleBonusAbility`)
+- Actor stub: [class-ability-handlers.ts#L61-L78](packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts#L61-L78) (`buildTargetActor`)
+- Executor (already ally-capable): [lay-on-hands-executor.ts#L52-L128](packages/game-server/src/application/services/combat/abilities/executors/paladin/lay-on-hands-executor.ts#L52-L128)
+- Reference — spell delivery ally resolution: [save-spell-delivery-handler.ts#L431-L486](packages/game-server/src/application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts#L431-L486)
+- Reference — `handleClassAbility` passes `targetId`: [class-ability-handlers.ts#L219](packages/game-server/src/application/services/combat/tabletop/dispatch/class-ability-handlers.ts#L219)
+
+---
+
+## Proposed Fix (minimal, opt-in flag — option b)
+
+### 1. Extend `AbilityExecutor` interface
+[packages/game-server/src/domain/abilities/ability-executor.ts](packages/game-server/src/domain/abilities/ability-executor.ts):
+```ts
+export interface AbilityExecutor {
+  canExecute(abilityId: string): boolean;
+  execute(ctx: AbilityExecutionContext): Promise<AbilityExecutionResult>;
+  /** Handler will resolve ally Characters as valid targets when true. */
+  allowsAllyTarget?: boolean;
+}
+```
+Set `allowsAllyTarget = true` on `LayOnHandsExecutor`. Add `AbilityRegistry.allowsAllyTarget(abilityId): boolean` convenience method.
+
+### 2. Fix target resolver in `handleBonusAbility` (lines 611–644)
+Before scanning monsters, when `allowsAllyTarget`:
+- Scan `characters` for name match (excluding self → falls through to self heal)
+- If match, build `targetRef = { type: "Character", characterId }`
+
+### 3. Pass real HP to ally target actor
+Modify `buildTargetActor` to accept `hpCurrent`/`hpMax`. At call site, look up target combatant via `findCombatantByEntityId(combatantStates, ...)` and pass real values.
+
+### 4. Pass `targetEntityId` to executor params (line 687)
+```ts
+params: {
+  ...,
+  targetEntityId: targetRef ? combatantRefToEntityId(targetRef) : undefined,
+}
+```
+
+### 5. Route `hpUpdate` to the correct combatant (line 895)
+When `result.data.targetEntityId` is set, write `hpCurrent` to that combatant, not `actorCombatant`. Keep the resources write on actor (bonus action + pool). Two repo calls.
+
+---
+
+## Other Class Abilities That Could Target Allies
+Of 14 registered executors, **Lay on Hands is the only ally-target ability today**. Others are self-buff (SecondWind, PatientDefense, WholenessOfBody, Rage, ActionSurge, RecklessAttack), self-utility (CunningAction, StepOfTheWind, MartialArts, NimbleEscape, OffhandAttack), or enemy-target (FlurryOfBlows, TurnUndead). Future candidates: Help-style bonus actions, Channel Divinity: Preserve Life. Opt-in `allowsAllyTarget` flag scales cleanly.
+
+Healing Word / Cure Wounds are **spells**, not ability executors — they go through `SpellActionHandler` / `HealingSpellDeliveryHandler` and already resolve allied Characters correctly. Not affected.
+
+---
+
+## Risks
+
+1. **Name collisions** between monster and character on substring match — iterate characters FIRST when `allowsAllyTarget` (ally intent implies ally resolution, same convention as spell delivery). Low risk.
+2. **Self-targeting via own name** — if text match equals actor, set `targetRef = null` so executor's self branch fires (no range check). Must handle explicitly.
+3. **Touch-range check is a no-op today** — `mockCombat.getPosition` at line 674 returns `undefined`, so executor's range check at [lay-on-hands-executor.ts#L60-L72](packages/game-server/src/application/services/combat/abilities/executors/paladin/lay-on-hands-executor.ts#L60-L72) never fails. Ally heal across the map will "succeed". Flag as follow-up — fix requires wiring position from encounter state into `mockCombat`, affects all bonus abilities.
+4. **Interface change ripple** — `allowsAllyTarget?` is optional, no existing executors need edits. New registry method is additive.
+5. **Two repo writes on ally heal** — resources to actor, HP to target. Acceptable; matches spell-delivery pattern.
+
+## Recommendation
+Implement fixes 1–5 in one changeset. Track touch-range wiring (risk 3) as a separate plan — it's a cross-cutting bonus-ability fix, not GAP-10 scope.
+
+---
+---
+# (ARCHIVE — prior task content below, do not use)
 
 ## Q1: AI Turn Execution Flow
 

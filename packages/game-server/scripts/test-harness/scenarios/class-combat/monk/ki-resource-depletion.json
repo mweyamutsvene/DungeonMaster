@@ -1,0 +1,371 @@
+{
+  "name": "Monk: Full Ki Cycle — All 5 Ki Spent Across 5 Rounds + Free Martial Arts",
+  "description": "A level 5 Open Hand Monk (Master Dao) fights a Hobgoblin Warlord, Goblin Raider, and Gnoll Hunter across 5 rounds. Each round exercises a different ki-spending bonus action: R1 Flurry of Blows, R2 Patient Defense, R3 Stunning Strike enhancement (with forced CON save fail via queueDiceRolls), R4 Step of the Wind, R5 Flurry of Blows (final ki). After R5 we attempt a free Martial Arts strike — this may or may not succeed depending on bonus-action bookkeeping. Final ki should be 0.",
+  "setup": {
+    "character": {
+      "name": "Master Dao",
+      "className": "Monk",
+      "subclass": "Open Hand",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 120,
+        "currentHp": 120,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Flurry of Blows", "description": "Spend 1 ki after Attack for 2 bonus unarmed strikes" },
+          { "name": "Patient Defense", "description": "Spend 1 ki as bonus action to Dodge" },
+          { "name": "Step of the Wind", "description": "Spend 1 ki as bonus action to Disengage/Dash" },
+          { "name": "Stunning Strike", "description": "On hit, spend 1 ki; target CON save or Stunned" },
+          { "name": "Martial Arts", "description": "Free bonus-action unarmed strike after Attack action (no ki cost)" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Warlord",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 13
+          },
+          "maxHp": 120,
+          "hp": 120,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 2,
+          "actions": [
+            { "name": "Multiattack", "description": "The warlord makes two longsword attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Goblin Raider",
+        "position": { "x": 10, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 14,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll Hunter",
+        "position": { "x": 11, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 11,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "=== INIT ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Hobgoblin Warlord" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "19" },
+      "comment": "19 + 3 DEX = 22 initiative — Monk acts first",
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Regular Extra Attack → Flurry of Blows (ki 5 → 4) ===",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Warlord" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "15" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "6" }, "expect": { "actionComplete": false }, "comment": "EA chains" },
+    { "type": "rollResult", "input": { "text": "13" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true }, "comment": "R1 Attack action complete" },
+
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "R1 ki spend #1 — Flurry of Blows bonus action (2 strikes)",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "14" }, "expect": { "hit": true, "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "4" }, "comment": "First FoB hit — may offer OHT/SS enhancements, we skip them" },
+    { "type": "rollResult", "input": { "text": "12" }, "expect": { "hit": true, "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "assertState",
+      "comment": "End R1 player turn: ki 5 → 4",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "R1 monsters: Warlord Multiattack (2), Goblin, Gnoll",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    { "type": "endTurn", "comment": "End R1 player turn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 2: Regular Extra Attack → Patient Defense (ki 4 → 3) ===",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Warlord" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "16" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": false } },
+    { "type": "rollResult", "input": { "text": "12" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "6" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "action",
+      "input": { "text": "use patient defense" },
+      "comment": "R2 ki spend #2 — Patient Defense bonus action",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "End R2 player bonus: ki 4 → 3",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 }
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 3: Regular Extra Attack with Stunning Strike on hit (ki 3 → 2) ===",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Warlord" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 14 — hit; server should offer Stunning Strike",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "stunning-strike" }]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force Warlord CON save fail (d20=1) for deterministic Stunning Strike",
+      "input": { "values": [1] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with stunning strike" },
+      "comment": "R3 ki spend #3 — Stunning Strike enhancement on unarmed hit",
+      "expect": { "actionComplete": false, "stunningStrike": {} }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "EA 2/2 continues — no second SS offered",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "assertState",
+      "comment": "End R3 player turn: ki 3 → 2 (Stunning Strike spent 1 ki)",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "R3 monsters: Warlord may be stunned; queue partial action set that falls through to defaultBehavior if stunned.",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Master Dao", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 4: Regular Extra Attack → Step of the Wind (ki 2 → 1). NOTE: 'use step of the wind' text routes to the Step of the Wind executor (disengage variant); 'step of the wind dash' would collide with the simple Dash parser (see M3).",
+      "type": "action",
+      "input": { "text": "attack Goblin Raider" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "14" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "7" }, "expect": { "actionComplete": false } },
+    { "type": "rollResult", "input": { "text": "13" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "action",
+      "input": { "text": "use step of the wind" },
+      "comment": "R4 ki spend #4 — Step of the Wind bonus action",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "End R4 player bonus: ki 2 → 1",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 1, "max": 5 }
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Master Dao", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Master Dao", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 5: Regular Extra Attack → Flurry of Blows final ki (ki 1 → 0) ===",
+      "type": "action",
+      "input": { "text": "attack Goblin Raider" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "15" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "6" }, "expect": { "actionComplete": false } },
+    { "type": "rollResult", "input": { "text": "14" }, "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "R5 ki spend #5 — Flurry of Blows consumes final ki (1 → 0)",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    { "type": "rollResult", "input": { "text": "13" }, "expect": { "hit": true, "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "4" }, "comment": "First FoB hit — skip enhancements" },
+    { "type": "rollResult", "input": { "text": "12" }, "expect": { "hit": true, "requiresPlayerInput": true } },
+    { "type": "rollResult", "input": { "text": "5" }, "expect": { "actionComplete": true } },
+
+    {
+      "type": "assertState",
+      "comment": "FINAL: All 5 ki spent — ki 0/5. Combat should still be active.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 0, "max": 5 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

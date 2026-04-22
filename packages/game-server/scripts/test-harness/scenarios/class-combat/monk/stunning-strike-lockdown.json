@@ -1,0 +1,391 @@
+{
+  "name": "Monk: Stunning Strike Lockdown — Extra Attack + Flurry + Ki Economy",
+  "description": "A level 5 Open Hand Monk controls a Bandit Captain and Thug over 4 rounds. The scenario exercises Stunning Strike in the post-hit enhancement flow, follows up with advantage pressure on controlled targets, and verifies ki depletion checkpoints.",
+  "setup": {
+    "character": {
+      "name": "Kai Stonefist",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "subclass": "Open Hand",
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Flurry of Blows", "description": "After Attack action, spend 1 ki for 2 unarmed strikes" },
+          { "name": "Stunning Strike", "description": "On hit, spend 1 ki; target CON save or Stunned" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bandit Captain",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 16,
+            "constitution": 8,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 12
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 2,
+          "actions": [
+            { "name": "Multiattack", "description": "The captain makes two scimitar attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Dockside Thug",
+        "position": { "x": 15, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 11,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 11
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Open with Extra Attack and apply Stunning Strike to Captain ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Bandit Captain" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "19" },
+      "comment": "Monk takes first turn"
+    },
+
+    {
+      "comment": "R1 — Extra Attack 1/2 on Captain",
+      "type": "action",
+      "input": { "text": "attack Bandit Captain" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 15",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "stunning-strike" }]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force Captain CON save failure (d20=1) for deterministic Stunning Strike",
+      "input": { "values": [1] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with stunning strike" },
+      "comment": "Spend 1 ki and force CON save for Stunned",
+      "expect": {
+        "actionComplete": false,
+        "stunningStrike": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Extra Attack 2/2 continues — no SS offered (Captain may already be Stunned)",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "Second hit lands without another ki spend",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "R1 checkpoint: ki=4 (1 spent on SS). CON save is server-side random — condition not asserted.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R1: Captain is stunned, so only Thug attacks",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Mace", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End round 1"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Captain should be constrained if stunned; Thug still acts",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 2: Follow-up pressure with Flurry of Blows (ki spend #2) ===",
+      "type": "action",
+      "input": { "text": "attack Bandit Captain" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": false },
+      "comment": "Extra Attack chain step"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "comment": "FoB spends 1 ki and adds two bonus strikes",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R2 checkpoint: ki now 3 after Stunning Strike + Flurry",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "Queue monster R2 actions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Scimitar", "endTurn": false },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Mace", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End round 2"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 3: Stunning Strike on Thug to spread control (ki spend #3) ===",
+      "type": "action",
+      "input": { "text": "attack Dockside Thug" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "stunning-strike" }]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force Thug CON save failure (d20=1) for deterministic Stunning Strike",
+      "input": { "values": [1] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with stunning strike" },
+      "expect": {
+        "actionComplete": false,
+        "stunningStrike": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "EA 2/2 on Thug — no SS offered (Thug may already be Stunned)",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "R3 checkpoint: ki=2 (1 SS + 1 FoB + 1 SS = 3 spent). CON save is server-side random.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 }
+      }
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "Queue monster R3 turns: Captain acts; Thug is stunned",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Scimitar", "endTurn": false },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End round 3"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 4: Resource-safe cleanup attack; verify no accidental ki spend ===",
+      "type": "action",
+      "input": { "text": "attack Bandit Captain" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Final checkpoint: 3 ki spent total, stun conditions have cycled",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 },
+        "monsterConditions": {
+          "name": "Bandit Captain",
+          "doesNotHaveConditions": ["Stunned"]
+        },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

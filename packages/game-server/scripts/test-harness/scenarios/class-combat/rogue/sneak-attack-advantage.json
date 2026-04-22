@@ -1,0 +1,328 @@
+{
+  "name": "Rogue: Sneak Attack + Cunning Action + Uncanny Dodge",
+  "description": "A level 5 Thief Rogue fights 2 Goblins with an NPC ally nearby. Tests Sneak Attack via ally adjacency (R1), Cunning Action: Hide (R1 bonus), Sneak Attack via advantage from Hidden (R2), Cunning Action: Disengage (R2 bonus), and Uncanny Dodge reaction halving damage (R3 monster turn). Verifies hidden condition lifecycle, reaction consumption, and once-per-turn Sneak Attack limit.",
+  "setup": {
+    "character": {
+      "name": "Shadow",
+      "className": "Rogue",
+      "subclass": "Thief",
+      "level": 5,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": { "stealth": 10 },
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          },
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing"
+          }
+        ],
+        "features": [
+          { "name": "Sneak Attack", "description": "3d6 extra damage with advantage or ally adjacent to target" },
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as bonus action" },
+          { "name": "Uncanny Dodge", "description": "Halve damage from one attack as a reaction" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Goblin 1: adjacent to NPC ally (sneak attack eligible). Low perception for hide checks.",
+        "name": "Goblin Skirmisher",
+        "position": { "x": 10, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 13,
+          "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Goblin 2: melee attacker, used to test Uncanny Dodge.",
+        "name": "Goblin Bruiser",
+        "position": { "x": 10, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 50,
+          "hp": 50,
+          "armorClass": 13,
+          "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Morningstar",
+              "kind": "melee",
+              "attackBonus": 8,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "npcs": [
+      {
+        "comment": "Ally within 5ft of Goblin Skirmisher to enable Sneak Attack via adjacency.",
+        "name": "Guard Ally",
+        "position": { "x": 10, "y": 5 },
+        "faction": "party",
+        "aiControlled": true,
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 16,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Sneak Attack (ally adjacent) + Cunning Action: Hide ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Goblin Skirmisher with my shortsword" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "R1: Attack Goblin Skirmisher with Shortsword (finesse). Guard Ally at (10,5) is within 5ft of Goblin at (10,10) -> Sneak Attack eligible.",
+      "type": "action",
+      "input": { "text": "attack Goblin Skirmisher with Shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 13 -> hit. Damage prompt should include Sneak Attack 3d6.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 4 (weapon die) + Sneak Attack dice (8 total for 3d6) + 4 DEX = 16 total. Server adds SA dice to damage.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify Goblin Skirmisher took damage (exact depends on Sneak Attack dice formula application).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Skirmisher", "min": 20, "max": 45 }
+      }
+    },
+
+    {
+      "comment": "R1 bonus action: Cunning Action Hide. Stealth 10 vs passive perception 9 -> always succeeds.",
+      "type": "action",
+      "input": { "text": "cunning action hide" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify Shadow has Hidden condition after Cunning Action: Hide.",
+      "type": "assertState",
+      "expect": {
+        "conditions": ["Hidden"]
+      }
+    },
+
+    {
+      "comment": "Queue R1 monster attacks: both Goblins attack Shadow (should have disadvantage vs hidden).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Shadow", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Shadow", "attackName": "Morningstar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End R1 and wait for monster turns. NPC ally also acts (AI-controlled).",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for all monster and NPC turns to complete.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 2: Sneak Attack from Hidden (advantage) + Cunning Action: Disengage ===",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 20, "max": 38 }
+      }
+    },
+
+    {
+      "comment": "R2: Attack Goblin Skirmisher from hidden -> advantage. Sneak Attack eligible via advantage.",
+      "type": "action",
+      "input": { "text": "attack Goblin Skirmisher with Shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll with advantage (from hidden): 16 + 7 = 23 vs AC 13 -> hit. Hidden breaks after this attack.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: weapon + Sneak Attack 3d6 + DEX mod. Value covers weapon die + SA dice.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R2 bonus action: Cunning Action Disengage to safely reposition.",
+      "type": "action",
+      "input": { "text": "cunning action disengage" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Queue R2 monster attacks. Goblin Bruiser has +8 to hit vs AC 15, should reliably hit for Uncanny Dodge test.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Shadow", "attackName": "Scimitar", "endTurn": true },
+          { "action": "attack", "target": "Shadow", "attackName": "Morningstar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End R2 turn.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for monster attack that triggers Uncanny Dodge reaction.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "uncanny_dodge" },
+      "timeout": 15000
+    },
+    {
+      "comment": "Use Uncanny Dodge reaction to halve the incoming damage.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for remaining monster turns to complete.",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 3: Verify state after Uncanny Dodge ===",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 10, "max": 37 }
+      }
+    },
+
+    {
+      "comment": "R3: Attack Goblin Skirmisher again. Ally still adjacent -> Sneak Attack eligible.",
+      "type": "action",
+      "input": { "text": "attack Goblin Skirmisher with Shortsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 7 = 22 vs AC 13 -> hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Final damage roll to confirm Sneak Attack still works in R3.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Final state: Goblin Skirmisher took 3 rounds of Sneak Attack damage. Likely dead (0 HP).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Goblin Skirmisher", "min": 0, "max": 10 }
+      }
+    }
+  ]
+}

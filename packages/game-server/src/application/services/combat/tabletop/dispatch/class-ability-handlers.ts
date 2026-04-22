@@ -62,6 +62,8 @@ function buildAbilityActor(
 function buildTargetActor(
   targetRef: CombatantRef,
   targetName: string,
+  hpCurrent: number = 0,
+  hpMax: number = 0,
 ): AbilityActor {
   const getTargetId = (ref: CombatantRef): string => {
     if (ref.type === "Monster") return ref.monsterId!;
@@ -71,10 +73,13 @@ function buildTargetActor(
   return {
     getId: () => getTargetId(targetRef),
     getName: () => targetName,
-    getCurrentHP: () => 0,
-    getMaxHP: () => 0,
+    getCurrentHP: () => hpCurrent,
+    getMaxHP: () => hpMax,
     getSpeed: () => 30,
-    modifyHP: () => ({ actualChange: 0 }),
+    modifyHP: (amount: number) => {
+      const newHP = Math.min(hpMax, Math.max(0, hpCurrent + amount));
+      return { actualChange: newHP - hpCurrent };
+    },
   };
 }
 
@@ -611,16 +616,42 @@ export class ClassAbilityHandlers {
     // Infer target from text or find nearest enemy
     let targetRef: CombatantRef | null = null;
     let targetName: string | null = null;
+    let targetCombatantRecord: typeof combatantStates[number] | undefined;
 
-    for (const m of monsters) {
-      if (text.toLowerCase().includes(m.name.toLowerCase())) {
-        targetRef = { type: "Monster", monsterId: m.id };
-        targetName = m.name;
-        break;
+    // Ally-capable abilities (e.g., Lay on Hands): scan characters first so
+    // "lay on hands Elara" resolves the ally PC, not a monster with similar name.
+    const allowAllyTarget = this.deps.abilityRegistry.allowsAllyTarget(abilityId);
+    if (allowAllyTarget) {
+      for (const c of characters) {
+        if (c.id === actorId) continue; // skip self — falls through to self-heal branch
+        if (text.toLowerCase().includes(c.name.toLowerCase())) {
+          targetRef = { type: "Character", characterId: c.id };
+          targetName = c.name;
+          targetCombatantRecord = combatantStates.find(
+            (cs: any) => cs.combatantType === "Character" && cs.characterId === c.id,
+          );
+          break;
+        }
       }
     }
 
-    if (!targetRef && actorPos) {
+    // Monster scan: skipped for ally-target abilities (e.g., Lay on Hands).
+    // An ally-only ability that names a monster should NOT resolve to that
+    // monster — it must either resolve to an ally or fall through to self.
+    if (!targetRef && !allowAllyTarget) {
+      for (const m of monsters) {
+        if (text.toLowerCase().includes(m.name.toLowerCase())) {
+          targetRef = { type: "Monster", monsterId: m.id };
+          targetName = m.name;
+          targetCombatantRecord = combatantStates.find(
+            (cs: any) => cs.combatantType === "Monster" && cs.monsterId === m.id,
+          );
+          break;
+        }
+      }
+    }
+
+    if (!targetRef && !allowAllyTarget && actorPos) {
       const hostiles = combatantStates.filter(
         (c: any) => c.combatantType === "Monster" && c.hpCurrent > 0,
       );
@@ -638,6 +669,7 @@ export class ClassAbilityHandlers {
         }
         targetRef = { type: "Monster", monsterId: nearest.monsterId! };
         targetName = monsters.find((m) => m.id === nearest.monsterId)?.name ?? "target";
+        targetCombatantRecord = nearest;
       }
     }
 
@@ -673,7 +705,12 @@ export class ClassAbilityHandlers {
     };
 
     const targetActor: AbilityActor | undefined = targetRef
-      ? buildTargetActor(targetRef, targetName ?? "target")
+      ? buildTargetActor(
+          targetRef,
+          targetName ?? "target",
+          targetCombatantRecord?.hpCurrent ?? 0,
+          targetCombatantRecord?.hpMax ?? 0,
+        )
       : undefined;
 
     const result = await this.deps.abilityRegistry.execute({
@@ -687,6 +724,7 @@ export class ClassAbilityHandlers {
         actor: actorRef,
         target: targetRef,
         targetName,
+        targetEntityId: targetRef ? combatantRefToEntityId(targetRef) : undefined,
         resources,
         className: actorClassName,
         level: actorLevel,
@@ -834,11 +872,27 @@ export class ClassAbilityHandlers {
       resources: updatedResourcesForComplete as any,
     };
 
-    if (result.data?.hpUpdate && typeof (result.data.hpUpdate as any).hpCurrent === "number") {
-      updateData.hpCurrent = (result.data.hpUpdate as any).hpCurrent;
-    }
+    // If executor returned hpUpdate and a targetEntityId, route HP to the target
+    // combatant (ally heal). Resource pool (Lay on Hands HP, bonus action) still
+    // stays on the actor. Otherwise (self heal), apply hpUpdate to actor.
+    const healTargetEntityId = (result.data as any)?.targetEntityId as string | undefined;
+    const hasHpUpdate = result.data?.hpUpdate && typeof (result.data.hpUpdate as any).hpCurrent === "number";
 
-    await this.deps.combatRepo.updateCombatantState(actorCombatant.id, updateData);
+    if (hasHpUpdate && healTargetEntityId) {
+      // Ally heal: resources on actor, HP on target combatant
+      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, updateData);
+      const targetCombatant = findCombatantByEntityId(combatantStates, healTargetEntityId);
+      if (targetCombatant) {
+        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+          hpCurrent: (result.data!.hpUpdate as any).hpCurrent,
+        });
+      }
+    } else {
+      if (hasHpUpdate) {
+        updateData.hpCurrent = (result.data!.hpUpdate as any).hpCurrent;
+      }
+      await this.deps.combatRepo.updateCombatantState(actorCombatant.id, updateData);
+    }
 
     return {
       requiresPlayerInput: false,

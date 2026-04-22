@@ -1,0 +1,367 @@
+{
+  "name": "Rogue L7 R3: Evasion vs AoE + Sneak Attack 4d6 + Uncanny Dodge",
+  "description": "Tests three L7 Thief Rogue features across 3 combat rounds. (1) Evasion (L7): when a monster casts Burning Hands (DEX save for half damage), a successful DEX save deals 0 damage (not half) — Evasion's bonus over normal half-on-save. A failed DEX save still deals only half damage. Both paths tested with seeded dice. (2) Sneak Attack 4d6: Cunning Action: Hide each round grants advantage → Sneak Attack eligible. (3) Uncanny Dodge: reaction halves one incoming attack per round. All three dice-sensitive assertions are fully deterministic: Burning Hands damage (3d6) and DEX saves are seeded via queueDiceRolls; Uncanny Dodge damage is seeded; monster Shortbow attack bonus is inflated to +14 to guarantee a hit vs AC 15 on any d20 roll (1+14=15 ≥ AC 15).",
+  "setup": {
+    "character": {
+      "name": "Talia Nightstep",
+      "className": "Rogue",
+      "subclass": "Thief",
+      "level": 7,
+      "position": { "x": 5, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 12,
+          "charisma": 14
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": { "stealth": 10 },
+        "attacks": [
+          {
+            "name": "Shortbow",
+            "kind": "ranged",
+            "range": "80/320",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing"
+          },
+          {
+            "name": "Rapier",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse"]
+          }
+        ],
+        "features": [
+          { "name": "Sneak Attack", "description": "4d6 extra damage (Rogue L7) with advantage or an ally adjacent to the target" },
+          { "name": "Cunning Action", "description": "Dash, Disengage, or Hide as a bonus action" },
+          { "name": "Uncanny Dodge", "description": "Reaction: halve the damage of one attack that hits you (requires seeing attacker)" },
+          { "name": "Evasion", "description": "On DEX saving throw for half damage: success = 0 damage, failure = half damage" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Primary spellcaster. Casts Burning Hands via queueMonsterActions to test Evasion in R1 (success) and R3 (fail). spellSaveDC 13 explicit. passivePerception 9 ensures stealth (min 1+10=11) always beats it so Cunning Action: Hide reliably succeeds.",
+        "name": "Dark Arcanist",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 9,
+            "dexterity": 14,
+            "constitution": 11,
+            "intelligence": 17,
+            "wisdom": 12,
+            "charisma": 11
+          },
+          "spellSaveDC": 13,
+          "spellSlots": { "1": 2 },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 6,
+          "experienceValue": 2300,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": -1 },
+              "damageType": "bludgeoning"
+            },
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 14,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Secondary attacker. defaultBehavior endTurn keeps it passive; used only when its queued Shortbow attack fires for the Uncanny Dodge test. attackBonus +14 on Shortbow guarantees hit vs AC 15 (nat 1 + 14 = 15 ≥ AC 15). passivePerception 9 ensures hide always succeeds.",
+        "name": "Thug Enforcer",
+        "position": { "x": 15, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "passivePerception": 9,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            },
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 14,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== COMBAT INITIATION ===",
+      "type": "initiate",
+      "input": { "text": "I target the Dark Arcanist with my shortbow" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative (18+4=22) ensures Talia acts first every round.",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Cunning Action Hide → Sneak Attack (4d6) → Evasion success (0 damage) ===",
+      "type": "action",
+      "input": { "text": "cunning action hide" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "Hidden condition applied — confirms hide succeeded (stealth 1+10=11 > passivePerception 9).",
+      "type": "assertState",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Hidden"] }
+      }
+    },
+    {
+      "comment": "Attack from Hidden grants advantage → Sneak Attack 4d6 eligible. Talia at (5,10) is not adjacent to any enemy — no ranged disadvantage.",
+      "type": "action",
+      "input": { "text": "attack Dark Arcanist with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit. Attacking from Hidden removes the Hidden condition.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: player rolls all 5d6 (1d6 weapon + 4d6 Sneak Attack). Submitting 16 pips. Server adds +4 DEX mod → 16+4=20 damage. DA: 80→60.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify Sneak Attack 4d6 applied: 16 pips + 4 mod = 20 damage. DA HP: 80 - 20 = 60.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Dark Arcanist", "exact": 60 }
+      }
+    },
+
+    {
+      "comment": "=== R1 MONSTER PHASE: Seed Burning Hands — DEX save SUCCESS → Evasion: 0 damage ===\nQueue: DA casts Burning Hands at Talia. Other monster defaults to endTurn.\nqueueDiceRolls [4,4,4,20]: rollDie(6,3) consumes [4,4,4] = 12 fire damage, then d20() consumes [20] = 20+7=27 vs DC 13 → SUCCESS → Evasion: 0 damage (not half).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "castSpell", "spellName": "Burning Hands", "target": "Talia Nightstep", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Seed dice FIFO: [4,4,4] → 3d6 Burning Hands damage = 12; [20] → Talia DEX save d20 = 20+7=27 > DC 13 → save succeeds. With Evasion (L7 Rogue + DEX save): success = 0 damage.",
+      "type": "queueDiceRolls",
+      "input": { "values": [4, 4, 4, 20] }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for both monsters to finish their turns (DA casts Burning Hands, Thug defaults endTurn).",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "EVASION SUCCESS PATH: DEX save succeeded → Evasion → 0 damage. HP must be exactly 100 (unchanged from 3d6 Burning Hands).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 100 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Cunning Action Hide → Sneak Attack (4d6) → Uncanny Dodge reaction ===",
+      "type": "action",
+      "input": { "text": "cunning action hide" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "R2 attack from Hidden → advantage → Sneak Attack 4d6. DA at 60 HP.",
+      "type": "action",
+      "input": { "text": "attack Dark Arcanist with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 14 pips (5d6). Server adds +4 mod → 14+4=18 damage. DA: 60→42.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify second Sneak Attack applied: 14+4=18 damage. DA HP: 60 - 18 = 42.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Dark Arcanist", "exact": 42 }
+      }
+    },
+
+    {
+      "comment": "=== R2 MONSTER PHASE: Seed Shortbow attack → Uncanny Dodge ===\nQueue: monster attacks Talia with Shortbow. Shortbow attackBonus +14 guarantees hit vs AC 15 (nat 1 + 14 = 15 ≥ AC 15 → always hits).\nqueueDiceRolls [4]: consumed by attack-reaction-handler.ts rollDie(6,1,2) when damage is resolved after Uncanny Dodge reaction. d6=4, +2 mod = 6 total damage, halved to 3.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Talia Nightstep", "attackName": "Shortbow", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Seed damage die [4]: rollDie(6,1,2) in attack-reaction-handler → 4+2=6 damage, halved by Uncanny Dodge = 3. Attack d20 is hash-seeded (not from queue); +14 bonus guarantees hit regardless.",
+      "type": "queueDiceRolls",
+      "input": { "values": [4] }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Monster's Shortbow attack hits Talia → Uncanny Dodge reaction becomes available.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "uncanny_dodge" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Uncanny Dodge: halves the incoming damage. 6 → 3. Reaction is consumed for this round.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for the monster round to complete and control to return to Talia.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "UNCANNY DODGE VERIFIED: damage halved from 6 to 3. HP: 100 - 3 = 97.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 97 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 3: Cunning Action Hide → Sneak Attack (4d6) → Evasion FAIL (half damage) ===",
+      "type": "action",
+      "input": { "text": "cunning action hide" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "R3 attack from Hidden → advantage → Sneak Attack 4d6. DA now at 42 HP.",
+      "type": "action",
+      "input": { "text": "attack Dark Arcanist with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 12 → hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 16 pips (5d6). Server adds +4 mod → 16+4=20 damage. DA: 42→22.",
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify third Sneak Attack applied: 16+4=20 damage. DA HP: 42 - 20 = 22.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Dark Arcanist", "exact": 22 }
+      }
+    },
+
+    {
+      "comment": "=== R3 MONSTER PHASE: Seed Burning Hands — DEX save FAIL → Evasion: half damage ===\nQueue: monster casts Burning Hands again. queueDiceRolls [4,4,4,1]:\n  rollDie(6,3) consumes [4,4,4] = 12 fire damage baseline;\n  d20() consumes [1] = 1 + 7 (DEX mod +4 + prof +3) = 8 vs DC 13 → FAIL.\n  Evasion on fail: half damage = floor(12/2) = 6. Talia takes 6 fire damage.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "castSpell", "spellName": "Burning Hands", "target": "Talia Nightstep", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Seed dice [4,4,4,1]: 3d6 damage = 12, DEX save d20 = 1+7=8 < DC 13 → fails. Evasion fail = half damage = 6.",
+      "type": "queueDiceRolls",
+      "input": { "values": [4, 4, 4, 1] }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for both monsters' turns to complete (one casts Burning Hands, other defaults endTurn).",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "comment": "EVASION FAIL PATH: DEX save failed (1+7=8 < DC 13) → Evasion: half damage applied = 6. HP: 97 - 6 = 91. Without Evasion, full 12 fire damage would apply; without Evasion fail reduction, full 12 damage (not 6). Evasion still reduces from 12 to 6.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 91 }
+      }
+    },
+    {
+      "comment": "Both monsters survived all 3 rounds — DA at 22 HP, Thug at 80 HP (never attacked).",
+      "type": "assertState",
+      "expect": {
+        "monstersAlive": 2,
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

@@ -77,6 +77,15 @@ export class AbilityRegistry {
   }
 
   /**
+   * Check whether the executor for this ability allows ally Character targets.
+   * Used by the tabletop handler to scan characters (not just monsters) when
+   * resolving a target name.
+   */
+  allowsAllyTarget(abilityId: string): boolean {
+    return !!this.findExecutor(abilityId)?.allowsAllyTarget;
+  }
+
+  /**
    * Get all registered executors (for testing/debugging).
    */
   getExecutors(): ReadonlyArray<AbilityExecutor> {

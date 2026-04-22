@@ -1,0 +1,459 @@
+{
+  "name": "Ranger (Hunter): Party Scout — Pass Without Trace + Ensnaring Strike",
+  "description": "A level 5 Hunter Ranger, level 3 Rogue, and level 3 Cleric scout a patrol of Hobgoblins. Tests 2024 RAW: (1) Pass Without Trace aura (+10 to Stealth for allies within 30 ft while concentration is held), (2) Ensnaring Strike (L1 concentration; on-next-weapon-hit rider: target makes STR save or is Restrained and takes 1d6 piercing each turn until the save succeeds), (3) Ranger Extra Attack interaction with on-hit riders (rider consumed by first hit only), (4) saveToEnd tick at start of a restrained creature's turn. Will fail loudly if Pass Without Trace, Ensnaring Strike, or on_next_weapon_hit rider wiring are missing.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Ranger L5 Hunter. Concentration caster; acts as the scout party's striker.",
+        "name": "Kaelith",
+        "className": "Ranger",
+        "subclass": "Hunter",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 18, "constitution": 14,
+            "intelligence": 10, "wisdom": 16, "charisma": 10
+          },
+          "maxHp": 50, "currentHp": 50,
+          "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 2 },
+          "preparedSpells": [
+            { "name": "Hunter's Mark", "level": 1 },
+            { "name": "Ensnaring Strike", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "range": "ranged",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "piercing",
+              "properties": ["ammunition", "heavy", "two-handed"]
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+            { "name": "Hunter's Prey: Colossus Slayer", "description": "Once per turn, +1d8 vs a target missing HP" }
+          ]
+        }
+      },
+      {
+        "comment": "Rogue L3 for Sneak Attack + Hide benefits from Pass Without Trace aura.",
+        "name": "Finn",
+        "className": "Rogue",
+        "level": 3,
+        "position": { "x": 12, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 18, "constitution": 14,
+            "intelligence": 12, "wisdom": 13, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28,
+          "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+              "damageType": "piercing",
+              "properties": ["ammunition"]
+            }
+          ],
+          "features": [
+            { "name": "Sneak Attack", "description": "+2d6 when advantage or ally adjacent to target" },
+            { "name": "Cunning Action", "description": "Bonus action: Dash, Disengage, or Hide" }
+          ]
+        }
+      },
+      {
+        "comment": "Cleric L3 to cast Pass Without Trace.",
+        "name": "Brother Aldric",
+        "className": "Cleric",
+        "subclass": "Life",
+        "level": 3,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 24, "currentHp": 24,
+          "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 4, "2": 2 },
+          "preparedSpells": [
+            { "name": "Pass Without Trace", "level": 2 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Hobgoblin Captain (2024 MM): AC 17, HP 39 per user directive.",
+        "name": "Hobgoblin Captain",
+        "position": { "x": 22, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15, "dexterity": 14, "constitution": 14,
+            "intelligence": 12, "wisdom": 10, "charisma": 13
+          },
+          "maxHp": 39, "hp": 39,
+          "armorClass": 17, "speed": 30,
+          "challengeRating": 3,
+          "experienceValue": 700,
+          "actions": [
+            { "name": "Multiattack", "description": "Two longsword attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Grunt 1",
+        "position": { "x": 24, "y": 9 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 11, "hp": 11,
+          "armorClass": 15, "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Hobgoblin Grunt 2",
+        "position": { "x": 24, "y": 11 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 11, "hp": 11,
+          "armorClass": 15, "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start combat.",
+      "type": "initiate",
+      "actor": "Brother Aldric",
+      "input": { "text": "I ready an incantation against the hobgoblins" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Aldric initiative 20.",
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Aldric casts Pass Without Trace (L2 concentration, aura: allies within 30 ft gain +10 Stealth and can't be tracked nonmagically).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Pass Without Trace" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Concentration on Pass Without Trace. L2 slot consumed.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "characterConcentration": "Pass Without Trace",
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "End Aldric R1.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+    {
+      "comment": "Wait for Kaelith's turn.",
+      "type": "waitForTurn",
+      "actor": "Kaelith",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R1 Kaelith: cast Ensnaring Strike (bonus action, L1 concentration; sets on-next-weapon-hit rider: STR save vs DC 14 or Restrained + 1d6 piercing at start of its turn until save succeeds).",
+      "type": "action",
+      "actor": "Kaelith",
+      "input": { "text": "cast Ensnaring Strike" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Concentration on Ensnaring Strike. L1 slot consumed.",
+      "type": "assertState",
+      "actor": "Kaelith",
+      "expect": {
+        "characterConcentration": "Ensnaring Strike",
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "R1 Kaelith: attack Hobgoblin Captain. First hit consumes the Ensnaring Strike rider.",
+      "type": "action",
+      "actor": "Kaelith",
+      "input": { "text": "attack Hobgoblin Captain with Longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 1: 18 + 7 = 25 vs AC 17 -> hit. Ensnaring Strike rider triggers: Captain makes STR save.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Pre-queue the Captain's STR save as natural 5 (fail vs DC 14).",
+      "type": "queueDiceRolls",
+      "input": { "values": [5] }
+    },
+    {
+      "comment": "Damage: weapon 1d8 = 5. Rider fires after damage (server-side STR save).",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Captain should now be Restrained (failed STR save).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Hobgoblin Captain",
+          "hasConditions": ["Restrained"]
+        }
+      }
+    },
+    {
+      "comment": "Extra Attack 2/2: rider is already consumed (on-next-weapon-hit triggers once). No new save.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack 2 damage: weapon 5. No rider, CS eligible (Captain wounded) +1d8.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "End Kaelith R1.",
+      "type": "endTurn",
+      "actor": "Kaelith"
+    },
+    {
+      "comment": "Wait for Finn.",
+      "type": "waitForTurn",
+      "actor": "Finn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R1 Finn: Hide (bonus action via Cunning Action). With Pass Without Trace aura, Stealth = DEX (+4) + prof (+2) + PWT (+10) = +16.",
+      "type": "action",
+      "actor": "Finn",
+      "input": { "text": "hide" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Finn has Stealth/Hidden (Pass Without Trace aura active). Assert condition present.",
+      "type": "assertState",
+      "actor": "Finn",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Hidden"]
+        }
+      }
+    },
+    {
+      "comment": "R1 Finn action: Shortbow at Hobgoblin Grunt 1 — should get Sneak Attack from being Hidden (Unseen attacker).",
+      "type": "action",
+      "actor": "Finn",
+      "input": { "text": "attack Hobgoblin Grunt 1 with Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll with advantage (Unseen attacker). Submit single value 17.",
+      "type": "rollResult",
+      "actor": "Finn",
+      "input": { "text": "17" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: weapon 1d6 + Sneak Attack 2d6 = submit 10 (dice total). Server adds +4 mod -> 14 dmg. Grunt 1 dies (11 HP).",
+      "type": "rollResult",
+      "actor": "Finn",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "End Finn R1.",
+      "type": "endTurn",
+      "actor": "Finn"
+    },
+
+    {
+      "comment": "Wait for R2 Aldric.",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 2: Aldric casts Healing Word on Kaelith (assume R1 Hobgoblins attacked her).",
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Healing Word on Kaelith" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Concentration must STILL be Pass Without Trace (Healing Word is not concentration).",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "characterConcentration": "Pass Without Trace"
+      }
+    },
+    {
+      "comment": "L1 slot decremented by Healing Word.",
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "End Aldric R2.",
+      "type": "endTurn",
+      "actor": "Brother Aldric"
+    },
+    {
+      "comment": "Wait for Kaelith R2.",
+      "type": "waitForTurn",
+      "actor": "Kaelith",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R2 Kaelith: Captain should have saveToEnd tick at START of its turn — 1d6 piercing + new STR save vs DC 14. Captain turn already happened if it was before Kaelith. Assert Captain HP reflects rider tick (1..6 damage) AND R1 attacks. Hard bound: min from R1 (weapon 5+4=9 + Ensnaring Strike rider trigger + weapon 5+4=9 + CS 1d8) = 9 + 9 + 1 = 19 + saveToEnd tick 1 = 20. Max 9 + 9 + 8 + 6 = 32. Captain HP 39 - 20..32 = 7..19.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Hobgoblin Captain", "min": 7, "max": 19 }
+      }
+    },
+    {
+      "comment": "R2 Kaelith attack Captain.",
+      "type": "action",
+      "actor": "Kaelith",
+      "input": { "text": "attack Hobgoblin Captain with Longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Advantage vs Restrained? No — attacks vs Restrained have advantage (RAW). If wired, single d20 submit.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "17" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: weapon 6. CS eligible (wounded, first eligible hit of turn).",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "EA 2/2 hit.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: weapon 6. No rider, CS already used this turn.",
+      "type": "rollResult",
+      "actor": "Kaelith",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Captain should now be dead.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Hobgoblin Captain", "exact": 0 }
+      }
+    },
+    {
+      "comment": "Concentration on Ensnaring Strike drops (target at 0 HP).",
+      "type": "assertState",
+      "actor": "Kaelith",
+      "expect": {
+        "characterConcentration": null
+      }
+    }
+  ]
+}

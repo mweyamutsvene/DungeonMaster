@@ -119,6 +119,361 @@ See [assertions reference](./references/assertions.md) for all `assertState` fie
 4. **Use `assertState` liberally** — add checkpoint assertions between combat phases
 5. **Comment every step** — use the `comment` field to describe what each step tests
 
+---
+
+## Class Combat Suite (`class-combat/`)
+
+The `class-combat/` directory is a comprehensive multi-round E2E suite covering every PHB class at level 5. Each class has 3–4 scenarios that exercise synergistic ability groups in realistic multi-round combat.
+
+### Suite Location & Plan
+
+- **Scenarios**: `packages/game-server/scripts/test-harness/scenarios/class-combat/<class>/<scenario>.json`
+- **Master plan**: `.github/prompts/plan-class-combat-suite.prompt.md` — lists every scenario with setup, round plan, and ability coverage
+- **Coverage tracker**: `packages/game-server/scripts/test-harness/scenarios/class-combat/COVERAGE.md` — tracks pass/fail, ability coverage, and known gaps
+- **Cross-class regressions**: `class-combat/core/` — scenarios that span multiple classes (e.g., healing-dice-regression)
+
+### Design Principles (Class Combat)
+
+1. **Bumped HP** — heroes at 100–150, monsters at 80–150 to sustain 3–5 rounds
+2. **Fully scripted monsters** via `queueMonsterActions` for full determinism
+3. **Level 5** — Extra Attack, subclass features, L3 spells all online
+4. **Round-boundary `assertState`** — checkpoint assertions after each round to localize failures
+5. **Resource tracking** — assert resource pool depletion (ki, spell slots, rage, etc.) after each spend
+6. **Don't work around bugs** — if a scenario reveals an engine bug, document it in COVERAGE.md as a GAP and assert the buggy behavior (or let it fail), never weaken the test to pass
+
+### File Structure
+
+```
+scripts/test-harness/scenarios/class-combat/
+├── COVERAGE.md              # Ability coverage tracker + known gaps
+├── core/                    # Cross-class regression scenarios
+│   └── healing-dice-regression.json
+├── fighter/                 # F1, F2, F3
+│   ├── burst-and-endurance.json
+│   ├── weapon-mastery-tactics.json
+│   └── tank-vs-resistance.json
+├── monk/                    # M1, M2, M3, M4
+│   ├── flurry-and-open-hand.json
+│   ├── stunning-strike-lockdown.json
+│   ├── deflect-and-patient-defense.json
+│   └── ki-resource-depletion.json
+├── rogue/                   # R1, R2, R3
+│   ├── sneak-attack-advantage.json
+│   ├── cunning-escape-artist.json
+│   └── evasion-vs-aoe.json
+├── wizard/                  # W1, W2, W3, W4
+│   ├── aoe-blaster.json
+│   ├── shield-and-counterspell.json
+│   ├── absorb-elements-melee.json
+│   └── spell-slot-economy.json
+├── barbarian/               # B1, B2, B3
+│   ├── rage-and-reckless.json
+│   ├── frenzy-extra-attack.json
+│   └── rage-resistance-types.json
+├── cleric/                  # C1, C2, C3, C4
+│   ├── party-healer.json
+│   ├── bless-and-bane-party.json
+│   ├── turn-undead-horde.json
+│   └── divine-support-multiround.json
+├── paladin/                 # P1, P2, P3
+│   ├── smite-and-heal.json
+│   ├── party-aura-tank.json
+│   └── channel-divinity-smite-burst.json
+└── warlock/                 # WL1, WL2, WL3
+    ├── hex-and-blast.json
+    ├── hellish-rebuke-defense.json
+    └── hold-and-control.json
+```
+
+### Running Class Combat Scenarios
+
+```bash
+# Single scenario
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=class-combat/fighter/burst-and-endurance
+
+# All class-combat scenarios
+pnpm -C packages/game-server test:e2e:combat:mock -- --all
+
+# Multiple specific scenarios (PowerShell)
+$scenarios = @("class-combat/fighter/burst-and-endurance", "class-combat/monk/flurry-and-open-hand")
+$failed = @()
+foreach ($s in $scenarios) {
+  pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=$s | Out-Host
+  if ($LASTEXITCODE -ne 0) { $failed += $s }
+}
+```
+
+### Adding a New Class Combat Scenario
+
+#### Step 1: Check the plan
+Read `.github/prompts/plan-class-combat-suite.prompt.md` for the scenario ID (e.g., F2, M3, WL2), setup details, round plan, and ability grouping.
+
+#### Step 2: Create the scenario JSON
+Follow these conventions:
+
+**Naming**: `"name": "ClassName: Descriptive Title — Ability1 + Ability2 + Ability3"`
+
+**Character sheet** must include:
+- `className`, `subclass`, `level: 5`
+- `features` array listing class features explicitly
+- `resourcePools` for all class resources (ki, rage, actionSurge, secondWind, channelDivinity)
+- `spellSlots`, `preparedSpells`, `spellcastingAbility`, `spellSaveDC`, `spellAttackBonus` for casters
+
+**Monster stat blocks** must include:
+- `actions` array with Multiattack entry (required for multi-attack monsters):
+  ```json
+  "actions": [
+    { "name": "Multiattack", "description": "The orc makes two greataxe attacks." }
+  ]
+  ```
+- `attacks` array with explicit `attackName` for each weapon
+- `type` field for creature type ("undead", "humanoid", etc.) — needed for Turn Undead, Divine Smite bonus
+
+**Monster scripting** — always use `queueMonsterActions` for determinism:
+```json
+{
+  "type": "queueMonsterActions",
+  "comment": "Round 1 monster turns: Orc attacks Fighter, Hobgoblin attacks Fighter",
+  "input": {
+    "decisions": [
+      { "action": "attack", "target": "Sir Marcus", "attackName": "Greataxe", "endTurn": false },
+      { "action": "attack", "target": "Sir Marcus", "attackName": "Greataxe", "endTurn": true },
+      { "action": "attack", "target": "Sir Marcus", "attackName": "Longsword", "endTurn": false },
+      { "action": "attack", "target": "Sir Marcus", "attackName": "Longsword", "endTurn": true }
+    ]
+  }
+}
+```
+
+> **CRITICAL**: Always include `attackName` in queued monster attack decisions. Without it, the handler throws a `ValidationError`.
+
+> **CRITICAL**: For Multiattack, queue one `attack` decision per individual attack. Set `endTurn: false` on all but the last attack of each monster's turn.
+
+#### Step 3: Structure the action sequence
+
+A typical round in a class-combat scenario follows this pattern:
+
+```
+1. queueMonsterActions (script this round's monster turns)
+2. Player action (attack, spell, class ability)
+3. rollResult steps (initiative → attack → damage chain)
+4. assertState (resource/HP checkpoint after player's round)
+5. endTurn (player ends turn)
+6. waitForTurn (monsters auto-execute from queue, come back to player)
+7. assertState (HP checkpoint after monster attacks)
+```
+
+For **multi-PC party scenarios**, add `"actor": "Character Name"` to every action/endTurn/waitForTurn step:
+```json
+{ "type": "action", "actor": "Brother Aldric", "input": { "text": "cast Sacred Flame at Skeleton Archer" } }
+```
+
+#### Step 4: Add round-boundary assertions
+
+After every player turn and every monster turn, add `assertState` to checkpoint:
+
+```json
+{
+  "type": "assertState",
+  "comment": "=== END ROUND 1 ===: Verify resources after Action Surge",
+  "expect": {
+    "characterResource": { "poolName": "actionSurge", "current": 0, "max": 1 },
+    "characterHp": { "min": 70, "max": 100 },
+    "monsterHp": { "name": "Orc Warchief", "min": 80, "max": 110 }
+  }
+}
+```
+
+**Use HP ranges** (`min`/`max`) not exact values — dice rolls are random. Calculate bounds:
+- **Minimum damage** per hit: `modifier` (assume all dice roll 1)
+- **Maximum damage** per hit: `(diceCount × diceSides) + modifier`
+- **Monster HP after N hits**: `maxHp - (N × maxDamage)` to `maxHp - (N × minDamage)`
+
+#### Step 5: Update COVERAGE.md
+
+After creating or modifying a scenario:
+
+1. Update the **Coverage Summary** table (increment abilities/scenarios counts)
+2. Check off abilities in the class's ability table
+3. Add scenario references to the `Scenario` column
+4. If the scenario reveals a bug, add a **GAP-N** entry to the "Implementation Gaps" section with:
+   - **Symptom**: What failed
+   - **Root Cause**: Why it failed (or hypothesis)
+   - **Impact**: What scenarios/abilities are blocked
+   - **Status**: OPEN / FIXED / Workaround
+
+#### Step 6: Run and validate
+
+```bash
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=class-combat/<class>/<scenario-name>
+```
+
+If a scenario fails due to an **engine bug** (not a scenario authoring error):
+- Document the GAP in COVERAGE.md
+- Keep the scenario — it serves as a regression test for when the bug is fixed
+- Do NOT weaken assertions to make it pass
+
+### Multi-PC Party Scenario Conventions
+
+Party scenarios (C1, C2, C4, P2) require special handling:
+
+1. Use `"characters": [...]` array instead of `"character"` in setup
+2. Every `action`, `endTurn`, and `waitForTurn` step must have `"actor": "Name"`
+3. Initiative rolls need one `rollResult` per character (all roll high to go before monsters)
+4. Turn order: characters act in the order they appear in the `characters` array
+5. Use `waitForTurn` with `actor` to cycle between PCs:
+   ```json
+   { "type": "endTurn", "actor": "Valeria" },
+   { "type": "waitForTurn", "actor": "Brother Aldric" }
+   ```
+
+### Known Gaps & Patterns
+
+These are documented in COVERAGE.md but summarized here for scenario authors:
+
+| Gap | Impact | Workaround |
+|-----|--------|------------|
+| **GAP-2**: Bless/Bane/Shield of Faith don't consume spell slots | Buff/debuff spell slot assertions will show pre-cast values | Assert slot NOT decremented; add comment noting BUG-4 |
+| **GAP-6**: Hex bonus damage not applied to Eldritch Blast beams | WL1 blocked; damage bounds too high | Document and let scenario fail |
+| **Weapon Mastery (Cleave)**: auto-hits adjacent enemies | Unexpected secondary damage in scenarios with adjacent monsters | Use HP ranges, position monsters carefully |
+| **Extra Attack auto-chaining**: scenario runner sends natural-1 miss rolls | Transparent unless you set `actionComplete: false` on damage step | Let auto-complete handle it unless testing EA explicitly |
+
+### Template: Solo Class Combat Scenario
+
+```json
+{
+  "name": "ClassName: Title — Ability1 + Ability2",
+  "description": "A level 5 Subclass ClassName fights Monster1 and Monster2 across N rounds. Tests Ability1, Ability2, and Extra Attack with resource tracking.",
+  "setup": {
+    "character": {
+      "name": "Hero Name",
+      "className": "ClassName",
+      "subclass": "SubclassName",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16, "dexterity": 14, "constitution": 16,
+          "intelligence": 10, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 100, "currentHp": 100,
+        "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Weapon", "kind": "melee", "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" }
+        ],
+        "resourcePools": [
+          { "name": "resourceName", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Monster Name",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 100, "hp": 100,
+          "armorClass": 15, "speed": 30,
+          "challengeRating": 3,
+          "actions": [
+            { "name": "Multiattack", "description": "Two longsword attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1 SETUP: Script monster turns ===",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Hero Name", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Hero Name", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Start combat",
+      "type": "initiate",
+      "input": { "text": "I attack the Monster Name" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll high initiative to go first",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Attack monster (Extra Attack: first hit)",
+      "type": "action",
+      "input": { "text": "I attack the Monster Name with my Weapon" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll attack vs AC 15",
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll damage",
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Checkpoint: verify resource after ability use",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "resourceName", "current": 2, "max": 3 },
+        "monsterHp": { "name": "Monster Name", "min": 80, "max": 96 }
+      }
+    },
+    {
+      "comment": "End player turn, let monsters act from queue",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for next player turn (monsters attack from queue)",
+      "type": "waitForTurn"
+    },
+    {
+      "comment": "=== END ROUND 1 ===: Check HP after monster attacks",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 78, "max": 100 }
+      }
+    }
+  ]
+}
+```
+
+---
+
 ## Example: Minimal Scenario
 
 ```json

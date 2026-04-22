@@ -1,0 +1,364 @@
+{
+  "name": "Bard: Inspiration Support — Bardic Inspiration + Vicious Mockery + Healing Word + Font of Inspiration",
+  "description": "A level 5 College of Lore Bard supports a Fighter and Rogue against an Orc Warchief and a Bandit. Tests (1) Bardic Inspiration as bonus action granting a d8 die to an ally (CHA mod = 4 uses), (2) Vicious Mockery cantrip applying disadvantage on Wis save DC 15, (3) ally attack consumes the BI die and adds it to damage, (4) Healing Word as leveled bonus action spell (2d4 + CHA), (5) Font of Inspiration: bardicInspiration pool fully refreshes on a short rest at L5. Per RAW D&D 5e 2024 — scenario is expected to FAIL on any step where a feature is missing (Vicious Mockery not in spell catalog, BI die transfer to ally not implemented). Do not weaken assertions.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Bard L5 College of Lore. CHA 18 (+4), proficiency +3, spellSaveDC 15, spellAttackBonus +7. Bardic Inspiration die = d8 (L5 scaling), uses = CHA mod = 4.",
+        "name": "Lyra",
+        "className": "Bard",
+        "subclass": "college-of-lore",
+        "level": 5,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 12, "wisdom": 10, "charisma": 18
+          },
+          "maxHp": 38, "currentHp": 38, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Vicious Mockery", "level": 0 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Heroism", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Rapier", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "piercing",
+              "properties": ["finesse"]
+            }
+          ],
+          "features": [
+            { "name": "Bardic Inspiration", "description": "Bonus action, grant an ally a d8 to add to one roll" },
+            { "name": "Font of Inspiration", "description": "Bardic Inspiration recharges on short rest (L5)" }
+          ],
+          "resourcePools": [
+            { "name": "bardicInspiration", "current": 4, "max": 4 }
+          ]
+        }
+      },
+      {
+        "comment": "Fighter L3 Champion. STR 16 (+3), proficiency +2. Longsword +5, 1d8+3.",
+        "name": "Sir Marcus",
+        "className": "Fighter",
+        "subclass": "Champion",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Rogue L3 Thief. DEX 16 (+3), proficiency +2. Shortbow +5, 1d6+3; Rapier +5, 1d8+3.",
+        "name": "Shade",
+        "className": "Rogue",
+        "subclass": "Thief",
+        "level": 3,
+        "position": { "x": 8, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 16, "constitution": 12,
+            "intelligence": 12, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 24, "currentHp": 24, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "range": "80/320",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            },
+            {
+              "name": "Rapier", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing",
+              "properties": ["finesse"]
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Orc Warchief — high HP bruiser. WIS 11 (+0) vs DC 15 Vicious Mockery: needs 15+ to save.",
+        "name": "Orc Warchief",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 11, "charisma": 14
+          },
+          "maxHp": 95, "hp": 95, "armorClass": 16, "speed": 30,
+          "challengeRating": 4, "experienceValue": 1100,
+          "attacks": [
+            {
+              "name": "Greataxe", "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Bandit — low HP mook.",
+        "name": "Bandit",
+        "position": { "x": 22, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 11, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 11, "hp": 11, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.125, "experienceValue": 25,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1 ===",
+      "type": "queueDiceRolls",
+      "input": { "values": [1] }
+    },
+    {
+      "comment": "Queue monster actions: both attack Sir Marcus on their turns.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Marcus", "attackName": "Greataxe", "endTurn": true },
+          { "action": "attack", "target": "Sir Marcus", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "initiate",
+      "actor": "Lyra",
+      "input": { "text": "I sing a battle song" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Lyra rolls 20 for initiative -> goes first.",
+      "type": "rollResult",
+      "actor": "Lyra",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1 BONUS: Bardic Inspiration granted to Sir Marcus. Consumes 1 of 4 uses. Per RAW, target ally receives a d8 they can add to one attack/save/check.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "inspire Sir Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: Bardic Inspiration pool 4 -> 3 after granting to Sir Marcus.",
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": {
+        "resources": { "bardicInspiration": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "comment": "R1 ACTION: Vicious Mockery cantrip on Orc Warchief. WIS save DC 15 — Warchief WIS +0, needs 15+. Expected damage on fail: 1d4 psychic + disadvantage on next attack.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "cast Vicious Mockery at Orc Warchief" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Lyra"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Sir Marcus",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Sir Marcus attacks Orc Warchief with Longsword. Uses granted BI d8 on the hit per RAW — BI die added to damage. Attack +5 vs AC 16.",
+      "type": "action",
+      "actor": "Sir Marcus",
+      "input": { "text": "I attack the Orc Warchief with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll 15 + 5 = 20 -> hit.",
+      "type": "rollResult",
+      "actor": "Sir Marcus",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: longsword 1d8+3 + BI 1d8 added. Player rolls 7 weapon damage; server should ADD BI d8 (expected ~5 average). RAW: BI added to damage on hit.",
+      "type": "rollResult",
+      "actor": "Sir Marcus",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: Orc Warchief HP reduced by at least weapon damage + BI die. Minimum = 10 (weapon 7+3? actually roll 7 = 7+3-mod?), max = weapon+BI max. Use wide window to account for damage RNG and any Vicious Mockery psychic damage already applied.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Orc Warchief", "min": 70, "max": 94 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sir Marcus"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Shade",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Shade fires Shortbow at Bandit. Queued crit (natural 20).",
+      "type": "action",
+      "actor": "Shade",
+      "input": { "text": "I attack the Bandit with my Shortbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Nat 20 -> auto crit.",
+      "type": "rollResult",
+      "actor": "Shade",
+      "input": { "text": "20" },
+      "expect": { "hit": true, "isCritical": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Crit damage: 2d6+3 sneak attack may apply. Roll 8 -> 11 damage, plenty to drop Bandit (HP 11).",
+      "type": "rollResult",
+      "actor": "Shade",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: Bandit dead after Shade's crit.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Bandit", "max": 0 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Shade"
+    },
+    {
+      "comment": "=== ROUND 2 === Wait through monster turns (Warchief attacks Marcus).",
+      "type": "waitForTurn",
+      "actor": "Lyra",
+      "timeout": 15000
+    },
+    {
+      "comment": "Queue Warchief to attack Marcus again.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Marcus", "attackName": "Greataxe", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "R2 BONUS: Bardic Inspiration to Shade. Pool 3 -> 2.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "inspire Shade" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": {
+        "resources": { "bardicInspiration": { "current": 2, "max": 4 } }
+      }
+    },
+    {
+      "comment": "R2 ACTION: Healing Word on Sir Marcus — 2d4 + CHA (4) per 2024 baseline. Consumes L1 slot.",
+      "type": "action",
+      "actor": "Lyra",
+      "input": { "text": "cast Healing Word on Sir Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: L1 slot 4 -> 3 after Healing Word.",
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Lyra"
+    },
+    {
+      "comment": "Skip through Marcus/Shade/monster turns to end round 2 cleanly. Lyra will need her turn again to reach rest state.",
+      "type": "waitForTurn",
+      "actor": "Sir Marcus",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Sir Marcus"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Shade",
+      "timeout": 15000
+    },
+    {
+      "type": "endTurn",
+      "actor": "Shade"
+    },
+    {
+      "comment": "=== SHORT REST: Font of Inspiration refresh check ===",
+      "type": "rest",
+      "input": { "restType": "short" },
+      "expect": {
+        "poolsRefreshed": ["bardicInspiration"]
+      }
+    },
+    {
+      "comment": "ASSERT: Font of Inspiration (L5 feature) refilled bardicInspiration pool to max 4 on a SHORT rest.",
+      "type": "assertState",
+      "actor": "Lyra",
+      "expect": {
+        "resources": { "bardicInspiration": { "current": 4, "max": 4 } }
+      }
+    }
+  ]
+}

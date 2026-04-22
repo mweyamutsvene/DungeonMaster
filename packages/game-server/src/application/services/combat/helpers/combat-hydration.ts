@@ -32,7 +32,6 @@ export function hydrateCombat(
 ): Combat {
   // Extract creatures in turn order
   const orderedCreatures: Creature[] = [];
-  const initiativeMap = new Map<string, number>();
   
   for (const combatant of combatants) {
     const creature = creatures.get(combatant.id);
@@ -40,24 +39,35 @@ export function hydrateCombat(
       throw new Error(`Missing creature for combatant ${combatant.id}`);
     }
     orderedCreatures.push(creature);
-    initiativeMap.set(creature.getId(), combatant.initiative ?? 0);
   }
 
   if (orderedCreatures.length === 0) {
     throw new Error("Cannot hydrate Combat with zero combatants");
   }
 
-  // Create Combat instance (will roll fresh initiative)
+  // Create Combat instance (rolls fresh initiative internally, but we discard that order below)
   const combat = new Combat(diceRoller, orderedCreatures);
 
-  // Override initiative with database values
-  const order = combat.getOrder().map((entry) => ({
-    ...entry,
-    initiative: initiativeMap.get(entry.creature.getId()) ?? entry.initiative,
-  }));
-
-  // Sort by initiative (descending)
-  order.sort((a, b) => b.initiative - a.initiative);
+  // Build the turn order sorted deterministically: initiative DESC, then createdAt ASC, then id.
+  // We sort here rather than trusting the caller's order, because some ICombatRepository
+  // implementations (e.g. test stubs) may return combatants in insertion order.
+  // Using createdAt as the tiebreaker ensures equal-initiative combatants have a stable,
+  // consistent order across every call — eliminating the non-deterministic swap that occurred
+  // when combat.getOrder() (backed by rollInitiative()) was used as the stable-sort base.
+  const order = [...combatants]
+    .sort((a, b) => {
+      const ai = a.initiative ?? -Infinity;
+      const bi = b.initiative ?? -Infinity;
+      if (bi !== ai) return bi - ai;
+      const ac = a.createdAt.getTime();
+      const bc = b.createdAt.getTime();
+      if (ac !== bc) return ac - bc;
+      return a.id.localeCompare(b.id);
+    })
+    .map((combatant) => {
+      const creature = creatures.get(combatant.id)!;
+      return { creature, initiative: combatant.initiative ?? 0 };
+    });
 
   // Restore state from database
   const state: CombatState = {

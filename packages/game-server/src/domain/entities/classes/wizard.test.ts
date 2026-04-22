@@ -26,3 +26,16 @@ describe("Wizard arcane recovery", () => {
     expect(s.pool.max).toBe(1);
   });
 });
+
+
+import { classHasFeature as __chf_wz, hasFeature as __hf_wz } from "./registry.js";
+import { SCULPT_SPELLS, ARCANE_RECOVERY } from "./feature-keys.js";
+import { describe as __d_wz, it as __i_wz, expect as __e_wz } from "vitest";
+__d_wz("Wizard with School of Evocation subclass", () => {
+  __i_wz("exposes both base Arcane Recovery (L1) and subclass Sculpt Spells (L3)", () => {
+    const classLevels = [{ classId: "wizard", level: 3 }];
+    __e_wz(__hf_wz(classLevels, ARCANE_RECOVERY)).toBe(true);
+    __e_wz(__chf_wz("wizard", SCULPT_SPELLS, 3, "school-of-evocation")).toBe(true);
+    __e_wz(__chf_wz("wizard", SCULPT_SPELLS, 3)).toBe(false);
+  });
+});

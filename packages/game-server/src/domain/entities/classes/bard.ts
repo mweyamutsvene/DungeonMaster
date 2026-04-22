@@ -1,8 +1,11 @@
 import type { ResourcePool } from "../combat/resource-pool.js";
 import { spendResource } from "../combat/resource-pool.js";
-import type { CharacterClassDefinition, ClassCapability } from "./class-definition.js";
+import type { CharacterClassDefinition, ClassCapability, SubclassDefinition } from "./class-definition.js";
 import type { ClassCombatTextProfile } from "./combat-text-profile.js";
-import { JACK_OF_ALL_TRADES, FONT_OF_INSPIRATION, COUNTERCHARM } from "./feature-keys.js";
+import {
+  JACK_OF_ALL_TRADES, FONT_OF_INSPIRATION, COUNTERCHARM,
+  CUTTING_WORDS, ADDITIONAL_MAGICAL_SECRETS, BONUS_PROFICIENCIES,
+} from "./feature-keys.js";
 
 export type BardicInspirationDie = 6 | 8 | 10 | 12;
 
@@ -70,6 +73,24 @@ export function resetBardicInspirationOnRest(
   return { pool: { name: state.pool.name, current: max, max }, die };
 }
 
+// ----- Subclasses -----
+
+/**
+ * College of Lore subclass (D&D 5e 2024).
+ * Shell definition — executor for Cutting Words reaction (subtract Bardic
+ * Inspiration die from attack/check/damage) is deferred to Phase 3.
+ */
+export const CollegeOfLoreSubclass: SubclassDefinition = {
+  id: "college-of-lore",
+  name: "College of Lore",
+  classId: "bard",
+  features: {
+    [BONUS_PROFICIENCIES]: 3,
+    [CUTTING_WORDS]: 3,
+    [ADDITIONAL_MAGICAL_SECRETS]: 6,
+  },
+};
+
 export const Bard: CharacterClassDefinition = {
   id: "bard",
   name: "Bard",
@@ -115,6 +136,7 @@ export const Bard: CharacterClassDefinition = {
       },
     },
   ],
+  subclasses: [CollegeOfLoreSubclass],
 };
 
 export const BARD_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {

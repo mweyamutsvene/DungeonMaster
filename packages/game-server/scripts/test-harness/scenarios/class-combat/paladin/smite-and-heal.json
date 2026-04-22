@@ -1,0 +1,243 @@
+{
+  "name": "Paladin: Smite and Heal — Divine Smite + Lay on Hands + Extra Attack",
+  "description": "A level 5 Devotion Paladin fights a Fiend Brute, using Divine Smite (post-hit on-hit enhancement, 2d8 radiant, costs L1 slot + bonus action) and Lay on Hands (bonus action self-heal from 25 HP pool). Extra Attack provides 2 smite opportunities per round. Tests smite opt-in flow (eligibleEnhancements on hit → 'with divine smite' in damage text), spell slot depletion, LoH pool tracking, and bonus action contention (can't smite + LoH same turn).",
+  "setup": {
+    "character": {
+      "name": "Sir Aldric",
+      "className": "Paladin",
+      "subclass": "Devotion",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16, "dexterity": 10, "constitution": 14,
+          "intelligence": 8, "wisdom": 12, "charisma": 16
+        },
+        "maxHp": 44, "currentHp": 30, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "attacks": [
+          {
+            "name": "Longsword", "kind": "melee", "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+          { "name": "Divine Smite", "description": "After hit, expend spell slot + bonus action for 2d8 radiant (L1)" },
+          { "name": "Lay on Hands", "description": "Bonus action: heal from pool of 25 HP (5 × level)" }
+        ],
+        "resourcePools": [
+          { "name": "layOnHands", "current": 25, "max": 25 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Fiend Brute — high HP to survive 3 rounds. Melee attacks to damage paladin for LoH testing.",
+        "name": "Fiend Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 10, "constitution": 16,
+            "intelligence": 6, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 120, "hp": 120, "armorClass": 13, "speed": 30,
+          "challengeRating": 3, "experienceValue": 700,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Extra Attack + Divine Smite on first hit ===",
+      "type": "initiate",
+      "input": { "text": "I draw my blade and face the fiend" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Paladin rolls 20 → goes first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "R1: Attack Fiend Brute with Longsword. Normal attack, no smite declared in action text.",
+      "type": "action",
+      "input": { "text": "attack Fiend Brute with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 6 = 20 vs AC 13 → hit. Server should show eligibleEnhancements with divine-smite.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage: 5 + 3 = 8 slashing, plus opt-in Divine Smite (2d8 radiant, auto-rolled). Costs L1 slot + bonus action.",
+      "type": "rollResult",
+      "input": { "text": "5 with divine smite" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify L1 slot consumed by Divine Smite: 4 → 3.",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+    {
+      "comment": "Verify Fiend took at least 10 damage (8 base + 2 min from 2d8 smite).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Fiend Brute", "max": 110 }
+      }
+    },
+
+    {
+      "comment": "Queue Fiend to attack paladin. Include attackName.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Aldric", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End R1. Bonus action was consumed by Divine Smite, so no LoH this turn.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "=== ROUND 2: Attack without smite + Lay on Hands (bonus action heal) ===",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R2: Attack Fiend Brute again. No smite this round — save bonus action for LoH.",
+      "type": "action",
+      "input": { "text": "attack Fiend Brute with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack: 12 + 6 = 18 vs AC 13 → hit. Server shows eligibleEnhancements but we decline.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage: 6 + 3 = 9 slashing. NO 'with divine smite' → no smite this time.",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify NO slot consumed this round (still 3 L1 slots).",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 3, "max": 4 } }
+      }
+    },
+
+    {
+      "comment": "R2 bonus: Lay on Hands (self-heal). Paladin took damage from Fiend in R1.",
+      "type": "action",
+      "input": { "text": "lay on hands" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify LoH pool reduced. Paladin healed up to missing HP (capped by pool).",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 30, "max": 44 }
+      }
+    },
+
+    {
+      "comment": "Queue Fiend R2 attack.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Aldric", "attackName": "Greatclub", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "End R2.",
+      "type": "endTurn"
+    },
+
+    {
+      "comment": "=== ROUND 3: Attack with Divine Smite (bonus action limits 1 smite/turn in 2024) ===",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "R3: Attack with smite again.",
+      "type": "action",
+      "input": { "text": "attack Fiend Brute with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack: 15 + 6 = 21 vs AC 13 → hit.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "divine-smite" }]
+      }
+    },
+    {
+      "comment": "Damage: 7 + 3 = 10 slashing + Divine Smite 2d8 radiant. Slot 3 → 2.",
+      "type": "rollResult",
+      "input": { "text": "7 with divine smite" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "Verify L1 slot consumed: 3 → 2.",
+      "type": "assertState",
+      "expect": {
+        "resources": { "spellSlot_1": { "current": 2, "max": 4 } }
+      }
+    },
+
+    {
+      "comment": "Verify Fiend still alive but badly hurt.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Fiend Brute", "min": 1, "max": 100 }
+      }
+    }
+  ]
+}

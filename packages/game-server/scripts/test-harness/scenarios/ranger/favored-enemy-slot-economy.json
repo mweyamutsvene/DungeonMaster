@@ -1,0 +1,282 @@
+{
+  "name": "Ranger: Favored Enemy Pool — Free Hunter's Mark Economy",
+  "description": "A level 5 Ranger fights an Orc (HP 15) and a Gnoll (HP 22). Tests 2024 Favored Enemy: at L5 the pool has 3 free Hunter's Mark casts per long rest that do NOT consume a spell slot. Verifies pool decrement order (favoredEnemy: 3 -> 2 -> 1 -> 0), then that once the pool is empty, the next Hunter's Mark cast consumes a L1 spell slot. Intentionally strict — will fail if the favoredEnemy resource is not wired into the Hunter's Mark cast path, or if cast order preference is wrong.",
+  "setup": {
+    "character": {
+      "name": "Sylvia",
+      "className": "Ranger",
+      "subclass": "Hunter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12, "dexterity": 18, "constitution": 14,
+          "intelligence": 10, "wisdom": 16, "charisma": 10
+        },
+        "maxHp": 50, "currentHp": 50,
+        "armorClass": 16, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Hunter's Mark", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Longbow +2",
+            "kind": "ranged",
+            "range": "ranged",
+            "attackBonus": 9,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 6 },
+            "damageType": "piercing",
+            "properties": ["ammunition", "heavy", "two-handed"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+          { "name": "Favored Enemy", "description": "At L5: 3 free Hunter's Mark casts per long rest" },
+          { "name": "Hunter's Prey: Colossus Slayer", "description": "Once per turn, +1d8 vs a target missing HP" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Orc",
+        "position": { "x": 18, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 16,
+            "intelligence": 7, "wisdom": 11, "charisma": 10
+          },
+          "maxHp": 15, "hp": 15,
+          "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "fiend",
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 11,
+            "intelligence": 6, "wisdom": 10, "charisma": 7
+          },
+          "maxHp": 22, "hp": 22,
+          "armorClass": 15, "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Bite",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the Orc with my Longbow" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== Baseline: Favored Enemy pool = 3 (2024 L5-8). L1 slots = 4.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "favoredEnemy", "current": 3, "max": 3 }
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 }
+      }
+    },
+    {
+      "comment": "R1: Free cast #1 on Orc. Server MUST spend favoredEnemy before touching spell slots.",
+      "type": "action",
+      "input": { "text": "cast Hunter's Mark on Orc" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "favoredEnemy: 3 -> 2.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "favoredEnemy", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "L1 spell slots MUST remain 4.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 },
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "comment": "R1 action: kill the Orc so we can re-cast fresh.",
+      "type": "action",
+      "input": { "text": "attack Orc with Longbow +2" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 8 weapon + mark rider (min 1) + mod 6 = min 15 -> kills Orc.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "EA 2/2 — Orc dead; nat-1 miss closes the chain.",
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Orc", "exact": 0 }
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 2: Drop concentration, re-cast Hunter's Mark via pool.",
+      "type": "action",
+      "input": { "text": "end concentration" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": null
+      }
+    },
+    {
+      "comment": "Free cast #2 on Gnoll.",
+      "type": "action",
+      "input": { "text": "cast Hunter's Mark on Gnoll" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "favoredEnemy: 2 -> 1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "favoredEnemy", "current": 1, "max": 3 }
+      }
+    },
+    {
+      "comment": "L1 slots still 4.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 },
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 3: Free cast #3 (drains pool).",
+      "type": "action",
+      "input": { "text": "end concentration" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Hunter's Mark on Gnoll" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "favoredEnemy: 1 -> 0.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "favoredEnemy", "current": 0, "max": 3 }
+      }
+    },
+    {
+      "comment": "L1 slots still 4.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 },
+        "characterConcentration": "Hunter's Mark"
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 4: Pool is empty; next Hunter's Mark MUST consume a L1 slot (4 -> 3).",
+      "type": "action",
+      "input": { "text": "end concentration" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Hunter's Mark on Gnoll" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "favoredEnemy stays at 0.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "favoredEnemy", "current": 0, "max": 3 }
+      }
+    },
+    {
+      "comment": "L1 slot decrements: 4 -> 3.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 },
+        "characterConcentration": "Hunter's Mark"
+      }
+    }
+  ]
+}

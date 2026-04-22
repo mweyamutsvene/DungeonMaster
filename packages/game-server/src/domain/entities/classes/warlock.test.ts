@@ -95,3 +95,16 @@ describe("Warlock combat text profile", () => {
     expect(WARLOCK_COMBAT_TEXT_PROFILE.damageReactions![0].reactionType).toBe("hellish_rebuke");
   });
 });
+
+
+import { classHasFeature as __chf_wl, hasFeature as __hf_wl } from "./registry.js";
+import { DARK_ONES_BLESSING, PACT_BOON } from "./feature-keys.js";
+import { describe as __d_wl, it as __i_wl, expect as __e_wl } from "vitest";
+__d_wl("Warlock with The Fiend subclass", () => {
+  __i_wl("exposes both base Pact Boon (L3) and subclass Dark One's Blessing (L3)", () => {
+    const classLevels = [{ classId: "warlock", level: 3 }];
+    __e_wl(__hf_wl(classLevels, PACT_BOON)).toBe(true);
+    __e_wl(__chf_wl("warlock", DARK_ONES_BLESSING, 3, "the-fiend")).toBe(true);
+    __e_wl(__chf_wl("warlock", DARK_ONES_BLESSING, 3)).toBe(false);
+  });
+});

@@ -16,7 +16,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { buildApp } from "../../src/infrastructure/api/app.js";
-import { FixedDiceRoller, SeededDiceRoller } from "../../src/domain/rules/dice-roller.js";
+import { FixedDiceRoller, SeededDiceRoller, QueueableDiceRoller } from "../../src/domain/rules/dice-roller.js";
 import { createInMemoryRepos, clearAllRepos } from "../../src/infrastructure/testing/memory-repos.js";
 import {
   MockIntentParser,
@@ -71,8 +71,9 @@ async function main() {
   const characterGenerator = new MockCharacterGenerator();
   const aiDecisionMaker = new MockAiDecisionMaker();
 
-  // Use a seeded dice roller for deterministic results
-  const diceRoller = new SeededDiceRoller(42);
+  // Use a seeded dice roller for deterministic results, wrapped in QueueableDiceRoller
+  // so scenarios can inject specific roll values (e.g., force CON save failures)
+  const diceRoller = new QueueableDiceRoller(new SeededDiceRoller(42));
 
   // Build the app with mocks (suppress logs unless detailed mode)
   const app = buildApp({
@@ -145,7 +146,12 @@ async function main() {
         }
       };
 
-      const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi, queueDecisions });
+      // Create dice roll queueing callback for deterministic server-side rolls
+      const queueDiceRolls = (values: number[]) => {
+        diceRoller.queueRolls(values);
+      };
+
+      const result = await runScenario(scenario, BASE_URL, { verbose, detailed }, { configureAi, queueDecisions, queueDiceRolls });
       results.push({ name, success: result.success, passedSteps: result.passedSteps, totalSteps: result.totalSteps });
 
       // Print results for this scenario

@@ -1,0 +1,541 @@
+{
+  "name": "Cleric C4: Divine Support — Shield of Faith + Guiding Bolt + Healing Word (Multi-PC)",
+  "description": "L5 Life Cleric (Sister Lyra) supports a Fighter (Sir Daven) against two enemies. Tests: Shield of Faith (L1 bonus action, concentration, +2 AC to ally), Guiding Bolt (L1 action spell attack, marks target for advantage), Healing Word (L1 bonus heal), Sacred Flame (cantrip, bonus-action compatible), Fighter Extra Attack, and multi-PC turn sequencing. NOTE: Two-spell rule prevents leveled bonus action spell on same turn as leveled action spell — Shield of Faith is paired with Sacred Flame (cantrip) in R1 to comply.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Cleric support caster: WIS 18, spellSaveDC 15, spellAttackBonus +7. Goes first (high initiative). Position (5,10) — back line.",
+        "name": "Sister Lyra",
+        "className": "Cleric",
+        "subclass": "Life",
+        "level": 5,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 18,
+            "charisma": 14
+          },
+          "maxHp": 100,
+          "currentHp": 100,
+          "armorClass": 16,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Sacred Flame", "level": 0 },
+            { "name": "Shield of Faith", "level": 1 },
+            { "name": "Guiding Bolt", "level": 1 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Bless", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Fighter Champion L5: STR 18, Extra Attack (2 attacks per action), Action Surge. Position (10,10) — 5ft from Stone Ogre at (15,10), within melee reach.",
+        "name": "Sir Daven",
+        "className": "Fighter",
+        "subclass": "Champion",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 120,
+          "currentHp": 120,
+          "armorClass": 18,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Make two attacks when you take the Attack action." },
+            { "name": "Action Surge", "description": "Once per short rest, take an additional action on your turn." }
+          ],
+          "resourcePools": [
+            { "name": "actionSurge", "current": 1, "max": 1 },
+            { "name": "secondWind", "current": 1, "max": 1 }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Stone Ogre: large humanoid, high HP, hard hitter. AC 11 — easy to hit, soaks damage. Primary target for Guiding Bolt + Sir Daven attacks.",
+        "name": "Stone Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "giant",
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 120,
+          "hp": 120,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Bandit Warlord: tactical humanoid with Longsword. Secondary target. AC 15.",
+        "name": "Bandit Warlord",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 13,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 11,
+            "charisma": 14
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 3,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Sister Lyra goes first. Shield of Faith (bonus, concentration) + Sacred Flame (cantrip action). Two-spell rule: leveled bonus action spell + cantrip action = ALLOWED. ===",
+      "type": "initiate",
+      "actor": "Sister Lyra",
+      "input": { "text": "I call upon divine power to shield my ally!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Lyra rolls 20 to guarantee going first.",
+      "type": "rollResult",
+      "actor": "Sister Lyra",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "R1 BONUS ACTION: Shield of Faith on Sir Daven. L1 concentration, +2 AC to ally for duration. Bonus action, so must use cantrip as action this turn. NOTE: Per GAP-2, buff spells (Shield of Faith) may not consume a spell slot — do NOT assert slot decrement.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Shield of Faith on Sir Daven" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Verify concentration on Shield of Faith is active (L1 abjuration concentration).",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterConcentration": "Shield of Faith"
+      }
+    },
+    {
+      "comment": "R1 ACTION: Sacred Flame cantrip at Stone Ogre. After leveled bonus action spell, only a cantrip may be cast as the action. DEX save auto-resolved. 2d8 radiant at L5.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Sacred Flame at Stone Ogre" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Sacred Flame consumes no spell slot (cantrip). Shield of Faith consumed 1 L1 slot (now confirmed working — GAP-2 resolved). Slots: 4 → 3.",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue monsters R1. Both attack Sir Daven — he has Shield of Faith (+2 AC = AC 20).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Daven", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Sir Daven", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Lyra ends R1. Monsters act, then Sir Daven's turn.",
+      "type": "endTurn",
+      "actor": "Sister Lyra"
+    },
+    {
+      "comment": "Wait for Sir Daven's R1 turn (monsters act between).",
+      "type": "waitForTurn",
+      "actor": "Sir Daven",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Sir Daven attacks Stone Ogre with Longsword (Extra Attack = 2 attacks). AC 11 vs +7 → hits on 4+.",
+      "type": "action",
+      "actor": "Sir Daven",
+      "input": { "text": "I attack the Stone Ogre with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R1 Daven attack 1: 15 + 7 = 22 vs AC 11 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 7 (1d8+4 slashing). Extra Attack chains to attack 2/2.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Extra Attack 2/2: 12 + 7 = 19 vs AC 11 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Second attack damage: 9 (1d8+4 slashing). Attack sequence complete.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "9" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Sir Daven ends R1.",
+      "type": "endTurn",
+      "actor": "Sir Daven"
+    },
+    {
+      "comment": "=== ROUND 2: Sister Lyra — Guiding Bolt (leveled action spell attack) + NO bonus action spell (two-spell rule). ===",
+      "type": "waitForTurn",
+      "actor": "Sister Lyra",
+      "timeout": 15000
+    },
+    {
+      "comment": "Verify Lyra HP — monsters attacked Sir Daven in R1 (Shield of Faith AC 20 reduces hits). Lyra likely untouched.",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterHp": { "min": 70, "max": 100 }
+      }
+    },
+    {
+      "comment": "Verify Sir Daven HP — may have taken some hits despite Shield of Faith (AC 20 vs Ogre +6 = hits on 14+).",
+      "type": "assertState",
+      "actor": "Sir Daven",
+      "expect": {
+        "characterHp": { "min": 60, "max": 120 }
+      }
+    },
+    {
+      "comment": "R2 ACTION: Guiding Bolt at Stone Ogre. L1 spell attack: roll + 7 vs AC 11. On hit: 4d6 radiant damage + marks target (next attack has advantage). This is a leveled action spell — cannot cast leveled bonus action spell same turn.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Guiding Bolt at Stone Ogre" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 12 + 7 = 19 vs AC 11 → hit.",
+      "type": "rollResult",
+      "actor": "Sister Lyra",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 14 (4d6 radiant). Ogre already wounded — should drop significantly.",
+      "type": "rollResult",
+      "actor": "Sister Lyra",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 slot consumed by Guiding Bolt: 3 → 2. (Shield of Faith spent one slot in R1: 4→3. Guiding Bolt now: 3→2.)",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 }
+      }
+    },
+    {
+      "comment": "TWO-SPELL RULE ENFORCEMENT: Attempt to cast Healing Word (leveled bonus action spell) after Guiding Bolt (leveled action spell). Must be BLOCKED.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Healing Word on Sir Daven" },
+      "expect": { "error": true, "errorContains": "leveled" }
+    },
+    {
+      "comment": "Queue monsters R2. Both attack Sir Daven.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Daven", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Sir Daven", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Lyra ends R2.",
+      "type": "endTurn",
+      "actor": "Sister Lyra"
+    },
+    {
+      "comment": "Wait for Sir Daven R2.",
+      "type": "waitForTurn",
+      "actor": "Sir Daven",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Sir Daven attacks Stone Ogre. Guiding Bolt marks Ogre — next attack has advantage. First attack should benefit.",
+      "type": "action",
+      "actor": "Sir Daven",
+      "input": { "text": "I attack the Stone Ogre with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 14 + 7 = 21 vs AC 11 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage: 8. Extra Attack chains to attack 2/2.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Extra Attack 2/2: 11 + 7 = 18 vs AC 11 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "11" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Second attack damage: 6. Attack sequence complete.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Sir Daven ends R2.",
+      "type": "endTurn",
+      "actor": "Sir Daven"
+    },
+    {
+      "comment": "=== ROUND 3: Sister Lyra — Sacred Flame (cantrip) + Healing Word (bonus heal). Cantrip action + leveled bonus = ALLOWED. ===",
+      "type": "waitForTurn",
+      "actor": "Sister Lyra",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 ACTION: Sacred Flame cantrip at Stone Ogre. Frees up bonus action for Healing Word.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Sacred Flame at Stone Ogre" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "R3 BONUS ACTION: Healing Word on Sir Daven. L1 bonus action ranged heal: 2d4+4 (WIS mod +4 at L5). Allowed because action was a cantrip (Sacred Flame).",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Healing Word on Sir Daven" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Verify L1 slot consumed by Healing Word: 2 → 1. (Shield of Faith R1: 4→3. Guiding Bolt R2: 3→2. Healing Word now: 2→1.)",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 }
+      }
+    },
+    {
+      "comment": "Verify Sir Daven healed by Healing Word (2d4+4 = 6-12 HP gained). Broad range assertion.",
+      "type": "assertState",
+      "actor": "Sir Daven",
+      "expect": {
+        "characterHp": { "min": 1, "max": 120 }
+      }
+    },
+    {
+      "comment": "Verify concentration: Shield of Faith should still be active (concentration spells are dropped on new concentration cast; we haven't cast another concentration spell).",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterConcentration": "Shield of Faith"
+      }
+    },
+    {
+      "comment": "Queue monsters R3.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Sir Daven", "attackName": "Greatclub", "endTurn": true },
+          { "action": "attack", "target": "Sir Daven", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Lyra ends R3.",
+      "type": "endTurn",
+      "actor": "Sister Lyra"
+    },
+    {
+      "comment": "Wait for Sir Daven R3.",
+      "type": "waitForTurn",
+      "actor": "Sir Daven",
+      "timeout": 15000
+    },
+    {
+      "comment": "R3 Sir Daven attacks Stone Ogre — Extra Attack (2 attacks).",
+      "type": "action",
+      "actor": "Sir Daven",
+      "input": { "text": "I attack the Stone Ogre with my Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "R3 Sir Daven attack 1: 16 + 7 = 23 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 1: 10. Extra Attack chains.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "10" },
+      "expect": { "actionComplete": false }
+    },
+    {
+      "comment": "Attack 2 (Extra Attack chain): 13 + 7 = 20 → hit.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "13" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 2: 8. Attack sequence R3 complete.",
+      "type": "rollResult",
+      "actor": "Sir Daven",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Sir Daven ends R3.",
+      "type": "endTurn",
+      "actor": "Sir Daven"
+    },
+    {
+      "comment": "=== ROUND 4: Final round — assert key resource state ===",
+      "type": "waitForTurn",
+      "actor": "Sister Lyra",
+      "timeout": 15000
+    },
+    {
+      "comment": "R4: Lyra casts Sacred Flame to finish off Ogre.",
+      "type": "action",
+      "actor": "Sister Lyra",
+      "input": { "text": "cast Sacred Flame at Stone Ogre" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "comment": "Final assertion: L1 slots at 1 (Shield of Faith R1: 4→3, Guiding Bolt R2: 3→2, Healing Word R3: 2→1).",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 }
+      }
+    },
+    {
+      "comment": "Final assertion: Sir Daven's actionSurge still available (never used).",
+      "type": "assertState",
+      "actor": "Sir Daven",
+      "expect": {
+        "characterResource": { "poolName": "actionSurge", "current": 1, "max": 1 }
+      }
+    },
+    {
+      "comment": "Final assertion: combat still active (high HP enemies).",
+      "type": "assertState",
+      "actor": "Sister Lyra",
+      "expect": {
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

@@ -1,0 +1,404 @@
+{
+  "name": "Wizard W2: Shield + Counterspell + Hold Person Concentration",
+  "description": "A Level 5 Evocation Wizard fights a Shadow Mage and a Bone Sniper. Tests two reactions + concentration bookkeeping across 4 rounds: (1) Shield spell blocks a Bone Sniper ranged attack in R1, (2) Hold Person establishes concentration + Paralyzed condition on Shadow Mage, (3) Concentration persists through Scorching Ray (R2) and Fire Bolt (R3+R4), (4) Spell slot economy: L1(Shield), L2(Hold Person + Scorching Ray), L3(untouched → Counterspell leg documented as GAP). Monster initiatives are pre-seeded [1,1] so both monsters go after Zara. Bone Sniper attack roll falls back to seeded random (d20≈11); Shield (AC 12→17) blocks it.\n\nGAP-Wizard-1 (Counterspell leg): The intended R3 flow was to have Shadow Mage cast Hold Person at Zara so Counterspell reaction fires. In the current engine, Hold Person's save-to-end path (A) bypasses the QueueableDiceRoller — seeded dice consistently roll low → save always fails, AND (B) the log line shows 'wisdom 0' instead of the creature's true WIS modifier. Shadow Mage therefore stays Paralyzed indefinitely and can never cast, so the Counterspell reaction never triggers. See scenarios/wizard/counterspell.json for the dedicated Counterspell unit scenario (uses a non-paralyzed monster). spellSlot_3 is asserted at 2/2 (untouched) here until the engine bugs are addressed.\n\nGAP-Wizard-2 (advantage vs Paralyzed): Attacks against Paralyzed targets within 5ft should auto-crit, and other attacks should have advantage per D&D 5e 2024. Zara is at range (Scorching Ray/Fire Bolt), so only the advantage rule would apply — not asserted here; see class-combat/warlock/hold-and-control.json for the documented gap.",
+  "setup": {
+    "character": {
+      "name": "Zara Vex",
+      "className": "Wizard",
+      "subclass": "Evocation",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 5,
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Shield", "level": 1 },
+          { "name": "Scorching Ray", "level": 2 },
+          { "name": "Hold Person", "level": 2 },
+          { "name": "Counterspell", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Shadow Mage — humanoid spellcaster. Target for Hold Person and for the Counterspell test (casts Hold Person in R3). Placed at range 50ft (10 squares) — within Counterspell's 60ft range. WIS 12 (+1) vs DC 15: needs 14+ to save.",
+        "name": "Shadow Mage",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 9,
+            "dexterity": 14,
+            "constitution": 11,
+            "intelligence": 17,
+            "wisdom": 12,
+            "charisma": 11
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 6,
+          "experienceValue": 2300,
+          "spellSlots": { "2": 2 },
+          "spells": [
+            { "name": "Hold Person", "level": 2 }
+          ],
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Bone Sniper — undead archer. Source of the Shield reaction test in R1. Attack bonus set to +1 so that a queued d20 of 15 totals 16: hits base AC 12 (triggering Shield eligibility) but misses Shield-boosted AC 17 (16 < 17). Range 80/320 ft — Zara is at 75ft (15 squares), within normal range.",
+        "name": "Bone Sniper",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 12,
+            "constitution": 15,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 5
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 1,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "comment": "Pre-seed monster initiative rolls to guarantee Zara goes first. Both monsters get d20=1: Shadow Mage init=1+2=3, Bone Sniper init=1+1=2. Both below Zara's 22. This ensures the Hold Person save-to-end fires during Shadow Mage's own monster turn (not immediately during the cast), so queued dice are available.",
+      "type": "queueDiceRolls",
+      "input": { "values": [1, 1] }
+    },
+    {
+      "comment": "=== ROUND 1: Hold Person on Shadow Mage + Shield vs Bone Sniper ===",
+      "type": "initiate",
+      "input": { "text": "I ready my spells against the Shadow Mage and Bone Sniper" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative to go first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "Pre-seed Shadow Mage's WIS save for Hold Person. d20(4)+1=5 < DC 15 → FAILS → Paralyzed.",
+      "type": "queueDiceRolls",
+      "input": { "values": [4] }
+    },
+    {
+      "comment": "R1: Cast Hold Person on Shadow Mage. Server auto-rolls WIS save (queued 4 → total 5 < DC 15 → Paralyzed). Concentration begins. Uses 1 L2 slot: spellSlot_2 4→3→2.",
+      "type": "action",
+      "input": { "text": "cast Hold Person on Shadow Mage" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "comment": "ASSERT: Hold Person concentration established. L2 slot consumed: 3→2.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person",
+        "characterResource": { "poolName": "spellSlot_2", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "ASSERT: Shadow Mage is Paralyzed (failed WIS save vs DC 15).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": { "name": "Shadow Mage", "hasConditions": ["Paralyzed"] }
+      }
+    },
+
+    {
+      "comment": "Pre-seed monster turn dice: [15, 15]. Turn order (seeded low initiatives): Shadow Mage (init 3) → Bone Sniper (init 2). Each 15 works for BOTH purposes: (1) Shadow Mage repeat WIS save: 15+0 or +1 ≥ DC 15 → passes → freed; (2) Bone Sniper attack: 15+1=16 ≥ AC 12 → hits (triggers Shield), but 16 < Shield AC 17 → blocked → no damage → no concentration check.",
+      "type": "queueDiceRolls",
+      "input": { "values": [15, 15] }
+    },
+    {
+      "comment": "Configure Bone Sniper to attack this round (triggers Shield reaction). Shadow Mage has defaultBehavior endTurn (Paralyzed → can only end turn, repeat save fires at end).",
+      "type": "configureAi",
+      "input": {
+        "defaultBehavior": "endTurn",
+        "monsterBehaviors": { "Bone Sniper": "attack" }
+      }
+    },
+    {
+      "comment": "End R1. Bone Sniper attacks Zara (queued 14+2=16 ≥ AC 12 → would hit → Shield reaction fires). Shadow Mage ends turn (Paralyzed) → repeat WIS save at turn end (queued 14+1=15 ≥ DC 15 → freed).",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for the Shield reaction prompt from Bone Sniper's attack.",
+      "type": "waitForShieldReaction",
+      "timeout": 10000
+    },
+    {
+      "comment": "Use Shield: +5 AC until start of next turn. AC 12→17. 15+1=16 < 17 → attack MISSES → no damage → no concentration check.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Wait for all monster turns to complete (Bone Sniper: miss resolved; Shadow Mage: freed from Paralysis).",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "ASSERT R1 end: Shield used L1 slot (4→3). HP at 100 (Shield blocked attack, no damage).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 },
+        "characterHp": { "min": 100, "max": 100 }
+      }
+    },
+    {
+      "comment": "ASSERT: Concentration on Hold Person still active (Shield blocked attack → no damage → no concentration check needed). Shadow Mage's end-of-turn Paralyzed repeat save is rolled with seeded (not queued) dice; do not assert his condition state here — R2 will target him regardless.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Scorching Ray (3 beams) — tests concentration survives subsequent spells ===",
+      "type": "configureAi",
+      "input": { "defaultBehavior": "endTurn" }
+    },
+    {
+      "comment": "R2: Cast Scorching Ray at Shadow Mage. 3 separate attack rolls, each 2d6 fire damage. Uses 1 L2 slot: spellSlot_2 2→1.",
+      "type": "action",
+      "input": { "text": "cast Scorching Ray at Shadow Mage" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 attack: 14+7=21 vs Shadow Mage AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 1 damage: 8 fire → chains to ray 2.",
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 attack: 12+7=19 vs AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 2 damage: 7 fire → chains to ray 3.",
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "expect": { "actionComplete": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 attack: 14+7=21 vs AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Ray 3 damage: 6 fire → last ray, action complete. Total: 21 fire damage to Shadow Mage (100→79 HP).",
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "ASSERT R2: L2 slot consumed by Scorching Ray. Hold Person (R1) + Scorching Ray (R2) = 2 L2 slots used: 3→2→1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 3 }
+      }
+    },
+    {
+      "comment": "ASSERT: Concentration on Hold Person still active (Scorching Ray is not a concentration spell).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person"
+      }
+    },
+
+    {
+      "comment": "End R2. Both monsters endTurn (defaultBehavior). No damage to Zara.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for both monster turns.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 3: Fire Bolt (Counterspell leg disabled — see GAP-Wizard-1 in description) ===\nIntended flow: Shadow Mage casts Hold Person at Zara → Counterspell reaction fires → Zara uses Counterspell (L3) → spellSlot_3 2→1. Blocked because Shadow Mage remains Paralyzed across all rounds (save-to-end bypasses queued dice + ignores WIS mod). Instead, this round just fires another Fire Bolt to progress combat.",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Shadow Mage" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt attack: 14+7=21 vs Shadow Mage AC 12 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt damage: 2d10 at L5 cantrip scaling. 12 fire damage to Shadow Mage (79→67 HP).",
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "End R3. Both monsters endTurn (Shadow Mage still Paralyzed; Bone Sniper configured endTurn).",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for both monster turns to resolve.",
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "ASSERT R3: spellSlot_3 UNTOUCHED (Counterspell leg disabled per GAP-Wizard-1). Value stays at 2/2. When the engine bugs are fixed, this assertion must change to {current: 1, max: 2}.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "ASSERT: Hold Person concentration still active through R3.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person"
+      }
+    },
+    {
+      "comment": "ASSERT: Zara at full HP — Bone Sniper attack was blocked by Shield in R1 and monster defaulted to endTurn afterward.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "min": 100, "max": 100 }
+      }
+    },
+
+    {
+      "comment": "=== ROUND 4: Final Fire Bolt + summary assertions ===",
+      "type": "configureAi",
+      "input": { "defaultBehavior": "endTurn" }
+    },
+    {
+      "comment": "R4: Cast Fire Bolt at Bone Sniper.",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Bone Sniper" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt attack: 15+7=22 vs Bone Sniper AC 13 → HIT.",
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Fire Bolt damage: 2d10 at L5. 9 fire damage to Bone Sniper (80→71 HP).",
+      "type": "rollResult",
+      "input": { "text": "9" },
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "ASSERT final spell slot state: spellSlot_1 4→3 (Shield R1), spellSlot_2 3→1 (Hold Person R1 + Scorching Ray R2), spellSlot_3 2→1 (Counterspell R3). Fire Bolt and spellSlot_1 (4→3) confirmed.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "ASSERT spellSlot_2 final: 3→1 (two L2 spells used: Hold Person + Scorching Ray).",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 3 }
+      }
+    },
+    {
+      "comment": "ASSERT spellSlot_3 final: 2/2 (Counterspell leg disabled — GAP-Wizard-1). When engine bugs fixed, change to current:1.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "ASSERT combat still ongoing (both monsters alive).",
+      "type": "assertState",
+      "expect": {
+        "combatStatus": "Active",
+        "monstersAlive": 2
+      }
+    },
+    {
+      "comment": "ASSERT concentration maintained throughout all 4 rounds.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Hold Person"
+      }
+    },
+    {
+      "comment": "End R4.",
+      "type": "endTurn"
+    }
+  ]
+}

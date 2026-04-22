@@ -97,6 +97,72 @@ export class RandomDiceRoller implements DiceRoller {
 }
 
 /**
+ * Wraps any DiceRoller with a FIFO queue of pre-scripted values.
+ * When the queue has values, the next call to d20() or rollDie() pops from the queue.
+ * When the queue is empty, falls back to the wrapped roller.
+ *
+ * This allows E2E tests to inject specific server-side roll outcomes
+ * (e.g., natural-1 CON saves for Stunning Strike) while keeping all
+ * other rolls deterministic via the seeded roller.
+ */
+export class QueueableDiceRoller implements DiceRoller {
+  private readonly inner: DiceRoller;
+  private queue: number[] = [];
+
+  public constructor(inner: DiceRoller) {
+    this.inner = inner;
+  }
+
+  /** Queue one or more raw die values (no modifier). Consumed FIFO. */
+  public queueRolls(values: number[]): void {
+    this.queue.push(...values);
+  }
+
+  /** Clear all queued values. */
+  public clearQueue(): void {
+    this.queue.length = 0;
+  }
+
+  /** Reset the inner roller if it supports reset (e.g. SeededDiceRoller). */
+  public reset(): void {
+    this.clearQueue();
+    if ("reset" in this.inner && typeof (this.inner as any).reset === "function") {
+      (this.inner as any).reset();
+    }
+  }
+
+  public d20(modifier = 0): DiceRoll {
+    if (this.queue.length > 0) {
+      const v = this.queue.shift()!;
+      return { total: v + modifier, rolls: [v] };
+    }
+    return this.inner.d20(modifier);
+  }
+
+  public rollDie(sides: number, count = 1, modifier = 0): DiceRoll {
+    if (!Number.isInteger(count) || count < 1) {
+      throw new Error("Die count must be an integer >= 1");
+    }
+    // If we have queued values, consume them for each die in the roll
+    if (this.queue.length > 0) {
+      const rolls: number[] = [];
+      for (let i = 0; i < count; i++) {
+        if (this.queue.length > 0) {
+          rolls.push(this.queue.shift()!);
+        } else {
+          // Queue exhausted mid-roll, fall back to inner for remaining dice
+          const fallback = this.inner.rollDie(sides, 1, 0);
+          rolls.push(fallback.rolls[0]!);
+        }
+      }
+      const total = rolls.reduce((sum, r) => sum + r, 0) + modifier;
+      return { total, rolls };
+    }
+    return this.inner.rollDie(sides, count, modifier);
+  }
+}
+
+/**
  * Convenience adapter for tests: deterministic roller that always returns a fixed roll.
  */
 export class FixedDiceRoller implements DiceRoller {

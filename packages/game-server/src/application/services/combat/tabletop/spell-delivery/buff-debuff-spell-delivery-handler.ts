@@ -10,7 +10,7 @@ import { createEffect } from '../../../../../domain/entities/combat/effects.js';
 import { addActiveEffectsToResources, normalizeResources, patchResources } from '../../helpers/resource-utils.js';
 import { findCombatantByEntityId } from '../../helpers/combatant-lookup.js';
 import { getEntityIdFromRef } from '../../helpers/combatant-ref.js';
-import { getSpellcastingModifier } from '../../../../../domain/rules/spell-casting.js';
+import { getSpellcastingModifier, computeSpellSaveDC } from '../../../../../domain/rules/spell-casting.js';
 import { nanoid } from 'nanoid';
 import type { Ability } from '../../../../../domain/entities/core/ability-scores.js';
 import type { PreparedSpellDefinition } from '../../../../../domain/entities/spells/prepared-spell-definition.js';
@@ -40,11 +40,13 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       encounter,
       combatants,
       actorCombatant,
+      characters,
     } = ctx;
-    const { deps, debugLogsEnabled } = this.handlerDeps;
+    const { deps, debugLogsEnabled, savingThrowResolver } = this.handlerDeps;
 
     const effectDeclarations = spellMatch.effects ?? [];
     const appliedTo: string[] = [];
+    const saveMessages: string[] = [];
 
     // Guard: canHandle() ensures effects.length > 0, but warn defensively if somehow bypassed.
     if (effectDeclarations.length === 0) {
@@ -60,6 +62,59 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
         message: `[WARN] Spell '${castInfo.spellName}' has no effects defined — no mechanical changes applied. Check the spell catalog definition.`,
       };
     }
+
+    // Bane-style save-on-cast: spell has `saveAbility` but no `damage` or `conditions.onFailure`.
+    // SaveSpellDeliveryHandler defers these to us. We roll a save per target; effects apply only on failure.
+    const requiresSaveOnCast =
+      !!spellMatch.saveAbility &&
+      !spellMatch.damage &&
+      !spellMatch.conditions?.onFailure?.length;
+    const spellSaveDC = requiresSaveOnCast ? computeSpellSaveDC(sheet) : 0;
+    const saveFailedByCombatantId = new Map<string, boolean>();
+    let allMonstersCache: Awaited<ReturnType<typeof deps.monsters.listBySession>> | null = null;
+    let allNpcsCache: Awaited<ReturnType<typeof deps.npcs.listBySession>> | null = null;
+
+    const resolveSaveForTarget = async (targetCombatantId: string): Promise<boolean> => {
+      // Returns `true` if the save FAILED (effect should apply).
+      if (saveFailedByCombatantId.has(targetCombatantId)) {
+        return saveFailedByCombatantId.get(targetCombatantId)!;
+      }
+      if (!savingThrowResolver || !requiresSaveOnCast) {
+        saveFailedByCombatantId.set(targetCombatantId, true);
+        return true;
+      }
+      const targetC = combatants.find((c) => c.id === targetCombatantId);
+      const targetEntityId = targetC?.characterId ?? targetC?.monsterId ?? targetC?.npcId ?? targetCombatantId;
+      if (allMonstersCache === null) allMonstersCache = await deps.monsters.listBySession(sessionId);
+      if (allNpcsCache === null) allNpcsCache = await deps.npcs.listBySession(sessionId);
+      const saveAction = savingThrowResolver.buildPendingAction({
+        actorId: targetEntityId,
+        sourceId: actorId,
+        ability: spellMatch.saveAbility! as Ability,
+        dc: spellSaveDC,
+        reason: castInfo.spellName,
+        onSuccess: { summary: 'Save succeeded' },
+        onFailure: { summary: 'Save failed' },
+      });
+      const resolution = await savingThrowResolver.resolve(
+        saveAction,
+        encounter.id,
+        characters,
+        allMonstersCache!,
+        allNpcsCache!,
+      );
+      const failed = !resolution.success;
+      saveFailedByCombatantId.set(targetCombatantId, failed);
+      saveMessages.push(
+        `${targetEntityId}: ${spellMatch.saveAbility} save d20(${resolution.rawRoll})+${resolution.modifier}=${resolution.total} vs DC ${spellSaveDC} → ${failed ? 'FAIL' : 'SUCCESS'}`,
+      );
+      if (debugLogsEnabled) {
+        console.log(
+          `[BuffDebuffSpellDeliveryHandler] ${castInfo.spellName} ${spellMatch.saveAbility} save for ${targetEntityId}: ${resolution.total} vs DC ${spellSaveDC} → ${failed ? 'FAIL' : 'SUCCESS'}`,
+        );
+      }
+      return failed;
+    };
 
     for (const effDef of effectDeclarations) {
       // Resolve target combatants
@@ -104,6 +159,18 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
           const c = combatants.find(x => x.id === targetCId);
           return c?.characterId ?? c?.monsterId ?? c?.npcId ?? targetCId;
         })();
+
+        // Bane-style save-on-cast: skip effect application on successful save.
+        // Caster-side damage riders (Hex/Hunter's Mark) are NOT subject to save-on-cast
+        // since the effect is applied to the caster; keep that branch untouched.
+        const isCasterDamageRiderForSaveCheck =
+          appliesTo === 'target' &&
+          (effDef.target === 'damage_rolls' || effDef.target === 'melee_damage_rolls' || effDef.target === 'ranged_damage_rolls') &&
+          (effDef.type === 'bonus' || effDef.type === 'penalty');
+        if (requiresSaveOnCast && !isCasterDamageRiderForSaveCheck) {
+          const failed = await resolveSaveForTarget(targetCId);
+          if (!failed) continue;
+        }
 
         // Detect caster-side damage riders (Hex, Hunter's Mark):
         // These spells target an enemy but the extra damage is dealt BY the caster.
@@ -169,6 +236,10 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
           await deps.combatRepo.updateCombatantState(recipientC.id, {
             resources: updatedResources as JsonValue,
           });
+          // Mutate the in-memory snapshot so subsequent effectDeclarations that target
+          // the same combatant accumulate with earlier effects (fixes Bane / Bless
+          // multi-effect-on-same-target overwrite: SPELL-BANE audit).
+          (recipientC as any).resources = updatedResources;
           if (!appliedTo.includes(entityId)) appliedTo.push(entityId);
           if (debugLogsEnabled)
             console.log(
@@ -186,9 +257,15 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
       skipActionCheck: isBonusAction,
     });
 
-    // If bonus action spell, mark bonus action used on resources
+    // If bonus action spell, mark bonus action used on resources.
+    // CRITICAL: re-fetch the combatant here — earlier effect-writes in this handler mutated
+    // actorCombatant.resources (e.g., Hex damage rider on caster). Reading from the stale
+    // `actorCombatant.resources` snapshot would clobber those freshly-written effects.
     if (isBonusAction && actorCombatant) {
-      const actorResources = normalizeResources(actorCombatant.resources ?? {});
+      const refreshed = (await deps.combatRepo.listCombatants(encounterId)).find(
+        (c) => c.id === actorCombatant.id,
+      );
+      const actorResources = normalizeResources(refreshed?.resources ?? actorCombatant.resources ?? {});
       await deps.combatRepo.updateCombatantState(actorCombatant.id, {
         resources: patchResources(actorResources, { bonusActionUsed: true }),
       });
@@ -197,13 +274,14 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
     const targetNote =
       appliedTo.length > 0 ? ` affecting ${appliedTo.length} target(s)` : "";
     const concNote = isConcentration ? " [concentration]" : "";
+    const saveNote = saveMessages.length > 0 ? ` [${saveMessages.join('; ')}]` : "";
 
     return {
       requiresPlayerInput: false,
       actionComplete: true,
       type: "SIMPLE_ACTION_COMPLETE",
       action: "CastSpell",
-      message: `Cast ${castInfo.spellName}${targetNote}.${concNote}`,
+      message: `Cast ${castInfo.spellName}${targetNote}.${concNote}${saveNote}`,
     };
   }
 }

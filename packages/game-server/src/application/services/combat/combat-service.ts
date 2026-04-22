@@ -51,6 +51,7 @@ import {
 import { applyDamageDefenses, extractDamageDefenses, type DamageDefenses } from "../../../domain/rules/damage-defenses.js";
 import { applyEvasion, creatureHasEvasion } from "../../../domain/rules/evasion.js";
 import { applyKoEffectsIfNeeded } from "./helpers/ko-handler.js";
+import { getClassStartupEffects } from "../../../domain/rules/class-startup-effects.js";
 
 /**
  * Combat encounter lifecycle + turn progression orchestration for a session.
@@ -154,6 +155,7 @@ export class CombatService {
     // Determine factions for positioning + collect monster stat blocks for legendary traits
     const factionsMap = new Map<string, string>();
     const monsterStatBlocks = new Map<string, Record<string, unknown>>();
+    const characterClassInfo = new Map<string, { classId: string; level: number }>();
     if (this.characters && this.monsters && this.npcs) {
       for (const c of input.combatants) {
         const cid = c.characterId;
@@ -162,7 +164,18 @@ export class CombatService {
         
         if (c.combatantType === "Character" && cid) {
           const char = await this.characters.getById(cid);
-          if (char) factionsMap.set(cid, char.faction);
+          if (char) {
+            factionsMap.set(cid, char.faction);
+            const sheet = (char.sheet && typeof char.sheet === "object")
+              ? (char.sheet as Record<string, unknown>)
+              : {};
+            const classIdRaw = sheet.classId ?? char.className;
+            const classId = typeof classIdRaw === "string" ? classIdRaw.toLowerCase() : "";
+            const level = typeof char.level === "number" ? char.level : 1;
+            if (classId) {
+              characterClassInfo.set(cid, { classId, level });
+            }
+          }
         } else if (c.combatantType === "Monster" && mid) {
           const mon = await this.monsters.getById(mid);
           if (mon) {
@@ -260,6 +273,22 @@ export class CombatService {
               if (legendary.isInLair) {
                 resources.isInLair = true;
               }
+            }
+          }
+        }
+
+        // Install class-level passive ActiveEffects (Barbarian L2 Danger Sense,
+        // Barbarian L5 Fast Movement, Monk L2 Unarmored Movement, etc.). These
+        // are always-on passives that other combat systems query via ActiveEffect
+        // lookups; installing them at combat start keeps the rest of the engine
+        // data-driven.
+        if (c.combatantType === "Character" && characterId) {
+          const classInfo = characterClassInfo.get(characterId);
+          if (classInfo) {
+            const startupEffects = getClassStartupEffects(classInfo);
+            if (startupEffects.length > 0) {
+              const existing = Array.isArray(resources.activeEffects) ? resources.activeEffects : [];
+              resources.activeEffects = [...existing, ...startupEffects] as JsonValue;
             }
           }
         }
@@ -1079,11 +1108,32 @@ export class CombatService {
           }
           if (!eff.triggerAt && event !== "end_of_turn") continue;
 
-          // Look up real ability score from sheet/statBlock
-          // TODO: type properly — record may carry hydrated .sheet/.statBlock from Prisma includes
+          // Look up real ability score from sheet/statBlock.
+          // CombatantStateRecord does NOT carry .sheet/.statBlock — we must load
+          // the backing character/monster/npc record to get real ability scores
+          // and save proficiencies. Falling back to {} gave ability=10/mod=0 and
+          // no proficiencies, which silently broke save-to-end for Hold Person etc.
           const saveAbility = eff.saveToEnd.ability as Ability;
-          const recordAny = record as unknown as Record<string, unknown>;
-          const sheetOrStatBlock = (recordAny.sheet ?? recordAny.statBlock ?? {}) as Record<string, unknown>;
+          let sheetOrStatBlock: Record<string, unknown> = {};
+          if (record.characterId) {
+            const ch = await this.characters.getById(record.characterId);
+            if (ch?.sheet && typeof ch.sheet === "object") {
+              sheetOrStatBlock = ch.sheet as Record<string, unknown>;
+              if (typeof sheetOrStatBlock.level !== "number" && typeof ch.level === "number") {
+                sheetOrStatBlock = { ...sheetOrStatBlock, level: ch.level };
+              }
+            }
+          } else if (record.monsterId) {
+            const mo = await this.monsters.getById(record.monsterId);
+            if (mo?.statBlock && typeof mo.statBlock === "object") {
+              sheetOrStatBlock = mo.statBlock as Record<string, unknown>;
+            }
+          } else if (record.npcId) {
+            const npc = await this.npcs.getById(record.npcId);
+            if (npc?.statBlock && typeof npc.statBlock === "object") {
+              sheetOrStatBlock = npc.statBlock as Record<string, unknown>;
+            }
+          }
           const abilityScoresRaw = (typeof sheetOrStatBlock === "object" && sheetOrStatBlock !== null)
             ? (sheetOrStatBlock as Record<string, unknown>).abilityScores ?? {}
             : {};

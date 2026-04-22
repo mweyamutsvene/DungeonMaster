@@ -119,8 +119,11 @@ export function isAutoCriticalHit(
   const isWithin5Feet = attackerDistance !== undefined ? attackerDistance <= 5 : true;
   // Guard: adapter objects may lack hasCondition()
   if (typeof target.hasCondition !== "function") return false;
+  // Conditions are stored title-case in the domain Condition catalog
+  // (see domain/entities/combat/conditions.ts). Use title-case literals so
+  // that case-sensitive `hasCondition` implementations match correctly.
   const hasAutocrittableCondition =
-    target.hasCondition("paralyzed") || target.hasCondition("unconscious");
+    target.hasCondition("Paralyzed") || target.hasCondition("Unconscious");
   return isMelee && isWithin5Feet && hasAutocrittableCondition;
 }
 

@@ -1,0 +1,539 @@
+{
+  "name": "Monk: Flurry of Blows + Open Hand Technique + Extra Attack + Martial Arts",
+  "description": "A level 5 Open Hand Monk fights a Hobgoblin Captain (Multiattack) and Gnoll across 4 rounds. Tests Extra Attack (2 hits), Flurry of Blows with Open Hand Technique (topple/addle), ki tracking, and Martial Arts (free bonus action when ki is conserved). Monster Multiattack validates GAP-1 fix (stat block actions array).",
+  "setup": {
+    "character": {
+      "name": "Kai Stonefist",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 11,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "subclass": "Open Hand",
+        "maxHp": 100,
+        "currentHp": 100,
+        "armorClass": 16,
+        "speed": 45,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Flurry of Blows", "description": "After Attack action, spend 1 ki for 2 unarmed strikes" },
+          { "name": "Open Hand Technique", "description": "On FoB hit: push 15ft, knock prone, or prevent reactions" },
+          { "name": "Martial Arts", "description": "Free bonus action unarmed strike after Attack action (if no ki bonus used)" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Hobgoblin Captain",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 15,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 10,
+            "charisma": 13
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 17,
+          "speed": 30,
+          "challengeRating": 3,
+          "actions": [
+            { "name": "Multiattack", "description": "The hobgoblin captain makes two longsword attacks." }
+          ],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            },
+            {
+              "name": "Javelin",
+              "kind": "ranged",
+              "range": "30/120",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Gnoll Raider",
+        "position": { "x": 15, "y": 12 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 11,
+            "intelligence": 6,
+            "wisdom": 10,
+            "charisma": 7
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 15,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== ROUND 1: Extra Attack (2 hits) + Flurry of Blows + Open Hand Technique (topple) ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Hobgoblin Captain" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High initiative (18 + 3 DEX = 21) — Monk goes first"
+    },
+
+    {
+      "comment": "R1 — Extra Attack 1/2: Unarmed Strike at Hobgoblin Captain",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Captain" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 17 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 bludgeoning. Extra Attack chains to 2/2.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "Extra Attack 2/2: 12 + 6 = 18 vs AC 17 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 bludgeoning. R1 action complete (17 total damage, Captain: 100 → 83).",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R1 — Flurry of Blows: bonus action, costs 1 ki, grants 2 unarmed strikes. Open Hand Technique available on each hit.",
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Flurry strike 1: 14 + 6 = 20 vs AC 17 → hit. Server offers OHT + stunning strike.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with topple" },
+      "comment": "6 + 3 = 9 damage. Captain: 83 → 74. OHT Topple — DEX save to avoid prone.",
+      "expect": {
+        "requiresPlayerInput": true,
+        "openHandTechnique": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "Flurry strike 2: 11 + 6 = 17 vs AC 17 → hit (exact). OHT offered again.",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4 with topple" },
+      "comment": "4 + 3 = 7 damage. Captain: 74 → 67. Second topple applied.",
+      "expect": {
+        "actionComplete": true,
+        "openHandTechnique": {}
+      }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R1 checkpoint: 1 ki spent on FoB, Captain took ~33 damage, ki=4",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 },
+        "monsterHp": { "name": "Hobgoblin Captain", "min": 55, "max": 75 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R1: Captain Multiattack (2 Longsword), Gnoll Spear",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R1 player turn — monsters act"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster turns (Captain Multiattack + Gnoll)",
+      "timeout": 10000
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R1 aftermath: Monk possibly took some damage from monster attacks",
+      "expect": {
+        "characterHp": { "min": 50, "max": 100 },
+        "combatStatus": "Active"
+      }
+    },
+
+    {
+      "comment": "=== ROUND 2: Extra Attack (2 hits) + Flurry of Blows + Open Hand Technique (addle) ===",
+      "type": "action",
+      "input": { "text": "attack Hobgoblin Captain" },
+      "comment": "R2 — Extra Attack 1/2",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 17 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 3 = 10 bludgeoning. Extra Attack chains.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Extra Attack 2/2: 13 + 6 = 19 vs AC 17 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 bludgeoning. R2 action: 18 damage.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R2 — Flurry of Blows again (1 ki). This time use addle on hits.",
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Flurry 1: 14 + 6 = 20 vs AC 17 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5 with addle" },
+      "comment": "5 + 3 = 8 damage. OHT Addle — target can't take reactions until next turn.",
+      "expect": {
+        "requiresPlayerInput": true,
+        "openHandTechnique": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "Flurry 2: 12 + 6 = 18 vs AC 17 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with addle" },
+      "comment": "6 + 3 = 9 damage. Both FoB hits applied addle.",
+      "expect": {
+        "actionComplete": true,
+        "openHandTechnique": {}
+      }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R2 checkpoint: 2 ki spent total (1 per round of FoB), ki=3",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R2: Captain Multiattack (2 Longsword), Gnoll Spear",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R2 player turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster R2 turns",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 3: Extra Attack + Martial Arts (free bonus unarmed strike, no ki) ===",
+      "type": "action",
+      "input": { "text": "attack Gnoll Raider" },
+      "comment": "R3 — Switch target to Gnoll. Extra Attack 1/2.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 6 = 20 vs AC 15 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 bludgeoning. Extra Attack chains.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Extra Attack 2/2: 13 + 6 = 19 vs AC 15 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5 + 3 = 8 bludgeoning. R3 action: 17 damage to Gnoll.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R3 — Martial Arts: Free bonus action unarmed strike (no ki cost). Saving ki this round.",
+      "type": "action",
+      "input": { "text": "use martial arts" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "Martial Arts strike: 12 + 6 = 18 vs AC 15 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "4 + 3 = 7 bludgeoning. Free strike done, no ki spent.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "R3 checkpoint: Ki still 3 (Martial Arts is free), Gnoll took 24 damage",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 3, "max": 5 },
+        "monsterHp": { "name": "Gnoll Raider", "min": 45, "max": 65 }
+      }
+    },
+
+    {
+      "comment": "Queue monster R3: Captain Multiattack, Gnoll Spear",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": false },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Longsword", "endTurn": true },
+          { "action": "attack", "target": "Kai Stonefist", "attackName": "Spear", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End R3 player turn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster R3 turns",
+      "timeout": 10000
+    },
+
+    {
+      "comment": "=== ROUND 4: Extra Attack + Flurry + Open Hand (push) — 3rd ki spend ===",
+      "type": "action",
+      "input": { "text": "attack Gnoll Raider" },
+      "comment": "R4 — Extra Attack 1/2 on Gnoll",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 15 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "7" },
+      "comment": "7 + 3 = 10 bludgeoning. Extra Attack chains.",
+      "expect": { "actionComplete": false }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "Extra Attack 2/2: 14 + 6 = 20 vs AC 15 → hit",
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6" },
+      "comment": "6 + 3 = 9 bludgeoning. R4 action: 19 damage to Gnoll.",
+      "expect": { "actionComplete": true }
+    },
+
+    {
+      "comment": "R4 — Flurry of Blows with push (Open Hand push 15ft on hit)",
+      "type": "action",
+      "input": { "text": "use flurry of blows" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Flurry 1: 13 + 6 = 19 vs AC 15 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5 with push" },
+      "comment": "5 + 3 = 8 damage. OHT Push — push target 15ft away.",
+      "expect": {
+        "requiresPlayerInput": true,
+        "openHandTechnique": {}
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "Flurry 2: 11 + 6 = 17 vs AC 15 → hit",
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [
+          { "keyword": "open-hand-technique" },
+          { "keyword": "stunning-strike" }
+        ]
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4 with push" },
+      "comment": "4 + 3 = 7 damage. Double push!",
+      "expect": {
+        "actionComplete": true,
+        "openHandTechnique": {}
+      }
+    },
+
+    {
+      "type": "assertState",
+      "comment": "Final: 3 ki spent total (2 FoB + 1 free Martial Arts round), both monsters alive, combat active",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 2, "max": 5 },
+        "combatStatus": "Active",
+        "monstersAlive": 2
+      }
+    }
+  ]
+}
