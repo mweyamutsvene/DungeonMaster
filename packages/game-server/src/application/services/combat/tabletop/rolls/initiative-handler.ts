@@ -103,6 +103,19 @@ function buildCombatantResources(
   if (combatRes.pactSlotLevel !== undefined) {
     (resources as any).pactSlotLevel = combatRes.pactSlotLevel;
   }
+  // Phase 3.1 — Fighting Style ally-reaction flags (Protection/Interception)
+  if ((combatRes as any).hasProtectionStyle) {
+    (resources as any).hasProtectionStyle = true;
+  }
+  if ((combatRes as any).hasInterceptionStyle) {
+    (resources as any).hasInterceptionStyle = true;
+  }
+  if ((combatRes as any).hasShieldEquipped) {
+    (resources as any).hasShieldEquipped = true;
+  }
+  if ((combatRes as any).hasWeaponEquipped) {
+    (resources as any).hasWeaponEquipped = true;
+  }
 
   // D&D 5e 2024: Danger Sense (Barbarian 2+) — permanent advantage on DEX saving throws
   if (className.toLowerCase() === "barbarian" && classHasFeature("barbarian", DANGER_SENSE, level)) {

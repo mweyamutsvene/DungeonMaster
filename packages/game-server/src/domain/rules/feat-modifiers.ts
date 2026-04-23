@@ -180,6 +180,12 @@ export function shouldApplyGreatWeaponFighting(params: {
 export function shouldApplyDueling(params: {
   attackKind?: AttackKind;
   weapon?: WeaponContext;
+  /**
+   * Whether the attacker has another weapon wielded in the off hand.
+   * Dueling requires NO other weapon wielded (a shield is allowed).
+   * If true, Dueling does not apply.
+   */
+  offhandWeaponEquipped?: boolean;
 }): boolean {
   if (params.attackKind !== "melee") return false;
 
@@ -191,6 +197,9 @@ export function shouldApplyDueling(params: {
   // Versatile weapons wielded in one hand qualify.
   if (hands === 2) return false;
   if (props.has("two-handed")) return false;
+
+  // Dueling requires no other weapon wielded (shield is allowed).
+  if (params.offhandWeaponEquipped) return false;
   return true;
 }
 

@@ -109,11 +109,11 @@ Bugs/gaps in this phase must ship before any new class scenario to avoid brittle
 ### Phase 1 — Subclass Framework Fill (GAP-17)
 7 classes have no `SubclassDefinition` exports. Add shells so `subclassId` in scenarios doesn't silently fall back to a non-subclassed character.
 
-- [ ] Cleric → **Life Domain** shell (`disciple-of-life`, `preserve-life` CD option, L3/5 domain spells list)
-- [ ] Paladin → **Oath of Devotion** shell (`sacred-weapon` CD, `holy-nimbus` future, L3/5 oath spells)
-- [ ] Warlock → **The Fiend** shell (`dark-ones-blessing` temp HP, L3/5 patron spells)
-- [ ] Wizard → **School of Evocation** shell (`sculpt-spells`, `potent-cantrip-L6`, L3/5 school spells)
-- [ ] Bard → **College of Lore** shell (`cutting-words` reaction, `additional-magical-secrets-L6`)
+- [x] Cleric → **Life Domain** shell (`disciple-of-life`, `preserve-life` CD option, L3/5 domain spells list)
+- [x] Paladin → **Oath of Devotion** shell (`sacred-weapon` CD, `holy-nimbus` future, L3/5 oath spells)
+- [x] Warlock → **The Fiend** shell (`dark-ones-blessing` temp HP, L3/5 patron spells)
+- [x] Wizard → **School of Evocation** shell (`sculpt-spells`, `potent-cantrip-L6`, L3/5 school spells)
+- [x] Bard → **College of Lore** shell (`cutting-words` reaction, `additional-magical-secrets-L6`)
 - [x] Druid → **Circle of the Land** shell (`lands-aid` CD, terrain spell list — Grassland)
 - [x] Sorcerer → **Draconic Sorcery (Red)** shell (`draconic-resilience` +HP/+AC13, `elemental-affinity` fire)
 

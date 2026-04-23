@@ -1,8 +1,142 @@
-# SME Research: CombatOrchestration GAP-10 (ARCHIVED CONTENT BELOW — IGNORE)
+# SME Research — CombatOrchestration — Phase 3.1 Fighting Styles (Protection + Interception)
 
-<!-- New content starts here -->
+## Scope
+- Files read:
+  - [roll-state-machine.ts](packages/game-server/src/application/services/combat/tabletop/roll-state-machine.ts) — `handleAttackRoll` ~L400–650
+  - [damage-resolver.ts](packages/game-server/src/application/services/combat/tabletop/rolls/damage-resolver.ts) — damage apply pipeline
+  - [session-tabletop.ts](packages/game-server/src/infrastructure/api/routes/sessions/session-tabletop.ts) — `tryInitiateDamageReaction` L44–175
+  - [attack-reaction-handler.ts](packages/game-server/src/application/services/combat/two-phase/attack-reaction-handler.ts) — `initiate()` + `complete()`
+  - [ai-attack-resolver.ts](packages/game-server/src/application/services/combat/ai/ai-attack-resolver.ts) — L220–320 (d20 roll → `initiateAttack`)
+  - [combat-text-profile.ts](packages/game-server/src/domain/entities/classes/combat-text-profile.ts) — `AttackReactionDef` contract
+  - [fighter.ts](packages/game-server/src/domain/entities/classes/fighter.ts) — `PROTECTION_REACTION` + `INTERCEPTION_REACTION` stubs L170–260 (TODO CO-L5/L6)
+  - [wizard.ts](packages/game-server/src/domain/entities/classes/wizard.ts) — `SHIELD_REACTION` prior art
+  - [pending-action.ts](packages/game-server/src/domain/entities/combat/pending-action.ts) — `ReactionType` already includes `"protection"` and `"interception"`
 
-As you wish Papi....
+## Current State
+
+### Two parallel attack pipelines
+1. **Player-attacks-monster (tabletop)**: `attack-handlers.ts` → `REQUEST_ROLL` → player d20 → `RollStateMachine.handleAttackRoll` → hit/miss → `DamagePendingAction` → player damage roll → `DamageResolver.resolve`. **No `detectAttackReactions` call** (monster targets don't Shield/Deflect).
+2. **Monster-attacks-player (AI)**: `ai-attack-resolver.ts` server-rolls d20 → `twoPhaseActions.initiateAttack({ attackRoll })` → `AttackReactionHandler.initiate()` calls `detectAttackReactions(target, …)` → if reactions: `"awaiting_reactions"` + `reaction_pending` → player responds via `/reactions/:id/respond` → `completeAttack()` recomputes hit w/ adjusted AC, rolls damage, applies Deflect Attacks reduction.
+
+### Protection/Interception placement
+- Both reaction defs **already exist** in `fighter.ts` with correct eligibility gates (flags `hasProtectionStyle`, `hasInterceptionStyle`, `hasShieldEquipped`, `hasWeaponEquipped` via `ReactionResources`).
+- Both are registered in `FIGHTER_COMBAT_TEXT_PROFILE.attackReactions`.
+- `ReactionType` union already lists both.
+- **Gap**: `detectAttackReactions()` is invoked only on the TARGET (see `attack-reaction-handler.ts:153` — `detect(detectionInput)` with target's class/resources). The def files explicitly flag this as TODO CO-L5/L6: _"Detection needs to scan nearby allies, not just the target itself."_
+
+### Shield timing (prior art)
+- `initiate()` runs AFTER d20 is rolled (`input.attackRoll` is a computed total).
+- Shield adjusts AC post-hoc in `completeAttack()`: `finalAC = originalAC + 5`. If `attackRoll < finalAC`, hit becomes miss.
+- `completeAttack()` also houses damage-reduction prior art: **Deflect Attacks** (monk) and **Cutting Words** (bard, mutates `attackData.attackRoll`), **Uncanny Dodge** (rogue, halves damage).
+
+### AI hit-determination flow
+```
+ai-attack-resolver.decideAttack()
+  → server rolls d20 (QueueableDiceRoller)         ← no pause hook in AI flow
+  → initiateAttack({ attackRoll })                 ← FIRST pause point
+    → wouldHit shortcut: if roll < targetAC → "miss" (no reactions offered)
+    → detectAttackReactions(target) + Sentinel scan of allies
+    → "awaiting_reactions" / "hit"
+  → completeAttack() — recompute hit w/ adjusted AC → roll damage → apply reductions → write HP
+```
+
+## Answers to Research Questions
+
+### Q1 — Can Protection use the same hook as Shield (post-d20)?
+**Yes**, with caveat. Shield is a post-roll AC bump; Protection is a disadvantage-impose. The mechanically-equivalent way to impose disadvantage after-the-fact is to **roll a second d20 in `completeAttack()` and take min**. If attacker had advantage, the set becomes {d20a, d20b, d20c} take min — which is 5e 2024 RAW for cancelling advantage + adding disadvantage source.
+
+Alternative: pre-roll pause by restructuring `ai-attack-resolver` — substantially more invasive (Option C below). Post-roll "second d20 + min" is clean and reuses the existing pending-action plumbing.
+
+### Q2 — Pre-roll Protection trace
+There is **no hook to pause *before* the d20 in the AI flow** without splitting `ai-attack-resolver` into two phases. The AI d20 is rolled server-side before `initiateAttack` is called. Proposed path (post-roll reroll):
+```
+ai-attack-resolver rolls d20 (store it on attackData.originalD20)
+  → initiateAttack(attackRoll)
+    → [new] ally-scan within 5ft of TARGET → Protection/Interception opportunities
+  → player: "use Protection"
+  → completeAttack()
+    → [new] if Protection used → reroll d20, attackRoll = min(orig+bonus, new+bonus)
+    → existing Shield/Deflect/Uncanny paths
+```
+For player-attacks-player (tabletop flow) pre-roll Protection would require extending `attack-handlers.ts` to emit a reaction-prompt before `REQUEST_ROLL` — **out of scope** unless PvP is supported.
+
+### Q3 — Interception pause point
+**Easier than Protection** — damage reduction is already a first-class concept in `completeAttack()`. Deflect Attacks uses `deflectReaction` context to subtract dice from `damageApplied` (see `attack-reaction-handler.ts` ~L550). Interception follows the same pattern: `if (interceptionReaction) damageApplied -= rollDie(10) + profBonus` right before HP write.
+
+**No new pause needed** — offer Interception in the same `reaction_pending` window as Shield/Deflect. Context carries `{ profBonus, damageReduction: "1d10+N" }` already.
+
+Note: `tryInitiateDamageReaction` in `session-tabletop.ts` is a DIFFERENT hook — it fires post-damage-apply for Hellish Rebuke / Absorb Elements. **Interception must NOT use this hook** — it must fire BEFORE HP is written (RAW: reduces damage, doesn't refund). Use the `initiateAttack` hook.
+
+### Q4 — Nested pauses
+**Yes, supported.** The pending-action queue (`setPendingAction`/`getPendingAction`/`clearPendingAction`) already handles stacked reactions — `tryInitiateDamageReaction` uses the "save queued follow-up → clear → push `reaction_pending` at HEAD → re-push follow-up" pattern to allow Extra-Attack + Hellish-Rebuke coexistence.
+
+**Simpler approach**: offer Protection + Interception in ONE `reaction_pending` window via `ReactionOpportunity[]`. Player picks which (or neither). Resolution in `completeAttack()` processes them sequentially: Protection first (may turn hit→miss), then Interception (skipped if Protection already caused a miss).
+
+### Q5 — Prior art
+| Reaction | Timing | Mechanic | Site |
+|---|---|---|---|
+| Shield | Post-d20, pre-hit | AC +5 | `completeAttack()` recomputes hit |
+| Deflect Attacks | Post-hit, pre-damage-apply | Damage −1d10+mod | `completeAttack()` subtracts |
+| Cutting Words | Post-d20, pre-hit | Attack roll −BI die | `completeAttack()` mutates `attackRoll` |
+| Uncanny Dodge | Post-hit, pre-damage-apply | Damage ÷ 2 | `completeAttack()` halves |
+| Lucky (attacker) | Post-miss | Reroll d20 | Separate `lucky_reroll` pending |
+
+**Direct prior art for disadvantage-impose**: _none_. Cutting Words is closest (attack-roll subtraction). Rolling a second d20 and taking min is a new but minimally-invasive pattern.
+
+## Impact Analysis
+
+| File | Change | Risk | Why |
+|---|---|---|---|
+| `attack-reaction-handler.ts` `initiate()` | Scan `combatants` within 5ft of TARGET for ally characters; call `detect()` per ally with their resources; push onto `reactionOpportunities` | med | New loop, but Sentinel scan at L193+ is a near-perfect template |
+| `attack-reaction-handler.ts` `complete()` | Handle `protection`: reroll d20 via `input.diceRoller`, take min, recompute hit. Handle `interception`: roll `1d10+profBonus`, subtract from `damageApplied`. Set `reactionUsed` on the ally, not target | med | Must preserve advantage/disadvantage semantics and ally-reaction-economy |
+| `creature-hydration.ts` / `combatant-resolver.ts` | **Verify** `hasProtectionStyle` / `hasInterceptionStyle` / `hasShieldEquipped` / `hasWeaponEquipped` flow from sheet → combatant resources | low | Flags declared in `ReactionResources`; silent null detect if missing |
+| `attack-handlers.ts` (tabletop) | No change for MVP (monsters don't have fighting styles) | n/a | |
+| Reaction prompt payload | Verify ally-reactor prompts render (Sentinel already does this — same shape) | low | |
+| Test harness | `queueDiceRolls` supports FIFO for Protection reroll d20 and Interception 1d10 | none | Per repo memory |
+
+## Constraints & Invariants
+
+1. **Ally scan uses TARGET position, radius 5ft**.
+2. **Ally ≠ target** (can't Protection yourself).
+3. **Ally must see attacker** (RAW line-of-sight). MVP may skip, flag TODO.
+4. **One reaction per ally per round** — `reactionUsed` on the ally, not target.
+5. **Protection fires before damage roll**. Damage is rolled in `completeAttack()` AFTER reaction resolution — ordering is correct.
+6. **Interception clamps damage ≥ 0**.
+7. **`ReactionType` union already includes both** — no domain type change.
+8. **Fighter def files' eligibility gates are correct** — do not regress.
+9. **Ally-reactor prompts**: the reactor is NOT the target. Sentinel already has this shape (`opp.context.sentinelName`, `context.attackerId`) — follow that convention.
+
+## Options & Tradeoffs
+
+| Option | Approach | Pros | Cons | Rec |
+|---|---|---|---|---|
+| **A: Ally-scan in `initiate()`** | Mirror Sentinel block: iterate combatants within 5ft of TARGET; for each ally-character call `detect()` on each registered `AttackReactionDef` with that ally's resources. Resolve in `complete()` | Minimal surface; reuses pending-action queue, reaction-prompt plumbing, and Sentinel pattern | AI flow only (no PvP) | ✓ **Preferred** |
+| **B: Separate ally-reaction detection layer** | Split target vs ally detection into two helpers | Cleaner type boundary | Over-ceremony for 2 abilities | ✗ Over-engineered |
+| **C: Pre-roll pause for Protection** | Split `ai-attack-resolver` into "roll-d20" and "resolve" phases | RAW-accurate, no synthetic 3rd die | Major AI refactor; breaks deterministic dice queue ordering; duplicates pending-action infra | ✗ Avoid |
+| **D: Post-damage hook for Interception** | Reuse `tryInitiateDamageReaction` (like Hellish Rebuke) and refund HP | Reuses damage-reaction infra | **Wrong timing** — breaks concentration/KO/death-save triggers tied to damage event | ✗ Avoid — semantically wrong |
+| **E: Collapse Interception into Deflect path** | Conditional rider on existing `deflectReaction` code | Small patch | Conflates self-only vs ally reactions; hard to reason about | ✗ Avoid |
+
+## Risks
+
+1. **Flag population gap** — if sheet → resource wiring doesn't set `hasProtectionStyle` etc, `detect()` silently returns null. **Mitigation**: verify in `creature-hydration.ts`; add E2E scenario with fighter ally to prove `awaiting_reactions` fires.
+2. **Advantage + Protection interaction** — reroll d20 with min-of-all preserves RAW (advantage cancels), but narration/events must explain it.
+3. **Sequential resolution in `complete()`** — if Protection causes miss, Interception must be skipped (nothing to reduce). If both used simultaneously, need conditional logic or a second reaction window post-reroll.
+4. **Sentinel + Protection double-scan** — same ally-neighbour loop. Cheap, but consolidate into one pass.
+5. **Multiattack** — after first strike triggers Protection and consumes ally reaction, subsequent strikes in same action must not re-offer (verify `reactionUsed` flag checked via `hasReactionAvailable` in ally-scan loop).
+6. **Reaction consumption site** — Shield spends target's reaction; Protection/Interception must spend the **ally's** reaction. Be careful in `complete()` — current Shield/Deflect code path updates `target.resources` with `reactionUsed: true`; ally path must update the ally's combatant record via a fresh lookup.
+
+## Recommendations
+
+1. **Go with Option A.** Extend `AttackReactionHandler.initiate()` with an ally-scan mirroring Sentinel (L193+). For each combatant within 5ft of TARGET, call `detect()` on every registered `AttackReactionDef` with that ally's class/resources.
+2. **Resolution in `complete()`**: two new branches parallel to Shield/Deflect:
+   - Protection: `const newD20 = input.diceRoller.rollDie(20)`; `attackData.attackRoll = Math.min(originalTotal, newD20 + attackBonus)`; re-check hit against `finalAC`.
+   - Interception: post-damage-roll, pre-HP-write: `damageApplied = Math.max(0, damageApplied - (rollDie(10) + profBonus))`.
+3. **Sequential resolution**: Protection first; if result is miss, skip Interception.
+4. **Flag-population verification** as step 0 — grep `creature-hydration.ts` / `combatant-resolver.ts` for `hasProtectionStyle` wiring.
+5. **Reaction consumption on the ally combatant** — update the ally's resources with `reactionUsed: true`, not the target's.
+6. **Tests**: E2E scenarios `fighter/protection-ally.json` (ally imposes disadvantage → miss) and `fighter/interception-ally.json` (ally reduces damage). Unit tests on `initiate()` ally-scan radius. Use `queueDiceRolls` for reroll d20 and 1d10.
+7. **Out of scope for MVP**: line-of-sight check, player-attacks-player tabletop path, monster-using-Protection. Flag as TODOs.
+
 
 ## Symptom
 `lay on hands on Elara` (ally PC) fails — caller gets "Already at full HP" or the HP update lands on the paladin. Self-heal works.

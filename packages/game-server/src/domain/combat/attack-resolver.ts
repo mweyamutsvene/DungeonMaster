@@ -230,7 +230,14 @@ export function resolveAttack(
   // Dueling: +2 bonus to damage when wielding a one-handed melee weapon.
   if (
     featMods.duelingDamageBonus > 0 &&
-    shouldApplyDueling({ attackKind: spec.kind, weapon: spec.weapon })
+    shouldApplyDueling({
+      attackKind: spec.kind,
+      weapon: spec.weapon,
+      // AttackSpec does not currently carry offhand equipment info; pass false
+      // as the conservative default. Callers with richer context (e.g. the
+      // tabletop damage-resolver) can gate Dueling using offhand state.
+      offhandWeaponEquipped: false,
+    })
   ) {
     damageRoll = {
       ...damageRoll,

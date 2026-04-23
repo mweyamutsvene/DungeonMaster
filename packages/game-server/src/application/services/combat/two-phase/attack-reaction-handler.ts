@@ -34,9 +34,10 @@ import { normalizeConditions, hasCondition, canTakeReactions } from "../../../..
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
 import { calculateFlatBonusFromEffects } from "../../../../domain/entities/combat/effects.js";
-import { detectAttackReactions, detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
+import { detectAttackReactions, detectDamageReactions, detectAllyAttackReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
+import { proficiencyBonusForLevel } from "../../../../domain/rules/proficiency.js";
 import type { JsonValue } from "../../../types.js";
 import { resolveReadiedAttackTriggers, type ReadiedAttackTriggerResult } from "../helpers/readied-attack-trigger.js";
 
@@ -258,6 +259,98 @@ export class AttackReactionHandler {
       }
     }
 
+    // ── Fighting Style ally-scan (Protection / Interception) ──
+    // D&D 5e 2024: For each ally within 5ft of the TARGET (not attacker) who has
+    // a reaction available, ask the class profile's allyAttackReactions whether
+    // they can protect/intercept. Multiple eligible protectors are all offered;
+    // the first to accept wins.
+    const targetPosForAllyScan = getPosition(normalizeResources(target.resources));
+    if (targetPosForAllyScan) {
+      for (const other of combatants) {
+        if (other.id === actor.id) continue;
+        if (other.id === target.id) continue;
+        if (other.hpCurrent <= 0) continue;
+        // v1: only player characters can be protectors (AI NPC allies auto-decline — see plan deferred item).
+        if (other.combatantType !== "Character") continue;
+
+        const otherResources = normalizeResources(other.resources);
+        const otherPos = getPosition(otherResources);
+        if (!otherPos) continue;
+
+        const dist = calculateDistance(otherPos, targetPosForAllyScan);
+        if (dist > 5) continue;
+
+        const otherHasReaction = hasReactionAvailable({ reactionUsed: false, ...otherResources } as any)
+          && !readBoolean(otherResources, "reactionUsed");
+        if (!otherHasReaction) continue;
+
+        // Active condition ids passed to the detector for incapacitation gating.
+        const otherActiveConditions = normalizeConditions(other.conditions as unknown[]);
+        const otherConditionIds = otherActiveConditions.map((c) => c.condition.toLowerCase());
+
+        // Look up the protector's class stats (class/level/abilities).
+        const otherRef = combatantRefFromState(other);
+        if (!otherRef) continue;
+
+        let otherClassName = "";
+        let otherLevel = 1;
+        let otherAbilityScores: Record<string, number> = {};
+        try {
+          const otherStats = await this.combatants.getCombatStats(otherRef);
+          otherClassName = otherStats.className?.toLowerCase() ?? "";
+          otherLevel = otherStats.level ?? 1;
+          otherAbilityScores = (otherStats.abilityScores ?? {}) as Record<string, number>;
+        } catch {
+          continue;
+        }
+
+        const allyInput = {
+          className: otherClassName,
+          level: otherLevel,
+          abilityScores: otherAbilityScores,
+          resources: otherResources,
+          hasReaction: true,
+          isCharacter: true,
+          attackRoll: input.attackRoll,
+          attackerId: actor.id,
+          targetAC,
+          activeConditions: otherConditionIds,
+        };
+
+        const allyDetected = detectAllyAttackReactions(allyInput, getAllCombatTextProfiles());
+        if (allyDetected.length === 0) continue;
+
+        const otherName = await this.combatants.getName(otherRef, other);
+
+        for (const reaction of allyDetected) {
+          reactionOpportunities.push({
+            id: nanoid(),
+            combatantId: other.id,
+            reactionType: reaction.reactionType as ReactionOpportunity["reactionType"],
+            canUse: true,
+            context: {
+              ...reaction.context,
+              protectorId: other.id,
+              protectorLevel: otherLevel,
+              targetId: target.id,
+              attackerId: actor.id,
+              // d20Roll / rollMode are populated onto PendingAttackData after
+              // initiate() returns (see ai-attack-resolver). Protection reads
+              // them from attackData in complete(), not from opportunity context.
+            },
+          });
+
+          shieldOpportunities.push({
+            combatantId: other.id,
+            combatantName: otherName,
+            canUse: true,
+            hasReaction: true,
+            hasSpellSlot: false,
+          });
+        }
+      }
+    }
+
     // If no reaction opportunities, attack hits
     if (reactionOpportunities.length === 0) {
       return {
@@ -416,6 +509,24 @@ export class AttackReactionHandler {
       ? pendingAction.reactionOpportunities.find((o) => o.id === cuttingWordsReaction.opportunityId)
       : null;
 
+    // Find Protection ally-scan reaction (applied BEFORE Shield)
+    const protectionReaction = pendingAction.resolvedReactions.find(
+      (r: ReactionResponse) => r.choice === "use" &&
+        pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "protection",
+    );
+    const protectionOpp = protectionReaction
+      ? pendingAction.reactionOpportunities.find((o) => o.id === protectionReaction.opportunityId)
+      : null;
+
+    // Find Interception ally-scan reaction (applied AFTER Deflect, BEFORE Uncanny Dodge)
+    const interceptionReaction = pendingAction.resolvedReactions.find(
+      (r: ReactionResponse) => r.choice === "use" &&
+        pendingAction.reactionOpportunities.find((o) => o.id === r.opportunityId)?.reactionType === "interception",
+    );
+    const interceptionOpp = interceptionReaction
+      ? pendingAction.reactionOpportunities.find((o) => o.id === interceptionReaction.opportunityId)
+      : null;
+
     const targetResources = normalizeResources(target.resources);
     let finalAC: number;
     if (typeof attackData.targetAC === "number") {
@@ -429,6 +540,91 @@ export class AttackReactionHandler {
       }
     }
     let shieldUsed = false;
+
+    // ── Protection fighting style (applied BEFORE Shield) ──
+    // D&D 5e 2024: Protection imposes disadvantage on the attack roll.
+    // RAW: advantage + disadvantage = straight roll; disadvantage is redundant
+    // against an already-disadvantaged attack.
+    let protectionApplied = false;
+    if (protectionReaction && protectionOpp && input.diceRoller) {
+      const protectorId = typeof protectionOpp.context.protectorId === "string"
+        ? protectionOpp.context.protectorId
+        : null;
+      const protectorCombatant = protectorId
+        ? combatants.find((c) => c.id === protectorId) ?? null
+        : null;
+
+      const originalMode = attackData.originalRollMode ?? attackData.rollMode ?? "normal";
+      const originalD20 = typeof attackData.d20Roll === "number" ? attackData.d20Roll : attackData.attackRoll;
+      const attackBonus = attackData.attackBonus ?? 0;
+
+      if (originalMode === "disadvantage") {
+        // Redundant — do NOT consume reaction, emit diagnostic event.
+        if (this.events && protectorCombatant) {
+          const protectorName = await this.combatants.getName(combatantRefFromState(protectorCombatant)!, protectorCombatant);
+          await this.events.append(sessionId, {
+            id: nanoid(),
+            type: "ProtectionRedundant",
+            payload: {
+              encounterId: encounter.id,
+              protectorId: protectorCombatant.id,
+              protectorName,
+              targetId: target.id,
+              reason: "attack-already-at-disadvantage",
+            },
+          });
+        }
+      } else {
+        // "advantage" or "normal" — recompute attackRoll.
+        let newD20Total: number;
+        const rerollD20 = input.diceRoller.rollDie(20);
+        if (originalMode === "advantage") {
+          // adv + disadv = straight d20. Use the single fresh roll.
+          newD20Total = rerollD20.total;
+        } else {
+          // normal + disadv = min(original, new).
+          newD20Total = Math.min(originalD20, rerollD20.total);
+        }
+
+        const newAttackTotal = newD20Total + attackBonus;
+        const originalAttackTotal = attackData.attackRoll;
+        attackData.attackRoll = newAttackTotal;
+        // Update stored d20 so downstream emitters see the post-Protection roll.
+        attackData.d20Roll = newD20Total;
+        attackData.attackTotal = newAttackTotal;
+        protectionApplied = true;
+
+        // Consume PROTECTOR's reaction (not target's).
+        if (protectorCombatant) {
+          const protectorRes = normalizeResources(protectorCombatant.resources);
+          await this.combat.updateCombatantState(protectorCombatant.id, {
+            resources: { ...protectorRes, reactionUsed: true } as JsonValue,
+          });
+
+          if (this.events) {
+            const protectorName = await this.combatants.getName(combatantRefFromState(protectorCombatant)!, protectorCombatant);
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "ProtectionApplied",
+              payload: {
+                encounterId: encounter.id,
+                protectorId: protectorCombatant.id,
+                protectorName,
+                targetId: target.id,
+                originalMode,
+                originalRoll: originalD20,
+                newRoll: newD20Total,
+                originalAttackTotal,
+                newAttackTotal,
+                hitBecameMiss: originalAttackTotal >= (typeof attackData.targetAC === "number" ? attackData.targetAC : finalAC)
+                  && newAttackTotal < (typeof attackData.targetAC === "number" ? attackData.targetAC : finalAC),
+              },
+            });
+          }
+        }
+      }
+    }
+    void protectionApplied;
 
     if (shieldReaction) {
       finalAC += 5;
@@ -682,6 +878,58 @@ export class AttackReactionHandler {
                 damage: redirectDamage,
               };
             }
+          }
+        }
+      }
+
+      // ── Interception fighting style (applied AFTER Deflect, BEFORE Uncanny Dodge) ──
+      // D&D 5e 2024: reduce damage by 1d10 + protector's proficiency bonus (min 0).
+      if (damageApplied > 0 && interceptionReaction && interceptionOpp && input.diceRoller) {
+        const interceptionCtx = interceptionOpp.context as {
+          protectorId?: string;
+          protectorLevel?: number;
+          profBonus?: number;
+        };
+        const protectorId = interceptionCtx.protectorId ?? null;
+        const protectorCombatant = protectorId
+          ? combatants.find((c) => c.id === protectorId) ?? null
+          : null;
+
+        const profBonus = typeof interceptionCtx.profBonus === "number"
+          ? interceptionCtx.profBonus
+          : proficiencyBonusForLevel(interceptionCtx.protectorLevel ?? 1);
+
+        const interceptRoll = input.diceRoller.rollDie(10);
+        const reduction = interceptRoll.total + profBonus;
+        const rawDamage = damageApplied;
+        damageApplied = Math.max(0, damageApplied - reduction);
+
+        // Consume PROTECTOR's reaction.
+        if (protectorCombatant) {
+          const protectorRes = normalizeResources(protectorCombatant.resources);
+          await this.combat.updateCombatantState(protectorCombatant.id, {
+            resources: { ...protectorRes, reactionUsed: true } as JsonValue,
+          });
+
+          if (this.events) {
+            const protectorName = await this.combatants.getName(combatantRefFromState(protectorCombatant)!, protectorCombatant);
+            const targetName = await this.combatants.getName(attackData.target, target);
+            await this.events.append(sessionId, {
+              id: nanoid(),
+              type: "InterceptionApplied",
+              payload: {
+                encounterId: encounter.id,
+                protectorId: protectorCombatant.id,
+                protectorName,
+                targetId: target.id,
+                targetName,
+                interceptRoll: interceptRoll.total,
+                profBonus,
+                reduction,
+                rawDamage,
+                finalDamage: damageApplied,
+              },
+            });
           }
         }
       }

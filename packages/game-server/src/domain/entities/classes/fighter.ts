@@ -170,19 +170,37 @@ const indomitable = createIndomitableState(level);
 // ----- Fighting Style Reactions -----
 
 /**
+ * Condition ids that disable ally-scan fighting-style reactions (Protection,
+ * Interception). If the protector has any of these, the reaction cannot fire.
+ */
+const PROTECTOR_DISABLING_CONDITIONS: readonly string[] = [
+  "incapacitated",
+  "unconscious",
+  "stunned",
+  "paralyzed",
+  "petrified",
+];
+
+function protectorIsDisabled(activeConditions: readonly string[] | undefined): boolean {
+  if (!activeConditions || activeConditions.length === 0) return false;
+  for (const c of activeConditions) {
+    if (PROTECTOR_DISABLING_CONDITIONS.includes(c.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
  * Protection fighting style reaction (D&D 5e 2024).
  * When a creature you can see attacks a target (other than you) within 5 feet of you,
  * you can use your reaction to impose disadvantage on the attack roll.
  * Requires: shield, reaction available, within 5ft of the target being attacked.
  *
- * NOTE: This reaction belongs to the *protector* (an ally of the target), NOT the target.
- * It triggers on the attacker's attack against an ally, meaning the protector sees the attack
- * and steps in. The AttackReactionDef system currently detects reactions on the TARGET of the
- * attack. Full integration requires extending the reaction detection to check nearby allies.
+ * This is an ally-scan reaction: the reactor is the *protector* (an ally of
+ * the attack target), not the target. The scan loop in AttackReactionHandler
+ * builds one `AttackReactionInput` per eligible nearby ally with the
+ * protector's class/resources/conditions.
  *
- * TODO: CO-L6 — Wire into TwoPhaseActionService AttackReactionHandler.
- * Detection needs to scan allies within 5ft of the target, not just the target itself.
- * Resolution: impose disadvantage on the attack roll (requires reroll or pre-roll check).
+ * v1 wired for normal attacks; OA path TODO.
  */
 const PROTECTION_REACTION: AttackReactionDef = {
   reactionType: "protection",
@@ -195,6 +213,9 @@ const PROTECTION_REACTION: AttackReactionDef = {
 
     // Must have a shield equipped
     if (input.resources.hasShieldEquipped !== true) return null;
+
+    // Protector must not be Incapacitated/Unconscious/Stunned/Paralyzed/Petrified
+    if (protectorIsDisabled(input.activeConditions)) return null;
 
     return {
       reactionType: "protection",
@@ -213,12 +234,9 @@ const PROTECTION_REACTION: AttackReactionDef = {
  * you can use your reaction to reduce the damage by 1d10 + your proficiency bonus (min 0).
  * You must be wielding a shield or a simple/martial weapon.
  *
- * NOTE: Like Protection, this triggers on an ally being attacked, not the target itself.
- * Requires extending the reaction detection to scan nearby allies.
+ * This is an ally-scan reaction: the reactor is the *protector*, not the target.
  *
- * TODO: CO-L5 — Wire into TwoPhaseActionService AttackReactionHandler.
- * Detection needs to scan allies wielding a shield or weapon within 5ft of the target.
- * Resolution: after hit confirmed and damage rolled, reduce damage by 1d10 + proficiency bonus.
+ * v1 wired for normal attacks; OA path TODO.
  */
 const INTERCEPTION_REACTION: AttackReactionDef = {
   reactionType: "interception",
@@ -231,6 +249,9 @@ const INTERCEPTION_REACTION: AttackReactionDef = {
 
     // Must have a shield or weapon equipped
     if (input.resources.hasShieldEquipped !== true && input.resources.hasWeaponEquipped !== true) return null;
+
+    // Protector must not be Incapacitated/Unconscious/Stunned/Paralyzed/Petrified
+    if (protectorIsDisabled(input.activeConditions)) return null;
 
     const profBonus = proficiencyBonusForLevel(input.level);
 
@@ -255,5 +276,5 @@ export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     { keyword: "indomitable", normalizedPatterns: [/indomitable|useindomitable/], abilityId: "class:fighter:indomitable", category: "classAction" },
   ],
   attackEnhancements: [],
-  attackReactions: [PROTECTION_REACTION, INTERCEPTION_REACTION],
+  allyAttackReactions: [PROTECTION_REACTION, INTERCEPTION_REACTION],
 };

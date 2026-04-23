@@ -1,0 +1,223 @@
+{
+  "name": "Fighter: Interception Fighting Style Reaction",
+  "description": "A level 3 Fighter (Bram, fighting style: interception, longsword equipped) stands adjacent to a Wizard ally (Elara). A Hobgoblin attacks Elara across two rounds. Round 1: server raises an 'interception' opportunity on Bram, player accepts, server reduces damage by 1d10 + Bram's proficiency bonus (1d10=3 + 2 = 5; 8 - 5 = 3 final). Round 2: a higher 1d10 reduction (10 + 2 = 12) drops damage to 0 -- Elara's HP is unchanged AND no concentration save event is emitted (zero-damage suppression). Asserts exact HP after each round. BUG-FS-1 is RESOLVED -- the hasInterceptionStyle / hasWeaponEquipped flags are now propagated from buildCombatResources() into combatant.resources via initiative-handler.ts::assembleCombatantResources().",
+  "setup": {
+    "characters": [
+      {
+        "name": "Bram Interceptor",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 5 },
+        "sheet": {
+          "fightingStyle": "interception",
+          "featIds": ["feat_interception"],
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 2,
+          "equipment": {
+            "armor": { "name": "Chain Mail", "ac": 16 },
+            "weapons": [
+              {
+                "name": "Longsword", "damage": "1d8+3", "damageType": "slashing",
+                "kind": "melee", "properties": ["versatile"], "equipped": true
+              }
+            ]
+          },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing",
+              "properties": ["versatile"]
+            }
+          ]
+        }
+      },
+      {
+        "name": "Elara the Wise",
+        "className": "Wizard",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "intelligence",
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee", "range": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Hobgoblin 5 ft from Elara, 5 ft diagonal from Bram so Bram is within Interception's ally-scan reach.",
+        "name": "Hobgoblin Soldier",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 18, "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "Kick off combat.",
+      "type": "initiate",
+      "actor": "Bram Interceptor",
+      "input": { "text": "I intercept any blow aimed at Elara!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative so PCs go first (Bram 21).",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Bram Interceptor"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Elara the Wise",
+      "timeout": 10000
+    },
+    {
+      "comment": "Force the Hobgoblin to target Elara so Bram is the ally-scan protector (adjacent to Elara).",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara the Wise", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Round 1 server-side dice queue: [18, 5, 3]. Slot 1 (18): attack d20 -> 18+5=23 vs AC 12 -> HIT. Slot 2 (5): damage 1d8 -> 5+3=8 raw damage. Slot 3 (3): Interception 1d10 -> reduction 3 + profBonus(2) = 5; final damage = max(0, 8-5) = 3. Elara: 20 -> 17.",
+      "type": "queueDiceRolls",
+      "input": { "values": [18, 5, 3], "label": "round 1: attack=18, damage=5, interception=3" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Elara the Wise"
+    },
+    {
+      "comment": "Server raises an 'interception' reaction opportunity on Bram. Proves BUG-FS-1 is fixed -- before the fix, no reaction was offered because hasInterceptionStyle / hasWeaponEquipped were not propagated into combatant.resources.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "interception" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Accept Interception. Server rolls 1d10 (=3) + profBonus(2) = 5 reduction; 8 - 5 = 3 final damage applied to Elara. Marks Bram.resources.reactionUsed=true. Emits InterceptionApplied event.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Round 1 result: Elara HP = 20 - 3 = 17 (damage was reduced from 8 to 3 by Interception).",
+      "type": "assertState",
+      "actor": "Elara the Wise",
+      "expect": {
+        "characterHp": { "min": 17, "max": 17 }
+      }
+    },
+    {
+      "comment": "Bram untouched (Hobgoblin targeted Elara). Confirms damage did not spill over.",
+      "type": "assertState",
+      "actor": "Bram Interceptor",
+      "expect": {
+        "characterHp": { "min": 28, "max": 28 }
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Bram Interceptor",
+      "timeout": 15000
+    },
+    {
+      "comment": "Round 2 begins. Bram's turn -> his reactionUsed auto-resets so Interception is available again.",
+      "type": "endTurn",
+      "actor": "Bram Interceptor"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Elara the Wise",
+      "timeout": 10000
+    },
+    {
+      "comment": "Round 2 monster decision: Hobgoblin attacks Elara again with Longsword.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara the Wise", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Round 2 server-side dice queue: [18, 5, 10]. Slot 1 (18): attack d20 -> hit. Slot 2 (5): damage 1d8 -> 5+3=8 raw damage. Slot 3 (10): Interception 1d10 -> reduction 10 + profBonus(2) = 12; final damage = max(0, 8-12) = 0. Elara HP unchanged at 17. Because final damage is 0, NO concentration-save event is emitted (suppressed at zero damage).",
+      "type": "queueDiceRolls",
+      "input": { "values": [18, 5, 10], "label": "round 2: attack=18, damage=5, interception=10 (full block)" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Elara the Wise"
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "interception" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Accept Interception again. Reduction (12) >= raw damage (8) -> final damage = 0. InterceptionApplied event still emitted, but no damage applied.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "Round 2 result: Elara HP still 17 -- the full hit was completely absorbed by Interception.",
+      "type": "assertState",
+      "actor": "Elara the Wise",
+      "expect": {
+        "characterHp": { "min": 17, "max": 17 }
+      }
+    },
+    {
+      "comment": "Bram still untouched after two rounds.",
+      "type": "assertState",
+      "actor": "Bram Interceptor",
+      "expect": {
+        "characterHp": { "min": 28, "max": 28 }
+      }
+    },
+    {
+      "comment": "Reach round 3 Bram turn -- proves the attack-reaction pipeline cleanly completed twice.",
+      "type": "waitForTurn",
+      "actor": "Bram Interceptor",
+      "timeout": 15000
+    }
+  ]
+}

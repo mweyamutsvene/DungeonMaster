@@ -38,6 +38,14 @@ export interface CombatResourcesResult {
   sentinelEnabled: boolean;
   /** Warlock Pact Magic slot level (undefined for non-warlocks). */
   pactSlotLevel?: number;
+  /** Fighting-style flag: Protection (reaction to impose disadvantage on ally-targeting attacks). */
+  hasProtectionStyle: boolean;
+  /** Fighting-style flag: Interception (reaction to reduce damage to nearby ally). */
+  hasInterceptionStyle: boolean;
+  /** Whether the character currently has a shield equipped (gates Protection). */
+  hasShieldEquipped: boolean;
+  /** Whether the character currently has a main-hand or two-handed melee weapon equipped (gates Interception). */
+  hasWeaponEquipped: boolean;
 }
 
 export interface CombatResourceBuilderInput {
@@ -176,5 +184,70 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
     }
   }
 
-  return { resourcePools, hasShieldPrepared, hasCounterspellPrepared, hasAbsorbElementsPrepared, hasHellishRebukePrepared, hasCuttingWords, warCasterEnabled, sentinelEnabled, pactSlotLevel };
+  // 9. Fighting-style passives + equipment snapshot (for Protection/Interception ally reactions).
+  //    Read directly from the sheet at combat init so that Protection/Interception
+  //    detectors in fighter.ts can gate on equipped items.
+  //    TODO: staleness risk — if a character swaps weapons/shield mid-combat via an
+  //    inventory action, these flags are NOT refreshed. Re-equip flows should either
+  //    rebuild resources or mutate the combatant's resource flags directly.
+  const sheetRaw = sheet as unknown as Record<string, unknown>;
+  const fightingStyleRaw = sheetRaw?.fightingStyle;
+  const fightingStyle = typeof fightingStyleRaw === "string" ? fightingStyleRaw.toLowerCase() : undefined;
+  const hasProtectionStyle = fightingStyle === "protection";
+  const hasInterceptionStyle = fightingStyle === "interception";
+
+  // Shield equipped: check pre-enriched equippedShield, then fallback to equipment.shield.
+  let hasShieldEquipped = false;
+  const enrichedShield = sheetRaw?.equippedShield;
+  if (enrichedShield && typeof enrichedShield === "object") {
+    const es = enrichedShield as Record<string, unknown>;
+    if (typeof es.name === "string") hasShieldEquipped = true;
+  }
+  if (!hasShieldEquipped) {
+    const equip = sheetRaw?.equipment;
+    if (equip && typeof equip === "object" && !Array.isArray(equip)) {
+      const shieldObj = (equip as Record<string, unknown>).shield;
+      if (shieldObj && typeof shieldObj === "object") {
+        const shieldName = (shieldObj as Record<string, unknown>).name;
+        if (typeof shieldName === "string") hasShieldEquipped = true;
+      }
+    }
+  }
+
+  // Weapon equipped: any main-hand or two-handed melee weapon on sheet.equipment.weapons.
+  // A weapon is considered "main-hand/two-handed" when it is not explicitly flagged as
+  // off-hand only (equipped !== false AND offHand !== true). Ranged weapons are excluded.
+  let hasWeaponEquipped = false;
+  const equip = sheetRaw?.equipment;
+  if (equip && typeof equip === "object" && !Array.isArray(equip)) {
+    const weapons = (equip as Record<string, unknown>).weapons;
+    if (Array.isArray(weapons)) {
+      for (const w of weapons) {
+        if (!w || typeof w !== "object") continue;
+        const weapon = w as Record<string, unknown>;
+        if (weapon.equipped === false) continue;
+        if (weapon.offHand === true) continue;
+        const kind = typeof weapon.kind === "string" ? weapon.kind.toLowerCase() : "melee";
+        if (kind !== "melee") continue;
+        hasWeaponEquipped = true;
+        break;
+      }
+    }
+  }
+
+  return {
+    resourcePools,
+    hasShieldPrepared,
+    hasCounterspellPrepared,
+    hasAbsorbElementsPrepared,
+    hasHellishRebukePrepared,
+    hasCuttingWords,
+    warCasterEnabled,
+    sentinelEnabled,
+    pactSlotLevel,
+    hasProtectionStyle,
+    hasInterceptionStyle,
+    hasShieldEquipped,
+    hasWeaponEquipped,
+  };
 }

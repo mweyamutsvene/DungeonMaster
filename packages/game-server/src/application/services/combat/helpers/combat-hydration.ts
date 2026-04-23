@@ -45,8 +45,18 @@ export function hydrateCombat(
     throw new Error("Cannot hydrate Combat with zero combatants");
   }
 
-  // Create Combat instance (rolls fresh initiative internally, but we discard that order below)
-  const combat = new Combat(diceRoller, orderedCreatures);
+  // Create Combat instance. The constructor rolls fresh initiative internally,
+  // but the result is immediately discarded by restoreState() below. If the
+  // diceRoller is a QueueableDiceRoller (E2E test harness), bypass its queue
+  // for this throwaway roll so we don't drain test-injected dice values --
+  // while still consuming N dice from the underlying seeded roller so that
+  // every other deterministic dice consumer downstream sees the same seeded
+  // sequence as before.
+  const ctorRoller: DiceRoller =
+    typeof (diceRoller as { getBypassRoller?: () => DiceRoller }).getBypassRoller === "function"
+      ? (diceRoller as { getBypassRoller: () => DiceRoller }).getBypassRoller()
+      : diceRoller;
+  const combat = new Combat(ctorRoller, orderedCreatures);
 
   // Build the turn order sorted deterministically: initiative DESC, then createdAt ASC, then id.
   // We sort here rather than trusting the caller's order, because some ICombatRepository

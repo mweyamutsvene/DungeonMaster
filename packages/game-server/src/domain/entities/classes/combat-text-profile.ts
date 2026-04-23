@@ -86,6 +86,13 @@ export interface AttackReactionInput {
   attackerId: string;
   /** The target's current AC. */
   targetAC: number;
+  /**
+   * Active condition ids on the reactor (lowercase). Used to gate reactions
+   * that cannot fire under incapacitating conditions (e.g. Protection,
+   * Interception require the protector to not be Incapacitated/Unconscious/
+   * Stunned/Paralyzed/Petrified).
+   */
+  activeConditions?: readonly string[];
 }
 
 /**
@@ -254,6 +261,33 @@ export function detectAttackReactions(
 }
 
 /**
+ * Detect all ally-scan attack reactions available to a *protector* ally who
+ * can see their ally being attacked. The caller must build one `AttackReactionInput`
+ * per eligible nearby ally (range, LoS, faction checks live in the application
+ * layer scan loop), where the input fields describe the *protector* (the
+ * reactor), not the target of the attack.
+ *
+ * NOTE: In v1 this is only invoked for normal attacks; opportunity-attack (OA)
+ * integration is deferred.
+ *
+ * Pure function: scans all profiles' `allyAttackReactions` declarations.
+ */
+export function detectAllyAttackReactions(
+  input: AttackReactionInput,
+  profiles: readonly ClassCombatTextProfile[],
+): DetectedAttackReaction[] {
+  const results: DetectedAttackReaction[] = [];
+  for (const profile of profiles) {
+    if (!profile.allyAttackReactions) continue;
+    for (const def of profile.allyAttackReactions) {
+      const result = def.detect(input);
+      if (result) results.push(result);
+    }
+  }
+  return results;
+}
+
+/**
  * Detect all damage reactions available to a target after taking damage.
  * Pure function: scans all profiles' damageReactions declarations.
  */
@@ -342,6 +376,19 @@ export interface ClassCombatTextProfile {
   attackEnhancements: readonly AttackEnhancementDef[];
   /** Attack reaction declarations (checked when this class's character is targeted). */
   attackReactions?: readonly AttackReactionDef[];
+  /**
+   * Ally-scan attack reaction declarations (checked when an ally of this
+   * class's character is targeted — the reactor is a nearby *protector*, not
+   * the target). Examples: Fighter's Protection / Interception fighting styles.
+   *
+   * The scanning loop in `AttackReactionHandler` builds one `AttackReactionInput`
+   * per eligible nearby ally (the protector), with `isCharacter`, `className`,
+   * `resources`, `activeConditions`, etc. reflecting the *protector*.
+   *
+   * NOTE: In v1 these reactions fire for normal attacks only. Opportunity-attack
+   * (OA) path is TODO and currently deferred.
+   */
+  allyAttackReactions?: readonly AttackReactionDef[];
   /** Damage reaction declarations (checked after damage is applied to this class's character). */
   damageReactions?: readonly DamageReactionDef[];
   /** Spell reaction declarations (checked when a spell is cast near this class's character). */

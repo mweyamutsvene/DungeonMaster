@@ -1,0 +1,257 @@
+{
+  "name": "Fighter: Fighting Style Comparison — Defense + Dueling + Archery (passive)",
+  "description": "Three level-3 Fighters, each with a different passive Fighting Style, each demonstrate their style's effect in one round against a dummy target. Defense proxy: a deterministic monster attack lands at exactly the AC threshold where +1 AC would make it miss. Dueling: exact damage math with 1H melee longsword (no offhand) proves +2 damage applies. Archery: a ranged bow attack at exactly the threshold where +2 attack bonus turns a miss into a hit proves the style applied. Uses queueDiceRolls for server-side monster d20 rolls and queueMonsterActions for determinism.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Valeria Defender",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "fightingStyle": "defense",
+          "featIds": ["feat_defense"],
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 17, "speed": 30,
+          "proficiencyBonus": 2,
+          "equipment": {
+            "armor": { "name": "Chain Mail", "ac": 16 },
+            "weapons": [
+              {
+                "name": "Longsword", "damage": "1d8+2", "damageType": "slashing",
+                "kind": "melee", "range": "melee", "properties": ["versatile"]
+              }
+            ]
+          },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing",
+              "properties": ["versatile"]
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bram Duelist",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "fightingStyle": "dueling",
+          "featIds": ["feat_dueling"],
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 2,
+          "equipment": {
+            "armor": { "name": "Chain Mail", "ac": 16 },
+            "weapons": [
+              {
+                "name": "Longsword", "damage": "1d8+3", "damageType": "slashing",
+                "kind": "melee", "range": "melee", "properties": ["versatile"]
+              }
+            ]
+          },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing",
+              "properties": ["versatile"]
+            }
+          ]
+        }
+      },
+      {
+        "name": "Kara Archer",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 5, "y": 5 },
+        "sheet": {
+          "fightingStyle": "archery",
+          "featIds": ["feat_archery"],
+          "abilityScores": {
+            "strength": 10, "dexterity": 16, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 24, "currentHp": 24, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 2,
+          "equipment": {
+            "armor": { "name": "Studded Leather", "ac": 12 }
+          },
+          "attacks": [
+            {
+              "name": "Longbow", "kind": "ranged", "range": "150/600",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing",
+              "properties": ["two-handed", "ammunition"]
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Dummy goblin with known stat line. AC 18 forces Kara's Longbow (+5 atk) to miss at d20=12 without Archery, but hit with Archery (+7 effective). Slam +5 atk lets us test Valeria's Defense AC on d20=12 (12+5=17 miss vs AC 18, hit vs AC 17).",
+        "name": "Test Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 14,
+            "intelligence": 3, "wisdom": 6, "charisma": 3
+          },
+          "maxHp": 200, "hp": 200, "armorClass": 18, "speed": 20,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Slam", "kind": "melee", "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Kick off combat. Any of the PCs initiating rolls shared initiative.",
+      "type": "initiate",
+      "actor": "Bram Duelist",
+      "input": { "text": "We strike at the test dummy!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll 20 to ensure all PCs go before the dummy.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== Valeria (Defense, init 21) goes first. She ends turn without acting — her Defense proof comes from the dummy's attack at the end of the round.",
+      "type": "endTurn",
+      "actor": "Valeria Defender"
+    },
+
+    {
+      "comment": "=== Bram (Dueling) attacks Test Dummy with Longsword 1H (no offhand). Base damage = d8 + 3 STR; Dueling adds +2.",
+      "type": "waitForTurn",
+      "actor": "Bram Duelist",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "actor": "Bram Duelist",
+      "input": { "text": "attack Test Dummy with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "d20=14 + 5 = 19 vs AC 18 → hit.",
+      "type": "rollResult",
+      "actor": "Bram Duelist",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "d8=5 → Dueling active: 5 + 3 STR + 2 Dueling = 10. Without Dueling: 5 + 3 = 8.",
+      "type": "rollResult",
+      "actor": "Bram Duelist",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Dueling proof: Test Dummy HP = 200 - 10 = 190.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Test Dummy", "min": 189, "max": 191 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Bram Duelist"
+    },
+
+    {
+      "comment": "=== Kara (Archery) — ranged longbow attack. Base +5; Archery +2 → +7. d20=11 → 16 without Archery (miss), 18 with (hit).",
+      "type": "waitForTurn",
+      "actor": "Kara Archer",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "actor": "Kara Archer",
+      "input": { "text": "attack Test Dummy with Longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "d20=11 → 11+5=16 (miss without Archery), 11+7=18 (hit with Archery). Expect HIT.",
+      "type": "rollResult",
+      "actor": "Kara Archer",
+      "input": { "text": "11" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Roll 4 on d8: damage = 4 + 3 (DEX) = 7. No Archery damage bonus — Archery only affects the attack roll.",
+      "type": "rollResult",
+      "actor": "Kara Archer",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Archery proof: Kara's arrow hit even though base +5 would have missed AC 18 at d20=11. Dummy HP drops further. Expected HP: 190 - 7 = 183.",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Test Dummy", "min": 182, "max": 184 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Kara Archer"
+    },
+
+    {
+      "comment": "=== ROUND 1 monster turn — queue Test Dummy's Slam against Valeria Defender, using a queued d20=12. 12 + 5 (slam atk) = 17 → vs AC 17 = HIT, vs AC 18 (Defense) = MISS. Valeria's HP unchanged proves Defense +1 applied.",
+      "type": "queueDiceRolls",
+      "input": {
+        "values": [12],
+        "label": "Slam attack d20 roll"
+      }
+    },
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Valeria Defender", "attackName": "Slam", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Wait back to the top of round 2 — Valeria is first in initiative.",
+      "type": "waitForTurn",
+      "actor": "Valeria Defender",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "Defense proxy assertion: queued d20=12 plus +5 slam bonus = 17. With Defense (AC 18), 17 MISSES; without, AC 17, 17 HITS. HP unchanged at 28 proves Defense added +1 AC.",
+      "type": "assertState",
+      "actor": "Valeria Defender",
+      "expect": {
+        "characterHp": { "min": 28, "max": 28 }
+      }
+    }
+  ]
+}

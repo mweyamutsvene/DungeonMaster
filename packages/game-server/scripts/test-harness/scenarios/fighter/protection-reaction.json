@@ -1,0 +1,160 @@
+{
+  "name": "Fighter: Protection Fighting Style Reaction",
+  "description": "A level 3 Fighter (Bram) with the Protection fighting style and a shield stands adjacent to a Wizard ally (Elara). A Hobgoblin attacks Elara. Server raises a 'protection' reaction opportunity on Bram; player accepts; attacker re-rolls the d20 taking the lower value (normal mode: min(original, reroll)); reroll forces a miss. Asserts exact HP (unchanged) and that the reaction flow completed end-to-end. BUG-FS-1 is RESOLVED — the hasProtectionStyle / hasShieldEquipped flags are now propagated from buildCombatResources() into combatant.resources via initiative-handler.ts::assembleCombatantResources().",
+  "setup": {
+    "characters": [
+      {
+        "name": "Bram Protector",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 5 },
+        "sheet": {
+          "fightingStyle": "protection",
+          "featIds": ["feat_protection"],
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 28, "currentHp": 28, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "equipment": {
+            "armor": { "name": "Chain Mail", "ac": 16 },
+            "shield": { "name": "Shield", "acBonus": 2 }
+          },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing",
+              "properties": ["versatile"]
+            }
+          ]
+        }
+      },
+      {
+        "name": "Elara the Wise",
+        "className": "Wizard",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 20, "currentHp": 20, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "intelligence",
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee", "range": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Hobgoblin positioned 5 ft from Elara, 5 ft diagonal from Bram so Bram is within Protection's 5 ft ally-scan reach of Elara.",
+        "name": "Hobgoblin Soldier",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 13, "dexterity": 12, "constitution": 12,
+            "intelligence": 10, "wisdom": 10, "charisma": 9
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 18, "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "comment": "Kick off combat.",
+      "type": "initiate",
+      "actor": "Bram Protector",
+      "input": { "text": "Ready to protect Elara!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative so PCs go first.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Bram Protector"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Elara the Wise",
+      "timeout": 10000
+    },
+    {
+      "comment": "Force the Hobgoblin to target Elara on its upcoming turn — ensures Bram is the ally-scan protector (adjacent to Elara) and rules out the AI deciding to attack Bram instead.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Elara the Wise", "attackName": "Longsword", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Queue the two server-side d20 rolls for the Hobgoblin's upcoming attack: [18, 2]. Slot 1 (18): initial attack d20 -> 18+5=23 vs AC 12 -> HIT. Slot 2 (2): Protection reroll d20 -> normal rollMode -> min(18,2)=2 -> 2+5=7 vs AC 12 -> MISS. No damage rolled (miss), no further queue entries needed.",
+      "type": "queueDiceRolls",
+      "input": { "values": [18, 2], "label": "monster attack d20=18 (hit AC 12) + protection reroll d20=2 (miss AC 12)" }
+    },
+    {
+      "comment": "Elara ends turn. Server processes the Hobgoblin's AI turn: d20=18 -> hit -> initiateAttack -> Protection opportunity raised on Bram -> AI pauses awaiting reaction.",
+      "type": "endTurn",
+      "actor": "Elara the Wise"
+    },
+    {
+      "comment": "Poll /reactions until the Protection opportunity for Bram is exposed. This PROVES BUG-FS-1 is fixed: before the fix, no reaction was ever offered because hasProtectionStyle / hasShieldEquipped were not propagated into combatant.resources.",
+      "type": "waitForReaction",
+      "input": { "reactionType": "protection" },
+      "timeout": 10000
+    },
+    {
+      "comment": "Accept Protection. Server consumes a d20 from the queue (2), applies normal-mode rule min(18,2)=2 -> attack total 7 -> miss. Marks Bram.resources.reactionUsed=true. Emits ProtectionApplied event.",
+      "type": "reactionRespond",
+      "input": { "choice": "use" }
+    },
+    {
+      "comment": "After the Hobgoblin's turn completes (miss -> no damage), Elara's HP is exactly unchanged at 20. Without Protection the Hobgoblin would have dealt 1d8+3 damage (4-11) dropping her to 9-16 HP -- so exact 20 is a strong, unambiguous assertion that the Protection reroll actually happened.",
+      "type": "assertState",
+      "actor": "Elara the Wise",
+      "expect": {
+        "characterHp": { "min": 20, "max": 20 }
+      }
+    },
+    {
+      "comment": "Bram untouched (Hobgoblin targeted Elara). HP=28 confirms the attack did not spill over to Bram.",
+      "type": "assertState",
+      "actor": "Bram Protector",
+      "expect": {
+        "characterHp": { "min": 28, "max": 28 }
+      }
+    },
+    {
+      "comment": "Advance to round 2 Bram turn (reactionUsed auto-resets at turn start). Reaching this step confirms the attack-reaction pipeline cleanly completed after Protection fired.",
+      "type": "waitForTurn",
+      "actor": "Bram Protector",
+      "timeout": 15000
+    }
+  ]
+}

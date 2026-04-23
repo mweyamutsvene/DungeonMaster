@@ -131,6 +131,17 @@ export class QueueableDiceRoller implements DiceRoller {
     }
   }
 
+  /**
+   * Returns the underlying (non-queued) dice roller.
+   * Used by callers that need to perform throwaway/internal rolls
+   * (e.g. hydrateCombat's discarded initiative roll) without draining
+   * the test-injected queue. The returned roller still uses the same
+   * seeded sequence, preserving determinism for all OTHER rolls.
+   */
+  public getBypassRoller(): DiceRoller {
+    return this.inner;
+  }
+
   public d20(modifier = 0): DiceRoll {
     if (this.queue.length > 0) {
       const v = this.queue.shift()!;

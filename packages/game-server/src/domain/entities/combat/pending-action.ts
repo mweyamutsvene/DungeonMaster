@@ -153,6 +153,16 @@ export interface PendingAttackData {
   sessionId?: string;
   /** Target AC before Shield */
   targetAC?: number;
+  /** Effective roll mode used for the attack (normal / advantage / disadvantage). */
+  rollMode?: "normal" | "advantage" | "disadvantage";
+  /**
+   * Original roll mode of the attack before any reaction-driven modifications.
+   * Used by Protection fighting style to determine the correct recompute path:
+   *   - "advantage" + Protection disadvantage = straight d20 (reroll once)
+   *   - "disadvantage" + Protection = redundant (no effect)
+   *   - "normal" + Protection = roll a second d20 and take the min
+   */
+  originalRollMode?: "normal" | "advantage" | "disadvantage";
 }
 
 /**

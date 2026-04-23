@@ -172,6 +172,11 @@ export class DamageResolver {
           hands: action.weaponSpec?.hands,
           properties: action.weaponSpec?.properties,
         },
+        // If this is an offhand attack, an offhand weapon is definitionally
+        // wielded, so Dueling must not apply. (Mainhand attacks with an
+        // offhand weapon equipped are not yet detectable here — tracked
+        // separately; for now this at least gates the offhand case.)
+        offhandWeaponEquipped: action.bonusAction === "offhand-attack",
       })
     ) {
       totalDamage += dmgFeatMods.duelingDamageBonus;

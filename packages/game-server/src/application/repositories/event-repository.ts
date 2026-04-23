@@ -326,6 +326,52 @@ export interface ReadiedActionTriggeredPayload {
   damage: number;
 }
 
+/**
+ * Protection fighting style applied — protector re-rolled the attack's d20 to
+ * impose disadvantage (or collapsed adv + disadv to a straight d20).
+ */
+export interface ProtectionAppliedPayload {
+  encounterId: string;
+  protectorId: string;
+  protectorName: string;
+  targetId: string;
+  originalMode: "normal" | "advantage" | "disadvantage";
+  originalRoll: number;
+  newRoll: number;
+  originalAttackTotal: number;
+  newAttackTotal: number;
+  hitBecameMiss: boolean;
+}
+
+/**
+ * Protection attempted but the attack was already at disadvantage — no effect,
+ * reaction was NOT consumed. Diagnostic event for transparency.
+ */
+export interface ProtectionRedundantPayload {
+  encounterId: string;
+  protectorId: string;
+  protectorName: string;
+  targetId: string;
+  reason: string;
+}
+
+/**
+ * Interception fighting style applied — protector reduced damage by
+ * 1d10 + proficiency bonus (minimum 0).
+ */
+export interface InterceptionAppliedPayload {
+  encounterId: string;
+  protectorId: string;
+  protectorName: string;
+  targetId: string;
+  targetName: string;
+  interceptRoll: number;
+  profBonus: number;
+  reduction: number;
+  rawDamage: number;
+  finalDamage: number;
+}
+
 // ---------------------------------------------------------------------------
 // Discriminated union of all game events
 // ---------------------------------------------------------------------------
@@ -368,7 +414,10 @@ export type GameEventInput =
   | { type: "LegendaryAction"; payload: LegendaryActionPayload }
   | { type: "LairAction"; payload: LairActionPayload }
   | { type: "SentinelReactionAttack"; payload: SentinelReactionAttackPayload }
-  | { type: "ReadiedActionTriggered"; payload: ReadiedActionTriggeredPayload };
+  | { type: "ReadiedActionTriggered"; payload: ReadiedActionTriggeredPayload }
+  | { type: "ProtectionApplied"; payload: ProtectionAppliedPayload }
+  | { type: "ProtectionRedundant"; payload: ProtectionRedundantPayload }
+  | { type: "InterceptionApplied"; payload: InterceptionAppliedPayload };
 
 /** All valid event type strings — use for exhaustive switch checks or filtering. */
 export type GameEventType = GameEventInput["type"];
