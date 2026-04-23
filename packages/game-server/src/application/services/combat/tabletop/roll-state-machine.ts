@@ -962,6 +962,18 @@ export class RollStateMachine {
       }
     }
 
+    // D&D 5e 2024 Rogue Cunning Strike (L5+): forgo one Sneak Attack die (d6)
+    // to apply the named effect (poison/trip/withdraw). Only applies when SA was
+    // actually eligible AND we have at least 1 SA die to forgo.
+    let activeCunningStrike: "poison" | "trip" | "withdraw" | undefined;
+    if (action.cunningStrike && sneakAttackDiceCount >= 1) {
+      activeCunningStrike = action.cunningStrike;
+      sneakAttackDiceCount -= 1;
+      if (this.debugLogsEnabled) {
+        console.log(`[RollStateMachine] Cunning Strike (${activeCunningStrike}) — forgoing 1 SA die, remaining ${sneakAttackDiceCount}d6`);
+      }
+    }
+
     // Hit - request damage roll
     // 2024 rules: on-hit enhancements (Stunning Strike, Divine Smite, OHT) are NOT built here.
     // Instead, we compute eligible enhancements and return them in the hit response.
@@ -1006,6 +1018,8 @@ export class RollStateMachine {
       spellStrikeTotal: action.spellStrikeTotal,
       // Carry on-hit spell effects from attack action (e.g. Guiding Bolt)
       spellOnHitEffects: action.spellOnHitEffects,
+      // D&D 5e 2024 Rogue Cunning Strike — resolved in damage-resolver after hit
+      ...(activeCunningStrike ? { cunningStrike: activeCunningStrike } : {}),
       // Enhancements are built at damage time from player opt-in keywords, not here
     };
 

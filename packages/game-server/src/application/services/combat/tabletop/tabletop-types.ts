@@ -107,6 +107,12 @@ export interface AttackPendingAction {
   contestType?: "grapple" | "shove_push" | "shove_prone";
   /** Pre-computed contest DC (8 + attacker STR mod + proficiency bonus) for the saving throw step */
   contestDC?: number;
+  /**
+   * Rogue Cunning Strike option (D&D 5e 2024 L5+).
+   * When set, one Sneak Attack die is forgone and the named effect is applied
+   * after damage resolves (poison/trip=save; withdraw=free half-speed, no-OA move).
+   */
+  cunningStrike?: "poison" | "trip" | "withdraw";
 }
 
 export interface DamagePendingAction {
@@ -130,6 +136,12 @@ export interface DamagePendingAction {
   spellStrikeTotal?: number;
   /** On-hit spell effects to apply to target after damage (e.g. Guiding Bolt advantage on next attack) */
   spellOnHitEffects?: SpellEffectDeclaration[];
+  /**
+   * Rogue Cunning Strike option (D&D 5e 2024 L5+).
+   * Carried through from the AttackPendingAction so damage-resolver can
+   * trigger the poison/trip/withdraw effect after damage resolves.
+   */
+  cunningStrike?: "poison" | "trip" | "withdraw";
 }
 
 /**

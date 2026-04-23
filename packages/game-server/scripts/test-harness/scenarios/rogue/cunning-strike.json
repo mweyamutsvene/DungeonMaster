@@ -1,0 +1,256 @@
+{
+  "name": "Rogue Cunning Strike (L5, 2024): Poison / Trip / Withdraw",
+  "description": "A level 5 Rogue forgoes one Sneak Attack die each round to apply a Cunning Strike rider. R1: poison (CON save, fail → Poisoned). R2: trip (DEX save, fail → Prone). R3: withdraw (disengaged — move away from melee without provoking opportunity attacks). An NPC Guard ally adjacent to the targets keeps Sneak Attack eligible without needing advantage.",
+  "setup": {
+    "character": {
+      "name": "Vex Shadowblade",
+      "className": "Rogue",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 18,
+          "constitution": 14,
+          "intelligence": 12,
+          "wisdom": 13,
+          "charisma": 14
+        },
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 4 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ],
+        "features": [
+          { "name": "Sneak Attack", "description": "3d6 extra damage once per turn when eligible" },
+          { "name": "Cunning Strike", "description": "Forgo 1 SA die to apply Poison / Trip / Withdraw" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bandit Alpha",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 12,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "saveProficiencies": [],
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bandit Beta",
+        "position": { "x": 15, "y": 15 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 12,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "saveProficiencies": [],
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "npcs": [
+      {
+        "name": "Guard Ally",
+        "position": { "x": 20, "y": 10 },
+        "faction": "party",
+        "aiControlled": true,
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 25,
+          "hp": 25,
+          "armorClass": 14,
+          "speed": 30,
+          "challengeRating": 0.5,
+          "experienceValue": 100,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I slip into the shadows" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "Rogue wins initiative",
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Cunning Strike (Poison) — CON save fails → Poisoned ===",
+      "type": "action",
+      "input": { "text": "attack Bandit Alpha with shortsword cunning strike poison" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 12 → hit. SA eligible (Guard ally 5ft from target). One SA die forgone for poison → damage formula is 1d6(weapon) + 2d6(SA) + 4. Player rolls 3 dice.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force Bandit CON save = 5 (+0 mod) = 5 vs DC 15 → FAIL → Poisoned",
+      "input": { "values": [5] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "3-dice damage total = 12. Server adds +4 mod = 16. Bandit Alpha HP 80 → 64. Cunning Strike Poison fires: CON save fails → Poisoned applied."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Bandit Alpha", "exact": 64 },
+        "monsterConditions": { "name": "Bandit Alpha", "hasConditions": ["Poisoned"] }
+      }
+    },
+    { "type": "endTurn" },
+    {
+      "type": "waitForTurn",
+      "comment": "Bandits + NPC take their turns (default endTurn); Rogue's turn resumes."
+    },
+
+    {
+      "comment": "=== ROUND 2: Cunning Strike (Trip) — DEX save fails → Prone ===",
+      "type": "action",
+      "input": { "text": "attack Bandit Beta with shortsword cunning strike trip" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "comment": "14 + 7 = 21 vs AC 12 → hit. SA eligible (Guard ally 5ft from Bandit Beta at diagonal).",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force Bandit Beta DEX save = 5 (+1 mod) = 6 vs DC 15 → FAIL → Prone",
+      "input": { "values": [5] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "3-dice damage total = 10. Server adds +4 mod = 14. Bandit Beta HP 80 → 66. Cunning Strike Trip fires: DEX save fails → Prone applied."
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Bandit Beta", "exact": 66 },
+        "monsterConditions": { "name": "Bandit Beta", "hasConditions": ["Prone"] }
+      }
+    },
+    { "type": "endTurn" },
+    {
+      "type": "waitForTurn",
+      "comment": "Bandits + NPC take their turns; Rogue's turn resumes."
+    },
+
+    {
+      "comment": "=== ROUND 3: Cunning Strike (Withdraw) — set disengaged, move away without provoking OA ===",
+      "type": "action",
+      "input": { "text": "attack Bandit Alpha with shortsword cunning strike withdraw" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "comment": "12 + 7 = 19 vs AC 12 → hit.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "11" },
+      "comment": "Damage total = 11 + 4 mod = 15. Bandit Alpha HP 64 → 49. Withdraw sets Rogue disengaged=true.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Move away from Bandit Alpha (and Bandit Beta) — no OA should fire because Withdraw set disengaged.",
+      "type": "action",
+      "input": { "text": "move to (5, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Rogue full HP (no OA damage taken on withdraw move).",
+      "expect": {
+        "characterHp": { "min": 38, "max": 38 },
+        "monsterHp": { "name": "Bandit Alpha", "exact": 49 }
+      }
+    }
+  ]
+}

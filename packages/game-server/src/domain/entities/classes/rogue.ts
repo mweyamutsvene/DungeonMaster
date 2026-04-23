@@ -4,6 +4,33 @@ import { isFinesse } from "../items/weapon-properties.js";
 import { UNCANNY_DODGE, SECOND_STORY_WORK, SUPREME_SNEAK, USE_MAGIC_DEVICE, THIEFS_REFLEXES } from "./feature-keys.js";
 import { classHasFeature } from "./registry.js";
 
+/**
+ * Cunning Strike option (D&D 5e 2024 Rogue L5+).
+ * When a rogue deals Sneak Attack damage, they may forgo one SA die (d6)
+ * to apply ONE of these effects instead of rolling that die.
+ */
+export type CunningStrikeOption = "poison" | "trip" | "withdraw";
+
+/**
+ * Parse a Cunning Strike option from free-text action input.
+ * Matches variants like "cunning strike poison", "cunning strike: trip",
+ * "cunning-strike withdraw". Returns null when no modifier is present.
+ */
+export function parseCunningStrikeOption(text: string): CunningStrikeOption | null {
+  const lower = text.toLowerCase();
+  const m = lower.match(/cunning[\s\-]*strike\s*[:\-]?\s*(poison|trip|withdraw)\b/);
+  return m ? (m[1] as CunningStrikeOption) : null;
+}
+
+/**
+ * Rogue's Cunning Strike save DC (D&D 5e 2024).
+ * DC = 8 + proficiency bonus + DEX modifier.
+ */
+export function rogueCunningStrikeSaveDC(dexScore: number, proficiencyBonus: number): number {
+  const dexMod = Math.floor((dexScore - 10) / 2);
+  return 8 + proficiencyBonus + dexMod;
+}
+
 export function sneakAttackDiceForLevel(level: number): number {
   if (!Number.isInteger(level) || level < 1 || level > 20) {
     throw new Error(`Invalid level: ${level}`);

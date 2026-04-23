@@ -31,6 +31,9 @@ import {
 import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
 import { matchAttackEnhancements } from "../../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../../domain/entities/classes/registry.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { CUNNING_STRIKE } from "../../../../../domain/entities/classes/feature-keys.js";
+import { parseCunningStrikeOption } from "../../../../../domain/entities/classes/rogue.js";
 import {
   deriveRollModeFromConditions,
   inferActorRef,
@@ -611,6 +614,30 @@ export class AttackHandlers {
       rollMode,
       ...(coverACBonus > 0 ? { coverACBonus } : {}),
     };
+
+    // D&D 5e 2024 Rogue Cunning Strike (L5+): parse optional text rider
+    // "cunning strike poison|trip|withdraw". Validates class/level + melee constraint
+    // for poison/trip, then attaches to pending action for resolution after damage.
+    const cunningStrikeOption = parseCunningStrikeOption(text);
+    if (cunningStrikeOption) {
+      if (!classHasFeature(actorClassName, CUNNING_STRIKE, actorLevel)) {
+        throw new ValidationError(
+          "Cunning Strike requires Rogue level 5 or higher.",
+        );
+      }
+      if (
+        (cunningStrikeOption === "poison" || cunningStrikeOption === "trip") &&
+        weaponSpec.kind !== "melee"
+      ) {
+        throw new ValidationError(
+          `Cunning Strike (${cunningStrikeOption}) requires a melee attack.`,
+        );
+      }
+      pendingAction.cunningStrike = cunningStrikeOption;
+      if (this.debugLogsEnabled) {
+        console.log(`[AttackHandlers] Cunning Strike option declared: ${cunningStrikeOption}`);
+      }
+    }
 
     await this.deps.combatRepo.setPendingAction(encounterId, pendingAction);
 

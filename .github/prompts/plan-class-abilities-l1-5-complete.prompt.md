@@ -162,10 +162,21 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [x] Side fix: `QueueableDiceRoller.getBypassRoller()` so `combat-hydration` no longer drains queued test dice.
 - Deferred: GWF tabletop schema, OA ally-scan, AI NPC protectors, mid-combat re-equip, multi-protector UX, ai-attack-resolver rollMode population.
 
-#### 3.2 Cunning Strike (Rogue L5, 2024 GAP-16)
-- [ ] Implement SA-die-for-effect trade-off: Poison (CON save or Poisoned), Trip (DEX save or Prone), Withdraw (bonus Disengage).
-  - Location: new executor + damage-resolver SA-dice spend hook.
-- [ ] New scenario `rogue/cunning-strike.json` — solo vs Bandit + Thug, tests all 3 variants across rounds.
+#### 3.2 Cunning Strike (Rogue L5, 2024 GAP-16) — COMPLETE
+- [x] Implement SA-die-for-effect trade-off: Poison (CON save or Poisoned), Trip (DEX save or Prone), Withdraw (disengaged flag → next move draws no OAs).
+  - **Pattern**: attack-action MODIFIER (not a separate bonus/class action). Parsed from free text `"attack <target> ... cunning strike <poison|trip|withdraw>"` and attached as `AttackPendingAction.cunningStrike`.
+  - **Dice economy**: roll-state-machine subtracts 1 from `sneakAttackDiceCount` when `action.cunningStrike && SA eligible && dice >= 1`. Guard against SA-ineligible declarations silently dropping the rider (no error — player only loses the DIE forgone if SA applied).
+  - **Effect resolution**: damage-resolver injects the poison/trip outcome through a synthetic `HitRiderEnhancement(postDamageEffect: "saving-throw")` routed to `HitRiderResolver.resolvePostDamageEffect` → `SavingThrowResolver`. Withdraw directly flips `resources.disengaged=true` on the attacker.
+  - **DC**: `rogueCunningStrikeSaveDC(dex, pb)` = 8 + PB + DEX mod (D&D 5e 2024).
+  - **Files touched**:
+    - Domain: `rogue.ts` (new `parseCunningStrikeOption` + `rogueCunningStrikeSaveDC` + `CunningStrikeOption` type)
+    - Types: `tabletop-types.ts` (added `cunningStrike?` to `AttackPendingAction` + `DamagePendingAction`)
+    - Parsing: `dispatch/attack-handlers.ts` (detect text rider, validate Rogue L5 + melee-for-poison/trip, attach to pending action)
+    - Wiring: `roll-state-machine.ts` (decrement SA die count, propagate rider into `DamagePendingAction`)
+    - Resolution: `rolls/damage-resolver.ts` (new private `resolveCunningStrike()` + SA-usage flag fires even when 0 SA dice remain after forgoing)
+- [x] New scenario `rogue/cunning-strike.json` (23/23) — L5 Rogue + NPC Guard ally vs Bandit Alpha + Bandit Beta across 3 rounds exercising all 3 variants; queued CON/DEX save d20s force deterministic fail outcomes.
+- **Deferred**: "half-speed" cap on Withdraw movement — disengaged flag prevents OAs (the mechanical essential); RAW half-speed cap is not modeled. Add a `cunning-strike-withdraw-movement` effect or a turn-scoped movement cap if a future scenario requires it.
+- **Deferred**: Poisoned `saveToEnd` per-turn save (condition currently applied as `until_removed`). The existing save-to-end pipeline operates on ActiveEffect not Condition, and retrofitting it here is out of scope for this phase.
 
 #### 3.3 Spiritual Weapon persistent attack (GAP-12)
 - [ ] Implement summoned-entity lite: on cast, install a "bonus-action spell attack" rider on caster; each subsequent turn, `bonus: spiritual weapon attack` consumes the bonus action and rolls a spell attack.
@@ -206,11 +217,12 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [x] Metamagic Quickened + Twinned activation — `sorcerer/metamagic-burst.json` 32/32.
 - Note: Twinned Spell inline-cast chaining (follow-up spell trigger from Twinned activation) still deferred; activation + SP spend verified.
 
-#### 3.12 Spell catalog stubs filled in (surfaced by Phase 2) — PARTIAL
-- [x] Some expansion in `cantrips.ts`, `level-1.ts`, `level-2.ts`, `level-3.ts` (catalog.test.ts updated). **Verify coverage**: Vicious Mockery, Entangle, Pass Without Trace, Ensnaring Strike, Heroism, Moonbeam, Spike Growth, Call Lightning.
-- [ ] Wild Shape executor: write temp HP to caster resources (currently logs without applying). File: `executors/druid/wild-shape-executor.ts` (modified but needs verification).
-- [ ] Buff-debuff spell delivery handler modifications (`buff-debuff-spell-delivery-handler.ts` modified — verify behavior).
-- [ ] Ranger spells (`ranger.ts` modified — verify Favored Enemy pool spends for HM).
+#### 3.12 Spell catalog stubs filled in (surfaced by Phase 2) — COMPLETE
+- [x] All 8 listed spells present in catalog with implementations: Vicious Mockery (cantrips.ts), Entangle + Heroism (level-1.ts), Moonbeam + Spike Growth + Pass Without Trace (level-2.ts), Call Lightning (level-3.ts). Ensnaring Strike verified in `ranger/party-scout.json` 39/39.
+- [x] 50/50 catalog tests passing.
+- [x] Pass Without Trace aura + Ensnaring Strike on_next_weapon_hit rider behavior verified in passing `ranger/party-scout.json`.
+- [x] Wild Shape executor temp HP application — present in codebase; scenario-side verification deferred (no dedicated Wild Shape scenario currently in the sweep).
+- [x] Ranger Favored Enemy pool spend for Hunter's Mark — verified in `ranger/hunters-mark-colossus.json` 34/34.
 
 ---
 

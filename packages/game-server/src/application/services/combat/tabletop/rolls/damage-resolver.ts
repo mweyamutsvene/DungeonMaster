@@ -66,6 +66,8 @@ import type {
   DamagePendingAction,
   DamageResult,
   HitRiderEnhancementResult,
+  HitRiderEnhancement,
+  SaveOutcome,
 } from "../tabletop-types.js";
 import type { RollResultCommand } from "../../../../commands/game-command.js";
 import type { WeaponMasteryResolver } from "./weapon-mastery-resolver.js";
@@ -73,6 +75,8 @@ import type { HitRiderResolver } from "./hit-rider-resolver.js";
 import { findCombatantByEntityId, getEntityId } from "../../helpers/combatant-lookup.js";
 import { rollModePrompt } from "../roll-state-machine.js";
 import { computeFeatModifiers, shouldApplyDueling } from "../../../../../domain/rules/feat-modifiers.js";
+import { ClassFeatureResolver } from "../../../../../domain/entities/classes/class-feature-resolver.js";
+import { rogueCunningStrikeSaveDC } from "../../../../../domain/entities/classes/rogue.js";
 import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
 import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
 import { ELEMENTAL_AFFINITY, COLOSSUS_SLAYER } from "../../../../../domain/entities/classes/feature-keys.js";
@@ -430,7 +434,7 @@ export class DamageResolver {
     }
 
     // Mark Sneak Attack as used for this turn if it was applied
-    if (action.sneakAttackDice && action.sneakAttackDice > 0) {
+    if ((action.sneakAttackDice && action.sneakAttackDice > 0) || action.cunningStrike) {
       const actorForSneak = combatants.find((c: any) => c.characterId === actorId);
       if (actorForSneak) {
         const actorRes = normalizeResources(actorForSneak.resources);
@@ -547,6 +551,19 @@ export class DamageResolver {
     const genericEnhancements = enhancementResults.filter(
       (r) => r.abilityId !== "class:monk:stunning-strike" && r.abilityId !== "class:monk:open-hand-technique",
     );
+
+    // D&D 5e 2024 Rogue Cunning Strike (L5+) — resolve the forgone-SA-die effect.
+    // Only fires when the attack actually landed damage AND target survived
+    // (effects on a KO'd creature are a no-op RAW).
+    if (action.cunningStrike && totalDamage > 0 && hpAfter > 0) {
+      const cunningStrikeResult = await this.resolveCunningStrike(
+        action.cunningStrike, actorId, action.targetId, encounter.id, sessionId,
+        characters, monsters, npcs,
+      );
+      if (cunningStrikeResult) {
+        genericEnhancements.push(cunningStrikeResult);
+      }
+    }
 
     // Build damage equation display prefix — includes enhancement bonus (e.g. Divine Smite) when present
     const equationPrefix = enhancementTotal > 0
@@ -825,6 +842,85 @@ export class DamageResolver {
       ...(stunningStrikeResult ? { stunningStrike: stunningStrikeResult } : {}),
       ...(genericEnhancements.length > 0 ? { enhancements: genericEnhancements } : {}),
     };
+  }
+
+  /**
+   * D&D 5e 2024 Rogue Cunning Strike (L5+) effect resolution.
+   * Called after damage is applied when one SA die has already been forgone.
+   *
+   * - poison: CON save vs DC → Poisoned on failure
+   * - trip:   DEX save vs DC → Prone on failure
+   * - withdraw: attacker gains disengaged flag (no OA on subsequent movement)
+   */
+  private async resolveCunningStrike(
+    option: "poison" | "trip" | "withdraw",
+    actorId: string,
+    targetId: string,
+    encounterId: string,
+    _sessionId: string,
+    characters: SessionCharacterRecord[],
+    monsters: SessionMonsterRecord[],
+    npcs: SessionNPCRecord[],
+  ): Promise<HitRiderEnhancementResult | undefined> {
+    const actorChar = characters.find((c) => c.id === actorId);
+    const actorSheet = (actorChar?.sheet ?? {}) as Record<string, unknown>;
+    const actorLevel = ClassFeatureResolver.getLevel(actorSheet as any, actorChar?.level);
+    const abilityScores = (actorSheet.abilityScores as Record<string, number> | undefined) ?? {};
+    const dex = abilityScores.dexterity ?? 10;
+    const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet as any, actorLevel);
+    const saveDC = rogueCunningStrikeSaveDC(dex, profBonus);
+
+    if (option === "withdraw") {
+      // Grant disengaged flag: attacker can move without provoking OAs after this hit.
+      // RAW also caps movement to half speed for this movement — not modeled; disengaged
+      // flag is the mechanical essential (prevents OA).
+      const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+      const actorCombatant = combatants.find(
+        (c: any) => c.combatantType === "Character" && c.characterId === actorId,
+      );
+      if (actorCombatant) {
+        const actorRes = normalizeResources(actorCombatant.resources);
+        await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          resources: { ...actorRes, disengaged: true } as any,
+        });
+        if (this.debugLogsEnabled) {
+          console.log(`[DamageResolver] Cunning Strike (Withdraw): disengaged=true on ${actorId}`);
+        }
+      }
+      return {
+        abilityId: "class:rogue:cunning-strike",
+        displayName: "Cunning Strike (Withdraw)",
+        summary:
+          "Cunning Strike (Withdraw): no Opportunity Attacks provoked on next half-speed move.",
+      };
+    }
+
+    // Poison / Trip: build a synthetic HitRiderEnhancement and resolve via the
+    // existing hit-rider pipeline (save + condition application).
+    const isPoison = option === "poison";
+    const enhancement: HitRiderEnhancement = {
+      abilityId: "class:rogue:cunning-strike",
+      displayName: `Cunning Strike (${isPoison ? "Poison" : "Trip"})`,
+      postDamageEffect: "saving-throw",
+      context: {
+        saveAbility: isPoison ? "constitution" : "dexterity",
+        saveDC,
+        saveReason: `Cunning Strike (${isPoison ? "Poison" : "Trip"})`,
+        sourceId: actorId,
+        onSuccess: {
+          summary: isPoison ? "Resists the poison." : "Keeps footing!",
+        } satisfies SaveOutcome,
+        onFailure: {
+          conditions: { add: isPoison ? ["Poisoned"] : ["Prone"] },
+          summary: isPoison ? "Poisoned!" : "Knocked Prone!",
+        } satisfies SaveOutcome,
+      },
+    };
+
+    return this.hitRiderResolver.resolvePostDamageEffect(
+      enhancement, actorId, targetId, encounterId,
+      characters, monsters, npcs,
+    );
   }
 
   /**
