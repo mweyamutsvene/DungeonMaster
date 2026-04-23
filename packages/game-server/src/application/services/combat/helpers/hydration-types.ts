@@ -90,6 +90,8 @@ export interface CombatantResources {
   attacksAllowedThisTurn?: number;
   sneakAttackUsedThisTurn?: boolean;
   stunningStrikeUsedThisTurn?: boolean;
+  colossusSlayerUsedThisTurn?: boolean;
+  elementalAffinityUsedThisTurn?: boolean;
   rageAttackedThisTurn?: boolean;
   rageDamageTakenThisTurn?: boolean;
   lastMovePath?: unknown;

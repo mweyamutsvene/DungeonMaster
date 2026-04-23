@@ -31,7 +31,7 @@
 - Phase 1: 7 subclass shells (Life Cleric, Oath of Devotion, Fiend Warlock, Evocation Wizard, Lore Bard, Circle of Land Druid, Draconic Red Sorcerer) + 19 feature-keys + INNATE_SORCERY at L1 + 32 new tests.
 - Phase 2: 12 E2E scenarios authored (Bard/Druid/Ranger/Sorcerer × 3), all intentionally failing at specific feature gaps that drive Phase 3.
 - Phase 3 partial (one agent, rate-limited mid-batch):
-  - 3.1 Fighting Styles: Archery/Defense/Dueling/TWF offhand done; GWF + Protection/Interception deferred.
+  - 3.1 Fighting Styles: Archery/Defense/Dueling/TWF/Protection/Interception DONE (commit 6ffb3e2); GWF tabletop schema deferred.
   - 3.2 Cunning Strike: groundwork only (feature-key + L5 gate).
   - 3.5 Disciple of Life: COMPLETE.
   - 3.11 Draconic Resilience: `class-feature-enrichment.ts` created (needs wire-in verification).
@@ -152,11 +152,15 @@ Phase 2 complete: 12 scenarios, all failing at intended feature gaps per user di
 
 Each sub-item is a feature implementation AND a scenario (or assertion addition to an existing scenario) that fails until the feature lands.
 
-#### 3.1 Fighting Style passives (GAP-14)
-- [ ] Implement Defense (+1 AC), Dueling (+2 dmg one-handed melee), GWF (reroll 1s/2s on two-handed weapon dice), Archery (+2 attack ranged), TWF (ability mod to offhand), Protection (reaction), Interception (reaction).
-  - Location: `domain/entities/classes/fighting-style.ts` + hit-rider-resolver + AC computation pipeline.
-- [ ] Extend `fighter/tank-vs-resistance.json` to assert AC 20 from Defense formula (not hardcoded).
-- [ ] New scenario `fighter/fighting-style-comparison.json` — 4-round setup using each style variant in succession.
+#### 3.1 Fighting Style passives (GAP-14) — COMPLETE (commit 6ffb3e2)
+- [x] Implement Defense (+1 AC), Dueling (+2 dmg one-handed melee), Archery (+2 attack ranged), TWF (ability mod to offhand), Protection (reaction), Interception (reaction). GWF tabletop schema deferred.
+  - Dueling now properly gated off by offhand weapon via `shouldApplyDueling` + `offhandWeaponEquipped` flag.
+  - Protection/Interception added as `allyAttackReactions` (new ClassCombatTextProfile field) with condition gating (Incapacitated/Unconscious/Stunned/Paralyzed/Petrified).
+  - 4 new fighting-style flags (`hasProtectionStyle`/`hasInterceptionStyle`/`hasShieldEquipped`/`hasWeaponEquipped`) populated in `CombatResourceBuilder` and propagated through `initiative-handler.assembleCombatantResources()` (BUG-FS-1 fix).
+- [x] New scenario `fighter/fighting-style-comparison.json` — Defense AC + Dueling damage + Archery to-hit across 3 rounds (21/21).
+- [x] New scenario `fighter/protection-reaction.json` (14/14) + `fighter/interception-reaction.json` (24/24).
+- [x] Side fix: `QueueableDiceRoller.getBypassRoller()` so `combat-hydration` no longer drains queued test dice.
+- Deferred: GWF tabletop schema, OA ally-scan, AI NPC protectors, mid-combat re-equip, multi-protector UX, ai-attack-resolver rollMode population.
 
 #### 3.2 Cunning Strike (Rogue L5, 2024 GAP-16)
 - [ ] Implement SA-die-for-effect trade-off: Poison (CON save or Poisoned), Trip (DEX save or Prone), Withdraw (bonus Disengage).
@@ -180,9 +184,10 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [ ] Agonizing Blast (+CHA to each EB beam).
 - [ ] Revive `warlock/hex-and-blast.json` assertions.
 
-#### 3.8 Ranger Colossus Slayer — NOT STARTED
-- [ ] Implement Colossus Slayer bonus 1d8 once/turn vs wounded.
-- [ ] Coverage by `ranger/hunters-mark-colossus.json` (already authored in Phase 2).
+#### 3.8 Ranger Colossus Slayer — COMPLETE (commit pending)
+- [x] Implement Colossus Slayer bonus 1d8 once/turn vs wounded. **Feature was already implemented in `damage-resolver.ts` L296-L319; bug was missing per-turn reset of `colossusSlayerUsedThisTurn` flag so it fired once per combat.**
+- [x] Fix: added `colossusSlayerUsedThisTurn` + `elementalAffinityUsedThisTurn` to the `isFreshEconomy` reset block in `combat-hydration.ts` and to `hydration-types.ts` (resource-utils.ts already had them).
+- [x] Coverage by `ranger/hunters-mark-colossus.json` (34/34) + `ranger/party-scout.json` (39/39, updated to queue CS 1d8 die so it can't overkill Captain before EA 2/2 chains).
 
 #### 3.9 Bard Cutting Words + Magical Inspiration — NOT STARTED
 - [ ] Implement Cutting Words reaction (attack/check/damage subtract BI die).

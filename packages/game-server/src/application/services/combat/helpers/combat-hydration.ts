@@ -53,8 +53,8 @@ export function hydrateCombat(
   // every other deterministic dice consumer downstream sees the same seeded
   // sequence as before.
   const ctorRoller: DiceRoller =
-    typeof (diceRoller as { getBypassRoller?: () => DiceRoller }).getBypassRoller === "function"
-      ? (diceRoller as { getBypassRoller: () => DiceRoller }).getBypassRoller()
+    typeof (diceRoller as unknown as { getBypassRoller?: () => DiceRoller }).getBypassRoller === "function"
+      ? (diceRoller as unknown as { getBypassRoller: () => DiceRoller }).getBypassRoller()
       : diceRoller;
   const combat = new Combat(ctorRoller, orderedCreatures);
 
@@ -150,6 +150,8 @@ export function extractActionEconomy(
     attacksAllowedThisTurn: isFreshEconomy ? 1 : (resources as any).attacksAllowedThisTurn ?? 1,
     sneakAttackUsedThisTurn: isFreshEconomy ? false : (resources as any).sneakAttackUsedThisTurn ?? false,
     stunningStrikeUsedThisTurn: isFreshEconomy ? false : (resources as any).stunningStrikeUsedThisTurn ?? false,
+    colossusSlayerUsedThisTurn: isFreshEconomy ? false : (resources as any).colossusSlayerUsedThisTurn ?? false,
+    elementalAffinityUsedThisTurn: isFreshEconomy ? false : (resources as any).elementalAffinityUsedThisTurn ?? false,
     rageAttackedThisTurn: isFreshEconomy ? false : (resources as any).rageAttackedThisTurn ?? false,
     rageDamageTakenThisTurn: isFreshEconomy ? false : (resources as any).rageDamageTakenThisTurn ?? false,
     // Also reset the "Used" variants (set by resource-utils useBonusAction/useReaction)
