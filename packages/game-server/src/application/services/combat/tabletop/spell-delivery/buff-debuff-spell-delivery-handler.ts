@@ -187,6 +187,15 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
           resolvedValue = Math.max(1, getSpellcastingModifier(sheet));
         }
 
+        // Upcast flat-scaling: applies to effects like Armor of Agathys (+5 temp HP and
+        // +5 retaliation per slot level above base). Only applied when `upcastFlatBonus` is
+        // declared on the effect; leaves dice-based upcast (SpellDefinition.upcastScaling) untouched.
+        const effectiveSlot = ctx.castAtLevel ?? spellMatch.level;
+        const upcastDelta = Math.max(0, effectiveSlot - spellMatch.level);
+        if (effDef.upcastFlatBonus && upcastDelta > 0 && typeof resolvedValue === 'number') {
+          resolvedValue = resolvedValue + effDef.upcastFlatBonus * upcastDelta;
+        }
+
         // Resolve DC=0 placeholders on triggerSave / saveToEnd to the caster's spell save DC.
         // Smite spells (Searing/Thunderous/Wrathful) and Ensnaring Strike declare DC=0 in the
         // catalog; the real DC comes from the caster's sheet at cast time.

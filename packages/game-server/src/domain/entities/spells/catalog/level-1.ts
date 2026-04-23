@@ -49,7 +49,8 @@ export const ARMOR_OF_AGATHYS = {
     {
       type: 'temp_hp' as const,
       target: 'hit_points' as const,
-      value: 5, // Base: 5 temp HP at slot level 1. +5 per upcast level is a Phase 4 follow-up.
+      value: 5, // Base: 5 temp HP at slot level 1.
+      upcastFlatBonus: 5, // +5 temp HP per slot level above 1.
       duration: 'rounds' as const,
       roundsRemaining: 600, // 1 hour at 6s rounds
       appliesTo: 'self' as const,
@@ -58,6 +59,7 @@ export const ARMOR_OF_AGATHYS = {
       type: 'retaliatory_damage' as const,
       target: 'custom' as const,
       value: 5, // Base: 5 cold damage to any creature that hits caster with melee.
+      upcastFlatBonus: 5, // +5 cold retaliation per slot level above 1.
       damageType: 'cold',
       duration: 'rounds' as const,
       roundsRemaining: 600,

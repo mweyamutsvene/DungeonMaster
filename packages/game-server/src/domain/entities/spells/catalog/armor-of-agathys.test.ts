@@ -50,4 +50,11 @@ describe("Armor of Agathys catalog entry", () => {
     expect(ARMOR_OF_AGATHYS.components.s).toBe(true);
     expect(typeof ARMOR_OF_AGATHYS.components.m).toBe("string");
   });
+
+  it("declares upcastFlatBonus: 5 on both temp_hp and retaliatory_damage effects", () => {
+    const tempHp = ARMOR_OF_AGATHYS.effects.find((e) => e.type === "temp_hp");
+    const retaliation = ARMOR_OF_AGATHYS.effects.find((e) => e.type === "retaliatory_damage");
+    expect((tempHp as any).upcastFlatBonus).toBe(5);
+    expect((retaliation as any).upcastFlatBonus).toBe(5);
+  });
 });

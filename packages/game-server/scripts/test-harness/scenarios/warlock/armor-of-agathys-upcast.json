@@ -1,0 +1,110 @@
+{
+  "name": "Warlock Armor of Agathys upcast: slot-2 scales temp HP & retaliation",
+  "description": "Tests upcast flat-scaling on Armor of Agathys. When cast at slot level 2, both the temp HP grant and the retaliatory cold damage scale by +5 each (base 5 + 1 upcast level × 5 = 10). A melee hit from the Brawler consumes 9 damage against the 10 temp HP buffer (leaving 1 temp HP, no HP loss) and triggers 10 cold retaliation (Brawler 30 → 20 HP).",
+  "setup": {
+    "character": {
+      "name": "Malachar the Chilled",
+      "className": "Warlock",
+      "level": 3,
+      "subclass": "The Fiend",
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 3,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 16
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 13,
+        "spellAttackBonus": 5,
+        "spellSlots": { "2": 2 },
+        "preparedSpells": [
+          { "name": "Armor of Agathys", "level": 1 }
+        ],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Brawler",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 10, "constitution": 14,
+            "intelligence": 8, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Fist", "kind": "melee", "attackBonus": 14,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready myself" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Cast AoA at level 2 (upcast). Base 5 temp HP + 1 upcast × 5 = 10. Retaliation scales likewise.",
+      "type": "action",
+      "input": { "text": "cast Armor of Agathys at level 2 on myself" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert 10 temp HP granted (upcast scaling).",
+      "type": "assertState",
+      "expect": {
+        "characterTempHp": { "exact": 10 }
+      }
+    },
+    {
+      "comment": "Queue brawler attack.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Malachar the Chilled", "attackName": "Fist", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Brawler d20(10)+14=24 vs AC 14 HIT; 1d6(6)+3=9 damage. 10 temp HP absorbs all 9 → tempHp=1, HP unchanged. Retaliation: 10 cold → Brawler 30→20.",
+      "type": "queueDiceRolls",
+      "input": { "values": [10, 6] }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn; Brawler consumes queued decision/dice."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for Brawler to resolve and control to return."
+    },
+    {
+      "comment": "Upcast verification: HP unchanged (full 9 absorbed by 10 temp HP), temp HP = 1, Brawler took 10 cold.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 24 },
+        "characterTempHp": { "exact": 1 },
+        "monsterHp": { "name": "Brawler", "exact": 20 }
+      }
+    }
+  ]
+}

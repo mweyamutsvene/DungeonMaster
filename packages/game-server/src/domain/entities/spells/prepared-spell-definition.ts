@@ -46,6 +46,13 @@ export interface SpellEffectDeclaration {
   readonly triggerSave?: { ability: string; dc: number; halfDamageOnSave?: boolean };
   readonly triggerConditions?: string[];
   readonly appliesTo?: 'self' | 'target' | 'allies' | 'enemies';
+  /**
+   * Flat scaling when cast at a higher slot level.
+   * Adds `upcastFlatBonus * (castAtLevel - spellLevel)` to the effect's `value`.
+   * Example: Armor of Agathys grants 5 temp HP base + 5 per slot level above 1 (upcastFlatBonus=5).
+   * Does NOT affect `diceValue`; for dice-based upcast, use the spell-level `upcastScaling.additionalDice` field.
+   */
+  readonly upcastFlatBonus?: number;
 }
 
 /** Single mechanical effect within a zone. */
