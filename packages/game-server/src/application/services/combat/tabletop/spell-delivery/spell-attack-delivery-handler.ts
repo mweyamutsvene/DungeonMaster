@@ -12,6 +12,7 @@ import type { PreparedSpellDefinition } from '../../../../../domain/entities/spe
 import type { AttackPendingAction, WeaponSpec, ActionParseResult } from '../tabletop-types.js';
 import type { SpellCastingContext, SpellDeliveryDeps, SpellDeliveryHandler } from './spell-delivery-handler.js';
 import { computeSpellAttackBonus } from '../../../../../domain/rules/spell-casting.js';
+import { agonizingBlastBeamBonus } from '../../../../../domain/entities/classes/warlock.js';
 
 export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
   constructor(private readonly handlerDeps: SpellDeliveryDeps) {}
@@ -60,13 +61,26 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       }
     }
 
+    // Agonizing Blast invocation: adds caster's CHA modifier to EACH Eldritch Blast beam.
+    // Applied as a damage modifier on the spell weapon spec (propagates through each beam's
+    // damage roll since damage-resolver consumes `weaponSpec.damage.modifier` on every strike).
+    let perBeamModifier = spellDamage.modifier ?? 0;
+    if (spellMatch.name.toLowerCase() === "eldritch blast") {
+      const invocations = sheet?.eldritchInvocations;
+      if (invocations && invocations.length > 0) {
+        const chaScore = sheet?.abilityScores?.charisma ?? 10;
+        const chaMod = Math.floor((chaScore - 10) / 2);
+        perBeamModifier += agonizingBlastBeamBonus(invocations, chaMod);
+      }
+    }
+
     const effectiveLevel = castAtLevel ?? spellLevel;
 
     const damageFormula = `${diceCount}d${spellDamage.diceSides}${
-      (spellDamage.modifier ?? 0) > 0
-        ? `+${spellDamage.modifier}`
-        : (spellDamage.modifier ?? 0) < 0
-          ? `${spellDamage.modifier}`
+      perBeamModifier > 0
+        ? `+${perBeamModifier}`
+        : perBeamModifier < 0
+          ? `${perBeamModifier}`
           : ""
     }`;
 
@@ -77,7 +91,7 @@ export class SpellAttackDeliveryHandler implements SpellDeliveryHandler {
       damage: {
         diceCount,
         diceSides: spellDamage.diceSides,
-        modifier: spellDamage.modifier ?? 0,
+        modifier: perBeamModifier,
       },
       damageFormula,
       damageType: spellMatch.damageType,

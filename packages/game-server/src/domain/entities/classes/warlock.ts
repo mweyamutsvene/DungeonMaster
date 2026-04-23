@@ -163,3 +163,91 @@ export const WARLOCK_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
   attackEnhancements: [],
   damageReactions: [HELLISH_REBUKE_REACTION],
 };
+
+// ----- Eldritch Invocations -----
+
+/** Canonical Eldritch Invocation identifiers (2024). Stored on sheet.eldritchInvocations. */
+export const AGONIZING_BLAST_INVOCATION = "Agonizing Blast";
+
+/**
+ * Case-insensitive check: does this character have the Agonizing Blast invocation?
+ * Accepts any reasonable casing / punctuation variant.
+ */
+export function hasAgonizingBlast(invocations: readonly string[] | undefined): boolean {
+  if (!invocations || invocations.length === 0) return false;
+  return invocations.some((inv) => inv.trim().toLowerCase() === "agonizing blast");
+}
+
+/**
+ * Returns the per-beam damage modifier bonus for Eldritch Blast when the caster has
+ * the Agonizing Blast invocation. RAW 2024: add your Charisma modifier to the damage
+ * of each beam that hits. Returns 0 when invocation not present or CHA mod is negative.
+ *
+ * Note: RAW says "add your Charisma modifier" with no minimum-of-1 clause, but a negative
+ * CHA would never be chosen for Warlock. We clamp at 0 to avoid subtractive damage.
+ */
+export function agonizingBlastBeamBonus(
+  invocations: readonly string[] | undefined,
+  chaModifier: number,
+): number {
+  if (!hasAgonizingBlast(invocations)) return 0;
+  return Math.max(0, chaModifier);
+}
+
+// ----- Dark One's Blessing (Fiend Warlock L3+) -----
+
+/**
+ * Returns the temp HP granted by Dark One's Blessing when the Fiend Warlock reduces
+ * a creature to 0 HP. RAW 2024: temp HP = Charisma modifier + Warlock level (min 1).
+ * Caller must verify: actor is Warlock, subclass is "The Fiend", level ≥ 3, and a
+ * creature was reduced from >0 to 0 HP by this actor's damage.
+ */
+export function darkOnesBlessingTempHp(chaModifier: number, warlockLevel: number): number {
+  return Math.max(1, chaModifier + warlockLevel);
+}
+
+/**
+ * Check whether a character sheet-like object qualifies for Dark One's Blessing
+ * (Fiend Warlock, L3+ in warlock). Returns `{ warlockLevel, chaMod }` on match,
+ * else null. Supports both single-class (className + subclass on sheet) and
+ * multi-class (sheet.classLevels array) representations.
+ */
+export function qualifiesForDarkOnesBlessing(
+  sheet: {
+    className?: string | null;
+    level?: number;
+    subclass?: string;
+    classLevels?: ReadonlyArray<{ classId: string; level: number; subclass?: string }>;
+    abilityScores?: { charisma?: number } & Record<string, number | undefined>;
+  } | null | undefined,
+): { warlockLevel: number; chaMod: number } | null {
+  if (!sheet) return null;
+
+  const isFiendName = (s: string | undefined): boolean => {
+    if (!s) return false;
+    const n = s.trim().toLowerCase();
+    return n === "the fiend" || n === "fiend" || n === "the-fiend";
+  };
+
+  let warlockLevel = 0;
+
+  if (Array.isArray(sheet.classLevels) && sheet.classLevels.length > 0) {
+    const warlockEntry = sheet.classLevels.find(
+      (cl) => cl.classId?.toLowerCase() === "warlock" && isFiendName(cl.subclass),
+    );
+    if (warlockEntry) warlockLevel = warlockEntry.level;
+  }
+
+  // Fall back to single-class fields
+  if (warlockLevel === 0) {
+    const classMatches = (sheet.className ?? "").toLowerCase() === "warlock";
+    const subclassMatches = isFiendName(sheet.subclass);
+    if (classMatches && subclassMatches) warlockLevel = sheet.level ?? 0;
+  }
+
+  if (warlockLevel < 3) return null;
+
+  const chaScore = sheet.abilityScores?.charisma ?? 10;
+  const chaMod = Math.floor((chaScore - 10) / 2);
+  return { warlockLevel, chaMod };
+}

@@ -1,0 +1,100 @@
+{
+  "name": "Warlock Fiend: Agonizing Blast + Dark One's Blessing",
+  "description": "Tests the Fiend Warlock L3 feature interactions: (1) Agonizing Blast invocation adds CHA modifier (+3) to each Eldritch Blast beam's damage, and (2) when the Fiend Warlock reduces a creature to 0 HP, they gain temp HP equal to CHA mod + Warlock level (3 + 3 = 6). Warlock L3 only fires one beam of EB; at L3 the scaling hasn't added a second beam yet. The test kills a low-HP goblin with a single agonized beam and asserts temp HP is applied.",
+  "setup": {
+    "character": {
+      "name": "Malachar the Damned",
+      "className": "Warlock",
+      "level": 3,
+      "subclass": "The Fiend",
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 3,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 16
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 13,
+        "spellAttackBonus": 5,
+        "spellSlots": { "2": 2 },
+        "preparedSpells": [
+          { "name": "Eldritch Blast", "level": 0 }
+        ],
+        "eldritchInvocations": ["Agonizing Blast", "Devil's Sight"],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Wounded Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 7, "hp": 5, "armorClass": 12, "speed": 30,
+          "challengeRating": 0.25, "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar", "kind": "melee", "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready myself" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Assert starting tempHp = 0 before Dark One's Blessing triggers",
+      "type": "assertState",
+      "expect": {
+        "characterTempHp": { "exact": 0 }
+      }
+    },
+    {
+      "comment": "--- Eldritch Blast: single beam at L3, Agonizing Blast adds +3 CHA ---",
+      "type": "action",
+      "input": { "text": "cast Eldritch Blast at Wounded Goblin" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack roll: 15 + 5 = 20 vs AC 12 → HIT",
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage roll: 1d10 = 3, + 3 Agonizing Blast = 6 total. Goblin (HP 5) → 0. Action completes (only 1 beam at L3). Dark One's Blessing fires: Warlock gains max(0, 3+3=6) temp HP.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 3" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert goblin is dead and warlock has 6 temp HP from Dark One's Blessing (CHA mod 3 + Warlock level 3).",
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Wounded Goblin", "exact": 0 },
+        "characterTempHp": { "exact": 6 }
+      }
+    }
+  ]
+}

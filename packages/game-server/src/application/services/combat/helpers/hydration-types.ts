@@ -52,6 +52,12 @@ export interface CharacterSheet {
   skillExpertise?: string[];
   preparedSpells?: string[];
   knownSpells?: string[];
+  /**
+   * Warlock Eldritch Invocations (L2+). Names are canonical strings like
+   * "Agonizing Blast", "Devil's Sight", etc. Used by spell delivery handlers
+   * to apply invocation riders (e.g. Agonizing Blast → +CHA per Eldritch Blast beam).
+   */
+  eldritchInvocations?: string[];
 }
 
 /** Raw JSON shape stored in the monster or NPC `statBlock` column in SQLite. */

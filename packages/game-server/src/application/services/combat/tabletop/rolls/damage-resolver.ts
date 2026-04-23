@@ -46,6 +46,7 @@ import {
 } from "../../../../../domain/entities/combat/effects.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../../helpers/ko-handler.js";
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../../helpers/temp-hp.js";
+import { qualifiesForDarkOnesBlessing, darkOnesBlessingTempHp } from "../../../../../domain/entities/classes/warlock.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
 import type { CombatVictoryStatus } from "../../combat-victory-policy.js";
 import { parseDamageModifier } from "../combat-text-parser.js";
@@ -411,6 +412,43 @@ export class DamageResolver {
             const updatedRes = setActiveEffects({ ...koRes, raging: false }, nonRageEffects);
             await this.deps.combatRepo.updateCombatantState(koTargetForRage.id, { resources: updatedRes });
             if (this.debugLogsEnabled) console.log(`[DamageResolver] Rage ended on KO for ${action.targetId}`);
+          }
+        }
+      }
+
+      // D&D 5e 2024: Dark One's Blessing (Fiend Warlock L3+) — when the Warlock reduces a
+      // creature from >0 HP to 0 HP, gain temp HP equal to max(1, CHA mod + Warlock level).
+      // Temp HP does NOT stack: the higher of current-vs-new pool wins (RAW).
+      if (hpBefore > 0 && hpAfter === 0) {
+        const actorChar = characters.find((c) => c.id === actorId);
+        if (actorChar) {
+          const actorSheet = (actorChar.sheet ?? {}) as Record<string, unknown> & {
+            className?: string | null;
+            level?: number;
+            subclass?: string;
+            classLevels?: ReadonlyArray<{ classId: string; level: number; subclass?: string }>;
+            abilityScores?: { charisma?: number } & Record<string, number | undefined>;
+          };
+          const blessing = qualifiesForDarkOnesBlessing({
+            className: actorChar.className ?? actorSheet.className,
+            level: actorChar.level ?? actorSheet.level,
+            subclass: actorSheet.subclass,
+            classLevels: actorSheet.classLevels,
+            abilityScores: actorSheet.abilityScores,
+          });
+          if (blessing) {
+            const actorCombatantForBlessing = combatants.find((c: any) => c.characterId === actorId || c.id === actorId);
+            if (actorCombatantForBlessing) {
+              const grantedTemp = darkOnesBlessingTempHp(blessing.chaMod, blessing.warlockLevel);
+              const currentTemp = readTempHp(actorCombatantForBlessing.resources);
+              // Temp HP doesn't stack — take higher pool (5e 2024 RAW)
+              const newTemp = Math.max(currentTemp, grantedTemp);
+              if (newTemp !== currentTemp) {
+                const updatedRes = withTempHp(actorCombatantForBlessing.resources, newTemp);
+                await this.deps.combatRepo.updateCombatantState(actorCombatantForBlessing.id, { resources: updatedRes as any });
+                if (this.debugLogsEnabled) console.log(`[DamageResolver] Dark One's Blessing: ${actorId} gains ${grantedTemp} temp HP (had ${currentTemp} → ${newTemp})`);
+              }
+            }
           }
         }
       }

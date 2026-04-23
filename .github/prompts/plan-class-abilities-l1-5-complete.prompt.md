@@ -194,10 +194,12 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [x] New scenario `paladin/smite-spell-kit.json` (48/48) — exercises all 5 smites across 5 rounds, asserts rider consumption, target save outcomes (Ignited / Prone / Frightened), concentration swap between successive concentration smites, Divine Favor as non-concentration persistent `damage_rolls` bonus, and L1/L2 spell slot economy (4×L1 + 2×L2).
 - [x] **Bug fix (double-count)**: `damage-resolver.ts` was applying `on_next_weapon_hit` rider bonuses twice — once as synthetic `HitRiderEnhancement.bonusDice` (correct) and a second time through the generic `damage_rolls` ActiveEffect loop (wrong, since the rider is also an ActiveEffect with `damageRolls` shape). Fixed by excluding effects whose `triggerAt === 'on_next_weapon_hit'` from the `damage_rolls` filter. Verified: rider fires exactly once per consumed effect; `damage_rolls` still applies for persistent buffs like Divine Favor.
 
-#### 3.7 Warlock Fiend subclass + Hex rider fix — NOT STARTED
-- [ ] Dark One's Blessing (temp HP on kill).
-- [ ] Agonizing Blast (+CHA to each EB beam).
-- [ ] Revive `warlock/hex-and-blast.json` assertions.
+#### 3.7 Warlock Fiend subclass + Hex rider fix — COMPLETE
+- [x] **Dark One's Blessing (Fiend L3)**: When a Fiend Warlock reduces a creature from >0 HP to 0 HP, gain temp HP = max(1, CHA mod + Warlock level). Implemented pure domain helpers `qualifiesForDarkOnesBlessing()` and `darkOnesBlessingTempHp()` in `warlock.ts`. Hook integrated into `damage-resolver.ts` inside the `hpBefore > 0 && hpAfter === 0` branch, applying `withTempHp` with the higher-of-current-vs-new semantics (RAW — temp HP doesn't stack).
+- [x] **Agonizing Blast invocation (L2+)**: Adds CHA modifier to every Eldritch Blast beam. New `eldritchInvocations?: string[]` field on `CharacterSheet` (hydration-types.ts). Pure domain helper `agonizingBlastBeamBonus()` in `warlock.ts` takes (invocations, chaMod) → returns CHA mod when `Agonizing Blast` is present (case-insensitive), else 0. Wired into `SpellAttackDeliveryHandler`: computes `perBeamModifier = baseModifier + agonizingBlastBeamBonus(...)` before building `spellWeaponSpec.damage.modifier` and the `damageFormula` — both the attack prompt ("Roll 1d10+3") and per-beam damage reflect the bonus. Clamps negative CHA modifiers to 0.
+- [x] **Stale hex-and-blast revival**: This item was obsolete — the scenario was renamed to `warlock/hex-eldritch-blast.json` in an earlier phase and already passes 18/18.
+- [x] Unit coverage: 13 new cases in `warlock.test.ts` covering invocation detection, beam bonus computation, Dark One's Blessing sheet qualification (single-class + classLevels + Fiend/fiend/the-fiend variants), L3 gate, non-warlock rejection, and temp HP min-1 clamp. 27/27 warlock tests pass.
+- [x] E2E: new `warlock/fiend-dark-ones-blessing.json` (9/9) — L3 Fiend Warlock with Agonizing Blast casts EB at a 5-HP goblin, attack prompt shows `Roll 1d10+3` proving the invocation wired, kill triggers Dark One's Blessing for 6 temp HP.
 
 #### 3.8 Ranger Colossus Slayer — COMPLETE (commit pending)
 - [x] Implement Colossus Slayer bonus 1d8 once/turn vs wounded. **Feature was already implemented in `damage-resolver.ts` L296-L319; bug was missing per-turn reset of `colossusSlayerUsedThisTurn` flag so it fired once per combat.**
@@ -306,7 +308,8 @@ Each spell gets catalog entry + unit test + one scenario assertion.
 - [ ] Scenario update: `wizard/spell-slot-economy.json` (arcane recovery)
 - [ ] Scenario update: `cleric/party-healer.json` (Disciple of Life bonus)
 - [x] E2E: `paladin/smite-spell-kit.json` (48/48)
-- [ ] E2E: `warlock/hex-and-blast.json` (revive, fully passing)
+- [x] E2E: `warlock/fiend-dark-ones-blessing.json` (9/9, new)
+- [x] E2E: `warlock/hex-eldritch-blast.json` (18/18 — renamed from `hex-and-blast`, landed in earlier phase)
 - [ ] Scenario update: `sorcerer/metamagic-burst.json` (all 8 metamagic options)
 
 ### Phase 4 tests (catalog)

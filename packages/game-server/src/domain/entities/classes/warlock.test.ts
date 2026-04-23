@@ -108,3 +108,115 @@ __d_wl("Warlock with The Fiend subclass", () => {
     __e_wl(__chf_wl("warlock", DARK_ONES_BLESSING, 3)).toBe(false);
   });
 });
+
+import {
+  AGONIZING_BLAST_INVOCATION,
+  agonizingBlastBeamBonus,
+  darkOnesBlessingTempHp,
+  hasAgonizingBlast,
+  qualifiesForDarkOnesBlessing,
+} from "./warlock.js";
+
+describe("Agonizing Blast invocation", () => {
+  it("exports canonical name constant", () => {
+    expect(AGONIZING_BLAST_INVOCATION).toBe("Agonizing Blast");
+  });
+
+  it("detects invocation case-insensitively", () => {
+    expect(hasAgonizingBlast(["Agonizing Blast"])).toBe(true);
+    expect(hasAgonizingBlast(["agonizing blast"])).toBe(true);
+    expect(hasAgonizingBlast(["AGONIZING BLAST", "Devil's Sight"])).toBe(true);
+  });
+
+  it("returns false when invocation absent", () => {
+    expect(hasAgonizingBlast(undefined)).toBe(false);
+    expect(hasAgonizingBlast([])).toBe(false);
+    expect(hasAgonizingBlast(["Devil's Sight", "Repelling Blast"])).toBe(false);
+  });
+
+  it("returns CHA mod when invocation present, else 0", () => {
+    expect(agonizingBlastBeamBonus(["Agonizing Blast"], 4)).toBe(4);
+    expect(agonizingBlastBeamBonus(["Agonizing Blast"], 0)).toBe(0);
+    expect(agonizingBlastBeamBonus(undefined, 4)).toBe(0);
+    expect(agonizingBlastBeamBonus([], 4)).toBe(0);
+    expect(agonizingBlastBeamBonus(["Devil's Sight"], 4)).toBe(0);
+  });
+
+  it("clamps negative CHA modifier to 0", () => {
+    expect(agonizingBlastBeamBonus(["Agonizing Blast"], -1)).toBe(0);
+  });
+});
+
+describe("Dark One's Blessing (Fiend Warlock)", () => {
+  it("computes CHA mod + warlock level (min 1)", () => {
+    expect(darkOnesBlessingTempHp(3, 5)).toBe(8);
+    expect(darkOnesBlessingTempHp(0, 3)).toBe(3);
+    expect(darkOnesBlessingTempHp(-5, 3)).toBe(1); // clamp min 1
+    expect(darkOnesBlessingTempHp(4, 20)).toBe(24);
+  });
+
+  it("qualifies Fiend Warlock L3+ via single-class sheet", () => {
+    const sheet = {
+      className: "warlock",
+      level: 3,
+      subclass: "The Fiend",
+      abilityScores: { charisma: 16 },
+    };
+    const result = qualifiesForDarkOnesBlessing(sheet);
+    expect(result).toEqual({ warlockLevel: 3, chaMod: 3 });
+  });
+
+  it("qualifies via classLevels multi-class representation", () => {
+    const sheet = {
+      classLevels: [
+        { classId: "warlock", level: 5, subclass: "the-fiend" },
+        { classId: "sorcerer", level: 1 },
+      ],
+      abilityScores: { charisma: 18 },
+    };
+    const result = qualifiesForDarkOnesBlessing(sheet);
+    expect(result).toEqual({ warlockLevel: 5, chaMod: 4 });
+  });
+
+  it("rejects warlocks below level 3", () => {
+    const sheet = {
+      className: "warlock",
+      level: 2,
+      subclass: "The Fiend",
+      abilityScores: { charisma: 16 },
+    };
+    expect(qualifiesForDarkOnesBlessing(sheet)).toBeNull();
+  });
+
+  it("rejects warlocks of other subclasses", () => {
+    const sheet = {
+      className: "warlock",
+      level: 5,
+      subclass: "The Great Old One",
+      abilityScores: { charisma: 16 },
+    };
+    expect(qualifiesForDarkOnesBlessing(sheet)).toBeNull();
+  });
+
+  it("rejects non-warlock classes", () => {
+    const sheet = {
+      className: "sorcerer",
+      level: 5,
+      subclass: "The Fiend",
+      abilityScores: { charisma: 16 },
+    };
+    expect(qualifiesForDarkOnesBlessing(sheet)).toBeNull();
+  });
+
+  it("returns null for null/undefined sheet", () => {
+    expect(qualifiesForDarkOnesBlessing(null)).toBeNull();
+    expect(qualifiesForDarkOnesBlessing(undefined)).toBeNull();
+  });
+
+  it("accepts 'Fiend' and 'fiend' variants of subclass", () => {
+    const base = { className: "warlock", level: 3, abilityScores: { charisma: 14 } };
+    expect(qualifiesForDarkOnesBlessing({ ...base, subclass: "Fiend" })).not.toBeNull();
+    expect(qualifiesForDarkOnesBlessing({ ...base, subclass: "fiend" })).not.toBeNull();
+    expect(qualifiesForDarkOnesBlessing({ ...base, subclass: "the-fiend" })).not.toBeNull();
+  });
+});
