@@ -112,12 +112,17 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
     }
   }
 
-  // 2. Merge any existing sheet-level resource pools that aren't already present
-  //    (e.g. custom homebrew pools set on the character sheet)
+  // 2. Merge sheet-level resource pools.
+  //    The sheet carries PERSISTED state (e.g. post-rest spend/refund), so it overrides
+  //    the class defaults for `current`/`max` when names collide. Pools on the sheet that
+  //    aren't produced by class defaults (e.g. custom homebrew pools) are appended.
   if (Array.isArray(sheet?.resourcePools)) {
     for (const pool of sheet.resourcePools) {
-      if (!resourcePools.some((p) => p.name === pool.name)) {
+      const idx = resourcePools.findIndex((p) => p.name === pool.name);
+      if (idx === -1) {
         resourcePools.push({ name: pool.name, current: pool.current, max: pool.max });
+      } else {
+        resourcePools[idx] = { name: pool.name, current: pool.current, max: pool.max };
       }
     }
   }

@@ -11,6 +11,7 @@ import type { DiceRoller } from "../../../domain/rules/dice-roller.js";
 import type { ResourcePool } from "../../../domain/entities/combat/resource-pool.js";
 import { isCharacterClassId, type CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
 import { getClassDefinition } from "../../../domain/entities/classes/registry.js";
+import { validateArcaneRecovery } from "../../../domain/entities/classes/wizard.js";
 import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalog.js";
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
 import { enrichSheetClassFeatures } from "../../../domain/entities/classes/class-feature-enrichment.js";
@@ -194,10 +195,11 @@ export class CharacterService {
     restType: RestType,
     hitDiceSpending?: Record<string, number>,
     restStartedAt?: Date,
+    arcaneRecovery?: Record<string, Record<number, number>>,
   ): Promise<{
     interrupted?: boolean;
     interruptedBy?: RestInterruptionReason;
-    characters: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }>;
+    characters: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number; arcaneRecoverySlots?: Record<number, number> }>;
   }> {
     const session = await this.sessions.getById(sessionId);
     if (!session) throw new NotFoundError(`Session not found: ${sessionId}`);
@@ -212,7 +214,7 @@ export class CharacterService {
     }
 
     const characters = await this.characters.listBySession(sessionId);
-    const results: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number }> = [];
+    const results: Array<{ id: string; name: string; poolsRefreshed: string[]; hitDiceSpent?: number; hpRecovered?: number; arcaneRecoverySlots?: Record<number, number> }> = [];
 
     // Collect all sheet updates, then flush in parallel for crash safety.
     // When called inside PrismaUnitOfWork.run(), these all execute within the same
@@ -298,8 +300,55 @@ export class CharacterService {
         updatedSheet.hitDiceRemaining = recoverHitDice(currentHitDiceRemaining, totalHitDice);
       }
 
+      // Arcane Recovery (Wizard L1, short rest only, once per long rest).
+      // Apply AFTER pool refresh so spellSlot_* current values reflect pre-refund state.
+      let arcaneRecoverySlots: Record<number, number> | undefined;
+      if (restType === "short" && arcaneRecovery && arcaneRecovery[char.name]) {
+        if (className.toLowerCase() !== "wizard") {
+          throw new ValidationError(`Arcane Recovery: character "${char.name}" is not a Wizard`);
+        }
+        const validation = validateArcaneRecovery(level, arcaneRecovery[char.name]);
+        if (!validation.ok) {
+          throw new ValidationError(validation.error);
+        }
+        // Find arcaneRecovery pool on the (refreshed) pools list; short rest does not refresh it.
+        const arcanePoolIdx = refreshedPools.findIndex(p => p.name === "arcaneRecovery");
+        if (arcanePoolIdx === -1) {
+          throw new ValidationError(`Arcane Recovery: pool not found on character "${char.name}"`);
+        }
+        const arcanePool = refreshedPools[arcanePoolIdx];
+        if (arcanePool.current < 1) {
+          throw new ValidationError(`Arcane Recovery: already used since last long rest (character "${char.name}")`);
+        }
+        // Apply: spend 1 from arcaneRecovery pool, increment requested spellSlot_N pools.
+        const refundMap: Record<number, number> = {};
+        const mutatedPools = [...refreshedPools];
+        mutatedPools[arcanePoolIdx] = { ...arcanePool, current: arcanePool.current - 1 };
+        if (!poolsRefreshed.includes("arcaneRecovery")) poolsRefreshed.push("arcaneRecovery");
+        for (const [slotLevelStr, count] of Object.entries(arcaneRecovery[char.name])) {
+          const slotLevel = Number(slotLevelStr);
+          const countNum = Number(count);
+          if (countNum <= 0) continue;
+          const slotName = `spellSlot_${slotLevel}`;
+          const slotIdx = mutatedPools.findIndex(p => p.name === slotName);
+          if (slotIdx === -1) {
+            throw new ValidationError(`Arcane Recovery: character "${char.name}" has no ${slotName}`);
+          }
+          const slot = mutatedPools[slotIdx];
+          const newCurrent = slot.current + countNum;
+          if (newCurrent > slot.max) {
+            throw new ValidationError(`Arcane Recovery: ${slotName} would exceed max (${slot.current} + ${countNum} > ${slot.max})`);
+          }
+          mutatedPools[slotIdx] = { ...slot, current: newCurrent };
+          refundMap[slotLevel] = countNum;
+          if (!poolsRefreshed.includes(slotName)) poolsRefreshed.push(slotName);
+        }
+        updatedSheet.resourcePools = mutatedPools;
+        arcaneRecoverySlots = refundMap;
+      }
+
       pendingUpdates.push({ charId: char.id, sheet: updatedSheet as JsonValue });
-      results.push({ id: char.id, name: char.name, poolsRefreshed, hitDiceSpent, hpRecovered });
+      results.push({ id: char.id, name: char.name, poolsRefreshed, hitDiceSpent, hpRecovered, arcaneRecoverySlots });
     }
 
     // Flush all character sheet updates in parallel (fail-fast on any error)

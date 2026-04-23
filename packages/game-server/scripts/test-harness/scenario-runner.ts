@@ -463,6 +463,11 @@ interface RestAction {
      * The runner translates names to IDs before calling the API.
      */
     hitDiceSpending?: Record<string, number>;
+    /**
+     * Short rest only: Wizard Arcane Recovery — map of character name → {slotLevel → count}.
+     * Pass-through to /sessions/:id/rest body. Server validates cap + L6+ rule.
+     */
+    arcaneRecovery?: Record<string, Record<number, number>>;
   };
   comment?: string;
   expect?: {
@@ -1883,6 +1888,8 @@ export async function runScenario(
 
           const restPayload: Record<string, unknown> = { type: restAction.input.restType };
           if (hitDiceSpending) restPayload.hitDiceSpending = hitDiceSpending;
+          // Arcane Recovery: pass-through by character NAME (server looks up by name in takeSessionRest).
+          if (restAction.input.arcaneRecovery) restPayload.arcaneRecovery = restAction.input.arcaneRecovery;
 
           logRequest("POST", `${baseUrl}/sessions/${sessionId}/rest`, restPayload);
           const res = await httpPost(`${baseUrl}/sessions/${sessionId}/rest`, restPayload);

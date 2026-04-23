@@ -53,6 +53,52 @@ export function resetArcaneRecoveryOnLongRest(
   return { pool: { name: state.pool.name, current: max, max } };
 }
 
+/**
+ * Arcane Recovery refund validator + applier (D&D 5e 2024 PHB L1 Wizard).
+ *
+ * Pure function — validates a proposed slot-recovery map against the RAW
+ * constraints and returns either a validated refund map or an error code.
+ *
+ * RAW:
+ *  - Combined slot levels recovered ≤ ceil(wizardLevel / 2).
+ *  - None of the slots recovered can be 6th level or higher.
+ *  - Once per long rest (caller enforces via the arcaneRecovery pool).
+ *  - Caller must ensure each spellSlot_N has room (current + count ≤ max).
+ *
+ * The refund map is keyed by slot level (1..5 in 2024 at wizard L1–L10, up to 5 at L5).
+ */
+export function validateArcaneRecovery(
+  level: number,
+  slotsToRecover: Record<number, number>,
+): { ok: true; totalLevels: number } | { ok: false; error: string } {
+  if (!Number.isInteger(level) || level < 1 || level > 20) {
+    return { ok: false, error: `Invalid wizard level: ${level}` };
+  }
+  const cap = arcaneRecoveryMaxRecoveredSlotLevels(level);
+  let totalLevels = 0;
+  for (const [rawLevelStr, rawCount] of Object.entries(slotsToRecover)) {
+    const slotLevel = Number(rawLevelStr);
+    const count = Number(rawCount);
+    if (!Number.isInteger(slotLevel) || slotLevel < 1 || slotLevel > 9) {
+      return { ok: false, error: `Invalid slot level: ${rawLevelStr}` };
+    }
+    if (slotLevel >= 6) {
+      return { ok: false, error: `Arcane Recovery cannot recover level-${slotLevel} slots (6th+ forbidden by RAW)` };
+    }
+    if (!Number.isInteger(count) || count < 0) {
+      return { ok: false, error: `Invalid slot count for level ${slotLevel}: ${rawCount}` };
+    }
+    totalLevels += slotLevel * count;
+  }
+  if (totalLevels === 0) {
+    return { ok: false, error: "Arcane Recovery requires at least one slot to be recovered" };
+  }
+  if (totalLevels > cap) {
+    return { ok: false, error: `Arcane Recovery total levels (${totalLevels}) exceeds cap (${cap}) for wizard level ${level}` };
+  }
+  return { ok: true, totalLevels };
+}
+
 // ----- Subclasses -----
 
 /**

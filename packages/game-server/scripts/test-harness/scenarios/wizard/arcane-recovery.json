@@ -1,0 +1,135 @@
+{
+  "name": "Wizard Arcane Recovery (L1 feature, short rest)",
+  "description": "A level 5 Wizard has expended her lone L3 slot (Fireball earlier). She takes a short rest and uses Arcane Recovery to refund 1× L3 slot (= 3 combined levels, matching ceil(5/2) cap). Validates: (1) rest endpoint accepts arcaneRecovery payload, (2) refund map validated server-side, (3) spellSlot_3 current increments from 1→2, (4) arcaneRecovery pool depletes from 1→0 (once per long rest), (5) initiating combat after the rest reflects the refunded slot in the combatant's resources.",
+  "setup": {
+    "character": {
+      "name": "Magnus Bookwyrm",
+      "className": "Wizard",
+      "subclass": "Evocation",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 38, "currentHp": 38,
+        "armorClass": 13, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "resourcePools": [
+          { "name": "spellSlot_1", "current": 4, "max": 4 },
+          { "name": "spellSlot_2", "current": 3, "max": 3 },
+          { "name": "spellSlot_3", "current": 1, "max": 2 },
+          { "name": "arcaneRecovery", "current": 1, "max": 1 }
+        ],
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Fireball", "level": 3 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 3,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Arcane Recovery", "description": "Once per long rest, on a short rest, recover slots totaling up to ceil(level/2)" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 40, "hp": 40,
+          "armorClass": 10, "speed": 0,
+          "challengeRating": 0.125,
+          "experienceValue": 25,
+          "actions": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "rest",
+      "comment": "Short rest + Arcane Recovery: refund 1× L3 slot (3 combined levels, matches L5 cap). Expect both arcaneRecovery (spent) and spellSlot_3 (refunded) to appear in poolsRefreshed.",
+      "input": {
+        "restType": "short",
+        "arcaneRecovery": { "Magnus Bookwyrm": { "3": 1 } }
+      },
+      "expect": {
+        "poolsRefreshed": ["arcaneRecovery", "spellSlot_3"]
+      }
+    },
+    {
+      "type": "initiate",
+      "actor": "Magnus Bookwyrm",
+      "input": { "text": "I test my restored arcane reserves." },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Magnus Bookwyrm",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Magnus Bookwyrm",
+      "timeout": 10000
+    },
+    {
+      "comment": "Post-rest: L3 slot fully restored (2/2) via Arcane Recovery.",
+      "type": "assertState",
+      "actor": "Magnus Bookwyrm",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 }
+      }
+    },
+    {
+      "comment": "Post-rest: arcaneRecovery pool spent (0/1) until next long rest.",
+      "type": "assertState",
+      "actor": "Magnus Bookwyrm",
+      "expect": {
+        "characterResource": { "poolName": "arcaneRecovery", "current": 0, "max": 1 }
+      }
+    },
+    {
+      "comment": "Other slots untouched (short rest does NOT refresh wizard spell slots; only the Arcane Recovery refund applies).",
+      "type": "assertState",
+      "actor": "Magnus Bookwyrm",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 4, "max": 4 }
+      }
+    },
+    {
+      "comment": "Cast Fireball to verify the refunded L3 slot is actually usable.",
+      "type": "action",
+      "actor": "Magnus Bookwyrm",
+      "input": { "text": "cast Fireball at Training Dummy" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "L3 slot consumed: 2 → 1 (not 0, proving refund landed — would have been 0 → error without Arcane Recovery).",
+      "type": "assertState",
+      "actor": "Magnus Bookwyrm",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 }
+      }
+    }
+  ]
+}

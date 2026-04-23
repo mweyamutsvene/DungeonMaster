@@ -182,9 +182,12 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [ ] Implement summoned-entity lite: on cast, install a "bonus-action spell attack" rider on caster; each subsequent turn, `bonus: spiritual weapon attack` consumes the bonus action and rolls a spell attack.
 - [ ] New scenario `cleric/spiritual-weapon-loop.json` — solo vs Ogre + Thug, 4 rounds exercising attack each round.
 
-#### 3.4 Arcane Recovery spend path (GAP-15)
-- [ ] Implement short-rest action `wizard arcane recovery` that refunds slot levels up to `ceil(level/2)` using `arcaneRecovery` pool.
-- [ ] Extend `wizard/spell-slot-economy.json` to include mid-fight short rest + arcane recovery, then more casting.
+#### 3.4 Arcane Recovery spend path (GAP-15) — COMPLETE
+- [x] Implement short-rest action `wizard arcane recovery` that refunds slot levels up to `ceil(level/2)` using `arcaneRecovery` pool. Implemented as a `POST /sessions/:id/rest` body option `arcaneRecovery: { [charName]: { [slotLevel]: count } }` rather than an in-combat executor — Arcane Recovery is a post-short-rest bookkeeping choice, not an action. Validation lives in `domain/entities/classes/wizard.ts` (`validateArcaneRecovery`): enforces combined-levels ≤ `ceil(level/2)`, no 6+-level slots, positive integer counts, non-empty map. Service logic in `CharacterService.takeSessionRest()` spends 1 from the `arcaneRecovery` pool (validates current ≥ 1 → "already used since last long rest"), increments the requested `spellSlot_N` pools (capped at max), and persists via `updatedSheet.resourcePools`.
+- [x] Scenario-runner wiring: `RestAction.input.arcaneRecovery` pass-through to the `/rest` payload.
+- [x] New scenario `wizard/arcane-recovery.json` (11/11) — L5 Evocation Wizard with pre-drained spellSlot_3 (1/2) and full arcaneRecovery pool (1/1); short rest refunds 1× L3 slot; asserts `poolsRefreshed: ["arcaneRecovery", "spellSlot_3"]`, post-combat-init resource values `spellSlot_3: 2/2` and `arcaneRecovery: 0/1`, and then casts Fireball to prove the refunded slot is usable. (Chose a standalone scenario over extending `wizard/spell-slot-economy.json` — Arcane Recovery is a rest-time choice and doesn't belong mid-combat.)
+- [x] Unit tests: `wizard.arcane-recovery.test.ts` (9/9) — level-cap math + validator (happy paths, over-cap, L6+ gate, empty, negative counts, invalid levels).
+- [x] **Cross-cutting bug fix**: `combat-resource-builder.ts` was SKIPPING sheet-provided pools when a class-default pool of the same name existed — meaning any persisted pool state (arcane recovery spent, spell slots consumed after a mid-session rest, etc.) was silently reset to max when combat initiated. Fixed: sheet pools now OVERRIDE class defaults on name collision (sheet is the source of truth for current/max). All 256 E2E scenarios still pass, confirming no scenarios relied on the broken "class default wins" behavior.
 
 #### 3.6 Paladin smite spell kit (depends on Phase 0.3 rider extension) — COMPLETE
 - [x] Searing, Thunderous, Wrathful, Branding, Divine Favor smite spells wired via `on_next_weapon_hit` rider (Phase 0.3 mechanism). Catalog entries in `level-1.ts` / `level-2.ts`.

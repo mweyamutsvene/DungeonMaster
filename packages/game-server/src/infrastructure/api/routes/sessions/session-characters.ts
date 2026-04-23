@@ -154,10 +154,10 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
    */
   app.post<{
     Params: { id: string };
-    Body: { type: "short" | "long"; hitDiceSpending?: Record<string, number>; restStartedAt?: string };
+    Body: { type: "short" | "long"; hitDiceSpending?: Record<string, number>; restStartedAt?: string; arcaneRecovery?: Record<string, Record<number, number>> };
   }>("/sessions/:id/rest", async (req) => {
     const sessionId = req.params.id;
-    const { type: restType, hitDiceSpending, restStartedAt } = req.body;
+    const { type: restType, hitDiceSpending, restStartedAt, arcaneRecovery } = req.body;
 
     if (!restType || (restType !== "short" && restType !== "long")) {
       throw new ValidationError("Rest type must be 'short' or 'long'");
@@ -170,10 +170,10 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
     if (deps.unitOfWork) {
       result = await deps.unitOfWork.run(async (repos) => {
         const services = deps.createServicesForRepos(repos);
-        return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
+        return services.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt, arcaneRecovery);
       });
     } else {
-      result = await deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt);
+      result = await deps.characters.takeSessionRest(sessionId, restType, hitDiceSpending, startedAt, arcaneRecovery);
     }
 
     // Clear concentration on all combatants in any active encounter (D&D 5e: rest ends concentration)
