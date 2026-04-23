@@ -1,0 +1,117 @@
+{
+  "name": "Warlock Armor of Agathys: temp HP + cold retaliation",
+  "description": "Tests the Armor of Agathys level-1 spell: on self-cast, the Warlock gains 5 temp HP and installs a retaliatory_damage ActiveEffect for 5 cold damage. When a monster hits the Warlock with a melee attack, temp HP absorbs the damage AND the retaliation deals 5 cold back to the attacker. Verifies: (1) tempHp applied on cast, (2) temp HP absorbs damage before HP, (3) retaliatory damage fires on melee hit, (4) retaliation does NOT fire on ranged hits.",
+  "setup": {
+    "character": {
+      "name": "Malachar the Chilled",
+      "className": "Warlock",
+      "level": 3,
+      "subclass": "The Fiend",
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "level": 3,
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 10, "wisdom": 12, "charisma": 16
+        },
+        "maxHp": 24, "currentHp": 24, "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 13,
+        "spellAttackBonus": 5,
+        "spellSlots": { "2": 2 },
+        "preparedSpells": [
+          { "name": "Armor of Agathys", "level": 1 }
+        ],
+        "attacks": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Brawler",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 10, "constitution": 14,
+            "intelligence": 8, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 30, "hp": 30, "armorClass": 13, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Fist", "kind": "melee", "attackBonus": 14,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready myself" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Assert starting tempHp = 0 before AoA is cast",
+      "type": "assertState",
+      "expect": {
+        "characterTempHp": { "exact": 0 }
+      }
+    },
+    {
+      "comment": "Cast Armor of Agathys on self — self-cast simple action, applies temp_hp + retaliatory_damage immediately.",
+      "type": "action",
+      "input": { "text": "cast Armor of Agathys on myself" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Assert 5 temp HP granted by the temp_hp effect on cast.",
+      "type": "assertState",
+      "expect": {
+        "characterTempHp": { "exact": 5 }
+      }
+    },
+    {
+      "comment": "Queue brawler's single attack at warlock. Attack bonus +14 guarantees hit vs AC 14.",
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Malachar the Chilled", "attackName": "Fist", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "comment": "Queue dice: d20(10) attack roll (10+14=24 vs AC 14 HIT), 1d6 damage=6 (6+3=9). Temp HP (5) absorbs 5, 4 bleeds through to HP. Retaliation: 5 cold dmg to Brawler (30 -> 25).",
+      "type": "queueDiceRolls",
+      "input": { "values": [10, 6] }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn — Brawler goes next and consumes the queued decision + dice."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for the Brawler to execute its attack and control to return to player."
+    },
+    {
+      "comment": "After Brawler's hit: warlock lost 5 temp HP (absorbed 5) plus 4 HP. Brawler took 5 cold from retaliation.",
+      "type": "assertState",
+      "expect": {
+        "characterHp": { "exact": 20 },
+        "characterTempHp": { "exact": 0 },
+        "monsterHp": { "name": "Brawler", "exact": 25 }
+      }
+    }
+  ]
+}

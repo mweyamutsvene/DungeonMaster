@@ -255,6 +255,14 @@ export class BuffDebuffSpellDeliveryHandler implements SpellDeliveryHandler {
               resourcesWithOnCast = { ...resourcesWithOnCast, tempHp: resolvedValue };
             }
           }
+          // Flat `temp_hp` effect (Armor of Agathys, Wild Shape, False Life): apply the
+          // temp HP immediately on cast. Temp HP does NOT stack — take max of current vs new.
+          if (effDef.type === 'temp_hp' && typeof resolvedValue === 'number' && resolvedValue > 0) {
+            const currentTempHp = typeof resourcesWithOnCast.tempHp === 'number' ? resourcesWithOnCast.tempHp : 0;
+            if (resolvedValue > currentTempHp) {
+              resourcesWithOnCast = { ...resourcesWithOnCast, tempHp: resolvedValue };
+            }
+          }
 
           await deps.combatRepo.updateCombatantState(recipientC.id, {
             resources: resourcesWithOnCast as JsonValue,

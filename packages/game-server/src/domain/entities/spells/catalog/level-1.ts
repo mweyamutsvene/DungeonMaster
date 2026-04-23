@@ -41,6 +41,38 @@ export const ABSORB_ELEMENTS = {
   description: 'Grants resistance to triggering elemental damage type until start of your next turn and adds 1d6 of that type to your next melee attack. +1d6 per slot level above 1st.',
 } as const satisfies CanonicalSpell;
 
+export const ARMOR_OF_AGATHYS = {
+  name: 'Armor of Agathys',
+  level: 1,
+  // Self-cast — no concentration; lasts 1 hour via ActiveEffect rounds.
+  effects: [
+    {
+      type: 'temp_hp' as const,
+      target: 'hit_points' as const,
+      value: 5, // Base: 5 temp HP at slot level 1. +5 per upcast level is a Phase 4 follow-up.
+      duration: 'rounds' as const,
+      roundsRemaining: 600, // 1 hour at 6s rounds
+      appliesTo: 'self' as const,
+    },
+    {
+      type: 'retaliatory_damage' as const,
+      target: 'custom' as const,
+      value: 5, // Base: 5 cold damage to any creature that hits caster with melee.
+      damageType: 'cold',
+      duration: 'rounds' as const,
+      roundsRemaining: 600,
+      appliesTo: 'self' as const,
+    },
+  ],
+  school: 'abjuration',
+  castingTime: 'action',
+  range: 'self',
+  components: { v: true, s: true, m: 'a cup of water' },
+  classLists: ['Warlock'],
+  description:
+    'A protective spectral frost sheathes you. Gain 5 temporary hit points for 1 hour. While you have these temp HP, any creature that hits you with a melee attack takes 5 cold damage.',
+} as const satisfies CanonicalSpell;
+
 export const BANE = {
   name: 'Bane',
   level: 1,
@@ -777,6 +809,7 @@ export const WITCH_BOLT = {
 
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
+  ARMOR_OF_AGATHYS,
   BANE,
   BLESS,
   BURNING_HANDS,
