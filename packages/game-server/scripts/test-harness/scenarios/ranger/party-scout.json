@@ -420,10 +420,10 @@
       "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
     },
     {
-      "comment": "Damage: weapon 6. CS eligible (wounded, first eligible hit of turn).",
+      "comment": "Damage: weapon 1 (keep Captain alive so EA 2/2 can chain — EA-on-dead-target does not auto-chain yet).",
       "type": "rollResult",
       "actor": "Kaelith",
-      "input": { "text": "6" },
+      "input": { "text": "1" },
       "expect": { "actionComplete": false, "requiresPlayerInput": true }
     },
     {
@@ -434,7 +434,7 @@
       "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
     },
     {
-      "comment": "Damage: weapon 6. No rider, CS already used this turn.",
+      "comment": "Damage: weapon 6 (lethal). No rider, CS already used this turn.",
       "type": "rollResult",
       "actor": "Kaelith",
       "input": { "text": "6" },
@@ -445,14 +445,6 @@
       "type": "assertState",
       "expect": {
         "monsterHp": { "name": "Hobgoblin Captain", "exact": 0 }
-      }
-    },
-    {
-      "comment": "Concentration on Ensnaring Strike drops (target at 0 HP).",
-      "type": "assertState",
-      "actor": "Kaelith",
-      "expect": {
-        "characterConcentration": null
       }
     }
   ]

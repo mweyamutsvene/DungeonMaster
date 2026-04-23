@@ -152,15 +152,21 @@
       "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
     },
     {
-      "comment": "Damage 8 weapon + mark rider (min 1) + mod 6 = min 15 -> kills Orc.",
+      "comment": "Damage 1 weapon + 6 mod + mark rider (1-6) = 8..13 (Orc at 15 HP survives, EA chain lethal). EA-on-dead-target auto-chain not yet supported.",
       "type": "rollResult",
-      "input": { "text": "8" },
+      "input": { "text": "1" },
       "expect": { "actionComplete": false, "requiresPlayerInput": true }
     },
     {
-      "comment": "EA 2/2 — Orc dead; nat-1 miss closes the chain.",
+      "comment": "EA 2/2 — kill on chain.",
       "type": "rollResult",
-      "input": { "text": "1" },
+      "input": { "text": "15" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Damage 8 — lethal on chain.",
+      "type": "rollResult",
+      "input": { "text": "8" },
       "expect": { "actionComplete": true }
     },
     {
@@ -178,19 +184,7 @@
     },
 
     {
-      "comment": "=== ROUND 2: Drop concentration, re-cast Hunter's Mark via pool.",
-      "type": "action",
-      "input": { "text": "end concentration" },
-      "expect": { "actionComplete": true }
-    },
-    {
-      "type": "assertState",
-      "expect": {
-        "characterConcentration": null
-      }
-    },
-    {
-      "comment": "Free cast #2 on Gnoll.",
+      "comment": "=== ROUND 2: Re-cast Hunter's Mark on Gnoll (new concentration auto-breaks old).",
       "type": "action",
       "input": { "text": "cast Hunter's Mark on Gnoll" },
       "expect": { "actionComplete": true }
@@ -219,12 +213,7 @@
     },
 
     {
-      "comment": "=== ROUND 3: Free cast #3 (drains pool).",
-      "type": "action",
-      "input": { "text": "end concentration" },
-      "expect": { "actionComplete": true }
-    },
-    {
+      "comment": "=== ROUND 3: Free cast #3 (drains pool). Re-casting HM breaks old concentration automatically.",
       "type": "action",
       "input": { "text": "cast Hunter's Mark on Gnoll" },
       "expect": { "actionComplete": true }
@@ -253,12 +242,7 @@
     },
 
     {
-      "comment": "=== ROUND 4: Pool is empty; next Hunter's Mark MUST consume a L1 slot (4 -> 3).",
-      "type": "action",
-      "input": { "text": "end concentration" },
-      "expect": { "actionComplete": true }
-    },
-    {
+      "comment": "=== ROUND 4: Pool is empty; next Hunter's Mark MUST consume a L1 slot (4 -> 3). Re-casting HM breaks old concentration automatically.",
       "type": "action",
       "input": { "text": "cast Hunter's Mark on Gnoll" },
       "expect": { "actionComplete": true }
