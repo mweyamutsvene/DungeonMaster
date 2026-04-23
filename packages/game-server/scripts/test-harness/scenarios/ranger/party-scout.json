@@ -265,9 +265,9 @@
       "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
     },
     {
-      "comment": "Pre-queue the Captain's STR save as natural 5 (fail vs DC 14).",
+      "comment": "Pre-queue [rider 1d6 = 5, Captain STR save = 3 (fail vs DC 14)]. Rider damage dice rolled first, then target save.",
       "type": "queueDiceRolls",
-      "input": { "values": [5] }
+      "input": { "values": [5, 3] }
     },
     {
       "comment": "Damage: weapon 1d8 = 5. Rider fires after damage (server-side STR save).",

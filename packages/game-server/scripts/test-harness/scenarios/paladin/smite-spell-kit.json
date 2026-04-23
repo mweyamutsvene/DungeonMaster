@@ -1,0 +1,340 @@
+{
+  "name": "Paladin Smite Spell Kit — Searing / Thunderous / Wrathful / Branding / Divine Favor",
+  "description": "A level 5 Oath of Devotion Paladin exercises all five smite-family spells across 5 rounds against two training dummies. Tests (1) `on_next_weapon_hit` rider wiring for Searing/Thunderous/Wrathful/Branding Smite — rider fires on first hit, is consumed, target rolls the rider's save, failure adds the rider's condition; (2) concentration swap between successive concentration smites; (3) Divine Favor as a non-concentration `damage_rolls` bonus that persists across attacks (2024 RAW); (4) spell slot economy (4×L1 + 2×L2). Dice are deterministically scripted via queueDiceRolls: rider bonus dice come first, then target's save d20, then (for Divine Favor) per-attack 1d4 radiant dice.",
+  "setup": {
+    "character": {
+      "name": "Sir Roland",
+      "className": "Paladin",
+      "subclass": "Devotion",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16, "dexterity": 10, "constitution": 14,
+          "intelligence": 8, "wisdom": 12, "charisma": 16
+        },
+        "maxHp": 44, "currentHp": 44, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "charisma",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Searing Smite", "level": 1 },
+          { "name": "Thunderous Smite", "level": 1 },
+          { "name": "Wrathful Smite", "level": 1 },
+          { "name": "Divine Favor", "level": 1 },
+          { "name": "Branding Smite", "level": 2 }
+        ],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+          { "name": "Spellcasting", "description": "Paladin half-caster, L5 → L2 slots" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "comment": "Beefy training dummy — tanks 5 rounds of paladin abuse (weapon 8/hit × ~10 attacks + riders).",
+        "name": "Target Dummy Alpha",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 300, "hp": 300, "armorClass": 10, "speed": 0,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": []
+        }
+      },
+      {
+        "comment": "Secondary dummy — just there to keep encounter non-trivial and verify rider targets the struck creature.",
+        "name": "Target Dummy Beta",
+        "position": { "x": 10, "y": 11 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 0,
+          "challengeRating": 0.5, "experienceValue": 100,
+          "attacks": []
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "Start combat — paladin takes a battle stance.",
+      "type": "initiate",
+      "input": { "text": "I ready my sword against the dummies" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Paladin rolls 20 → acts first each round.",
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== ROUND 1: Searing Smite (concentration, +1d6 fire + CON save → Ignited) ===",
+      "type": "action",
+      "input": { "text": "cast Searing Smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Searing Smite is concentration + L1 slot consumed.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Searing Smite",
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue R1 rider dice: 1d6 fire = 5, CON save (DC 14) = natural 5 → fail (5 + 0 CON mod < 14) → Ignited.",
+      "type": "queueDiceRolls",
+      "input": { "values": [5, 5] }
+    },
+    {
+      "comment": "R1 attack Alpha with Longsword. First hit should consume the Searing Smite rider.",
+      "type": "action",
+      "input": { "text": "attack Target Dummy Alpha with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack: 14 + 6 = 20 vs AC 10 → hit. No eligibleEnhancements asserted (rider is implicit, not opt-in).",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Weapon damage: 5 + 3 = 8 slashing. Server rolls 1d6 fire rider (5) + resolves CON save (5 → fail, Ignited applied). Runner auto-completes EA chain with natural-1 miss.",
+      "type": "rollResult",
+      "input": { "text": "5" }
+    },
+    {
+      "comment": "Alpha should now be Ignited (failed Searing Smite CON save).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Target Dummy Alpha",
+          "hasConditions": ["Ignited"]
+        }
+      }
+    },
+    {
+      "comment": "End R1. Expected dmg: weapon 8 + rider 5 fire = 13. Plus start-of-turn Searing tick when Alpha acts (0–6 + save-to-end). HP ≥ 281 after player turn, ≥ 275 after dummy ticks.",
+      "type": "endTurn"
+    },
+    {
+      "comment": "Wait for R2 paladin turn — dummies do nothing (no attacks, speed 0).",
+      "type": "waitForTurn",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== ROUND 2: Thunderous Smite (concentration, +2d6 thunder + STR save → Prone) ===",
+      "type": "action",
+      "input": { "text": "cast Thunderous Smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Casting Thunderous Smite drops Searing Smite concentration (both concentration) and consumes another L1 slot.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Thunderous Smite",
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue R2 rider dice: 2d6 thunder = 3 + 3 = 6, STR save = natural 5 → fail (5 + 0 < 14) → Prone.",
+      "type": "queueDiceRolls",
+      "input": { "values": [3, 3, 5] }
+    },
+    {
+      "comment": "R2 attack Alpha — rider fires on first hit.",
+      "type": "action",
+      "input": { "text": "attack Target Dummy Alpha with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Attack: 14 + 6 = 20 → hit.",
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Weapon 5 + 3 = 8 + rider 6 thunder. Server resolves STR save (5 → fail → Prone). EA auto-completes.",
+      "type": "rollResult",
+      "input": { "text": "5" }
+    },
+    {
+      "comment": "Alpha now Prone (failed Thunderous Smite STR save). Ignited should be gone (Searing concentration dropped).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Target Dummy Alpha",
+          "hasConditions": ["Prone"],
+          "doesNotHaveConditions": ["Ignited"]
+        }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 3: Wrathful Smite (concentration, +1d6 psychic + WIS save → Frightened) ===",
+      "type": "action",
+      "input": { "text": "cast Wrathful Smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Wrathful Smite replaces Thunderous Smite concentration. L1 slot consumed again.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Wrathful Smite",
+        "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue R3 rider dice: 1d6 psychic = 5, WIS save = natural 5 → fail → Frightened.",
+      "type": "queueDiceRolls",
+      "input": { "values": [5, 5] }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Target Dummy Alpha with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Weapon 8 + rider 5 psychic. Server resolves WIS save (fail → Frightened).",
+      "type": "rollResult",
+      "input": { "text": "5" }
+    },
+    {
+      "comment": "Alpha should have Frightened (from failed WIS save).",
+      "type": "assertState",
+      "expect": {
+        "monsterConditions": {
+          "name": "Target Dummy Alpha",
+          "hasConditions": ["Frightened"]
+        }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 4: Branding Smite (concentration, +2d6 radiant — NO save) ===",
+      "type": "action",
+      "input": { "text": "cast Branding Smite" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Branding Smite replaces Wrathful Smite concentration. Consumes an L2 slot (not L1).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Branding Smite",
+        "characterResource": { "poolName": "spellSlot_2", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "comment": "L1 slots unaffected by the L2 cast.",
+      "type": "assertState",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 1, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue R4 rider dice: 2d6 radiant = 3 + 3 = 6. Branding Smite has no trigger save.",
+      "type": "queueDiceRolls",
+      "input": { "values": [3, 3] }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Target Dummy Alpha with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "Weapon 8 + rider 6 radiant = 14 on first hit. No save prompted. EA auto-completes.",
+      "type": "rollResult",
+      "input": { "text": "5" }
+    },
+    {
+      "comment": "Concentration remains Branding Smite (rider consumed, but concentration persists until replaced or dropped).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Branding Smite"
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== ROUND 5: Divine Favor (NON-concentration in 2024 RAW, +1d4 radiant on every weapon attack for 1 min) ===",
+      "type": "action",
+      "input": { "text": "cast Divine Favor" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Divine Favor is NOT concentration (2024 RAW) — Branding Smite concentration MUST still be active. L1 slot consumed.",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Branding Smite",
+        "characterResource": { "poolName": "spellSlot_1", "current": 0, "max": 4 }
+      }
+    },
+    {
+      "comment": "Queue R5 damage bonus dice: 2 × 1d4 radiant (one per weapon attack, auto-applied by damage_rolls bonus effect). Values: 2, 2.",
+      "type": "queueDiceRolls",
+      "input": { "values": [2, 2] }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Target Dummy Alpha with Longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "rollType": "damage", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "First attack damage: weapon 5 + 3 = 8 + Divine Favor 1d4 (2) = 10. No on-hit rider (DF is a persistent damage_rolls bonus, not on_next_weapon_hit).",
+      "type": "rollResult",
+      "input": { "text": "5" }
+    },
+    {
+      "comment": "Concentration STILL Branding Smite (Divine Favor didn't replace it). Divine Favor should still be active (rounds-based, not consumed by single hit).",
+      "type": "assertState",
+      "expect": {
+        "characterConcentration": "Branding Smite"
+      }
+    }
+  ]
+}

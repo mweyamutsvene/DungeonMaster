@@ -175,9 +175,10 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [ ] Implement short-rest action `wizard arcane recovery` that refunds slot levels up to `ceil(level/2)` using `arcaneRecovery` pool.
 - [ ] Extend `wizard/spell-slot-economy.json` to include mid-fight short rest + arcane recovery, then more casting.
 
-#### 3.6 Paladin smite spell kit (depends on Phase 0.3 rider extension) — NOT STARTED
-- [ ] Add Searing, Thunderous, Wrathful, Branding, Divine Favor smite spells using `on_next_weapon_hit` rider (Phase 0.3 mechanism).
-- [ ] New scenario `paladin/smite-spell-kit.json`.
+#### 3.6 Paladin smite spell kit (depends on Phase 0.3 rider extension) — COMPLETE
+- [x] Searing, Thunderous, Wrathful, Branding, Divine Favor smite spells wired via `on_next_weapon_hit` rider (Phase 0.3 mechanism). Catalog entries in `level-1.ts` / `level-2.ts`.
+- [x] New scenario `paladin/smite-spell-kit.json` (48/48) — exercises all 5 smites across 5 rounds, asserts rider consumption, target save outcomes (Ignited / Prone / Frightened), concentration swap between successive concentration smites, Divine Favor as non-concentration persistent `damage_rolls` bonus, and L1/L2 spell slot economy (4×L1 + 2×L2).
+- [x] **Bug fix (double-count)**: `damage-resolver.ts` was applying `on_next_weapon_hit` rider bonuses twice — once as synthetic `HitRiderEnhancement.bonusDice` (correct) and a second time through the generic `damage_rolls` ActiveEffect loop (wrong, since the rider is also an ActiveEffect with `damageRolls` shape). Fixed by excluding effects whose `triggerAt === 'on_next_weapon_hit'` from the `damage_rolls` filter. Verified: rider fires exactly once per consumed effect; `damage_rolls` still applies for persistent buffs like Divine Favor.
 
 #### 3.7 Warlock Fiend subclass + Hex rider fix — NOT STARTED
 - [ ] Dark One's Blessing (temp HP on kill).
@@ -189,19 +190,21 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 - [x] Fix: added `colossusSlayerUsedThisTurn` + `elementalAffinityUsedThisTurn` to the `isFreshEconomy` reset block in `combat-hydration.ts` and to `hydration-types.ts` (resource-utils.ts already had them).
 - [x] Coverage by `ranger/hunters-mark-colossus.json` (34/34) + `ranger/party-scout.json` (39/39, updated to queue CS 1d8 die so it can't overkill Captain before EA 2/2 chains).
 
-#### 3.9 Bard Cutting Words + Magical Inspiration — NOT STARTED
-- [ ] Implement Cutting Words reaction (attack/check/damage subtract BI die).
-- [ ] Coverage by `bard/cutting-words-control.json`.
+#### 3.9 Bard Cutting Words + Magical Inspiration — COMPLETE (already wired)
+- [x] Cutting Words reaction fully implemented: `CUTTING_WORDS_REACTION` in `bard.ts` attackReactions, `bardicInspiration` pool with d6/d8/d10/d12 progression, `hasCuttingWords` flag, `cutting_words` ReactionType + payload, Apply logic in `attack-reaction-handler.ts`. Ordering Protection → Shield → Cutting Words → hit-check → damage → Deflect → Interception → Uncanny Dodge.
+- [x] Coverage by `bard/cutting-words-control.json` — 17/17 passing. Scenario's "EXPECTED FAILURE" comment is stale; implementation already landed in an earlier phase.
 
 #### 3.10 Sorcerer Metamagic breadth — NOT STARTED
 - [ ] Implement Careful/Distant/Empowered/Extended/Heightened/Subtle.
 - [ ] Extend `sorcerer/metamagic-burst.json`.
 
-#### 3.11 Sorcerer subclass mechanics (Draconic Red) — PARTIAL
-- [x] `class-feature-enrichment.ts` created — applies Draconic Resilience +1 HP/sorcerer-level + unarmored AC = 13 + DEX to sheet at creation time.
-- [ ] Wire `enrichSheetClassFeatures` into `character-service.ts` create path (may already be wired — needs verification).
-- [ ] Elemental Affinity (L5 fire +CHA once/round).
-- [ ] Flexible Casting SP↔slot parser + handler.
+#### 3.11 Sorcerer subclass mechanics (Draconic Red) — COMPLETE
+- [x] `class-feature-enrichment.ts` — applies Draconic Resilience +1 HP/sorcerer-level + unarmored AC = 13 + DEX to sheet at creation time.
+- [x] Wired into character-service.ts create path (verified in passing scenarios).
+- [x] Elemental Affinity (L5 fire +CHA once/round) — fires in `sorcerer/metamagic-burst.json` R3 Fire Bolt with +4 CHA bonus. Reset-per-turn flag `elementalAffinityUsedThisTurn` added in Phase 3.8 fix.
+- [x] Flexible Casting SP↔slot parser + handler — fully wired. `sorcerer/slot-sp-conversion.json` 26/26.
+- [x] Metamagic Quickened + Twinned activation — `sorcerer/metamagic-burst.json` 32/32.
+- Note: Twinned Spell inline-cast chaining (follow-up spell trigger from Twinned activation) still deferred; activation + SP spend verified.
 
 #### 3.12 Spell catalog stubs filled in (surfaced by Phase 2) — PARTIAL
 - [x] Some expansion in `cantrips.ts`, `level-1.ts`, `level-2.ts`, `level-3.ts` (catalog.test.ts updated). **Verify coverage**: Vicious Mockery, Entangle, Pass Without Trace, Ensnaring Strike, Heroism, Moonbeam, Spike Growth, Call Lightning.
@@ -214,7 +217,7 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 ### Phase 4 — Spell Catalog Expansion
 Add spells that multiple classes need but are absent.
 
-- [ ] Paladin smite-spell family (Searing, Thunderous, Wrathful, Branding, Divine Favor) — Phase 3.6 prerequisite
+- [x] Paladin smite-spell family (Searing, Thunderous, Wrathful, Branding, Divine Favor) — completed as part of Phase 3.6
 - [ ] Druid: Entangle, Pass Without Trace, Goodberry, Call Lightning, Summon Beast (scoped summon)
 - [ ] Wizard/Sorcerer: Mirror Image, Haste, Fly, Hypnotic Pattern
 - [ ] Warlock: Armor of Agathys (temp HP + retaliation)
@@ -287,7 +290,7 @@ Each spell gets catalog entry + unit test + one scenario assertion.
 - [ ] E2E: `cleric/spiritual-weapon-loop.json`
 - [ ] Scenario update: `wizard/spell-slot-economy.json` (arcane recovery)
 - [ ] Scenario update: `cleric/party-healer.json` (Disciple of Life bonus)
-- [ ] E2E: `paladin/smite-spell-kit.json`
+- [x] E2E: `paladin/smite-spell-kit.json` (48/48)
 - [ ] E2E: `warlock/hex-and-blast.json` (revive, fully passing)
 - [ ] Scenario update: `sorcerer/metamagic-burst.json` (all 8 metamagic options)
 

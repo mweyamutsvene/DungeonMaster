@@ -213,9 +213,16 @@ export class DamageResolver {
       const isMelee = action.weaponSpec?.kind === "melee";
       const isRanged = action.weaponSpec?.kind === "ranged";
       // Filter for damage_rolls effects, honouring targetCombatantId for Hunter's Mark etc.
-      // Also match melee/ranged-specific damage effects
+      // Also match melee/ranged-specific damage effects.
+      // Exclude effects with triggerAt === 'on_next_weapon_hit' — those belong exclusively
+      // to the HitRider pipeline (HitRiderResolver.assembleOnHitEnhancements) which is
+      // responsible for rolling their dice, applying saves, consuming the rider, and
+      // ending concentration. Without this exclusion, smite-spell riders (Searing /
+      // Thunderous / Wrathful / Branding Smite, Ensnaring Strike, Divine Favor, etc.)
+      // would be double-counted — once here and once in the enhancement loop below.
       const dmgEffects = attackerEffects.filter(
         e => (e.type === 'bonus' || e.type === 'penalty')
+          && e.triggerAt !== 'on_next_weapon_hit'
           && (e.target === 'damage_rolls'
             || (e.target === 'melee_damage_rolls' && isMelee)
             || (e.target === 'ranged_damage_rolls' && isRanged))
