@@ -25,4 +25,4 @@ export * from "./weapon-mastery.js";
 export * from "./martial-arts-die.js";
 export * from "./evasion.js";
 export * from "./flanking.js";
-export * from "./exhaustion.js";
+// Exhaustion helpers live in domain/entities/combat/conditions.ts (consolidated 2024 port)

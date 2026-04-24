@@ -349,24 +349,28 @@ describe("getConditionEffects", () => {
         expect(getExhaustionPenalty(0)).toBe(0);
       });
 
-      it("level 1 = -1", () => {
-        expect(getExhaustionPenalty(1)).toBe(-1);
+      it("level 1 = -2 (2024 RAW: -2 per level)", () => {
+        expect(getExhaustionPenalty(1)).toBe(-2);
       });
 
-      it("level 2 = -2", () => {
-        expect(getExhaustionPenalty(2)).toBe(-2);
+      it("level 2 = -4", () => {
+        expect(getExhaustionPenalty(2)).toBe(-4);
       });
 
-      it("level 3 = -3", () => {
-        expect(getExhaustionPenalty(3)).toBe(-3);
+      it("level 3 = -6", () => {
+        expect(getExhaustionPenalty(3)).toBe(-6);
       });
 
-      it("level 6 = -6", () => {
-        expect(getExhaustionPenalty(6)).toBe(-6);
+      it("level 6 = -12", () => {
+        expect(getExhaustionPenalty(6)).toBe(-12);
       });
 
-      it("clamps at level 6", () => {
-        expect(getExhaustionPenalty(10)).toBe(-6);
+      it("level 9 = -18", () => {
+        expect(getExhaustionPenalty(9)).toBe(-18);
+      });
+
+      it("clamps at level 10 (-20)", () => {
+        expect(getExhaustionPenalty(15)).toBe(-20);
       });
 
       it("negative levels treated as 0", () => {
@@ -387,16 +391,16 @@ describe("getConditionEffects", () => {
         expect(getExhaustionSpeedReduction(3)).toBe(15);
       });
 
-      it("level 6 = Infinity (lethal — zeroes any speed)", () => {
-        expect(getExhaustionSpeedReduction(6)).toBe(Infinity);
+      it("level 9 = 45ft (highest non-lethal reduction)", () => {
+        expect(getExhaustionSpeedReduction(9)).toBe(45);
       });
 
-      it("clamps at level 6 (Infinity)", () => {
+      it("level 10 = Infinity (lethal — zeroes any speed)", () => {
         expect(getExhaustionSpeedReduction(10)).toBe(Infinity);
       });
 
-      it("level 5 = 25ft (highest non-lethal reduction)", () => {
-        expect(getExhaustionSpeedReduction(5)).toBe(25);
+      it("clamps at level 10 (Infinity)", () => {
+        expect(getExhaustionSpeedReduction(15)).toBe(Infinity);
       });
     });
 
@@ -405,12 +409,16 @@ describe("getConditionEffects", () => {
         expect(isExhaustionLethal(5)).toBe(false);
       });
 
-      it("level 6 is lethal", () => {
-        expect(isExhaustionLethal(6)).toBe(true);
+      it("level 9 is not lethal", () => {
+        expect(isExhaustionLethal(9)).toBe(false);
       });
 
-      it("level 7 is lethal", () => {
-        expect(isExhaustionLethal(7)).toBe(true);
+      it("level 10 is lethal (2024 RAW)", () => {
+        expect(isExhaustionLethal(10)).toBe(true);
+      });
+
+      it("level 11 is lethal", () => {
+        expect(isExhaustionLethal(11)).toBe(true);
       });
     });
 
@@ -433,11 +441,11 @@ describe("getConditionEffects", () => {
         expect(getExhaustionLevel(conditions)).toBe(1);
       });
 
-      it("clamps to max 6", () => {
+      it("clamps to max 10", () => {
         const conditions: ActiveCondition[] = [
-          createCondition("Exhaustion", "until_removed", { source: "exhaustion:10" }),
+          createCondition("Exhaustion", "until_removed", { source: "exhaustion:15" }),
         ];
-        expect(getExhaustionLevel(conditions)).toBe(6);
+        expect(getExhaustionLevel(conditions)).toBe(10);
       });
     });
 
@@ -459,9 +467,9 @@ describe("getConditionEffects", () => {
         expect(cond.source).toBe("exhaustion:1");
       });
 
-      it("clamps to max 6", () => {
-        const cond = createExhaustionCondition(8);
-        expect(cond.source).toBe("exhaustion:6");
+      it("clamps to max 10", () => {
+        const cond = createExhaustionCondition(15);
+        expect(cond.source).toBe("exhaustion:10");
       });
     });
 
@@ -470,11 +478,11 @@ describe("getConditionEffects", () => {
         expect(getExhaustionD20Penalty([])).toBe(0);
       });
 
-      it("returns -3 for level 3 exhaustion", () => {
+      it("returns -6 for level 3 exhaustion (2024 RAW: -2 per level)", () => {
         const conditions: ActiveCondition[] = [
           createCondition("Exhaustion", "until_removed", { source: "exhaustion:3" }),
         ];
-        expect(getExhaustionD20Penalty(conditions)).toBe(-3);
+        expect(getExhaustionD20Penalty(conditions)).toBe(-6);
       });
     });
 

@@ -13,3 +13,4 @@ export { SaveSpellDeliveryHandler } from './save-spell-delivery-handler.js';
 export { HealingSpellDeliveryHandler } from './healing-spell-delivery-handler.js';
 export { BuffDebuffSpellDeliveryHandler } from './buff-debuff-spell-delivery-handler.js';
 export { ZoneSpellDeliveryHandler } from './zone-spell-delivery-handler.js';
+export { DispelMagicDeliveryHandler } from './dispel-magic-delivery-handler.js';

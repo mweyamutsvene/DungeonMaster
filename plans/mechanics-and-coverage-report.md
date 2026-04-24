@@ -482,9 +482,9 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | 1 | **d20 roll-interrupt architectural hook** | ReactionSystem | Unblocks Bardic Inspiration consumption, Lucky feat, Diviner Portent, future Silvery Barbs. BI effect is created but never consumed — currently cosmetic. |
 | 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
 | 3 | **AI spell delivery resolution** | AISpellEvaluation | `ai-spell-delivery.ts` records event but doesn't resolve damage/saves/conditions. Blocks AI-vs-AI and mock combat. |
-| 4 | **Exhaustion mechanic (2024, 10-level, -2/level d20, -1 spell DC)** | CombatRules | `Character.exhaustion` field exists; no consumption in d20/save pipelines. |
-| 5 | **Fall damage (1d6/10ft, max 20d6, prone)** | CombatRules | No implementation. Needed for Thunderwave into pits, shoves off ledges. |
-| 6 | **Dispel Magic (L3 spell)** | SpellCatalog + SpellSystem | Completely absent — blocks wizard/cleric/druid/bard L3+ play. |
+| 4 | ~~**Exhaustion mechanic (2024, 10-level, -2/level d20)**~~ ✅ DONE | CombatRules | Reconciled `conditions.ts` to 2024 RAW (was 2014-style 1-6/-level). `scenarios/core/exhaustion-accumulation.json` validates. Orphan `domain/rules/exhaustion.ts` deleted. Level 10 death helper available but auto-death trigger on application is future work. |
+| 5 | ~~**Fall damage (1d6/10ft, max 20d6, prone)**~~ ✅ DONE | CombatRules | Already implemented in `combat-map-core.ts` via `computeFallDamage` + `pit-terrain-resolver`. Audit was wrong. `scenarios/core/fall-damage-sequence.json` validates. Generic off-ledge fall damage (not through pits) is future work. |
+| 6 | ~~**Dispel Magic (L3 spell)**~~ ✅ DONE | SpellCatalog + SpellSystem | Catalog entry already present; new `DispelMagicDeliveryHandler` wired into delivery chain. Auto-dispels spells of level ≤ slot level; rolls ability check for higher-level spells. `scenarios/wizard/dispel-magic-concentration-break.json` validates. |
 | 7 | **Material component enforcement** | SpellSystem | Declared in catalog, zero inventory checks at cast time (Revivify 300gp). |
 | 8 | **Background field + background pipeline** | EntityManagement | Field entirely missing from Character. 2024 Origin Feat, ASI, skill/tool/language grants. |
 | 9 | **Species trait auto-apply on character create** | EntityManagement | Currently applied at hydration only — not written to sheet on create. |

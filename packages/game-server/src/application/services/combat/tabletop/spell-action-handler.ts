@@ -44,6 +44,7 @@ import {
   SaveSpellDeliveryHandler,
   ZoneSpellDeliveryHandler,
   BuffDebuffSpellDeliveryHandler,
+  DispelMagicDeliveryHandler,
 } from "./spell-delivery/index.js";
 import type {
   SpellDeliveryHandler,
@@ -71,8 +72,11 @@ export class SpellActionHandler {
       savingThrowResolver: this.savingThrowResolver,
     };
 
-    // Order matches the original priority chain
+    // Order matches the original priority chain.
+    // DispelMagicDeliveryHandler goes first because it matches by spell name — it prevents
+    // Dispel Magic from being misrouted to BuffDebuffSpellDeliveryHandler's catch-all.
     this.deliveryHandlers = [
+      new DispelMagicDeliveryHandler(handlerDeps),
       new SpellAttackDeliveryHandler(handlerDeps),
       new HealingSpellDeliveryHandler(handlerDeps),
       new SaveSpellDeliveryHandler(handlerDeps),

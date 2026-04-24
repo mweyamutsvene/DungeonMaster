@@ -1,6 +1,6 @@
 {
-  "name": "PENDING: Exhaustion Accumulation (2024 10-level, -2 per level on d20 tests)",
-  "description": "PENDING MECHANIC: CombatRules exhaustion consumption. 2024 rules: exhaustion has 10 levels. Each level imposes -2 penalty to all d20 tests (attack rolls, saves, checks) and -1 to spell save DC. Level 10 = death.\n\nThis scenario applies exhaustion via DM override and then verifies that a subsequent attack roll shows the penalty. The engine currently stores `Character.exhaustion` as a field but does NOT apply the penalty to d20 results.\n\nTo make this pass: wire exhaustion into the attack/save/check pipeline: roll.d20 + modifiers - (2 * exhaustionLevel). Also: reduce spell save DC by exhaustionLevel. Also: at exhaustion level 10, set character HP to 0 and mark dead.",
+  "name": "Exhaustion Accumulation (2024: -2 per level on d20 Tests)",
+  "description": "D&D 5e 2024 exhaustion: each of 10 levels imposes -2 on all d20 Tests (attack rolls, ability checks, saving throws) and -5 ft speed. Level 10 = death.\n\nThis scenario applies 3 levels of Exhaustion via DM override and verifies a subsequent attack roll takes a -6 penalty. Attack bonus +7, seeded roll d20=10, vs AC 13. With 3 levels of exhaustion (-6): 10 + 7 - 6 = 11 < 13 → miss. Without exhaustion: 10 + 7 = 17 → hit.",
   "setup": {
     "character": {
       "name": "Weary Wanderer",
@@ -50,16 +50,23 @@
       "expect": { "combatStarted": true }
     },
     {
-      "comment": "=== Apply 3 levels of Exhaustion via DM override. ===",
+      "comment": "Apply 3 levels of Exhaustion. Source 'exhaustion:3' tells the engine this is level 3. Penalty = -6 on d20 Tests (2024 RAW).",
       "type": "applyCondition",
       "input": {
         "target": "character",
         "condition": "Exhaustion",
-        "duration": "until_removed"
+        "duration": "until_removed",
+        "source": "exhaustion:3"
       }
     },
     {
-      "comment": "PENDING: attack roll should be (d20 - 6) + 7 vs AC 13. Submit d20=10. With exhaustion: 10 - 6 + 7 = 11 → miss. Without exhaustion: 10 + 7 = 17 → hit.",
+      "type": "assertState",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Exhaustion"] }
+      }
+    },
+    {
+      "comment": "Attack roll with 3 levels of exhaustion: (d20 - 6) + 7 vs AC 13. Submit d20=10 → 10 - 6 + 7 = 11 → miss.",
       "type": "action",
       "input": { "text": "attack Training Dummy" },
       "expect": { "rollType": "attack", "requiresPlayerInput": true }
@@ -67,7 +74,7 @@
     {
       "type": "rollResult",
       "input": { "text": "10" },
-      "comment": "Expect hit=false (with 3 exhaustion: 10 - 6 + 7 = 11 < AC 13). Currently will fail — reports hit=true because exhaustion penalty is not applied.",
+      "comment": "d20=10, exhaustion -6, attack bonus +7 → total 11 vs AC 13 → MISS. Without the exhaustion wiring this would be 17 → hit.",
       "expect": { "hit": false }
     }
   ]

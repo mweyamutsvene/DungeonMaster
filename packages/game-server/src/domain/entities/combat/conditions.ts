@@ -507,38 +507,45 @@ export function getCharmedSourceIds(conditions: readonly ActiveCondition[]): str
     .map(c => c.source!);
 }
 
-// ----- Exhaustion Level System (D&D 2024) -----
+// ----- Exhaustion Level System (D&D 5e 2024) -----
+
+/** Maximum exhaustion level before death (2024 RAW). */
+export const EXHAUSTION_LETHAL_LEVEL = 10;
+/** Per-level d20 penalty (2024 RAW: -2 per level on all d20 Tests). */
+export const EXHAUSTION_D20_PENALTY_PER_LEVEL = 2;
+/** Per-level speed reduction in feet (2024 RAW: -5 ft per level). */
+export const EXHAUSTION_SPEED_PENALTY_PER_LEVEL = 5;
 
 /**
- * D&D 2024 Exhaustion: Each level gives -level penalty to all d20 tests
+ * D&D 5e 2024 Exhaustion: Each level gives -2 to all d20 Tests
  * (attack rolls, ability checks, saving throws).
- * @param level - Exhaustion level (1-6)
+ * @param level - Exhaustion level (0-10)
  * @returns The penalty to apply to d20 rolls (negative number)
  */
 export function getExhaustionPenalty(level: number): number {
-  const clamped = Math.max(0, Math.min(6, Math.floor(level)));
-  return clamped === 0 ? 0 : -clamped;
+  const clamped = Math.max(0, Math.min(EXHAUSTION_LETHAL_LEVEL, Math.floor(level)));
+  return clamped === 0 ? 0 : -(clamped * EXHAUSTION_D20_PENALTY_PER_LEVEL);
 }
 
 /**
- * D&D 2024 Exhaustion: Speed reduced by 5 × level feet.
- * At level 6 (lethal), returns Infinity so any creature speed is zeroed out.
- * @param level - Exhaustion level (1-6)
- * @returns The speed reduction in feet (positive number, or Infinity at level 6)
+ * D&D 5e 2024 Exhaustion: Speed reduced by 5 × level feet.
+ * At level 10 (lethal), returns Infinity so any creature speed is zeroed out.
+ * @param level - Exhaustion level (0-10)
+ * @returns The speed reduction in feet (positive number, or Infinity at level 10)
  */
 export function getExhaustionSpeedReduction(level: number): number {
-  const clamped = Math.max(0, Math.min(6, Math.floor(level)));
-  if (clamped >= 6) return Infinity;
-  return clamped * 5;
+  const clamped = Math.max(0, Math.min(EXHAUSTION_LETHAL_LEVEL, Math.floor(level)));
+  if (clamped >= EXHAUSTION_LETHAL_LEVEL) return Infinity;
+  return clamped * EXHAUSTION_SPEED_PENALTY_PER_LEVEL;
 }
 
 /**
- * D&D 2024 Exhaustion: Level 6 is lethal.
+ * D&D 5e 2024 Exhaustion: Level 10 is lethal.
  * @param level - Exhaustion level
  * @returns true if the creature dies from exhaustion
  */
 export function isExhaustionLethal(level: number): boolean {
-  return level >= 6;
+  return level >= EXHAUSTION_LETHAL_LEVEL;
 }
 
 /**
@@ -554,7 +561,7 @@ export function getExhaustionLevel(conditions: readonly ActiveCondition[]): numb
   // Parse level from source field: "exhaustion:<level>"
   if (exhaustionCondition.source?.startsWith('exhaustion:')) {
     const parsed = parseInt(exhaustionCondition.source.split(':')[1], 10);
-    if (!isNaN(parsed)) return Math.max(0, Math.min(6, parsed));
+    if (!isNaN(parsed)) return Math.max(0, Math.min(EXHAUSTION_LETHAL_LEVEL, parsed));
   }
 
   // Default to level 1 if exhaustion present without level info
@@ -562,10 +569,10 @@ export function getExhaustionLevel(conditions: readonly ActiveCondition[]): numb
 }
 
 /**
- * Create an Exhaustion condition with the specified level.
+ * Create an Exhaustion condition with the specified level (1-10, clamped).
  */
 export function createExhaustionCondition(level: number): ActiveCondition {
-  const clamped = Math.max(1, Math.min(6, Math.floor(level)));
+  const clamped = Math.max(1, Math.min(EXHAUSTION_LETHAL_LEVEL, Math.floor(level)));
   return createCondition('Exhaustion', 'until_removed', {
     source: `exhaustion:${clamped}`,
   });
