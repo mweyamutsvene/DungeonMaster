@@ -1,0 +1,52 @@
+name: Golden Scenarios
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: golden-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden:
+    name: Typecheck + Unit + E2E (mock LLM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm -C packages/game-server prisma:generate
+
+      - name: Typecheck
+        run: pnpm -C packages/game-server typecheck
+
+      - name: Unit + integration tests (deterministic, no LLM)
+        run: pnpm -C packages/game-server test
+        env:
+          CI: '1'
+
+      - name: E2E combat scenarios (all, mock LLM)
+        run: pnpm -C packages/game-server test:e2e:combat:mock -- --all
+        env:
+          CI: '1'
