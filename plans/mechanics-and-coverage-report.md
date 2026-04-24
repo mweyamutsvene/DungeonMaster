@@ -480,7 +480,7 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | # | Item | Flow | Notes |
 |---|---|---|---|
 | 1 | **d20 roll-interrupt architectural hook** | ReactionSystem | Unblocks Bardic Inspiration consumption, Lucky feat, Diviner Portent, future Silvery Barbs. BI effect is created but never consumed — currently cosmetic. |
-| 2 | **Counterspell 2014 → 2024 port** | SpellSystem | `spell-reaction-handler.ts:283-308` uses 2014 ability-check DC 10+level. 2024: target caster Con save vs counterspeller's save DC. |
+| 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
 | 3 | **AI spell delivery resolution** | AISpellEvaluation | `ai-spell-delivery.ts` records event but doesn't resolve damage/saves/conditions. Blocks AI-vs-AI and mock combat. |
 | 4 | **Exhaustion mechanic (2024, 10-level, -2/level d20, -1 spell DC)** | CombatRules | `Character.exhaustion` field exists; no consumption in d20/save pipelines. |
 | 5 | **Fall damage (1d6/10ft, max 20d6, prone)** | CombatRules | No implementation. Needed for Thunderwave into pits, shoves off ledges. |

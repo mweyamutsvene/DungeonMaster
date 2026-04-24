@@ -10,7 +10,6 @@ When the underlying mechanic lands, move the corresponding scenario into `../sce
 |---|---|---|
 | `exhaustion-accumulation.json` | 2024 exhaustion: -2 to d20 tests per level | CombatRules — exhaustion field exists on Character but is not consumed by d20/save pipeline |
 | `fall-damage-sequence.json` | Fall damage: 1d6 per 10ft, max 20d6, prone on landing | CombatRules — no fall-damage implementation |
-| `counterspell-2024-con-save.json` | 2024 Counterspell: target caster Con save vs counterspeller's save DC | ReactionSystem — `spell-reaction-handler.ts:283-308` uses 2014 ability-check rules |
 | `d20-interrupt-bardic-inspiration.json` | Bardic Inspiration: ally adds BI die to failed d20 roll | ClassAbilities — effect is created but no roll-interrupt hook consumes it |
 | `dispel-magic-concentration-break.json` | Dispel Magic (L3 spell) breaks enemy concentration on cast | SpellCatalog — spell missing entirely |
 

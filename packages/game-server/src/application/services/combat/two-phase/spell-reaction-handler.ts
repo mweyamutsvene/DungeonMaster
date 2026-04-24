@@ -270,55 +270,67 @@ export class SpellReactionHandler {
       const targetSpellLevel = (pendingAction.data as PendingSpellCastData).spellLevel;
 
       // D&D 5e 2024 Counterspell mechanic:
-      // Determine the level at which Counterspell is being cast from the slot spent
-      // For Pact Magic, use bestSlotLevel from detection context (pact slot level)
+      // The TARGET caster (the one being countered) makes a Constitution saving throw
+      // against the COUNTERSPELLER'S spell save DC. On failed save → spell is countered.
+      // On successful save → target's spell proceeds normally.
+      // (2014 rules had the counterspeller roll an ability check; that path is removed.)
+      //
+      // Counterspell slot level is informational only (no auto-counter based on level comparison in 2024).
       const counterspellLevel = slotToSpend.startsWith("spellSlot_")
         ? parseInt(slotToSpend.replace("spellSlot_", ""), 10) || 3
         : typeof opp.context.bestSlotLevel === "number" ? opp.context.bestSlotLevel : 3;
 
+      // Compute counterspeller's spell save DC = 8 + proficiency + spellcasting mod
+      let counterspellerSaveDC = 13; // conservative fallback
+      try {
+        const csRef = counterspellerState.characterId
+          ? { type: "Character" as const, characterId: counterspellerState.characterId }
+          : { type: "Monster" as const, monsterId: counterspellerState.monsterId ?? "" };
+        const csStats = await this.combatants.getCombatStats(csRef);
+        const spellcastingAbility = getSpellcastingAbility(csStats.className);
+        const csAbilityScore = (csStats.abilityScores as Record<string, number>)?.[spellcastingAbility] ?? 10;
+        const csAbilityMod = Math.floor((csAbilityScore - 10) / 2);
+        const csProfBonus = csStats.proficiencyBonus ?? 2;
+        counterspellerSaveDC = 8 + csProfBonus + csAbilityMod;
+      } catch { /* keep fallback */ }
+
+      // Target caster makes a CON save vs counterspeller's spell save DC.
+      // Note: save-proficiency for the target is not yet exposed via CombatantCombatStats
+      // (see attack-action-handler.ts:389 TODO) — conservatively default to non-proficient.
+      // Most spellcasters at L1-5 are NOT Con-save-proficient (exceptions: Sorcerer, Warlock, Artificer).
+      let targetSaveDC: number | undefined = counterspellerSaveDC;
+      let targetSaveTotal: number | undefined;
       let success: boolean;
-      let abilityCheckDC: number | undefined;
-      let abilityCheckTotal: number | undefined;
 
-      if (counterspellLevel >= targetSpellLevel) {
-        // Auto-counter: Counterspell level >= target spell level
-        success = true;
-      } else {
-        // Counterspeller makes a spellcasting ability check
-        // DC = 10 + target spell's level
-        abilityCheckDC = 10 + targetSpellLevel;
+      if (input.diceRoller) {
+        try {
+          const targetStats = await this.combatants.getCombatStats(pendingAction.actor);
+          const targetConScore = (targetStats.abilityScores as Record<string, number>)?.constitution ?? 10;
+          const targetConMod = Math.floor((targetConScore - 10) / 2);
+          // TODO: include proficiency bonus if target is Con-save proficient
+          // (requires saveProficiencies on CombatantCombatStats)
 
-        let spellcastingMod = 0;
-        if (input.diceRoller) {
-          try {
-            const csRef = counterspellerState.characterId
-              ? { type: "Character" as const, characterId: counterspellerState.characterId }
-              : { type: "Monster" as const, monsterId: counterspellerState.monsterId ?? "" };
-            const csStats = await this.combatants.getCombatStats(csRef);
-            // Use the counterspeller's spellcasting ability modifier + proficiency
-            const spellcastingAbility = getSpellcastingAbility(csStats.className);
-            const abilityScore = (csStats.abilityScores as Record<string, number>)?.[spellcastingAbility] ?? 10;
-            const abilityMod = Math.floor((abilityScore - 10) / 2);
-            const profBonus = csStats.proficiencyBonus ?? 2;
-            spellcastingMod = abilityMod + profBonus;
-          } catch { /* default 0 */ }
-
-          const checkRoll = input.diceRoller.rollDie(20);
-          abilityCheckTotal = checkRoll.total + spellcastingMod;
-          success = abilityCheckTotal >= abilityCheckDC;
-        } else {
-          // No dice roller — default to failure (conservative)
-          abilityCheckTotal = 10;
-          success = abilityCheckTotal >= abilityCheckDC;
+          const saveRoll = input.diceRoller.rollDie(20);
+          targetSaveTotal = saveRoll.total + targetConMod;
+          // On FAIL → counter succeeds. On SUCCESS → counter fails (spell proceeds).
+          success = targetSaveTotal < counterspellerSaveDC;
+        } catch {
+          // Could not resolve target stats — conservatively treat as failed save (counter succeeds)
+          targetSaveTotal = 0;
+          success = true;
         }
+      } else {
+        // No dice roller — default to counter succeeding (conservative for test determinism)
+        targetSaveTotal = 0;
+        success = true;
       }
 
       counterspells.push({
         casterId: opp.combatantId,
         casterName: counterspellerName,
         success,
-        abilityCheckDC,
-        abilityCheckRoll: abilityCheckTotal,
+        abilityCheckDC: targetSaveDC,
+        abilityCheckRoll: targetSaveTotal,
       });
 
       // Spend the counterspeller's spell slot and mark reaction used
@@ -349,8 +361,8 @@ export class SpellReactionHandler {
             targetSpell: (pendingAction.data as PendingSpellCastData).spellName,
             counterspellLevel,
             targetSpellLevel,
-            abilityCheckDC,
-            abilityCheckRoll: abilityCheckTotal,
+            abilityCheckDC: targetSaveDC,
+            abilityCheckRoll: targetSaveTotal,
             success,
           },
         });

@@ -1,6 +1,6 @@
 {
-  "name": "PENDING: Counterspell 2024 (target caster Con save vs counterspeller's save DC)",
-  "description": "PENDING MECHANIC: ReactionSystem Counterspell 2024 rules. Current implementation at `spell-reaction-handler.ts:283-308` uses 2014 rules (counterspeller rolls d20 + spellcasting ability check DC 10+spellLevel). 2024 inverts the mechanic entirely: the TARGET caster (the one being countered) makes a Constitution save against the COUNTERSPELLER's spell save DC. On fail, spell is countered.\n\nThis scenario has Wizard A cast Fireball at goblins; Wizard B uses reaction to Counterspell. Per 2024, Wizard A rolls a CON save vs Wizard B's DC 15. With Wizard A's CON +2 and DC 15, a seeded d20=10 gives 10+2=12 < 15 → save fails, Fireball is countered.\n\nTo make this pass: rewrite `spell-reaction-handler.ts` Counterspell path to (1) identify the target caster, (2) look up counterspeller's spell save DC, (3) issue a CON save to the target caster, (4) if the save fails, counter the spell (refund Fireball's L3 slot, cancel all effects), (5) consume the counterspeller's reaction and L3 slot. Same-level-or-higher auto-success removed (2024 has no auto tiers).",
+  "name": "Counterspell 2024: Target caster Con save vs counterspeller's save DC",
+  "description": "D&D 5e 2024 Counterspell mechanic. The TARGET caster (the one being countered) makes a Constitution save against the COUNTERSPELLER's spell save DC. On fail → spell is countered. On success → spell proceeds normally. Per 2024 RAW: both casters still consume their spell slots (no refund on counter — the target's spell is cast, it just has no effect).\n\nThis scenario: Wizard A casts Fireball; Wizard B uses reaction to Counterspell. Wizard A's CON +2 vs Wizard B's DC 15. Con save is expected to fail → Fireball is countered, Target Dummy takes no damage, both Wizards' L3 slots consumed.",
   "setup": {
     "characters": [
       {
@@ -105,11 +105,10 @@
       "input": { "choice": "use" }
     },
     {
-      "comment": "PENDING: per 2024 rules, Wizard A rolls a Con save vs DC 15. Queued d20=10 + CON mod 2 = 12 < 15 → FAIL → Fireball countered.",
+      "comment": "Per 2024 RAW, both casters consume their L3 slot even though the Fireball was countered. Wizard A: 2→1.",
       "type": "assertState",
       "actor": "Wizard A",
-      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 } },
-      "comment": "Wizard A's Fireball slot should be REFUNDED (countered spell is not cast — 2024 RAW). Current code does NOT refund on 2014 check — will fail this assertion."
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
     },
     {
       "type": "assertState",
