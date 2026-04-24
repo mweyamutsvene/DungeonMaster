@@ -76,6 +76,7 @@ class MemoryCharacterRepository implements ICharacterRepository {
       level: input.level,
       className: input.className,
       sheet: input.sheet,
+      sheetVersion: 0,
       faction: "party",
       aiControlled: false,
       createdAt: now(),
@@ -100,7 +101,34 @@ class MemoryCharacterRepository implements ICharacterRepository {
   async updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord> {
     const existing = this.characters.get(id);
     if (!existing) throw new Error("Character not found: " + id);
-    const updated: SessionCharacterRecord = { ...existing, sheet, updatedAt: now() };
+    const updated: SessionCharacterRecord = {
+      ...existing,
+      sheet,
+      sheetVersion: existing.sheetVersion + 1,
+      updatedAt: now(),
+    };
+    this.characters.set(id, updated);
+    return updated;
+  }
+
+  async updateSheetWithVersion(
+    id: string,
+    sheet: JsonValue,
+    expectedVersion: number,
+  ): Promise<SessionCharacterRecord> {
+    const existing = this.characters.get(id);
+    if (!existing) throw new Error("Character not found: " + id);
+    if (existing.sheetVersion !== expectedVersion) {
+      throw new Error(
+        `Sheet version mismatch for character ${id} (expected ${expectedVersion}, actual ${existing.sheetVersion})`,
+      );
+    }
+    const updated: SessionCharacterRecord = {
+      ...existing,
+      sheet,
+      sheetVersion: existing.sheetVersion + 1,
+      updatedAt: now(),
+    };
     this.characters.set(id, updated);
     return updated;
   }

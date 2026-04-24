@@ -61,7 +61,7 @@ import { registerSessionRoutes } from "./routes/sessions/index.js";
 import { registerReactionRoutes } from "./routes/reactions.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { sseBroker } from "./realtime/sse-broker.js";
-import { NotFoundError, ValidationError } from "../../application/errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../application/errors.js";
 import type { PrismaUnitOfWork } from "../db/unit-of-work.js";
 import type { PrismaClient } from "@prisma/client";
 import type { IStoryGenerator } from "../llm/story-generator.js";
@@ -168,6 +168,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
     if (error instanceof ValidationError) {
       void reply.status(400).send({ error: error.name, message: error.message });
+      return;
+    }
+
+    if (error instanceof ConflictError) {
+      void reply.status(409).send({ error: error.name, message: error.message });
       return;
     }
 

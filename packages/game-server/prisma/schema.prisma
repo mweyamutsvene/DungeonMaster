@@ -105,7 +105,12 @@ model SessionCharacter {
   level        Int
   className    String?
   sheet        Json
-  
+
+  /// Optimistic-concurrency version for the `sheet` JSON blob. Incremented on
+  /// every `updateSheet(...)` write. Callers using `updateSheetWithVersion`
+  /// pass the expected version and retry on mismatch (ConflictError).
+  sheetVersion Int @default(0)
+
   /// Faction determines allies/enemies in combat (default: "party")
   faction      String @default("party")
   /// Whether this character is AI-controlled (false = player-controlled)

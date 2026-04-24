@@ -14,6 +14,12 @@ export type SessionCharacterRecord = {
   level: number;
   className: string | null;
   sheet: JsonValue;
+  /**
+   * Optimistic-concurrency version for the `sheet` JSON blob. Incremented on
+   * every successful `updateSheet`/`updateSheetWithVersion` write. Pass the
+   * last-observed value to `updateSheetWithVersion` to detect concurrent edits.
+   */
+  sheetVersion: number;
   faction: string;
   aiControlled: boolean;
   createdAt: Date;

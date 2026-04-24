@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import type { ICharacterRepository, CharacterUpdateData } from "../../application/repositories/character-repository.js";
 import type { JsonValue, SessionCharacterRecord } from "../../application/types.js";
+import { ConflictError } from "../../application/errors.js";
 
 /**
  * Prisma-backed persistence for session characters.
@@ -50,8 +51,40 @@ export class PrismaCharacterRepository implements ICharacterRepository {
   async updateSheet(id: string, sheet: JsonValue): Promise<SessionCharacterRecord> {
     return this.prisma.sessionCharacter.update({
       where: { id },
-      data: { sheet: sheet as Prisma.InputJsonValue },
+      data: {
+        sheet: sheet as Prisma.InputJsonValue,
+        sheetVersion: { increment: 1 },
+      },
     });
+  }
+
+  async updateSheetWithVersion(
+    id: string,
+    sheet: JsonValue,
+    expectedVersion: number,
+  ): Promise<SessionCharacterRecord> {
+    // Atomic compare-and-swap via updateMany + count. SQLite has no row-level
+    // optimistic CAS primitive; updateMany with a version predicate is the
+    // standard Prisma idiom.
+    const result = await this.prisma.sessionCharacter.updateMany({
+      where: { id, sheetVersion: expectedVersion },
+      data: {
+        sheet: sheet as Prisma.InputJsonValue,
+        sheetVersion: { increment: 1 },
+      },
+    });
+    if (result.count === 0) {
+      const current = await this.prisma.sessionCharacter.findUnique({ where: { id } });
+      if (!current) {
+        throw new ConflictError(`Character ${id} not found`);
+      }
+      throw new ConflictError(
+        `Sheet version mismatch for character ${id} (expected ${expectedVersion}, actual ${current.sheetVersion})`,
+      );
+    }
+    const updated = await this.prisma.sessionCharacter.findUnique({ where: { id } });
+    // Safe: row existed as of CAS success.
+    return updated as SessionCharacterRecord;
   }
 
   async update(id: string, data: Partial<CharacterUpdateData>): Promise<SessionCharacterRecord> {

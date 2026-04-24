@@ -32,3 +32,20 @@ export class ValidationError extends ApplicationError {
     super(message);
   }
 }
+
+/**
+ * Thrown when an optimistic-concurrency write fails because another writer
+ * updated the row first (version mismatch on `sheetVersion`, etc.).
+ *
+ * Layer: Application.
+ * Notes: API maps this to HTTP 409. Callers that care about concurrency
+ *        (inventory transfer, spell side-effects) catch this and retry once
+ *        with the re-read sheet; other callers surface it to the user.
+ */
+export class ConflictError extends ApplicationError {
+  override readonly name = "ConflictError";
+
+  constructor(message: string) {
+    super(message);
+  }
+}
