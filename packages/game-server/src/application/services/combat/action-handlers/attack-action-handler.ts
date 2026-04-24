@@ -386,8 +386,7 @@ export class AttackActionHandler {
         const conSaveMod = computeConSaveModifier(
           targetAbilityScores.constitution,
           targetStats.proficiencyBonus,
-          // saveProficiencies not available via CombatantCombatStats yet;
-          // fall back to just ability modifier + 0 proficiency override
+          targetStats.saveProficiencies ?? [],
         );
 
         const appliedDamage = (result as any).damage.applied as number;

@@ -307,11 +307,12 @@ export class SpellReactionHandler {
           const targetStats = await this.combatants.getCombatStats(pendingAction.actor);
           const targetConScore = (targetStats.abilityScores as Record<string, number>)?.constitution ?? 10;
           const targetConMod = Math.floor((targetConScore - 10) / 2);
-          // TODO: include proficiency bonus if target is Con-save proficient
-          // (requires saveProficiencies on CombatantCombatStats)
+          const targetIsConProficient = targetStats.saveProficiencies?.includes("constitution") ?? false;
+          const targetProfBonus = targetStats.proficiencyBonus ?? 2;
+          const targetConSaveMod = targetConMod + (targetIsConProficient ? targetProfBonus : 0);
 
           const saveRoll = input.diceRoller.rollDie(20);
-          targetSaveTotal = saveRoll.total + targetConMod;
+          targetSaveTotal = saveRoll.total + targetConSaveMod;
           // On FAIL → counter succeeds. On SUCCESS → counter fails (spell proceeds).
           success = targetSaveTotal < counterspellerSaveDC;
         } catch {

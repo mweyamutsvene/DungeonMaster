@@ -43,6 +43,13 @@ export type CombatantCombatStats = {
   damageDefenses?: DamageDefenses;
   /** Character class name (e.g., "monk", "fighter"). Only set for Characters. */
   className?: string;
+  /**
+   * Saving throw proficiencies as normalized lowercase ability names
+   * (e.g., `["constitution", "wisdom"]`). Accepts both `"constitution_save"` and
+   * `"constitution"` forms on the source sheet; the suffix is stripped here.
+   * Consumers should check membership via `saveProficiencies.includes(ability)`.
+   */
+  saveProficiencies?: readonly string[];
 };
 
 export interface ICombatantResolver {
@@ -116,6 +123,27 @@ function extractSize(data: Record<string, unknown>): CreatureSize {
     }
   }
   return "Medium"; // Default
+}
+
+/**
+ * Extract saving throw proficiencies from a sheet or stat block.
+ * Accepts both `saveProficiencies` (canonical) and `proficiencies` (fallback),
+ * and normalizes values ending in `_save` to bare ability names.
+ *
+ * Returns undefined if no proficiencies are declared.
+ */
+function extractSaveProficiencies(data: Record<string, unknown>): readonly string[] | undefined {
+  const raw = Array.isArray(data.saveProficiencies)
+    ? data.saveProficiencies
+    : Array.isArray(data.proficiencies)
+      ? data.proficiencies
+      : undefined;
+  if (!raw) return undefined;
+  const normalized = raw
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.toLowerCase().replace(/_save$/, ""))
+    .filter((v) => ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"].includes(v));
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function extractDefenses(data: Record<string, unknown>): DamageDefenses | undefined {
@@ -219,6 +247,7 @@ export class CombatantResolver implements ICombatantResolver {
         hasTwoHandedWeapon: equip.hasTwoHanded,
         damageDefenses: extractDefenses(c.sheet),
         className,
+        saveProficiencies: extractSaveProficiencies(c.sheet),
       };
     }
 
@@ -248,6 +277,7 @@ export class CombatantResolver implements ICombatantResolver {
         level: monsterLevel,
         proficiencyBonus,
         damageDefenses: extractDefenses(m.statBlock),
+        saveProficiencies: extractSaveProficiencies(m.statBlock),
       };
     }
 
@@ -276,6 +306,7 @@ export class CombatantResolver implements ICombatantResolver {
       level,
       proficiencyBonus,
       damageDefenses: extractDefenses(n.statBlock),
+      saveProficiencies: extractSaveProficiencies(n.statBlock),
     };
   }
 
