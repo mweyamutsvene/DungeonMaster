@@ -5,7 +5,7 @@ For tasks touching 4+ files across 2+ flows, or introducing new class features/c
 ## Design Principles
 1. **Agents for parallelism and isolation. Orchestrator for judgment.** Sub-agents gather information and execute scoped changes. The orchestrator (Opus, 1M context) does cross-cutting reasoning, conflict resolution, and final decisions.
 2. **Agents read code, not cached descriptions.** CLAUDE.md files contain architectural laws. For current state, agents grep the source.
-3. **Plan-on-disk is the message bus.** All agent communication through `.claude/plans/`. No context bleed.
+3. **Plan-on-disk is the message bus.** All agent communication through `plans/`. No context bleed.
 4. **Minimize orchestrator I/O.** Read agent templates once. Use SendMessage to continue agents rather than re-spawning with full context.
 
 ---
@@ -30,7 +30,7 @@ Read the agent templates for each affected flow ONCE. Then spawn all SMEs in a S
 Agent: "You are the {Flow} SME. [paste from .claude/agents/sme-{flow}.md]
   Research: {task description}.
   Read the actual source files in your scope.
-  Write findings to .claude/plans/sme-research-{Flow}.md"
+  Write findings to plans/sme-research-{Flow}.md"
 ```
 
 **All SMEs dispatch in parallel.** Each operates in isolation — no shared context.
@@ -44,7 +44,7 @@ Read all `sme-research-*.md` files. This is where Opus earns its keep:
 - **Resolve conflicts** — if CombatRules SME says one thing and SpellSystem SME says another, YOU decide.
 - **Design the dependency order** — which implementer must go first?
 
-Write the plan to `.claude/plans/plan-{feature}.md`:
+Write the plan to `plans/plan-{feature}.md`:
 ```markdown
 # Plan: {Title}
 ## Round: 1
@@ -77,17 +77,17 @@ In ONE message, spawn all of these in parallel:
 **Each affected SME as reviewer:**
 ```
 Agent: "You are the {Flow} SME. [role].
-  Read the plan at .claude/plans/plan-{feature}.md.
-  Read your research at .claude/plans/sme-research-{Flow}.md.
-  Write verdict to .claude/plans/sme-feedback-{Flow}.md (APPROVED or NEEDS_WORK)."
+  Read the plan at plans/plan-{feature}.md.
+  Read your research at plans/sme-research-{Flow}.md.
+  Write verdict to plans/sme-feedback-{Flow}.md (APPROVED or NEEDS_WORK)."
 ```
 
 **The Challenger:**
 ```
 Agent: "[paste .claude/agents/challenger.md role].
-  Read plan at .claude/plans/plan-{feature}.md.
+  Read plan at plans/plan-{feature}.md.
   Read ALL sme-research-*.md files.
-  Write challenge to .claude/plans/challenge-{feature}.md."
+  Write challenge to plans/challenge-{feature}.md."
 ```
 
 ### Evaluate results
@@ -103,7 +103,7 @@ Read all feedback + challenge. Use YOUR judgment:
 For each affected flow:
 ```
 Agent(isolation: worktree): "You are the {Flow} Implementer. [role].
-  Read and execute .claude/plans/plan-{feature}.md.
+  Read and execute plans/plan-{feature}.md.
   Only modify files in your scope."
 ```
 
@@ -142,7 +142,7 @@ Failures:
 1. Check off plan items
 2. Delete: `sme-research-*.md`, `sme-feedback-*.md`, `challenge-*.md`
 3. Keep: `plan-{feature}.md` as historical record
-4. Create `.claude/plans/plan-*.md` for any new TODOs discovered
+4. Create `plans/plan-*.md` for any new TODOs discovered
 
 ---
 

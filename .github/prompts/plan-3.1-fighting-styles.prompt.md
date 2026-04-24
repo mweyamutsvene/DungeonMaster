@@ -18,11 +18,11 @@ Complete Phase 3.1 by wiring the two unwired Fighting Styles (Protection, Interc
   - Targeted runs: `fighter/protection-reaction` 14/14 ✅, `fighter/interception-reaction` 24/24 ✅, `fighter/fighting-style-comparison` 21/21 ✅, `class-combat/monk/deflect-and-patient-defense` 52/52 ✅.
 
 ## Context from SME research
-- `.github/plans/sme-research-ClassAbilities.md`
-- `.github/plans/sme-research-ReactionSystem.md`
-- `.github/plans/sme-research-CombatOrchestration.md`
-- `.github/plans/sme-feedback-*.md` (round 1)
-- `.github/plans/challenge-3.1-fighting-styles.md`
+- `plans/sme-research-ClassAbilities.md`
+- `plans/sme-research-ReactionSystem.md`
+- `plans/sme-research-CombatOrchestration.md`
+- `plans/sme-feedback-*.md` (round 1)
+- `plans/challenge-3.1-fighting-styles.md`
 
 ## Round 1 review resolution
 - **ClassAbilities-SME APPROVED** with 3 notes — incorporated.

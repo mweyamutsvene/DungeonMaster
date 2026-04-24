@@ -52,7 +52,7 @@
    - 3.10 Sorcerer Metamagic breadth (6 missing).
    - 3.11 finish: Elemental Affinity + Flexible Casting.
 4. Phase 4 remaining spell catalog.
-5. Final verify + cleanup of `.github/plans/sme-research-*.md` + `sme-feedback-*.md`.
+5. Final verify + cleanup of `plans/sme-research-*.md` + `sme-feedback-*.md`.
 
 **Files modified (uncommitted at checkpoint)**: see `git status` \u2014 roll-state-machine, damage-resolver, healing-spell-delivery-handler, buff-debuff-spell-delivery-handler, wild-shape-executor, character-service, feature-keys, fighting-style, ranger, rogue, spells catalog/cantrips/level-1/-2/-3, prepared-spell-definition, new file `class-feature-enrichment.ts`.
 

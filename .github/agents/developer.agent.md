@@ -45,7 +45,7 @@ Determine which flows are affected. List them explicitly.
 
 #### Step 2: SME Research (parallel)
 Call each affected flow's SME agent in parallel:
-- "Research the following task as it relates to your flow: {task description}. Write a CONCISE summary (max 200 lines) to `.github/plans/sme-research-{flowName}.md`. Focus on: affected files with why, current patterns relevant to this task, dependencies that could break, and risks."
+- "Research the following task as it relates to your flow: {task description}. Write a CONCISE summary (max 200 lines) to `plans/sme-research-{flowName}.md`. Focus on: affected files with why, current patterns relevant to this task, dependencies that could break, and risks."
 
 Read all research summaries after SMEs return.
 
@@ -54,8 +54,8 @@ Synthesize SME research into a plan at `.github/prompts/plan-{feature}.prompt.md
 
 #### Step 4: Review + Challenge (parallel)
 Dispatch ALL in parallel:
-- Each affected SME: "Read `.github/prompts/plan-{feature}.prompt.md`. Validate changes to your flow. Write verdict to `.github/plans/sme-feedback-{flowName}.md` (APPROVED or NEEDS_WORK with specific issues and fixes)."
-- **Challenger**: "Read `.github/prompts/plan-{feature}.prompt.md` and all `sme-research-*.md` files. Write challenge to `.github/plans/challenge-{feature}.md`."
+- Each affected SME: "Read `.github/prompts/plan-{feature}.prompt.md`. Validate changes to your flow. Write verdict to `plans/sme-feedback-{flowName}.md` (APPROVED or NEEDS_WORK with specific issues and fixes)."
+- **Challenger**: "Read `.github/prompts/plan-{feature}.prompt.md` and all `sme-research-*.md` files. Write challenge to `plans/challenge-{feature}.md`."
 
 Read all feedback and challenge files.
 - If NEEDS_WORK or critical Challenger issues: revise plan, re-send to ALL SMEs (max 3 rounds).
@@ -76,7 +76,7 @@ Update plan checkboxes as phases complete.
 3. `pnpm -C packages/game-server test:e2e:combat:mock`
 4. Fix trivially or re-dispatch to implementer
 5. **Confirm all plan items checked off — including the Test Plan section.** The Test Plan lists test *code* that must be authored. A green test run does NOT satisfy unchecked Test Plan items if no tests were written for them. Each `- [ ]` in the Test Plan requires a corresponding test file edit/creation before it can be checked off.
-6. Clean up `.github/plans/` research/feedback files
+6. Clean up `plans/` research/feedback files
 
 #### Step 7: Deep Research (in Parallel)
 For each affected flow, dispatch the SME agent to do a DEEP RESEARCH dive:
