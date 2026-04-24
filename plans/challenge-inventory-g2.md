@@ -1,3 +1,14 @@
+---
+type: challenge
+flow: multi
+feature: inventory-g2-scalable
+author: copilot-developer
+status: IN_REVIEW
+round: 1
+created: 2026-04-22
+updated: 2026-04-23
+---
+
 # Plan Challenge — Inventory G2 (Scalable)
 
 ## Overall Assessment: ADEQUATE (6 Critical issues that will corrupt state if shipped as-is)

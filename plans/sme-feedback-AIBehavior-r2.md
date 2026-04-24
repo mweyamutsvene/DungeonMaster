@@ -1,3 +1,14 @@
+---
+type: sme-feedback
+flow: AIBehavior
+feature: inventory-g2-scalable
+author: copilot-sme-AIBehavior
+status: APPROVED
+round: 2
+created: 2026-04-23
+updated: 2026-04-24
+---
+
 # SME Feedback — AIBehavior — Round 2
 ## Verdict: APPROVED
 

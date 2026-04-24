@@ -1,3 +1,14 @@
+---
+type: challenge
+flow: multi
+feature: inventory-g2-scalable
+author: copilot-developer
+status: APPROVED
+round: 2
+created: 2026-04-23
+updated: 2026-04-24
+---
+
 # Plan Challenge — Inventory G2 (Scalable) — Round 2
 
 ## Overall Assessment: STRONG

@@ -1,3 +1,13 @@
+---
+type: sme-research
+flow: AIBehavior
+feature: inventory-g2-scalable
+author: copilot-sme-AIBehavior
+status: COMPLETE
+created: 2026-04-22
+updated: 2026-04-22
+---
+
 # SME Research — AIBehavior — Item-use integration in deterministic AI
 
 As you wish Papi....

@@ -1,3 +1,14 @@
+---
+type: challenge
+flow: ClassAbilities
+feature: 3.1-fighting-styles
+author: copilot-developer
+status: COMPLETE
+round: 1
+created: 2026-04-15
+updated: 2026-04-15
+---
+
 # Plan Challenge — 3.1 Fighting Styles
 
 ## Overall Assessment: WEAK — multiple RAW errors and unresolved design gaps

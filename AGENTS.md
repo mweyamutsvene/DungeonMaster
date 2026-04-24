@@ -106,6 +106,31 @@ updated: YYYY-MM-DD
 
 Historical files retrofit on first touch; new files require this from the start.
 
+### Body Sections (recommended structure)
+
+Use these section headers so the next agent can locate information without reading prose end-to-end:
+
+```markdown
+## Scope            # what this artifact covers (and what it does not)
+## Touched Files    # absolute or repo-relative paths the work affects
+## Findings         # for sme-research: investigation results
+## Issues           # for sme-feedback / challenge: specific problems with location refs
+## Risks            # cross-flow concerns, edge cases, regressions
+## Open Questions   # unresolved decisions, defer to specific person
+## Verdict          # for sme-feedback / challenge: APPROVED / NEEDS_WORK / STRONG / WEAK
+```
+
+Patterns under `plans/patterns/` use a different shape — see existing patterns for the template.
+
+### Parallel SME Dispatch Rule
+
+When the orchestrator spawns multiple SMEs for one task, **SMEs must be independent**:
+- All SMEs receive the **same input** (the task statement + relevant code references).
+- SMEs produce **independent outputs** — no SME-to-SME references in research files.
+- The orchestrator (you, or the Copilot developer agent) synthesizes findings into the plan.
+
+This makes the parallel dispatch genuinely parallel (no hidden gating between SMEs) and makes the synthesis step the single integration point. If an SME needs another SME's output, the orchestrator should serialize them — never let SMEs serialize themselves.
+
 ### Status Lifecycle
 
 ```
@@ -156,11 +181,24 @@ pnpm -C packages/game-server test                 # Unit + integration tests (fa
 pnpm -C packages/game-server test:e2e:combat:mock # E2E combat scenarios with mock LLM
 pnpm -C packages/game-server test:watch           # Watch mode
 pnpm -C packages/game-server dev                  # Run server (assume user already has one open)
-pnpm scaffold class-feature <class> <feature>     # Skeleton generator (Phase 2)
-pnpm scaffold spell <name> <level>                # Skeleton generator (Phase 2)
+pnpm scaffold class-feature <class> <feature>     # Skeleton generator
+pnpm scaffold spell <name> <level>                # Skeleton generator
+pnpm test:golden                                  # Full gate (typecheck + unit + E2E --all). CI runs this on PR.
 ```
 
 Default tests are deterministic (no LLM). Only run LLM tests when explicitly asked.
+
+### Optional: pre-push gate
+
+`pnpm test:golden` runs typecheck + unit/integration tests + all 259 E2E scenarios in one shot. To enforce it before every push, set up a manual git hook (no husky dependency):
+
+```bash
+# .git/hooks/pre-push (chmod +x after creating)
+#!/bin/sh
+pnpm test:golden || { echo "Golden scenarios failed. Use --no-verify only when intentional."; exit 1; }
+```
+
+A CI workflow YAML is staged at `.github/workflows/golden-scenarios.yml` (untracked) but pushing it requires a GitHub token with `workflow` scope. Add it via the GitHub web UI or push from a local machine with a properly-scoped token.
 
 ---
 
