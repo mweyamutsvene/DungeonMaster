@@ -1,78 +1,45 @@
-# SME Feedback — ActionEconomy — Round 1
-## Verdict: NEEDS_WORK
+# SME Feedback — ActionEconomy — Inventory G2 Plan — Round 1
+## Verdict: APPROVED (with minor observations)
 
-The plan is **mostly correct** on action economy. The core patterns (`useAttack()` for one-attack consumption, `spendAction()` for full-action, `canMakeAttack()` gating, lazy `attacksAllowedThisTurn` init) are all correctly understood and applied. However, there are **two contradictions** and **one missing implementation detail** that must be fixed before this plan can be implemented safely.
+## Double-Reset Risk Check (primary ask)
 
----
+**No double-trouble.** Verified against actual source:
 
-## Issues
+- `extractActionEconomy()` (combat-hydration.ts:162) **conditionally** zeros `objectInteractionUsed` — only when `isFreshEconomy === true` (all three of action/bonus/reaction available). Otherwise it **preserves** the prior value.
+- `resetTurnResources()` (resource-utils.ts:185–218) **unconditionally** zeros ~20 turn-scoped flags. Currently does NOT touch `objectInteractionUsed`.
 
-### Issue 1 (HIGH): Plan is self-contradictory on when to consume the attack on contest HIT path
+Adding `objectInteractionUsed: false` to `resetTurnResources()` is safe:
+1. **Idempotent** — setting a boolean to `false` twice has no observable side-effect.
+2. **Consistent with existing pattern** — `bonusActionUsed`, `dashed`, `movementSpent`, `sneakAttackUsedThisTurn`, `rageAttackedThisTurn`, `bonusActionSpellCastThisTurn`, and others already appear in BOTH reset paths. `objectInteractionUsed` is the odd one out; this fix brings it into parity.
+3. **Not redundant in practice** — the two functions have different call sites. `extractActionEconomy` runs during `processIncomingCombatantEffects` turn advance. `resetTurnResources` is called from other paths (e.g. special action-grant flows, tests, fallback). Leaving the flag out of `resetTurnResources` is the same class of latent bug as the historical Barbarian rage-flag miss (see `.github/study/analysis/barbarian-rage-comparison.md`), inverted.
 
-The "ActionEconomy Flow (Minor)" section says:
-> On HIT: **after** the SAVING_THROW resolves (need to add `useAttack()` call in the contest resolution path)
+**Conclusion:** adding it is correct. No double-reset risk.
 
-But Risk R4 recommends option (b):
-> Have the contest branch in `handleAttackRoll()` consume the attack **BEFORE** creating the SAVING_THROW
+## `hasFreeObjectInteractionAvailable` Helper
 
-These are contradictory. **R4 option (b) is correct.** Per D&D 5e 2024, the attack is made (hit or miss), and it's consumed. The saving throw is a consequence of the hit, not part of the attack economy. `handleSavingThrowAction()` has no action economy logic and should NOT be coupled to it.
-
-**Verified via source:** `handleSavingThrowAction()` (`roll-state-machine.ts:1026-1066`) calls `SavingThrowResolver.resolve()`, `clearPendingAction()`, `generateNarration()`, and `buildResult()` — no `useAttack()`, no `markActionSpent()`, no resource mutations. Adding attack consumption there would violate separation of concerns.
-
-**Fix:** Update the ActionEconomy section to read:
-> - On HIT: in `RollStateMachine.handleAttackRoll()` contest hit branch, call `markActionSpent()` **before** creating the SAVING_THROW (option b from R4). The save is a consequence, not a separate action.
-
-### Issue 2 (MEDIUM): Step 4a/4b claim dynamic `actionComplete` but existing pattern is always `true`
-
-Step 4a says:
-> `actionComplete: true/false based on Extra Attack`
-
-Step 5 says:
-> `actionComplete: true/false (based on remaining attacks in multi-attack pool)`
-
-But the existing regular attack miss path (`roll-state-machine.ts:682-693`) **always returns `actionComplete: true`** after calling `markActionSpent()`. This is by design — `actionComplete` means "this pending-action flow is resolved," not "all attacks are exhausted." The player re-initiates another attack, and `canMakeAttack()` gates it.
-
-If the contest path returns dynamic `actionComplete`, it would be inconsistent with regular attacks. And making `handleSavingThrowAction()` compute dynamic `actionComplete` would require it to know about attack pools, which breaks its current clean abstraction.
-
-**Fix:** Both contest miss and contest hit→save should return `actionComplete: true` (matching existing attack miss behavior). Remove the "true/false based on Extra Attack" language from Steps 4a, 4b, and 5. The player can issue another attack if `canMakeAttack()` permits — that's the gate.
-
-### Issue 3 (LOW): `attacksAllowedThisTurn` lazy init must persist to DB
-
-The plan says GrappleHandlers must "initialize `attacksAllowedThisTurn`" but doesn't explicitly state the DB persist. In AttackHandlers (`attack-handlers.ts:253-259`), after `setAttacksAllowed()`, the result is immediately written:
-
-```typescript
-currentResources = setAttacksAllowed(currentResources, attacksPerAction);
-await this.deps.combatRepo.updateCombatantState(actorCombatant.id, {
-  resources: currentResources as any,
-});
+APPROVED. Should mirror `hasBonusActionAvailable` (resource-utils.ts:222–225):
+```ts
+const normalized = normalizeResources(resources);
+return readBoolean(normalized, "objectInteractionUsed") !== true;
 ```
 
-In the programmatic path (`grapple-action-handler.ts:99-100`), the init is NOT persisted immediately — it's held in a local variable and the combined state (init + useAttack) is persisted together at the end. But in the tabletop path, the attack consumption is deferred (happens in `handleAttackRoll()` via `markActionSpent()`), so the init MUST be persisted at creation time. Otherwise, if the player submits a roll and `markActionSpent()` reads the combatant's resources, `attacksAllowedThisTurn` would still be the default 1.
+## Consumption Helpers for Item Use
 
-**Fix:** Add explicit note in the GrappleHandlers rewrite spec: "Persist `attacksAllowedThisTurn` to DB via `combatRepo.updateCombatantState()` immediately after `setAttacksAllowed()`, matching AttackHandlers line 255-258."
+APPROVED with one drift watch:
 
----
+Mapping in D1 is correct:
+- `'action'` / `'utilize'` → `markActionSpent()` / `actionSpent: true` ✓
+- `'bonus'` → MUST call `useBonusAction()` (writes `bonusActionUsed: true`), NOT set `bonusActionSpent`. `hasBonusActionAvailable` reads `bonusActionUsed` only. `bonusActionSpent` is a separate flag written only by `extractActionEconomy`. Calling `useBonusAction()` is the canonical path — see Bardic Inspiration / Rage executors. **Flag this explicitly in the D6 handler spec so implementer doesn't invent a new flag.**
+- `'free-object-interaction'` → read `objectInteractionUsed`, degrade to Utilize (action) if already used, write `{ objectInteractionUsed: true }`. Matches existing `handlePickupAction` / `handleDrawWeaponAction` cascade (interaction-handlers.ts:99,129,143).
+- `'free'` / `'none'` → no-op / reject ✓
+
+## Minor Suggestions (non-blocking)
+
+1. **Pair with a consume helper.** Plan D8 only adds `hasFreeObjectInteractionAvailable`. The five existing inline writes of `{ ...r, objectInteractionUsed: true }` (interaction-handlers.ts:99,129,143,323,342) would benefit from a sibling `useFreeObjectInteraction(resources)` helper to mirror `useBonusAction`. Cuts future drift, trivial to add now.
+
+2. **Test both reset paths.** The plan's test item only covers `resetTurnResources`. Add a `combat-hydration.test.ts` case asserting `extractActionEconomy` zeros `objectInteractionUsed` when `isFreshEconomy === true` AND preserves it when any economy slot is already spent. Guards against the *inverse* drift (primary path regressing while fallback stays green — symmetric to the Barbarian rage incident).
+
+3. **Clarify D1 prose vs. type.** The bullet list treats `'free-object-interaction'` as a value, but the `ItemActionCosts.use` union is `'action' | 'bonus' | 'utilize' | 'free' | 'none'` — `'free-object-interaction'` only appears in `equip`. This is intentional (object interaction is an equip concept). Note it explicitly so implementer doesn't widen the `use` union.
 
 ## Missing Context
-
-- **`markActionSpent()` uses entity ID matching** (`characterId === actorId || monsterId === actorId || npcId === actorId`), confirmed at `tabletop-event-emitter.ts:60`. This was previously flagged as a bug (CO-A2-03) for only matching `characterId`, but it has been fixed to match all three entity types. No issue for grapple.
-- **`handleSavingThrowAction()` always returns `actionComplete: true`** — this is baked into the `buildResult()` opts passed at line 1063: `{ actionComplete: true, requiresPlayerInput: false, narration }`. If the internal chaining approach is used (plan step 4b option b), the contest hit path would inherit this `actionComplete: true`, which is the correct behavior per Issue 2 above.
-
----
-
-## Validated (No Issues)
-
-1. **Q1 resolved:** Deferred `useAttack()` to hit time is correct. The attack is consumed regardless of save outcome. R4 option (b) is the right call — just need to fix the contradiction in the ActionEconomy section.
-2. **Q3 validated:** `markActionSpent()` → `useAttack()` → increments `attacksUsedThisTurn` by 1, sets `actionSpent = true` only when `newUsed >= allowed`. Verified at `resource-utils.ts:88-98`. Consumes **one** attack slot, not the whole action.
-3. **Q5 validated:** "Grapple then attack" works correctly. Both share the `attacksAllowedThisTurn` pool. Lazy init uses `if (getAttacksAllowedThisTurn(currentResources) === 1)` guard so it's set once. A Fighter (2 attacks) can grapple (uses 1) then attack (uses 1, `actionSpent = true`).
-4. **Q6 validated:** No double-consumption risk. On miss: `markActionSpent()` once, pending action cleared. On hit: `markActionSpent()` once before SAVING_THROW, then `handleSavingThrowAction()` has zero resource mutations.
-5. **Q7 validated:** Escape grapple stays programmatic. Uses `spendAction()` → immediately `actionSpent = true`. Does NOT use `useAttack()`. Correct per D&D 5e 2024 (full action, not part of multi-attack pool). Verified at `grapple-action-handler.ts` — escape path does NOT have `skipActionCheck: true`, so the standard action-spent gate runs.
-6. **Action Surge interaction:** `grantAdditionalAction()` resets `actionSpent = false` and adds to `attacksAllowedThisTurn`. After Action Surge, a Fighter can grapple again with the new action's pool. No changes needed.
-
----
-
-## Suggested Changes
-
-1. **Fix Issue 1:** Replace the ActionEconomy section's "On HIT: after the SAVING_THROW resolves" with "On HIT: before creating the SAVING_THROW (R4 option b)." Ensure the `handleAttackRoll()` contest hit branch calls `this.eventEmitter.markActionSpent(encounter.id, actorId)` before chaining to the save.
-2. **Fix Issue 2:** Replace all "actionComplete: true/false based on Extra Attack" with "actionComplete: true" in Steps 4a, 4b, and 5.
-3. **Fix Issue 3:** Add DB persist call after `setAttacksAllowed()` in the GrappleHandlers rewrite spec.
+None. Plan cites reset sites, flag names, and cascade logic accurately.

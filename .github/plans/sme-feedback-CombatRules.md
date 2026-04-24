@@ -1,10 +1,61 @@
-# SME Feedback — CombatRules — Round 1
+# SME Feedback — CombatRules — Round 1 (Inventory G2)
 ## Verdict: NEEDS_WORK
+
+Scope: D&D 5e **2024** RAW correctness of the item action-cost defaults and Goodberry spell definition in `plan-inventory-g2-scalable.prompt.md`. Architecture/non-rules concerns deferred to other SMEs.
 
 ## Issues
 
-### Issue 1: `getProneAttackModifier()` argument order reversed in Bug 2 fix code
+1. **Goodberry spell `duration` is wrong** (SpellSystem → `level-1.ts` entry).
+   Plan: "1 min duration, no concentration." 2024 RAW: **Duration = Instantaneous**, no concentration. The 10 berries are a physical artifact that persists up to 24 h — *not* a spell duration. Berry expiry must live on the item (`longRestsRemaining`), never on the spell. Set `duration: 'instantaneous'`.
 
+2. **Scroll default `{use:'utilize'}` is wrong** (D1, item-action-defaults.ts).
+   2024 DMG Spell Scrolls: *"The scroll has the same casting time as the spell."* A 1-action spell scroll consumes a **Magic Action** (≈ `'action'`); a bonus-action spell scroll consumes a bonus action; etc. It is **not** the Utilize action — Utilize is reserved for magic items whose description says "Utilize." Options:
+   - (a) Default scroll to `{use:'action'}` with a TODO for variable casting times.
+   - (b) Add a `'spell-casting-time'` sentinel resolved at cast time from the embedded spell. Scalable; matches plan's ethos.
+
+3. **`give` default conflates hand-off with administer** (D1, potion category default = `{give:'bonus'}`).
+   2024 RAW:
+   - *Hand a willing ally an item within 5 ft* → **free object interaction** (1/turn slot).
+   - *Administer a potion* (force-feed unconscious/unwilling ally) → **Bonus Action** (2024 Potion of Healing: "drink it **or administer it** to another creature… as a Bonus Action").
+   Plan silently charges a bonus action for a simple hand-off. Split the verb:
+   - `give: 'free-object-interaction'` (default most items, incl. potions)
+   - `administer: 'bonus'` (potions, injury poisons)
+   Parser: `"hand <item> to <ally>"` = give; `"feed <item> to"` / `"administer <item>"` = administer. The planned `druid/goodberry-feed-ally.json` scenario (unconscious ally) is an *administer*, not a give.
+
+4. **Armor `equipDurationMinutes` only captures donning; doff is distinct in 2024** (armor-catalog.ts).
+   2024 PHB armor table:
+   | Category | Don | Doff |
+   |---|---|---|
+   | Light | 1 min | 1 min |
+   | Medium | 5 min | 1 min |
+   | Heavy | 10 min | 5 min |
+   Heavy doff especially differs. Replace with `{donMinutes, doffMinutes}` or the model is wrong the first time anyone removes heavy armor before a short rest.
+
+5. **Goodberry 24 h → 1 long rest is an unacknowledged approximation** (D3).
+   RAW: 24 hours from casting. Plan: vanishes at next long rest (8 h). A druid who casts at dawn and long-rests at dusk loses berries RAW would still grant. Given the explicit "no in-world clock" constraint this is acceptable as a pragmatic stub, but the plan's "Deferred" section does not call it out. Add an explicit bullet: *"Goodberry 24 h expiry is approximated as `longRestsRemaining:1` (stricter than RAW — acceptable without an in-world clock)."* Also document in the spell's JSDoc.
+
+## Confirmed correct vs 2024 RAW
+
+- Goodberry: casting time Action ✓; V/S/M mistletoe ✓; 10 berries ✓; 1 HP each ✓; Druid + Ranger ✓.
+- Goodberry eat-berry = **Bonus Action** ✓ (2024 changed from 2014 Action — plan correctly uses 2024).
+- Potion of Healing drink = **Bonus Action** ✓ (2024 item entry).
+- Injury poison coating = **Bonus Action** ✓ (2024 DMG).
+- Weapon draw/stow = **free object interaction** (1/turn) ✓.
+- Shield don/doff = action-equivalent ≈ Utilize ✓.
+- `resetTurnResources()` missing `objectInteractionUsed` (D8) — real defect, good catch.
+
+## Suggested Changes (minimal to unblock)
+
+1. `level-1.ts` Goodberry: `duration: 'instantaneous'` (not 1 min).
+2. `item-action-defaults.ts`: scroll → `{use:'action'}` + TODO for `'spell-casting-time'` sentinel.
+3. `ItemActionCosts`: split `give` (→ `'free-object-interaction'` default) from new `administer` (→ `'bonus'` for potions/poisons). Update potion + goodberry defaults and parser verbs.
+4. `armor-catalog.ts`: `{donMinutes, doffMinutes}` populated per 2024 table.
+5. Plan "Deferred" + Goodberry JSDoc: document the 24 h → 1 long rest approximation.
+
+Re-review after these fixes for APPROVAL.
+
+<!-- STALE CONTENT BELOW — previous grapple-plan feedback, ignore -->
+<!--
 The plan's inline code for the advantage fix in `grapple-action-handler.ts` has:
 ```typescript
 const proneModifier = getProneAttackModifier(targetConditions, "melee", 5);
@@ -152,3 +203,5 @@ This fixes both the grapple/shove case (Restrained → DEX save disadvantage) AN
    - `savingThrowDisadvantage` condition check (Restrained DEX)
 
    These are all handled correctly by `SavingThrowResolver` on the tabletop path, creating an asymmetry.
+-->
+

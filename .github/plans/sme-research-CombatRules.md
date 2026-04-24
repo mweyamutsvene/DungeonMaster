@@ -1,6 +1,101 @@
-# SME Research — CombatRules — Rules Primitives Audit for L1–5 Class Features
+# SME Research — CombatRules — Item Action Costs (5e 2024 RAW)
 
 As you wish Papi....
+
+## Scope
+- `RuleBookDocs/markdown/equipment.md` (armor don/doff table, Potion of Healing, Antitoxin)
+- `RuleBookDocs/markdown/playing-the-game.md` (Interacting with Things, Utilize)
+- `RuleBookDocs/markdown/rules-glossary.md` (Utilize [Action], Attack action — Equipping/Unequipping Weapons)
+- `RuleBookDocs/markdown/spell-descriptions.md` (Goodberry)
+- `RuleBookDocs/markdown/dms-toolbox.md` (Poison types — Injury/Contact/Ingested/Inhaled)
+- Task: codify per-item action costs so items can carry `useActionCost` / `equipActionCost` metadata.
+
+## Current State (RAW Findings)
+
+### 1. Drinking a potion (self) — 2024 change
+**Bonus Action.** Potion of Healing entry in `equipment.md` L1002–1004:
+> "As a Bonus Action, you can drink it or administer it to another creature within 5 feet of yourself."
+
+2024 explicitly demoted potion consumption from the 2014 "Action" default to a Bonus Action on the standard Potion of Healing. This cost is **printed on the item itself**, not derived from a generic "drink a potion" rule. Other potions may print their own cost (Utilize/Action/Bonus) — must be read per magic item entry.
+
+### 2. Administering a potion to another creature
+**Same Bonus Action as drinking** for Potion of Healing, target must be within **5 feet** (equipment.md L1004). Unconscious ally is not called out separately — no special penalty or upgrade in 2024 RAW for Potion of Healing. No save, no touch attack. (2014's "action vs. bonus-action-for-self" split is gone for this specific item.)
+
+### 3. Drawing / stowing a weapon — "Utilize" vs. Attack piggyback
+Two RAW paths coexist:
+- **Free during Attack action:** `rules-glossary.md` L127 (Attack action → *Equipping and Unequipping Weapons*):
+  > "You can either equip or unequip one weapon when you make an attack as part of this action... Equipping a weapon includes drawing it from a sheath or picking it up. Unequipping a weapon includes sheathing, stowing, or dropping it."
+  One equip OR unequip **per attack** (not per turn) piggybacked on the Attack action.
+- **Free object interaction:** `playing-the-game.md` "Interacting with Things" (L540, L639):
+  > "You can interact with one object or feature of the environment for free, during either your move or action... If you want to interact with a second object, you need to take the Utilize action."
+  Drawing/stowing a weapon *outside* the Attack action consumes the one-free-interaction or else requires a **Utilize action**.
+- **Thrown weapons:** `equipment.md` L126 — draw as part of the thrown attack (free).
+- **Ammunition:** `equipment.md` L95 — drawing ammunition is part of the ranged attack (free).
+
+### 4. Donning / doffing armor — minutes, not actions
+`equipment.md` L178, L190–205 — armor categories table:
+| Armor | Don | Doff |
+|-------|-----|------|
+| Light | 1 minute | 1 minute |
+| Medium | 5 minutes | 1 minute |
+| Heavy | 10 minutes | 5 minutes |
+| Shield | **Utilize action** | **Utilize action** |
+
+Don/doff of body armor is a **downtime/minute-scale activity** — NOT a combat turn action. Only shields cost an in-combat action (Utilize). `equipment.md` L210: "Anyone can don armor or hold a Shield, but only those with training can use them effectively." Lack of training imposes disadvantage on Str/Dex d20 tests and blocks spellcasting (rules-glossary.md L121); it does NOT change the time cost.
+
+### 5. Goodberry — eating a berry
+`spell-descriptions.md` L3015–3029:
+> "Ten berries appear in your hand... A creature can take a **Bonus Action** to eat one berry. Eating a berry restores 1 Hit Point..."
+
+Casting Goodberry itself has Casting Time: **Action**. Eating a berry is a **Bonus Action** per berry. The spell text is the authoritative cost — there is no generic "eat a berry" rule.
+
+### 6. Generic magic item use — Utilize / Magic action
+`rules-glossary.md` L1148 (Utilize entry):
+> "You normally interact with an object while doing something else... When an object requires an action for its use, you take the **Utilize action**."
+
+`playing-the-game.md` L644 confirms: "Some magic items and other special objects always require an action to use, as stated in their descriptions." So the **default generic cost to activate a magic item is the Utilize action**, unless the item's description overrides (e.g., Bonus Action for Potion of Healing, or "Magic action" for items that mimic spellcasting). Class/feature-level magical uses (Channel Divinity, Turn Undead) use the **Magic action**, which is a distinct named action — separate from Utilize.
+
+### 7. Passing an item to an ally
+No explicit 2024 RAW rule names this. Falls under **Interacting with Things** (playing-the-game.md L639):
+- Handing off / dropping an item is part of the **free object interaction** (one per turn, during move or action).
+- Doing it a second time (e.g., you already opened a door) requires the **Utilize action**.
+- RAW imposes no specific reach rule beyond "object you can reach" — typically 5 ft. No catch check, no save. **Flag: uncertainty — not a named rule; DM adjudicated.**
+
+### 8. Applying poison to a weapon
+`dms-toolbox.md` L442:
+> "**Injury.** Injury poison can be applied as a **Bonus Action** to a weapon, a piece of ammunition, or similar object. The poison remains potent until delivered through a wound or washed off."
+
+- **Injury poison: Bonus Action** (RAW, explicit).
+- **Contact poison** (L436): smeared on an object; no action cost specified — framed as non-combat (DM's toolbox). Flag: RAW silent on combat-turn cost.
+- **Ingested / Inhaled** (L438–440): delivery methods, not weapon-application; no weapon-coat cost.
+- Antitoxin (equipment.md L624) uses **Bonus Action** to drink, consistent with the potion pattern.
+
+## Constraints & Invariants
+1. **Item description beats generic rule.** A per-item printed action cost (e.g., Potion of Healing's Bonus Action) always overrides the generic "Utilize" default for magic items. Data model must allow per-item override.
+2. **Weapon equip/unequip is dual-mode.** Cost depends on *context*: "free during Attack action" vs. "free object interaction" vs. "Utilize action". Any `equipActionCost` field must either encode the Attack-piggyback pathway separately, or model "free-if-interaction-slot-available, else Utilize."
+3. **Armor don/doff is time-scale, not action-scale.** Modeling `equipActionCost` as an action enum won't fit armor — needs a minutes value or a dedicated "downtime" sentinel. Shields are the exception (Utilize action).
+4. **"Utilize" ≠ "Magic" action.** Utilize (objects) and Magic (spell-like class features, some magic items) are distinct named actions in 2024 and both consume the action slot. Do not conflate.
+5. **Object interaction budget is per turn, not per action.** "One free interaction per turn" applies to move or action phase. Second interaction is a Utilize action. This is a turn-level resource the action economy must track to get piggyback semantics right.
+6. **Ammunition & thrown draws are free inside their own attacks** — separate from the weapon-equip rule.
+
+## Risks
+1. **Oversimplification:** Flattening "drink a potion" to a single `useActionCost: "bonus"` may mislead for future potions that print "Action" or "Utilize". Mitigation: treat action cost as **item-level data**, not class/category default.
+2. **Armor modeling mismatch:** Cramming "10 minutes" into the same enum as "action/bonus/reaction" will corrupt the action economy. Mitigation: model armor don/doff as a non-combat activity; reject attempts in combat (except shields).
+3. **Object-interaction budget:** If the engine doesn't currently track "free object interactions per turn," an `equipActionCost: "free"` field for weapons is lossy — it won't know when to upgrade to Utilize. Flag for ActionEconomy SME.
+4. **Poison combat validity:** RAW only explicitly handles Injury poison at combat speed. Contact poison application cost in combat is undefined — flag as DM-adjudicated.
+5. **2024 magic items A–Z not re-scanned item by item.** Individual magic items may each print unique costs (Bonus Action, Magic action, Utilize, reaction). Any catalog-wide default is an approximation.
+
+## Recommendations (factual, for planners)
+- Model `useActionCost` as a per-item enum including at minimum: `action` | `bonusAction` | `magicAction` | `utilize` | `free` | `reaction` | `none`, plus a `duration` alternative (minutes) for armor-like equip flows.
+- Model `equipActionCost` separately from `useActionCost`. For weapons, represent both the "free-with-Attack-piggyback" and "free-object-interaction-or-Utilize" paths (e.g., `attackPiggyback: true` plus baseline `utilize`).
+- Treat armor don/doff as a time value (minutes) + category; shields carry `equipActionCost: utilize`.
+- Default magic item `useActionCost` to `utilize`; allow per-item override for Bonus Action potions, Magic action items, etc.
+- Injury poison application → `bonusAction`; Contact poison → flag non-combat/DM-adjudicated.
+- Passing an item to an ally → same as generic object interaction (free-if-budget, else `utilize`); flag as non-RAW-explicit.
+
+<!-- ARCHIVED PRIOR RESEARCH BELOW -->
+
+# SME Research — CombatRules — Rules Primitives Audit for L1–5 Class Features (ARCHIVED)
 
 ## Scope
 - Files reviewed: `domain/rules/` (60+), `domain/combat/attack-resolver.ts`, `domain/entities/combat/conditions.ts`, `application/services/combat/tabletop/roll-state-machine.ts`, `application/services/combat/tabletop/dispatch/attack-handlers.ts`, `application/services/combat/tabletop/combat-text-parser.ts`, `application/services/combat/tabletop/rolls/saving-throw-resolver.ts`, `application/services/combat/tabletop/spell-delivery/save-spell-delivery-handler.ts`, `application/services/combat/tabletop/dispatch/class-ability-handlers.ts`, `application/services/combat/abilities/executors/paladin/lay-on-hands-executor.ts`, `application/services/combat/abilities/executors/fighter/second-wind-executor.ts`, `domain/entities/classes/barbarian.ts`, `domain/entities/classes/paladin.ts`, `domain/rules/evasion.ts`, `domain/rules/movement.ts`.
