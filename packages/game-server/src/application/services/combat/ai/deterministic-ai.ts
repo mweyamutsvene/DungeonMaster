@@ -371,13 +371,26 @@ export class DeterministicAiDecisionMaker implements IAiDecisionMaker {
       }
     }
 
-    // Step 4: Use healing potion if low HP, available, and action not spent
-    if (!actionSpent && ctx.hasPotions && combatant.hp.percentage < 40) {
-      return {
-        action: "useObject",
-        endTurn: true,
-        intentNarration: `${input.combatantName} drinks a healing potion!`,
-      };
+    // Step 4: Use healing potion if low HP AND a potion would heal more than
+    // the best available bonus-action healing spell (2024: Healing Word +
+    // spellcasting mod ≈ 2.5 + mod). `canUseItems` gates beasts/undead/etc.
+    // from drinking potions per RAW.
+    if (!actionSpent && ctx.canUseItems && ctx.usableItems.length > 0 && combatant.hp.percentage < 40) {
+      const bestPotion = ctx.usableItems
+        .filter((i) => i.effectKind === "healing" && typeof i.estimatedHeal === "number")
+        .sort((a, b) => (b.estimatedHeal ?? 0) - (a.estimatedHeal ?? 0))[0];
+      const potionEV = bestPotion?.estimatedHeal ?? 0;
+      const spellEV = ctx.bestBonusHealSpellEV ?? 0;
+      // Only drink if the best potion beats the best BA spell heal. Goodberry
+      // heals 1 HP flat; Healing Word averages 2.5+mod ≈ 5+ for a L3 caster —
+      // a Druid with both should prefer the spell.
+      if (bestPotion && potionEV >= spellEV) {
+        return {
+          action: "useObject",
+          endTurn: true,
+          intentNarration: `${input.combatantName} drinks a healing potion!`,
+        };
+      }
     }
 
     // Step 4b: Spell casting — evaluate before physical attacks

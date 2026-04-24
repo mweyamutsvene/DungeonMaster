@@ -45,6 +45,34 @@ export type AiDecision = {
  * Port interface for AI decision making.
  * Infrastructure layer provides LLM implementation; test harness provides mocks.
  */
+/**
+ * Compact view of an item in the AI combatant's inventory. Surfaced via
+ * `AiCombatContext.usableItems` so the decision layer can pick by expected
+ * heal, effect type, or action-economy cost without re-fetching item
+ * definitions.
+ */
+export interface AiItemSummary {
+  readonly name: string;
+  /** Reference into `magic-item-catalog` when the instance is a known magic item. */
+  readonly magicItemId?: string;
+  /** Remaining stack count (>= 1 when surfaced; 0-count items are filtered out). */
+  readonly quantity: number;
+  /** Primary effect classification; drives AI branching. */
+  readonly effectKind: "healing" | "buff" | "utility" | "harmful" | "other";
+  /**
+   * Average HP restored when consumed — flat-heal items contribute their
+   * modifier directly; dice-heal items use expected value (diceCount * (diceSides+1)/2 + modifier).
+   * Absent when the item does not heal.
+   */
+  readonly estimatedHeal?: number;
+  /**
+   * Action-economy cost for SELF-USE (`use`). Callers compare against
+   * available action/bonus-action slots before branching. Defaults to
+   * 'action' when `actionCosts.use` is undefined.
+   */
+  readonly useCost: "action" | "bonus" | "utilize" | "none";
+}
+
 export interface IAiDecisionMaker {
   decide(input: {
     combatantName: string;
@@ -229,8 +257,35 @@ export interface AiCombatContext {
   /**
    * Whether the AI combatant has at least one healing potion available in inventory.
    * Used by the decision maker to pre-filter the useObject action.
+   *
+   * @deprecated Use `canUseItems && usableItems.length > 0` instead. Retained
+   * for backward compatibility with LLM prompt snapshots; compute via the same
+   * logic in the context builder.
    */
   hasPotions: boolean;
+  /**
+   * D&D 5e 2024: certain creature types cannot drink potions or use item actions
+   * (beast forms, undead, constructs, oozes, plants). Derived from the AI
+   * combatant's `creatureType` (character/NPC sheet or monster stat block).
+   * When false, the deterministic AI and the LLM are both gated away from
+   * useObject even if `usableItems.length > 0`.
+   */
+  canUseItems: boolean;
+  /**
+   * Items in the combatant's inventory that have a `potionEffects` definition
+   * and at least 1 remaining stack. Populated only when `canUseItems === true`;
+   * otherwise returned as an empty array. Replaces the older boolean
+   * `hasPotions`; retains full item metadata so the AI can compare items by
+   * expected healing, effect type, and action-economy cost.
+   */
+  usableItems: AiItemSummary[];
+  /**
+   * Average HP recovered by the best available bonus-action healing spell
+   * (e.g. Healing Word, Mass Healing Word). Absent when no BA heal spell is
+   * prepared or known. Used by `UseObjectHandler.findBestUsableItem` to skip
+   * the potion branch when a spell would heal more.
+   */
+  bestBonusHealSpellEV?: number;
   recentNarrative: string[];
   actionHistory: string[];
   turnResults: TurnStepResult[];

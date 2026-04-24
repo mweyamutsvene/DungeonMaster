@@ -51,6 +51,8 @@ function makeContext(overrides: Partial<AiCombatContext> = {}): AiCombatContext 
     allies: [],
     enemies: [makeEnemy({ name: "Fighter", position: { x: 1, y: 0 }, distanceFeet: 5 })],
     hasPotions: false,
+    canUseItems: true,
+    usableItems: [],
     recentNarrative: [],
     actionHistory: [],
     turnResults: [],
@@ -304,6 +306,17 @@ describe("DeterministicAiDecisionMaker", () => {
       }),
       enemies: [makeEnemy({ name: "Fighter", position: { x: 1, y: 0 }, distanceFeet: 5 })],
       hasPotions: true,
+      canUseItems: true,
+      usableItems: [
+        {
+          name: "Potion of Healing",
+          magicItemId: "potion-of-healing",
+          quantity: 1,
+          effectKind: "healing",
+          estimatedHeal: 7,
+          useCost: "action",
+        },
+      ],
     });
 
     const decision = await ai.decide({

@@ -9,12 +9,17 @@
 |-----------|-------------|---------|
 | `tabletop/` | `tabletop-combat-service.ts` | Text-based dice flow: parser chain, roll resolution, spell delivery |
 | `tabletop/dispatch/` | `action-dispatcher.ts` | 6 ActionDispatcher-private handler classes (movement, attack, class ability, grapple, social, interaction) |
-| `tabletop/rolls/` | `roll-state-machine.ts` | Roll resolvers (initiative, hit-rider, weapon mastery, saving throw) |
+| `tabletop/rolls/` | `roll-state-machine.ts` | Roll resolvers (initiative, hit-rider, weapon mastery, damage, saving throw) |
+| `tabletop/spell-delivery/` | `spell-action-handler.ts` | Per-effect delivery: buff/debuff, healing, attack, save-based, zone |
 | `action-handlers/` | `action-service.ts` | Programmatic action execution: attack, grapple, skill |
-| `two-phase/` | `two-phase-action-service.ts` | Reaction resolution: OA, Shield, Counterspell |
+| `two-phase/` | `two-phase-action-service.ts` | Reaction resolution: move, attack, spell, damage reactions |
 | `helpers/` | (shared) | Shared utilities: hydration, resource utils, combatant resolution |
 | `ai/` | `ai-turn-orchestrator.ts` | AI decision making, battle planning, context building |
+| `ai/handlers/` | `ai-action-executor.ts` | Per-action AI handlers (attack, move, cast spell, grapple, hide, etc.) |
 | `abilities/` | — | AbilityRegistry + per-class executors |
+
+## Root-level files
+`tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts` (lifecycle), `tactical-view-service.ts` (battlefield views), `combat-victory-policy.ts` (end-condition checks), `index.ts`.
 
 ## Laws
 1. **Three-facade architecture** — `TabletopCombatService`, `ActionService`, and `TwoPhaseActionService` are thin facades that delegate to their respective handler directories. Keep facades under ~600 lines.

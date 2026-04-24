@@ -451,6 +451,47 @@ export class AiContextBuilder {
   /**
    * Build entity info for the AI combatant itself.
    */
+  /**
+   * Resolve creature type from the entity data (monster stat block,
+   * character sheet, or NPC stat block). Returns the lowercase type string
+   * when known, otherwise undefined. Used to gate AI item use per D&D 5e
+   * 2024 "certain creature types cannot use objects" rules.
+   */
+  private resolveCreatureType(
+    entityData: Record<string, unknown>,
+    aiCombatant: CombatantStateRecord,
+  ): string | undefined {
+    // Monsters expose statBlock.type; characters use race; NPCs vary.
+    const statBlock = entityData.statBlock as Record<string, unknown> | undefined;
+    if (statBlock && typeof statBlock.type === "string") return statBlock.type;
+    const sheet = entityData.sheet as Record<string, unknown> | undefined;
+    if (sheet && typeof sheet.creatureType === "string") return sheet.creatureType;
+    // Wild Shape: characters in beast form carry `wildShapeActive` + `wildShapeForm`.
+    const wildShape = (aiCombatant.resources as Record<string, unknown> | undefined)?.wildShapeActive;
+    if (wildShape) return "beast";
+    return undefined;
+  }
+
+  /**
+   * Estimate the expected HP recovered by the best bonus-action healing
+   * spell in the AI combatant's prepared/known list. Currently recognizes
+   * Healing Word (1d4 + spellcasting mod, avg 2.5 + mod) and Mass Healing
+   * Word (same formula per target). Returns undefined when no BA heal
+   * spell is available. The UseObjectHandler compares this to the best
+   * potion's `estimatedHeal` to avoid wasting a potion when a spell does more.
+   */
+  private estimateBestBonusHealSpellEV(entityData: Record<string, unknown>): number | undefined {
+    const sheet = entityData.sheet as Record<string, unknown> | undefined;
+    const prepared = (sheet?.preparedSpells ?? sheet?.knownSpells ?? []) as Array<{ name?: string }>;
+    const spellMod = typeof sheet?.spellAttackBonus === "number"
+      ? (sheet!.spellAttackBonus as number) - Math.max(0, Math.floor((((sheet!.level as number) ?? 1) + 7) / 4))
+      : undefined;
+    const modifier = typeof spellMod === "number" ? Math.max(0, spellMod) : 0;
+    const hasHealingWord = prepared.some((s) => typeof s.name === "string" && /healing\s+word/i.test(s.name));
+    if (hasHealingWord) return 2.5 + modifier;
+    return undefined;
+  }
+
   private buildEntityInfo(
     entityData: Record<string, unknown>,
     aiCombatant: CombatantStateRecord,
@@ -715,13 +756,51 @@ export class AiContextBuilder {
     const allyDetails = await this.buildAllyDetails(allies, nameMap);
     const enemyDetails = await this.buildEnemyDetails(enemies, nameMap);
 
-    // Check inventory for potions (for AI pre-filtering of useObject)
+    // Check inventory for usable items (for AI pre-filtering of useObject).
+    //
+    // D&D 5e 2024: certain creature types cannot drink potions or use objects
+    // mid-combat — beasts (including Wild Shape forms), undead, constructs,
+    // oozes, and plants. Populated from the AI combatant's creatureType when
+    // available; defaults to true when type info is unknown (safer to allow).
+    const creatureType = this.resolveCreatureType(entityData, aiCombatant);
+    const CANNOT_USE_ITEMS = new Set(["beast", "undead", "construct", "ooze", "plant"]);
+    const canUseItems = creatureType ? !CANNOT_USE_ITEMS.has(creatureType.toLowerCase()) : true;
+
     const inventory = getInventory(aiCombatant.resources);
-    const hasPotions = inventory.some(item => {
-      if (item.quantity < 1) return false;
-      const itemDef = lookupMagicItem(item.name);
-      return !!(itemDef?.potionEffects);
-    });
+    const usableItems = canUseItems
+      ? inventory
+          .filter(item => item.quantity >= 1 && !!lookupMagicItem(item.name)?.potionEffects)
+          .map(item => {
+            const def = lookupMagicItem(item.name)!;
+            const pe = def.potionEffects!;
+            let effectKind: "healing" | "buff" | "utility" | "harmful" | "other" = "other";
+            if (pe.healing) effectKind = "healing";
+            else if (pe.damage || pe.applyConditions?.some(c => /poisoned|frightened|paralyzed/i.test(c.condition))) effectKind = "harmful";
+            else if (pe.effects?.length || pe.tempHp) effectKind = "buff";
+            else if (pe.removeConditions?.length) effectKind = "utility";
+            let estimatedHeal: number | undefined;
+            if (pe.healing) {
+              const h = pe.healing;
+              const isFlat = h.diceCount === 0 || h.diceSides === 0;
+              estimatedHeal = isFlat
+                ? (h.modifier ?? 0)
+                : h.diceCount * ((h.diceSides + 1) / 2) + (h.modifier ?? 0);
+            }
+            return {
+              name: item.name,
+              ...(item.magicItemId ? { magicItemId: item.magicItemId } : {}),
+              quantity: item.quantity,
+              effectKind,
+              ...(estimatedHeal !== undefined ? { estimatedHeal } : {}),
+              useCost: (def.actionCosts?.use ?? "action") as "action" | "bonus" | "utilize" | "none",
+            };
+          })
+      : [];
+    const hasPotions = usableItems.length > 0;
+
+    // Estimate the best bonus-action heal spell the AI has prepared.
+    // Healing Word = 1d4 + WIS mod (cleric/bard L1). Avg 2.5 + mod.
+    const bestBonusHealSpellEV = this.estimateBestBonusHealSpellEV(entityData);
 
     // Inject pre-computed distances from self to each enemy and ally
     const selfPos = entityInfo.position;
@@ -791,6 +870,9 @@ export class AiContextBuilder {
       allies: allyDetails,
       enemies: enemyDetails,
       hasPotions,
+      canUseItems,
+      usableItems,
+      ...(bestBonusHealSpellEV !== undefined ? { bestBonusHealSpellEV } : {}),
       ...(battlefield ? { battlefield } : {}),
       ...(zoneContext ? { zones: zoneContext } : {}),
       recentNarrative,

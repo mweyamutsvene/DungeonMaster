@@ -37,15 +37,15 @@ Each flow has a nested `CLAUDE.md` at its scope directory with stable architectu
 | ClassAbilities | `domain/entities/classes/`, `domain/abilities/`, `abilities/executors/` | [packages/game-server/src/domain/entities/classes/CLAUDE.md](packages/game-server/src/domain/entities/classes/CLAUDE.md) |
 | SpellSystem | `domain/entities/spells/`, `tabletop/spell-action-handler.ts`, `spell-delivery/*`, `domain/rules/concentration.ts` | [packages/game-server/src/domain/entities/spells/CLAUDE.md](packages/game-server/src/domain/entities/spells/CLAUDE.md) |
 | SpellCatalog | `domain/entities/spells/catalog/` | (covered by SpellSystem) |
-| CombatOrchestration | `combat/tabletop/*`, `combat/action-handlers/*`, `combat/two-phase/*`, `tabletop-combat-service.ts`, `action-service.ts`, `combat-service.ts` | [packages/game-server/src/application/services/combat/tabletop/CLAUDE.md](packages/game-server/src/application/services/combat/tabletop/CLAUDE.md), [packages/game-server/src/application/services/combat/CLAUDE.md](packages/game-server/src/application/services/combat/CLAUDE.md) |
+| CombatOrchestration | `combat/tabletop/*`, `combat/action-handlers/*`, `tabletop-combat-service.ts`, `action-service.ts`, `combat-service.ts` | [packages/game-server/src/application/services/combat/tabletop/CLAUDE.md](packages/game-server/src/application/services/combat/tabletop/CLAUDE.md), [packages/game-server/src/application/services/combat/CLAUDE.md](packages/game-server/src/application/services/combat/CLAUDE.md) |
 | ActionEconomy | action/bonus/reaction/movement tracking across combat services | (covered by CombatOrchestration) |
-| ReactionSystem | opportunity attacks, ability reactions, two-phase resolution | (covered by CombatOrchestration) |
-| CombatMap | `domain/combat/combat-map.ts` (grid, pathfinding, cover, terrain) | (covered by CombatRules) |
-| AIBehavior | `combat/ai/*`, `infrastructure/llm/*` | [packages/game-server/src/application/services/combat/ai/CLAUDE.md](packages/game-server/src/application/services/combat/ai/CLAUDE.md), [packages/game-server/src/infrastructure/llm/CLAUDE.md](packages/game-server/src/infrastructure/llm/CLAUDE.md) |
+| ReactionSystem | `combat/two-phase/*`, `two-phase-action-service.ts`, OA detection, pending-action state machine | [packages/game-server/src/application/services/combat/two-phase/CLAUDE.md](packages/game-server/src/application/services/combat/two-phase/CLAUDE.md) |
+| CombatMap | `domain/rules/combat-map.ts` + companions (`-core`, `-items`, `-sight`, `-types`, `-zones`), `pathfinding.ts`, `area-of-effect.ts`, `battlefield-renderer.ts` | (covered by CombatRules) |
+| AIBehavior | `combat/ai/*` (+ `ai/handlers/`), `infrastructure/llm/*` | [packages/game-server/src/application/services/combat/ai/CLAUDE.md](packages/game-server/src/application/services/combat/ai/CLAUDE.md), [packages/game-server/src/infrastructure/llm/CLAUDE.md](packages/game-server/src/infrastructure/llm/CLAUDE.md) |
 | AISpellEvaluation | AI spell selection logic in `combat/ai/` | (covered by AIBehavior) |
 | EntityManagement | `services/entities/*`, `domain/entities/creatures/*`, repositories | [packages/game-server/src/application/services/entities/CLAUDE.md](packages/game-server/src/application/services/entities/CLAUDE.md) |
 | CreatureHydration | stat-block load, combat prep | (covered by EntityManagement) |
-| InventorySystem | item entities, equip/unequip, potions, ground items, magic items, inventory routes | (no nested CLAUDE.md yet — flag gap) |
+| InventorySystem | `domain/entities/items/*`, inventory routes, `item-lookup-service.ts` | [packages/game-server/src/domain/entities/items/CLAUDE.md](packages/game-server/src/domain/entities/items/CLAUDE.md) |
 
 ---
 

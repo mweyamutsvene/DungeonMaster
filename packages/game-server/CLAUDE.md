@@ -18,7 +18,7 @@ Pending-action state machine where the server requests dice rolls from the playe
 1 Action, 1 Bonus Action, 1 Movement, 1 Reaction. Free abilities (Action Surge) don't consume action economy.
 
 ## Key Architectural Rules
-- Session routes are in 9 focused files under `infrastructure/api/routes/sessions/` — see `SESSION_API_REFERENCE.md`
+- Session routes live under `infrastructure/api/routes/sessions/` split by concern (actions, characters, combat, creatures, crud, events, inventory, llm, tabletop, tactical) — see `SESSION_API_REFERENCE.md`
 - LLM adapters must tolerate "LLM not configured" gracefully — LLM is always optional
 - Domain errors (`NotFoundError`, `ValidationError`) map to HTTP status codes via Fastify error handler in `app.ts`
 - Test files: `*.test.ts` (unit), `*.integration.test.ts`, `*.llm.test.ts`
