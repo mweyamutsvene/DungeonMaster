@@ -33,6 +33,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tsx scripts/hooks/post-impl-challenger.ts",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
