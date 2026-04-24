@@ -21,7 +21,8 @@
       "Skill",
       "Bash(pnpm -C packages/game-server test)",
       "Bash(pnpm -C packages/game-server test:e2e:combat:mock)",
-      "Bash(pnpm -C packages/game-server test:e2e:combat:mock -- --all)"
+      "Bash(pnpm -C packages/game-server test:e2e:combat:mock -- --all)",
+      "WebSearch"
     ]
   }
 }
