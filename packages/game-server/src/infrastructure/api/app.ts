@@ -5,6 +5,7 @@ import {
   CharacterService,
   CombatService,
   GameSessionService,
+  InventoryService,
   ItemLookupService,
   TacticalViewService,
   TabletopCombatService,
@@ -194,6 +195,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }),
   };
   const itemLookup = new ItemLookupService(deps.itemDefinitionsRepo ?? defaultItemDefinitionsRepo);
+  const inventoryService = new InventoryService({
+    charactersRepo: deps.charactersRepo,
+    events: deps.eventsRepo,
+    unitOfWork: deps.unitOfWork,
+  });
   const factionService = new FactionService({
     combat: deps.combatRepo,
     characters: deps.charactersRepo,
@@ -369,6 +375,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     characterGenerator: deps.characterGenerator,
     diceRoller,
     itemLookup,
+    inventoryService,
     createServicesForRepos: (repos) => {
       const sessionsService = new GameSessionService(repos.sessionsRepo, repos.eventsRepo);
       const diceRollerInner = deps.diceRoller ?? new RandomDiceRoller();

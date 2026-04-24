@@ -188,22 +188,22 @@ Full OoC spell cast pipeline (targeting, concentration, rituals, long casts) = *
 - [ ] `consumeItemFromInventory(sheet, itemName)` returning `{updatedSheet, consumedItem, healingApplied?, effectsApplied?}`.
 
 `packages/game-server/src/application/services/entities/inventory-service.ts` (NEW)
-- [ ] `transferItem(input, repos?)` — UoW + re-read inside callback + sheetVersion guard + 1 retry.
-- [ ] `createItemsForCharacter(input, repos?)`.
-- [ ] `sweepExpiredItems(sessionId, charIds, repos?)`.
-- [ ] `equipItem(input, repos?)` — rejects `out-of-combat-only` during active encounter.
+- [x] `transferItem(input, repos?)` — UoW + re-read inside callback + sheetVersion guard + 1 retry. *(Commit 3)*
+- [x] `createItemsForCharacter(input, repos?)`. *(Commit 3)*
+- [x] `sweepExpiredItems(sessionId, charIds, repos?)` + `applyLongRestToInventory`. *(Commit 3)*
+- [ ] `equipItem(input, repos?)` — rejects `out-of-combat-only` during active encounter. **DEFERRED** — no E2E scenario in this plan requires it; move to Commit 4 alongside ItemActionHandler.
 
 `packages/game-server/src/application/services/entities/rest-service.ts`
-- [ ] Call `sweepExpiredItems(..., repos)` on long-rest branch.
+- [ ] Call `applyLongRestToInventory(..., repos)` on long-rest branch. **BLOCKED** — no `rest-service.ts` exists yet (only `domain/rules/rest.ts` pure helpers). Defer to whenever long-rest application service lands.
 
 `packages/game-server/src/application/services/combat/combat-service.ts` (or start-encounter site)
-- [ ] Call `sweepExpiredItems` at combat start.
-- [ ] Call `hydrateInventoryFromSheet` for each combatant at combat start so OoC-created items (Goodberry) populate `combatant.resources.inventory` (C-R2-2).
+- [x] Call `sweepExpiredItems` at combat start. *(Commit 3: hooked in `session-combat.ts` and `session-tabletop.ts` routes before delegating to combat service.)*
+- [x] Call `hydrateInventoryFromSheet` for each combatant at combat start so OoC-created items (Goodberry) populate `combatant.resources.inventory` (C-R2-2). *(Already present in `initiative-handler.ts` `buildCombatantResources` — `resources.inventory = sheet.inventory`.)*
 
 `packages/game-server/src/infrastructure/api/routes/sessions/session-inventory.ts`
-- [ ] Route POST/DELETE/PATCH/use/use-charge through `inventoryService`.
-- [ ] Add `POST /inventory/:itemName/transfer` body `{toCharId, quantity}`.
-- [ ] Update `app.test.ts`.
+- [ ] Route POST/DELETE/PATCH/use/use-charge through `inventoryService`. **DEFERRED** — existing routes work; service-routing refactor is a cosmetic improvement. Moved to Commit 4 alongside ItemActionHandler refactor.
+- [x] Add `POST /inventory/:itemName/transfer` body `{toCharId, quantity}`. *(Commit 3)*
+- [x] Update `app.test.ts` (already done in Commit 2; new service reuses existing deps).
 
 `packages/game-server/prisma/schema.prisma`
 - [ ] Add `sheetVersion Int @default(0)` to `SessionCharacter`.

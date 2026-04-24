@@ -51,8 +51,22 @@ export interface NPCAddedPayload {
 export interface InventoryChangedPayload {
   characterId: string;
   characterName: string;
-  action: "add" | "remove" | "equip" | "use-charge" | "use";
+  action:
+    | "add"
+    | "remove"
+    | "equip"
+    | "use-charge"
+    | "use"
+    | "create"
+    | "expire"
+    | "transfer-in"
+    | "transfer-out";
   itemName: string;
+  quantity?: number;
+  fromCharacterId?: string;
+  fromCharacterName?: string;
+  toCharacterId?: string;
+  toCharacterName?: string;
 }
 
 export interface RestStartedPayload {

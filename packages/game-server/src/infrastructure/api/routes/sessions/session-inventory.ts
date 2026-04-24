@@ -366,4 +366,41 @@ export function registerSessionInventoryRoutes(app: FastifyInstance, deps: Sessi
       inventory: updatedInventory,
     };
   });
+
+  /**
+   * POST /sessions/:id/characters/:charId/inventory/:itemName/transfer
+   * Transfer `quantity` of an item from the source character to `toCharId`.
+   * Uses optimistic concurrency (sheetVersion) with single retry.
+   */
+  app.post<{
+    Params: { id: string; charId: string; itemName: string };
+    Body: { toCharId: string; quantity?: number };
+  }>(
+    "/sessions/:id/characters/:charId/inventory/:itemName/transfer",
+    async (req) => {
+      const { id: sessionId, charId: fromCharId } = req.params;
+      const itemName = decodeURIComponent(req.params.itemName);
+      const toCharId = req.body?.toCharId;
+      const quantity = req.body?.quantity ?? 1;
+
+      if (!toCharId || typeof toCharId !== "string") {
+        throw new ValidationError("toCharId is required");
+      }
+
+      const result = await deps.inventoryService.transferItem(
+        sessionId,
+        fromCharId,
+        toCharId,
+        itemName,
+        quantity,
+      );
+
+      return {
+        itemName: result.item.name,
+        quantity: result.quantity,
+        fromInventory: result.fromInventory,
+        toInventory: result.toInventory,
+      };
+    },
+  );
 }

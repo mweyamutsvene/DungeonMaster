@@ -203,6 +203,17 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
     }
 
     console.log(`[CLI → initiate] "${text}"`);
+
+    // Sweep expired items (e.g. Goodberry berries whose longRestsRemaining === 0)
+    // from every session character's sheet BEFORE the encounter is built, so
+    // combatant.resources.inventory reflects the cleaned state once initiative
+    // is submitted and hydration runs.
+    const sessionChars = await deps.charactersRepo.listBySession(sessionId);
+    const sessionCharIds = sessionChars.map((c) => c.id);
+    if (sessionCharIds.length > 0) {
+      await deps.inventoryService.sweepExpiredItems(sessionId, sessionCharIds);
+    }
+
     return deps.tabletopCombat.initiateAction(sessionId, text, actorId);
   });
 

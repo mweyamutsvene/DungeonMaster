@@ -46,6 +46,16 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
 
     const input = { combatants: req.body.combatants };
 
+    // Sweep expired items (e.g. Goodberry berries whose longRestsRemaining === 0)
+    // from all participating characters' sheets BEFORE the encounter is built,
+    // so combatant.resources.inventory reflects the cleaned state.
+    const characterIds = input.combatants
+      .filter((c) => c.combatantType === "Character" && c.characterId)
+      .map((c) => c.characterId as string);
+    if (characterIds.length > 0) {
+      await deps.inventoryService.sweepExpiredItems(sessionId, characterIds);
+    }
+
     if (deps.unitOfWork) {
       return deps.unitOfWork.run(async (repos) => {
         const services = deps.createServicesForRepos(repos);
