@@ -28,6 +28,14 @@ export function findInventoryItem(
  * Add an item to the inventory. If an item with the same name exists
  * and is stackable (same magicItemId or no magicItemId), increments quantity.
  * Otherwise adds a new entry.
+ *
+ * Stack-merge key: `(name, magicItemId, longRestsRemaining)` with
+ * `undefined === undefined` semantics on all three fields. Items with the
+ * same name + id but different expiries become separate stacks — this is
+ * intentional so that a Goodberry cast today does not merge with berries
+ * cast yesterday (which would extend the old stack's life).
+ *
+ * Inventory stacks are unbounded; 5e 2024 carrying-capacity is out of scope.
  */
 export function addInventoryItem(
   inventory: CharacterItemInstance[],
@@ -35,7 +43,8 @@ export function addInventoryItem(
 ): CharacterItemInstance[] {
   const existing = inventory.find(
     i => i.name.toLowerCase() === item.name.toLowerCase()
-      && i.magicItemId === item.magicItemId,
+      && i.magicItemId === item.magicItemId
+      && i.longRestsRemaining === item.longRestsRemaining,
   );
   if (existing) {
     return inventory.map(i =>
@@ -96,6 +105,36 @@ export function useConsumableItem(
  */
 export function getAttunedCount(inventory: CharacterItemInstance[]): number {
   return inventory.filter(i => i.attuned).length;
+}
+
+// ─── Expiry (runtime-created items like Goodberry) ──────────────────────
+
+/**
+ * Decrement `longRestsRemaining` on every stack that has one. Stacks that
+ * reach 0 are removed and returned in the `expired` list so callers can emit
+ * events / surface UI.
+ *
+ * Called by `InventoryService.sweepExpiredItems` on long rest and at combat
+ * start. Items without `longRestsRemaining` (permanent items) are untouched.
+ */
+export function decrementItemExpiries(
+  inventory: CharacterItemInstance[],
+): { updated: CharacterItemInstance[]; expired: CharacterItemInstance[] } {
+  const expired: CharacterItemInstance[] = [];
+  const updated: CharacterItemInstance[] = [];
+  for (const item of inventory) {
+    if (item.longRestsRemaining === undefined) {
+      updated.push(item);
+      continue;
+    }
+    const next = item.longRestsRemaining - 1;
+    if (next <= 0) {
+      expired.push(item);
+      continue;
+    }
+    updated.push({ ...item, longRestsRemaining: next });
+  }
+  return { updated, expired };
 }
 
 /**

@@ -47,6 +47,61 @@ export interface AttunementRequirement {
   minimumLevel?: number;
 }
 
+// ─── Action costs (per D&D 5e 2024) ──────────────────────────────────────
+
+/**
+ * Declares the combat action-economy cost for using / giving / administering /
+ * equipping an item. Per-item values override category defaults from
+ * `getCategoryActionCostDefaults()` in `item-action-defaults.ts`.
+ *
+ * D&D 5e 2024 references:
+ * - Potion of Healing (self-drink): Bonus Action (PHB/Equipment).
+ * - Goodberry (eat one berry): Bonus Action (spell text).
+ * - Administer potion to another creature: Utilize Action (default); spells may override.
+ * - Hand an item to a willing ally within reach: free object interaction (1/turn).
+ * - Draw / stow weapon: free object interaction OR piggybacked on Attack action.
+ * - Shield: Utilize action to don/doff mid-combat.
+ * - Armor: out-of-combat only (minute-scale don/doff per table).
+ * - Generic magic item: Utilize action unless item description overrides.
+ */
+export interface ItemActionCosts {
+  /**
+   * Self-use cost (drink potion, eat berry, read scroll).
+   * - `'action'` / `'utilize'` → consume action slot.
+   * - `'bonus'` → consume bonus action.
+   * - `'none'` → item cannot be self-used in combat.
+   */
+  use?: 'action' | 'bonus' | 'utilize' | 'none';
+
+  /**
+   * Hand to a willing, conscious ally within reach.
+   * - `'free-object-interaction'` → consume the per-turn free object interaction (degrades to Utilize action when already used).
+   * - `'utilize'` → always costs an action.
+   * - `'none'` → item cannot be transferred in combat.
+   */
+  give?: 'free-object-interaction' | 'utilize' | 'none';
+
+  /**
+   * Force-feed / administer to ally (works on unconscious).
+   * 2024 RAW default for potions = Utilize action. Spells may override
+   * (e.g., Goodberry = Bonus Action per spell text).
+   */
+  administer?: 'action' | 'bonus' | 'utilize' | 'none';
+
+  /**
+   * Equip cost in combat.
+   * - `'free-object-interaction'` → weapons (draw / stow).
+   * - `'utilize'` → shields.
+   * - `'out-of-combat-only'` → armor (rejected mid-combat).
+   */
+  equip?: 'free-object-interaction' | 'utilize' | 'out-of-combat-only';
+
+  /** Armor only: minutes required to don (equip). */
+  donMinutes?: number;
+  /** Armor only: minutes required to doff (unequip). */
+  doffMinutes?: number;
+}
+
 // ─── Stat modifiers ──────────────────────────────────────────────────────
 
 /**
@@ -256,6 +311,11 @@ export interface MagicItemDefinition {
   damageModifiers?: ItemDamageModifier[];
   /** Potion effects applied when this item is consumed. */
   potionEffects?: PotionEffect;
+  /**
+   * Action-economy costs for use / give / administer / equip.
+   * Per-item values override category defaults from `resolveItemActionCosts`.
+   */
+  actionCosts?: ItemActionCosts;
 
   // ── Base item reference (for weapons/armor) ──
 
@@ -289,6 +349,16 @@ export interface CharacterItemInstance {
   quantity: number;
   /** Item slot: where this item is equipped. */
   slot?: ItemSlot;
+  /**
+   * For runtime-created items with expiry (e.g., Goodberry berries).
+   * Decremented by `sweepExpiredItems` on long rest and at combat start;
+   * item is removed from inventory when this reaches 0.
+   * Absent = never expires.
+   *
+   * D&D 5e 2024 Goodberry RAW: 24 hours. We approximate via `1` long rest
+   * until an in-world clock is implemented.
+   */
+  longRestsRemaining?: number;
 }
 
 /**
