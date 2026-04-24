@@ -1,0 +1,186 @@
+{
+  "name": "Fighter L5: Extra Attack + Action Surge + Second Wind (4-turn resource depletion)",
+  "description": "Solo Fighter L5 burns through Action Surge and Second Wind across a fight vs 3 goblins. Tests: (1) Extra Attack gives 2 swings per Attack action at L5 (the harness auto-chains the second swing as nat-1 miss), (2) Action Surge grants a free extra action (a whole second Attack action = another 2 swings same turn), pool 1→0, (3) Second Wind bonus-action heal 1d10+5, pool 1→0, (4) Weapon mastery Sap from Longsword (inflicts disadvantage on target's next attack — emitted in attack narration).\n\nNote: the test harness convention is that Extra-Attack auto-chains emit a natural-1 miss, so this scenario uses 9-HP goblins that die on a single player-driven hit. The value is the Action Surge +2nd-Attack-action path, not the auto-chain arithmetic.",
+  "setup": {
+    "character": {
+      "name": "Gareth",
+      "className": "Fighter",
+      "subclass": "Champion",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18, "dexterity": 14, "constitution": 16,
+          "intelligence": 10, "wisdom": 10, "charisma": 8
+        },
+        "maxHp": 54, "currentHp": 40, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "hitDiceRemaining": { "d10": 4 },
+        "attacks": [
+          {
+            "name": "Longsword", "kind": "melee", "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing",
+            "properties": ["versatile"],
+            "mastery": "sap"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+          { "name": "Second Wind", "description": "Bonus action heal 1d10+level (SR)" },
+          { "name": "Action Surge", "description": "Free extra action (SR)" }
+        ],
+        "resourcePools": [
+          { "name": "secondWind", "current": 1, "max": 1 },
+          { "name": "actionSurge", "current": 1, "max": 1 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin One",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 9, "hp": 9, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Two",
+        "position": { "x": 9, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 9, "hp": 9, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Three",
+        "position": { "x": 10, "y": 11 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 9, "hp": 9, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== R1: Attack Goblin One — first swing kills (player roll 15→hit, damage 5+4=9 → Goblin One 9→0). Extra Attack auto-miss (nat 1). ===",
+      "type": "initiate",
+      "input": { "text": "I attack the goblins" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Goblin One" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+4=9 dmg. Goblin One 9→0 → down. Sap mastery applied to Goblin One (dead, but mastery debuff would apply)."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monstersAlive": 2 }
+    },
+
+    {
+      "comment": "=== R1 bonus: Second Wind heal. Pool 1→0. 40 HP + 1d10+5 = 46-55 (cap 54). ===",
+      "type": "action",
+      "input": { "text": "second wind" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "secondWind", "current": 0, "max": 1 } }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 46, "max": 54 } }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== R2: Action Surge — grants second Action this turn. Two full Attack actions = up to 4 swings (but auto-chain 2 auto-miss). Two player-driven hits will kill two goblins. ===",
+      "type": "action",
+      "input": { "text": "action surge" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "actionSurge", "current": 0, "max": 1 } }
+    },
+
+    {
+      "comment": "=== R2 first Attack action vs Goblin Two — first swing kills. ===",
+      "type": "action",
+      "input": { "text": "attack Goblin Two" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+4=9 dmg. Goblin Two 9→0 → down. Extra Attack auto-miss (nat 1)."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monstersAlive": 1 }
+    },
+
+    {
+      "comment": "=== R2 Action Surge bonus Attack action vs Goblin Three — first swing kills. ===",
+      "type": "action",
+      "input": { "text": "attack Goblin Three" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "comment": "5+4=9 dmg. Goblin Three 9→0 → down. Victory!"
+    },
+    {
+      "type": "assertState",
+      "expect": { "monstersAlive": 0 }
+    },
+
+    {
+      "comment": "=== Final: Fighter burned both SR resources. A short rest would restore both. ===",
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "secondWind", "current": 0, "max": 1 } }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "actionSurge", "current": 0, "max": 1 } }
+    }
+  ]
+}

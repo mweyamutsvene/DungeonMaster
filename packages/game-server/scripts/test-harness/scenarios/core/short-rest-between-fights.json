@@ -1,0 +1,151 @@
+{
+  "name": "Short Rest Between Two Encounters (Fighter + Cleric + Wizard)",
+  "description": "Multi-PC party completes encounter 1 (depleting Action Surge, Second Wind, Channel Divinity, spell slots, and starting wounded), takes a short rest with hit dice spending, then verifies short-rest mechanics: Action Surge (SR), Second Wind (SR), Channel Divinity (SR) all refresh per the rest response; hit dice spent restore HP. Note: post-rest characterResource assertions can't run here because combat is over (assertState needs active combatants) — we rely on the rest API's poolsRefreshed + characterHp + hpRecovered expects instead.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Thorin",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 54, "currentHp": 30, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d10": 5 },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice per Attack action" },
+            { "name": "Second Wind", "description": "Bonus action heal 1d10+level (SR recharge)" },
+            { "name": "Action Surge", "description": "Free extra action (SR recharge)" }
+          ],
+          "resourcePools": [
+            { "name": "secondWind", "current": 0, "max": 1 },
+            { "name": "actionSurge", "current": 0, "max": 1 }
+          ]
+        }
+      },
+      {
+        "name": "Sister Mira",
+        "className": "Cleric",
+        "level": 5,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 40, "currentHp": 20, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d8": 5 },
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 2, "2": 2, "3": 1 },
+          "preparedSpells": [
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Guiding Bolt", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "features": [
+            { "name": "Channel Divinity", "description": "Turn Undead / Divine Spark — 2/SR" }
+          ],
+          "resourcePools": [
+            { "name": "channelDivinity:cleric", "current": 0, "max": 2 }
+          ]
+        }
+      },
+      {
+        "name": "Elara",
+        "className": "Wizard",
+        "level": 5,
+        "position": { "x": 6, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 32, "currentHp": 25, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d6": 5 },
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 1, "2": 1, "3": 1 },
+          "preparedSpells": [
+            { "name": "Fire Bolt", "level": 0 },
+            { "name": "Magic Missile", "level": 1 },
+            { "name": "Fireball", "level": 3 }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee",
+              "attackBonus": 1,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": []
+  },
+  "actions": [
+    {
+      "comment": "=== SHORT REST: takes the takeSessionRest(short) path with hit-dice spending ===",
+      "type": "rest",
+      "input": {
+        "restType": "short",
+        "hitDiceSpending": {
+          "Thorin": 2,
+          "Sister Mira": 2,
+          "Elara": 1
+        }
+      },
+      "expect": {
+        "poolsRefreshed": ["secondWind", "actionSurge", "channelDivinity:cleric"]
+      }
+    },
+    {
+      "type": "rest",
+      "input": { "restType": "short" },
+      "expect": {
+        "characterHp": { "name": "Thorin", "min": 35, "max": 54 }
+      },
+      "comment": "Second short rest with no hit-dice spend — used only to pipe the characterHp check through the scenario's built-in rest expects. Thorin should have ~30 + 2d10+6 = 38-56 HP, capped at 54."
+    },
+    {
+      "type": "rest",
+      "input": { "restType": "short" },
+      "expect": {
+        "characterHp": { "name": "Sister Mira", "min": 24, "max": 40 }
+      },
+      "comment": "Mira HP check: 20 + 2d8+4 = 26-36 (starting from prev rest state)."
+    },
+    {
+      "type": "rest",
+      "input": { "restType": "short" },
+      "expect": {
+        "characterHp": { "name": "Elara", "min": 28, "max": 32 }
+      },
+      "comment": "Elara HP check: 25 + 1d6+2 = 28-33, capped at 32."
+    }
+  ]
+}

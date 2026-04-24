@@ -1,0 +1,74 @@
+{
+  "name": "PENDING: Exhaustion Accumulation (2024 10-level, -2 per level on d20 tests)",
+  "description": "PENDING MECHANIC: CombatRules exhaustion consumption. 2024 rules: exhaustion has 10 levels. Each level imposes -2 penalty to all d20 tests (attack rolls, saves, checks) and -1 to spell save DC. Level 10 = death.\n\nThis scenario applies exhaustion via DM override and then verifies that a subsequent attack roll shows the penalty. The engine currently stores `Character.exhaustion` as a field but does NOT apply the penalty to d20 results.\n\nTo make this pass: wire exhaustion into the attack/save/check pipeline: roll.d20 + modifiers - (2 * exhaustionLevel). Also: reduce spell save DC by exhaustionLevel. Also: at exhaustion level 10, set character HP to 0 and mark dead.",
+  "setup": {
+    "character": {
+      "name": "Weary Wanderer",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18, "dexterity": 12, "constitution": 16,
+          "intelligence": 10, "wisdom": 10, "charisma": 8
+        },
+        "maxHp": 54, "currentHp": 54, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword", "kind": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 12, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 10, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "maxHp": 100, "hp": 100, "armorClass": 13, "speed": 0,
+          "challengeRating": 0,
+          "attacks": [{ "name": "Slam", "kind": "melee", "attackBonus": 0, "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 }, "damageType": "bludgeoning" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I strike the training dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "=== Apply 3 levels of Exhaustion via DM override. ===",
+      "type": "applyCondition",
+      "input": {
+        "target": "character",
+        "condition": "Exhaustion",
+        "duration": "until_removed"
+      }
+    },
+    {
+      "comment": "PENDING: attack roll should be (d20 - 6) + 7 vs AC 13. Submit d20=10. With exhaustion: 10 - 6 + 7 = 11 → miss. Without exhaustion: 10 + 7 = 17 → hit.",
+      "type": "action",
+      "input": { "text": "attack Training Dummy" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "10" },
+      "comment": "Expect hit=false (with 3 exhaustion: 10 - 6 + 7 = 11 < AC 13). Currently will fail — reports hit=true because exhaustion penalty is not applied.",
+      "expect": { "hit": false }
+    }
+  ]
+}

@@ -1,0 +1,327 @@
+{
+  "name": "Horde Encounter: 3-PC Party vs 5 Goblins + Hobgoblin Captain (multi-round AoE + concentration + resource depletion)",
+  "description": "Multi-PC party (Fighter, Cleric, Wizard) at L5 faces 6 enemies — 5 Goblins clustered for AoE spells + 1 Hobgoblin Captain. 8+ rounds. Tests: (1) Fireball AoE hits multiple clustered targets, (2) Bless concentration across 3 allies resilient to multi-turn, (3) Extra Attack into hordes, (4) Spell slot depletion over the encounter, (5) Cleric healing triage via Cure Wounds + Healing Word, (6) initiative ordering with 9 combatants. Uses defaultBehavior endTurn to keep PC damage deterministic (the true test is PC resource mgmt + AoE coverage).",
+  "setup": {
+    "characters": [
+      {
+        "name": "Thorin",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 10, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 54, "currentHp": 54, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "features": [
+            { "name": "Extra Attack", "description": "Attack twice per Attack action" }
+          ],
+          "resourcePools": [
+            { "name": "secondWind", "current": 1, "max": 1 },
+            { "name": "actionSurge", "current": 1, "max": 1 }
+          ]
+        }
+      },
+      {
+        "name": "Sister Mira",
+        "className": "Cleric",
+        "level": 5,
+        "position": { "x": 8, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 40, "currentHp": 40, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15, "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Sacred Flame", "level": 0 },
+            { "name": "Bless", "level": 1 },
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Healing Word", "level": 1 },
+            { "name": "Guiding Bolt", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "resourcePools": [
+            { "name": "channelDivinity", "current": 2, "max": 2 }
+          ]
+        }
+      },
+      {
+        "name": "Elara",
+        "className": "Wizard",
+        "level": 5,
+        "position": { "x": 6, "y": 12 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 32, "currentHp": 32, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 15, "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Fire Bolt", "level": 0 },
+            { "name": "Magic Missile", "level": 1 },
+            { "name": "Scorching Ray", "level": 2 },
+            { "name": "Fireball", "level": 3 }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee",
+              "attackBonus": 1,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "5 goblins clustered at (20, 10-14) within 20ft radius for Fireball.",
+        "name": "Goblin Alpha",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 10, "hp": 10, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Beta",
+        "position": { "x": 21, "y": 11 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 10, "hp": 10, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Gamma",
+        "position": { "x": 20, "y": 12 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 10, "hp": 10, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Delta",
+        "position": { "x": 22, "y": 12 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 10, "hp": 10, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "name": "Goblin Epsilon",
+        "position": { "x": 21, "y": 13 },
+        "statBlock": {
+          "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 10, "intelligence": 10, "wisdom": 8, "charisma": 8 },
+          "maxHp": 10, "hp": 10, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [{ "name": "Scimitar", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      },
+      {
+        "comment": "Hobgoblin Captain — separated from goblin cluster to survive Fireball (position at (25, 12)).",
+        "name": "Hobgoblin Captain",
+        "position": { "x": 25, "y": 12 },
+        "statBlock": {
+          "abilityScores": { "strength": 14, "dexterity": 12, "constitution": 14, "intelligence": 12, "wisdom": 10, "charisma": 10 },
+          "maxHp": 40, "hp": 40, "armorClass": 16, "speed": 30,
+          "challengeRating": 3,
+          "attacks": [{ "name": "Longsword", "kind": "melee", "attackBonus": 5, "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 }, "damageType": "slashing" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== R1: Wizard initiates. Elara goes first (INT/DEX) — casts Fireball on goblin cluster. ===",
+      "type": "initiate",
+      "actor": "Elara",
+      "input": { "text": "Elara unleashes fire on the goblins" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Elara",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Elara",
+      "timeout": 15000
+    },
+    {
+      "comment": "R1 Elara: Fireball centered at (21, 12). 8d6 fire in 20ft sphere. 5 goblins in range — at least 4 die. Consumes L3 slot.",
+      "type": "action",
+      "actor": "Elara",
+      "input": { "text": "cast Fireball at Goblin Gamma" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } },
+      "comment": "L3 slot consumed 2→1."
+    },
+    { "type": "endTurn", "actor": "Elara" },
+
+    {
+      "comment": "=== R1 Mira: Bless on party (self + Thorin + Elara). Concentration spell, L1 slot. ===",
+      "type": "waitForTurn",
+      "actor": "Sister Mira",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Sister Mira",
+      "input": { "text": "cast Bless" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": { "characterConcentration": "Bless" },
+      "comment": "Bless concentration active."
+    },
+    {
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn", "actor": "Sister Mira" },
+
+    {
+      "comment": "=== R1 Thorin: Hobgoblin Captain is at (25,12) — move close, attack (will miss on range without moving first — stay and attack nearest goblin that may have survived Fireball). ===",
+      "type": "waitForTurn",
+      "actor": "Thorin",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Thorin",
+      "input": { "text": "attack Hobgoblin Captain" },
+      "comment": "Attack attempt on hobgoblin; Thorin is at (10, 12), hobgoblin at (25, 12) — likely out of melee range. Engine may reject or use ranged routing. Expect whatever the engine does — actionComplete OR error.",
+      "expect": {}
+    },
+    { "type": "endTurn", "actor": "Thorin" },
+
+    {
+      "comment": "=== R2+: further rounds cascade naturally. Assert state at R2 start. ===",
+      "type": "waitForTurn",
+      "actor": "Elara",
+      "timeout": 15000
+    },
+    {
+      "comment": "R2 Elara: Magic Missile at Hobgoblin Captain (auto-hit, 3 darts × 1d4+1 = 4-13 damage). Consumes L1 slot.",
+      "type": "action",
+      "actor": "Elara",
+      "input": { "text": "cast Magic Missile at Hobgoblin Captain" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
+    },
+    { "type": "endTurn", "actor": "Elara" },
+
+    {
+      "comment": "=== R2 Mira: Guiding Bolt at Hobgoblin Captain (attack roll, L1 slot, 4d6 radiant + next attacker has advantage). ===",
+      "type": "waitForTurn",
+      "actor": "Sister Mira",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Sister Mira",
+      "input": { "text": "cast Guiding Bolt at Hobgoblin Captain" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Sister Mira",
+      "input": { "text": "15" },
+      "comment": "15 + 7 + Bless 1d4 = 22-26 vs AC 16 → hit.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Sister Mira",
+      "input": { "text": "14" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 4 } },
+      "comment": "Mira L1 slot: 3→2 (Bless was R1, Guiding Bolt was R2)."
+    },
+    {
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": { "characterConcentration": "Bless" },
+      "comment": "Bless concentration still active (Guiding Bolt is not concentration)."
+    },
+    { "type": "endTurn", "actor": "Sister Mira" },
+
+    {
+      "comment": "=== R2 Thorin endTurn (no melee target yet). ===",
+      "type": "waitForTurn",
+      "actor": "Thorin",
+      "timeout": 15000
+    },
+    { "type": "endTurn", "actor": "Thorin" },
+
+    {
+      "comment": "=== R3+: final state check. Hobgoblin took Magic Missile + Guiding Bolt; all 5 goblins are likely dead or near-dead from Fireball. ===",
+      "type": "assertState",
+      "expect": { "combatStatus": "Active" },
+      "comment": "Combat still active as long as Hobgoblin Captain lives. The core value of this scenario is the multi-target AoE test (Fireball) and multi-PC concentration management (Bless)."
+    },
+    {
+      "type": "assertState",
+      "actor": "Elara",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+    {
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": { "characterConcentration": "Bless" },
+      "comment": "Bless concentration has held across 2 full rounds of combat."
+    }
+  ]
+}

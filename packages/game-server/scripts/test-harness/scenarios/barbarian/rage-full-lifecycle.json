@@ -1,0 +1,205 @@
+{
+  "name": "Barbarian Rage: Full Lifecycle (activation + damage bonus + resistance + expiration)",
+  "description": "Multi-turn Barbarian Rage lifecycle in one scenario (replaces rage.json, rage-ends.json, rage-resistance.json). R1 enters Rage as bonus action and attacks with +2 damage bonus. R2 takes bludgeoning hit from monster (resistance halves damage). R3 ends turn without attacking or taking damage (monster endTurn). R4 rage expires; attack deals normal damage (no +2 bonus). R4 re-enters Rage from remaining pool (3 uses). Tests rage activation, pool decrement, melee damage bonus, B/P/S damage resistance, turn-tracking end condition (rageAttackedThisTurn/rageDamageTakenThisTurn), and pool persistence after rage end.",
+  "setup": {
+    "character": {
+      "name": "Korgath",
+      "className": "Barbarian",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18,
+          "dexterity": 14,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 55,
+        "currentHp": 55,
+        "armorClass": 15,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Greataxe",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Rage", "description": "Enter a Rage as a bonus action. Gain resistance to B/P/S damage and +2 melee damage." }
+        ],
+        "resourcePools": [
+          { "name": "rage", "current": 3, "max": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Iron Golem",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 20,
+            "dexterity": 8,
+            "constitution": 20,
+            "intelligence": 1,
+            "wisdom": 6,
+            "charisma": 1
+          },
+          "maxHp": 200,
+          "hp": 200,
+          "armorClass": 5,
+          "speed": 30,
+          "challengeRating": 5,
+          "experienceValue": 1800,
+          "attacks": [
+            {
+              "name": "Slam",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 20,
+              "damage": { "diceCount": 1, "diceSides": 2, "modifier": 8 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn",
+      "monsterBehaviors": {}
+    }
+  },
+  "actions": [
+    {
+      "comment": "=== R1: Enter Rage (bonus) + attack with +2 damage bonus ===",
+      "type": "initiate",
+      "input": { "text": "I attack the Iron Golem" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "High init to go first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "rage" },
+      "comment": "Enter Rage as bonus action. Pool 3→2.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "rage", "current": 2, "max": 3 } },
+      "comment": "Rage pool decremented 3→2."
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Iron Golem" },
+      "comment": "Melee attack WITH rage active — should add +2 rage damage bonus.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 7 = 22 vs AC 5 → hit.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "Damage 8 + 4 (STR) + 2 (rage) = 14. Golem 200→186."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Iron Golem", "exact": 186 } },
+      "comment": "Rage damage bonus confirmed: 8+4+2 = 14."
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn", "timeout": 15000 },
+
+    {
+      "comment": "=== R2: End turn (no attack); next R2 monster turn: configure monster to ATTACK — rage resistance halves bludgeoning ===",
+      "type": "configureAi",
+      "input": { "defaultBehavior": "attack" },
+      "comment": "Switch monster from endTurn to attack so it lands a hit on the raging Barbarian."
+    },
+    { "type": "endTurn" },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster attacks with Slam (+20 vs AC 15 — near-guaranteed hit, 1d2+8 = 9-10 bludgeoning). Rage resistance halves to 4-5.",
+      "timeout": 15000
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 49, "max": 55 } },
+      "comment": "Rage resistance: 9-10 bludgeoning halved to 4-5 → HP 55 - 4/5 = 50-51. Bounded min 49 to cover off-by-one. Without resistance HP would be 45-46."
+    },
+
+    {
+      "comment": "=== R3: Don't attack, end turn. Monster endTurn. Rage end check: no attack + no damage this round = rage ends. ===",
+      "type": "configureAi",
+      "input": { "defaultBehavior": "endTurn" },
+      "comment": "Switch monster back to endTurn so no damage is taken."
+    },
+    { "type": "endTurn" },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster endTurn.",
+      "timeout": 15000
+    },
+    { "type": "endTurn", "comment": "Barbarian ends R3 turn without attacking or taking damage." },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster endTurn. Between R3 end and this point rage-end check fires: rageAttackedThisTurn=false + rageDamageTakenThisTurn=false → rage expires.",
+      "timeout": 15000
+    },
+
+    {
+      "comment": "=== R4: Attack WITHOUT rage (should deal unboosted damage). Then re-rage on same turn as bonus action (pool 2→1). ===",
+      "type": "action",
+      "input": { "text": "attack Iron Golem" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "8" },
+      "comment": "Damage 8 + 4 (STR) + 0 (NO rage) = 12. Golem 186→174 (rather than 186→172 if rage had persisted)."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Iron Golem", "exact": 174 } },
+      "comment": "Rage expired confirmed: attack dealt 12 (not 14). 2-damage delta proves rage ended."
+    },
+    {
+      "type": "action",
+      "input": { "text": "rage" },
+      "comment": "Re-enter Rage this same turn (bonus action). Pool 2→1.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "rage", "current": 1, "max": 3 } },
+      "comment": "Rage pool 2→1 after re-activation (R1 used the first, R4 uses the second). Pool correctly persists across rage end and re-use."
+    },
+    {
+      "comment": "=== R4 attempt to rage again should error (already raging). ===",
+      "type": "action",
+      "input": { "text": "rage" },
+      "expect": { "error": true }
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "name": "PENDING: Bardic Inspiration consumption on failed d20 roll",
+  "description": "PENDING MECHANIC: ClassAbilities d20 roll-interrupt hook. Bardic Inspiration executor creates a bonus effect with diceValue {count:1, sides:6/8/10} on the target, but no consumption site exists. BI should be usable on the ally's failed attack roll / save / ability check to add the die to the d20 total (after seeing the result).\n\nThis scenario: Bard grants BI to Fighter (R1). Fighter attacks a high-AC target and rolls low (natural 8 + 7 = 15 vs AC 18 → miss). Fighter should be able to 'add BI' to the failed roll — engine rolls the BI die (say d8=5), new total 15+5=20 ≥ 18 → hits.\n\nTo make this pass: (1) Add a roll-interrupt hook in roll-state-machine: after a d20 roll is produced but before the hit/miss is finalized, check for consumable modifiers on the roller (BI effect, Lucky feat point, Portent replacement). (2) Expose a `consumeInspiration` dispatcher action that the client can invoke post-roll. (3) Consume the BI effect after use.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Lyric the Bard",
+        "className": "Bard",
+        "subclass": "Lore",
+        "level": 5,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 14, "constitution": 12,
+            "intelligence": 12, "wisdom": 10, "charisma": 18
+          },
+          "maxHp": 34, "currentHp": 34, "armorClass": 14, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "charisma",
+          "spellSaveDC": 15, "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "attacks": [
+            { "name": "Rapier", "kind": "melee", "attackBonus": 5, "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 }, "damageType": "piercing" }
+          ],
+          "resourcePools": [
+            { "name": "bardic_inspiration", "current": 3, "max": 3 }
+          ]
+        }
+      },
+      {
+        "name": "Thorin",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 54, "currentHp": 54, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            { "name": "Longsword", "kind": "melee", "attackBonus": 7, "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 }, "damageType": "slashing" }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Armored Sentinel",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 16, "dexterity": 10, "constitution": 14, "intelligence": 10, "wisdom": 10, "charisma": 10 },
+          "maxHp": 60, "hp": 60, "armorClass": 18, "speed": 30,
+          "challengeRating": 2,
+          "attacks": [{ "name": "Halberd", "kind": "melee", "attackBonus": 5, "damage": { "diceCount": 1, "diceSides": 10, "modifier": 3 }, "damageType": "slashing" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Lyric the Bard",
+      "input": { "text": "Lyric prepares an inspirational verse" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Lyric the Bard",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Lyric the Bard",
+      "timeout": 15000
+    },
+    {
+      "comment": "Lyric grants Bardic Inspiration to Thorin. Pool 3→2.",
+      "type": "action",
+      "actor": "Lyric the Bard",
+      "input": { "text": "inspire Thorin" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "actor": "Lyric the Bard",
+      "expect": { "characterResource": { "poolName": "bardic_inspiration", "current": 2, "max": 3 } }
+    },
+    { "type": "endTurn", "actor": "Lyric the Bard" },
+
+    {
+      "type": "waitForTurn",
+      "actor": "Thorin",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Thorin",
+      "input": { "text": "attack Armored Sentinel" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Thorin",
+      "input": { "text": "8" },
+      "comment": "8 + 7 = 15 vs AC 18 → miss. Thorin has BI available — PENDING mechanic should allow 'add inspiration' to bump the roll.",
+      "expect": { "hit": false, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "PENDING: consume BI to boost the failed roll. Expect: roll BI die (d8 at L5 Bard), add to 15, re-evaluate. If d8 result ≥ 3 the attack hits (15+3=18).",
+      "type": "action",
+      "actor": "Thorin",
+      "input": { "text": "use inspiration" },
+      "expect": { "hit": true, "actionComplete": false }
+    },
+    {
+      "comment": "After using BI the roll should re-evaluate to hit, triggering damage roll prompt.",
+      "type": "assertState",
+      "actor": "Lyric the Bard",
+      "expect": { "characterResource": { "poolName": "bardic_inspiration", "current": 2, "max": 3 } },
+      "comment": "BI consumed from the effect — but the source pool on Lyric remains 2 (she already spent the charge to GRANT it). Consumption is on the effect, not the pool."
+    }
+  ]
+}

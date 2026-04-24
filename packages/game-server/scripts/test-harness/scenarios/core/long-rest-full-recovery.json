@@ -1,0 +1,120 @@
+{
+  "name": "Long Rest Full Recovery (HP max, all slots, resource pools)",
+  "description": "Multi-PC party starts depleted: HP below max, spell slots spent, class resources (Rage/Second Wind/Action Surge/Channel Divinity) at 0. Long rest restores: (a) HP to max, (b) all spell slots, (c) long-rest-keyed pools refreshed. Tests the full takeSessionRest(long) contract via the rest API's built-in expects (since post-rest characterResource needs active combat which we don't have here). Note: exhaustion reduction on LR is not yet implemented in the engine — if it were, Korgath's exhaustion would decrease by 1.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Korgath",
+        "className": "Barbarian",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 14, "constitution": 16,
+            "intelligence": 8, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 55, "currentHp": 15, "armorClass": 15, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d12": 2 },
+          "attacks": [
+            {
+              "name": "Greataxe", "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "resourcePools": [
+            { "name": "rage", "current": 0, "max": 3 }
+          ]
+        }
+      },
+      {
+        "name": "Sister Mira",
+        "className": "Cleric",
+        "level": 5,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 40, "currentHp": 10, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d8": 1 },
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15, "spellAttackBonus": 7,
+          "spellSlots": { "1": 0, "2": 0, "3": 0 },
+          "preparedSpells": [
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Guiding Bolt", "level": 1 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace", "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "bludgeoning"
+            }
+          ],
+          "resourcePools": [
+            { "name": "channelDivinity:cleric", "current": 0, "max": 2 }
+          ]
+        }
+      },
+      {
+        "name": "Thorin",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 12, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 18, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 54, "currentHp": 20, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "hitDiceRemaining": { "d10": 1 },
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "slashing"
+            }
+          ],
+          "resourcePools": [
+            { "name": "secondWind", "current": 0, "max": 1 },
+            { "name": "actionSurge", "current": 0, "max": 1 }
+          ]
+        }
+      }
+    ],
+    "monsters": []
+  },
+  "actions": [
+    {
+      "comment": "=== Long rest: restores all pools + HP + slots ===",
+      "type": "rest",
+      "input": { "restType": "long" },
+      "expect": {
+        "poolsRefreshed": ["rage", "secondWind", "actionSurge", "channelDivinity:cleric"],
+        "characterHp": { "name": "Korgath", "exact": 55 }
+      }
+    },
+    {
+      "type": "rest",
+      "input": { "restType": "long" },
+      "expect": {
+        "characterHp": { "name": "Sister Mira", "exact": 40 }
+      }
+    },
+    {
+      "type": "rest",
+      "input": { "restType": "long" },
+      "expect": {
+        "characterHp": { "name": "Thorin", "exact": 54 }
+      }
+    }
+  ]
+}

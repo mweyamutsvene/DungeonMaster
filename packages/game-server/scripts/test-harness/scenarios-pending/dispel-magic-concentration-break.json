@@ -1,0 +1,82 @@
+{
+  "name": "PENDING: Dispel Magic (L3) breaks enemy concentration",
+  "description": "PENDING MECHANIC: Dispel Magic spell. The spell is completely missing from the catalog (no entry in `domain/entities/spells/catalog/level-3.ts`) and no delivery handler supports it.\n\n2024 RAW: Dispel Magic (3rd-level Abjuration). Choose one creature, object, or effect within 120 feet. Any spell of 3rd level or lower on the target ends. For each higher-level spell, the dispeller makes an ability check (d20 + spellcasting mod) against DC 10+spellLevel. If the check succeeds, the spell ends. Upcasting: dispel at any slot level N and auto-dispel spells of level ≤ N.\n\nThis scenario: enemy Wizard concentrates on Bless. PC Wizard casts Dispel Magic at L3 slot. Bless is L1, so auto-dispelled — enemy concentration ends.\n\nTo make this pass: (1) Add Dispel Magic to catalog with spell-level + range + targeting. (2) Create a DispelDeliveryHandler that queries the target's active spell effects, identifies concentration spell, compares levels, auto-ends (≤slotLevel) or prompts check (>slotLevel). (3) Clean up zone effects, active effects, and concentration flag when Dispel succeeds.",
+  "setup": {
+    "character": {
+      "name": "Elara",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 32, "currentHp": 32, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15, "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Dispel Magic", "level": 3 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Enemy Cleric",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 12, "constitution": 14, "intelligence": 10, "wisdom": 16, "charisma": 10 },
+          "maxHp": 40, "hp": 40, "armorClass": 16, "speed": 30,
+          "challengeRating": 2,
+          "attacks": [{ "name": "Mace", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 }, "damageType": "bludgeoning" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Elara readies her counter-magic" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "DM-override: apply Bless concentration to the enemy cleric manually since we're skipping the cast step for determinism.",
+      "type": "applyCondition",
+      "input": {
+        "target": "monster:Enemy Cleric",
+        "condition": "ConcentratingOnBless",
+        "duration": "until_removed"
+      },
+      "comment": "Placeholder — real engine would use a concentrating-on-spell state via cleric casting Bless on setup. For now this scenario just demonstrates the shape."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterConcentration": { "name": "Enemy Cleric", "spell": "Bless" } }
+    },
+    {
+      "comment": "PENDING: cast Dispel Magic at L3 on enemy cleric. Bless is L1 → auto-dispelled.",
+      "type": "action",
+      "input": { "text": "cast Dispel Magic at Enemy Cleric" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterConcentration": { "name": "Enemy Cleric", "spell": null } },
+      "comment": "Bless concentration ended by Dispel Magic."
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } },
+      "comment": "Dispel Magic consumed a L3 slot."
+    }
+  ]
+}

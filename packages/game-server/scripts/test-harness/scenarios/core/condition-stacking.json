@@ -1,0 +1,154 @@
+{
+  "name": "Condition Stacking: Grappled + Prone + Poisoned + Frightened simultaneously",
+  "description": "Tests engine correctness when multiple conditions overlap on one target. A Fighter receives Grappled, Prone, Poisoned, and Frightened via applyCondition DM-overrides. Validates: (1) all 4 conditions stack on the combatant, (2) stacking still allows an attack action to proceed (though with disadvantage from Frightened/Poisoned), (3) the attack is correctly flagged as disadvantage by the engine when any of these conditions apply.\n\nNote: the applyCondition harness only appends conditions (no 'remove' duration). Removing conditions mid-scenario would require domain-level clearCondition API which isn't exposed to the scenario runner today. So this scenario focuses on the stacking + attack-with-disadvantage path.",
+  "setup": {
+    "character": {
+      "name": "Thorin",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 18, "dexterity": 12, "constitution": 16,
+          "intelligence": 10, "wisdom": 10, "charisma": 8
+        },
+        "maxHp": 54, "currentHp": 54, "armorClass": 18, "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longbow", "kind": "ranged", "range": "150/600",
+            "attackBonus": 4,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 1 },
+            "damageType": "piercing"
+          },
+          {
+            "name": "Longsword", "kind": "melee", "range": "melee",
+            "attackBonus": 7,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+            "damageType": "slashing"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice per Attack action" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bog Mummy",
+        "position": { "x": 9, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 8, "constitution": 14,
+            "intelligence": 6, "wisdom": 10, "charisma": 12
+          },
+          "maxHp": 60, "hp": 60, "armorClass": 13, "speed": 20,
+          "challengeRating": 2,
+          "attacks": [
+            {
+              "name": "Slam", "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Shadow Archer",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 16, "constitution": 10,
+            "intelligence": 8, "wisdom": 10, "charisma": 6
+          },
+          "maxHp": 25, "hp": 25, "armorClass": 13, "speed": 30,
+          "challengeRating": 0.5,
+          "attacks": [
+            {
+              "name": "Shortbow", "kind": "ranged", "range": "80/320",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I ready my bow" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "=== Apply Grappled (source: Bog Mummy). ===",
+      "type": "applyCondition",
+      "input": {
+        "target": "character",
+        "condition": "Grappled",
+        "duration": "until_source_incapacitated_or_removed",
+        "sourceMonster": "Bog Mummy"
+      }
+    },
+    {
+      "type": "applyCondition",
+      "input": {
+        "target": "character",
+        "condition": "Prone",
+        "duration": "until_removed"
+      }
+    },
+    {
+      "type": "applyCondition",
+      "input": {
+        "target": "character",
+        "condition": "Frightened",
+        "duration": "until_removed",
+        "sourceMonster": "Shadow Archer"
+      }
+    },
+    {
+      "type": "applyCondition",
+      "input": {
+        "target": "character",
+        "condition": "Poisoned",
+        "duration": "until_removed"
+      }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Grappled", "Prone", "Frightened", "Poisoned"]
+        }
+      },
+      "comment": "All 4 conditions stacked simultaneously on the combatant."
+    },
+
+    {
+      "comment": "=== Attempt ranged attack at Shadow Archer with 4 conditions active: MUST be flagged as DISADVANTAGE by the engine. Prone imposes disadvantage on RANGED attacks, Frightened imposes disadvantage while source in LOS, Poisoned imposes disadvantage on attack rolls. ===",
+      "type": "action",
+      "input": { "text": "attack Shadow Archer with longbow" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "disadvantage": true
+      }
+    },
+    {
+      "comment": "Player rolls 5 (representing the lower of 2d20 by convention). 5+4=9 vs AC 13 → miss. Core assertion of this scenario is the 'disadvantage' FLAG on the attack request — the actual roll arithmetic is player-driven.",
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "hit": false }
+    }
+  ]
+}
