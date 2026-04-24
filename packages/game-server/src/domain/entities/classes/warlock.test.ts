@@ -42,15 +42,17 @@ describe("Warlock capabilitiesForLevel", () => {
     expect(caps[0].name).toBe("Pact Magic");
   });
 
-  it("returns Eldritch Invocations at level 2", () => {
+  it("returns Eldritch Invocations + Magical Cunning at level 2", () => {
     const caps = Warlock.capabilitiesForLevel!(2);
-    expect(caps).toHaveLength(2);
-    expect(caps.map(c => c.name)).toContain("Eldritch Invocations");
+    expect(caps).toHaveLength(3);
+    const names = caps.map(c => c.name);
+    expect(names).toContain("Eldritch Invocations");
+    expect(names).toContain("Magical Cunning");
   });
 
   it("returns Pact Boon at level 3", () => {
     const caps = Warlock.capabilitiesForLevel!(3);
-    expect(caps).toHaveLength(3);
+    expect(caps).toHaveLength(4);
     expect(caps.map(c => c.name)).toContain("Pact Boon");
   });
 

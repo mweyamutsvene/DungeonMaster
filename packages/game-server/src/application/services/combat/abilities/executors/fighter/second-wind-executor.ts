@@ -7,10 +7,13 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
-import { SECOND_WIND } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { SECOND_WIND, TACTICAL_SHIFT } from "../../../../../../domain/entities/classes/feature-keys.js";
 import { SeededDiceRoller } from "../../../../../../domain/rules/dice-roller.js";
+import { createEffect } from "../../../../../../domain/entities/combat/effects.js";
+import { classHasFeature } from "../../../../../../domain/entities/classes/registry.js";
+import { nanoid } from "nanoid";
 import { requireActor, requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
-import { hasResourceAvailable, spendResourceFromPool, hasBonusActionAvailable, useBonusAction } from "../../../helpers/resource-utils.js";
+import { hasResourceAvailable, spendResourceFromPool, hasBonusActionAvailable, useBonusAction, addActiveEffectsToResources } from "../../../helpers/resource-utils.js";
 
 /**
  * Executor for Second Wind (Fighter class feature).
@@ -86,9 +89,36 @@ export class SecondWindExecutor implements AbilityExecutor {
       let updatedResources = spendResourceFromPool(resources, 'secondWind', 1);
       updatedResources = useBonusAction(updatedResources);
 
+      // Tactical Shift (Fighter L5+, 2024 PHB): Using Second Wind also grants a speed bonus
+      // equal to half your base walking speed until the end of your turn, and that movement
+      // doesn't provoke opportunity attacks. Implemented here as a speed-modifier effect;
+      // the "no OA" clause is currently approximated by the speed boost alone.
+      let tacticalShiftApplied = false;
+      if (classHasFeature(className, TACTICAL_SHIFT, level)) {
+        const baseSpeed = typeof (sheet as any)?.speed === 'number' ? (sheet as any).speed : 30;
+        const bonusSpeed = Math.floor(baseSpeed / 2);
+        if (bonusSpeed > 0) {
+          const shiftEffect = createEffect(
+            nanoid(),
+            "speed_modifier",
+            "speed",
+            "until_end_of_turn",
+            {
+              source: "Tactical Shift",
+              description: `+${bonusSpeed} ft speed this turn (Second Wind free movement)`,
+              value: bonusSpeed,
+            },
+          );
+          updatedResources = addActiveEffectsToResources(updatedResources, shiftEffect);
+          tacticalShiftApplied = true;
+        }
+      }
+
+      const shiftNote = tacticalShiftApplied ? " Tactical Shift grants bonus movement this turn." : "";
+
       return {
         success: true,
-        summary: `Second Wind! Healed ${actualHealing} HP (rolled ${healRoll} + ${level} level = ${totalHealing}). Now at ${newHp}/${maxHp} HP.`,
+        summary: `Second Wind! Healed ${actualHealing} HP (rolled ${healRoll} + ${level} level = ${totalHealing}). Now at ${newHp}/${maxHp} HP.${shiftNote}`,
         resourcesSpent: { secondWind: 1 },
         data: {
           abilityName: 'Second Wind',
@@ -98,6 +128,7 @@ export class SecondWindExecutor implements AbilityExecutor {
           actualHealing,
           newHp,
           maxHp,
+          tacticalShiftApplied,
           spendResource: { poolName: 'secondWind', amount: 1 },
           updatedResources,
           hpUpdate: { hpCurrent: newHp },

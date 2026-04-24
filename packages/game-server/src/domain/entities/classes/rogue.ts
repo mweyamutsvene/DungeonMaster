@@ -100,6 +100,7 @@ export const Rogue: CharacterClassDefinition = {
     "sneak-attack": 1,
     "weapon-mastery": 1,
     "cunning-action": 2,
+    "steady-aim": 2,
     "cunning-strike": 5,
     "uncanny-dodge": 5,
     "evasion": 7,
@@ -110,6 +111,7 @@ export const Rogue: CharacterClassDefinition = {
     ];
     if (level >= 2) {
       caps.push({ name: "Cunning Action", economy: "bonusAction", effect: "Dash, Disengage, or Hide as bonus action", abilityId: "class:rogue:cunning-action" });
+      caps.push({ name: "Steady Aim", economy: "bonusAction", requires: "You haven't moved this turn", effect: "Advantage on next attack this turn; speed becomes 0 for the rest of the turn", abilityId: "class:rogue:steady-aim" });
     }
     if (level >= 5) {
       caps.push({ name: "Uncanny Dodge", economy: "reaction", requires: "Hit by an attack you can see", effect: "Halve the damage", abilityId: "class:rogue:uncanny-dodge" });
@@ -164,6 +166,12 @@ export const ROGUE_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       keyword: "cunning-action",
       normalizedPatterns: [/^cunningaction$/, /cunningactiondash/, /cunningactiondisengage/, /cunningactionhide/, /cunningdash/, /cunningdisengage/, /cunninghide/],
       abilityId: "class:rogue:cunning-action",
+      category: "bonusAction",
+    },
+    {
+      keyword: "steady-aim",
+      normalizedPatterns: [/^steadyaim$/, /^takesteadyaim$/, /^aimsteadily$/],
+      abilityId: "class:rogue:steady-aim",
       category: "bonusAction",
     },
   ],

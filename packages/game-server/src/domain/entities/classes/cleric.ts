@@ -73,6 +73,12 @@ export const CLERIC_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       category: "classAction" as const,
       normalizedPatterns: [/turnundead/, /turningundead/],
     },
+    {
+      keyword: "divine-spark",
+      abilityId: "class:cleric:divine-spark",
+      category: "classAction" as const,
+      normalizedPatterns: [/^divinespark$/, /^divinesparkdamage$/, /^divinesparkheal$/, /^channeldivinityspark$/],
+    },
   ],
   attackEnhancements: [],
 };
@@ -107,6 +113,7 @@ export const Cleric: CharacterClassDefinition = {
     "spellcasting": 1,
     "channel-divinity": 2,
     "turn-undead": 2,
+    "divine-spark": 2,
     "destroy-undead": 5,
   },
   resourcesAtLevel: (level) => {
@@ -123,6 +130,7 @@ export const Cleric: CharacterClassDefinition = {
     if (level >= 2) {
       caps.push({ name: "Channel Divinity", economy: "action", cost: `${clericChannelDivinityUsesForLevel(level)} uses/short rest`, effect: "Channel divine energy for magical effects" });
       caps.push({ name: "Turn Undead", economy: "action", cost: "1 Channel Divinity use", effect: "Undead within 30 ft must succeed WIS save or be turned", abilityId: "class:cleric:turn-undead", resourceCost: { pool: "channelDivinity:cleric", amount: 1 } });
+      caps.push({ name: "Divine Spark", economy: "action", cost: "1 Channel Divinity use", effect: "Radiant/necrotic damage (CON save for half) OR restore HP — scales 1d8 per tier", abilityId: "class:cleric:divine-spark", resourceCost: { pool: "channelDivinity:cleric", amount: 1 } });
     }
     return caps;
   },

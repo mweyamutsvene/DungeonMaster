@@ -27,6 +27,8 @@ export const RETALIATION = "retaliation";
 // ── Fighter ─────────────────────────────────────────────────
 export const ACTION_SURGE = "action-surge";
 export const SECOND_WIND = "second-wind";
+export const TACTICAL_MIND = "tactical-mind";
+export const TACTICAL_SHIFT = "tactical-shift";
 export const INDOMITABLE = "indomitable";
 export const TWO_EXTRA_ATTACKS = "two-extra-attacks";
 export const THREE_EXTRA_ATTACKS = "three-extra-attacks";
@@ -62,6 +64,7 @@ export const PERFECT_FOCUS = "perfect-focus";
 // ── Rogue ───────────────────────────────────────────────────
 export const SNEAK_ATTACK = "sneak-attack";
 export const CUNNING_ACTION = "cunning-action";
+export const STEADY_AIM = "steady-aim";
 export const CUNNING_STRIKE = "cunning-strike";
 export const UNCANNY_DODGE = "uncanny-dodge";
 export const EVASION = "evasion";
@@ -81,6 +84,7 @@ export const DIVINE_SENSE = "divine-sense";
 // ── Cleric / Paladin (shared) ───────────────────────────────
 export const CHANNEL_DIVINITY = "channel-divinity";
 export const TURN_UNDEAD = "turn-undead";
+export const DIVINE_SPARK = "divine-spark";
 export const DESTROY_UNDEAD = "destroy-undead";
 
 // ── Ranger ──────────────────────────────────────────────────
@@ -103,6 +107,7 @@ export const FIGHTING_STYLE = "fighting-style";
 // ── Spellcasting ────────────────────────────────────────────
 export const SPELLCASTING = "spellcasting";
 export const ARCANE_RECOVERY = "arcane-recovery";
+export const RITUAL_ADEPT = "ritual-adept";
 export const PACT_MAGIC = "pact-magic";
 
 // ── Bard ────────────────────────────────────────────────────
@@ -114,6 +119,7 @@ export const COUNTERCHARM = "countercharm";
 // ── Warlock ─────────────────────────────────────────────────
 export const ELDRITCH_INVOCATIONS = "eldritch-invocations";
 export const PACT_BOON = "pact-boon";
+export const MAGICAL_CUNNING = "magical-cunning";
 export const MYSTIC_ARCANUM_6 = "mystic-arcanum-6";
 export const MYSTIC_ARCANUM_7 = "mystic-arcanum-7";
 export const MYSTIC_ARCANUM_8 = "mystic-arcanum-8";
@@ -185,3 +191,4 @@ export const METAMAGIC_SUBTLE = "metamagic-subtle";
 
 // ── Sorcerer Font of Magic / Flexible Casting ───────────────
 export const FLEXIBLE_CASTING = "flexible-casting";
+export const SORCEROUS_RESTORATION = "sorcerous-restoration";

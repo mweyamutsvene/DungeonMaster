@@ -15,16 +15,17 @@ import { FactionService } from "../../application/services/combat/helpers/factio
 import { CombatantResolver } from "../../application/services/combat/helpers/combatant-resolver.js";
 import { BasicCombatVictoryPolicy } from "../../application/services/combat/combat-victory-policy.js";
 import { AbilityRegistry } from "../../application/services/combat/abilities/ability-registry.js";
-import { 
+import {
   ActionSurgeExecutor,
   IndomitableExecutor,
   SecondWindExecutor,
-  NimbleEscapeExecutor, 
-  CunningActionExecutor, 
-  OffhandAttackExecutor, 
-  FlurryOfBlowsExecutor, 
-  PatientDefenseExecutor, 
-  StepOfTheWindExecutor, 
+  NimbleEscapeExecutor,
+  CunningActionExecutor,
+  SteadyAimExecutor,
+  OffhandAttackExecutor,
+  FlurryOfBlowsExecutor,
+  PatientDefenseExecutor,
+  StepOfTheWindExecutor,
   MartialArtsExecutor,
   WholenessOfBodyExecutor,
   RageExecutor,
@@ -34,6 +35,7 @@ import {
   LayOnHandsExecutor,
   ChannelDivinityExecutor,
   TurnUndeadExecutor,
+  DivineSparkExecutor,
   BardicInspirationExecutor,
   WildShapeExecutor,
   RevertWildShapeExecutor,
@@ -41,6 +43,8 @@ import {
   QuickenedSpellExecutor,
   TwinnedSpellExecutor,
   FlexibleCastingExecutor,
+  InnateSorceryExecutor,
+  MagicalCunningExecutor,
 } from "../../application/services/combat/abilities/executors/index.js";
 import { TwoPhaseActionService } from "../../application/services/combat/two-phase-action-service.js";
 import { InMemoryPendingActionRepository } from "../testing/memory-repos.js";
@@ -274,6 +278,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new SecondWindExecutor());
   abilityRegistry.register(new NimbleEscapeExecutor());
   abilityRegistry.register(new CunningActionExecutor());
+  abilityRegistry.register(new SteadyAimExecutor());
   abilityRegistry.register(new OffhandAttackExecutor());
   abilityRegistry.register(new FlurryOfBlowsExecutor());
   abilityRegistry.register(new PatientDefenseExecutor());
@@ -287,6 +292,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new LayOnHandsExecutor());
   abilityRegistry.register(new ChannelDivinityExecutor());
   abilityRegistry.register(new TurnUndeadExecutor());
+  abilityRegistry.register(new DivineSparkExecutor());
   abilityRegistry.register(new BardicInspirationExecutor());
   abilityRegistry.register(new WildShapeExecutor());
   abilityRegistry.register(new RevertWildShapeExecutor());
@@ -294,7 +300,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new QuickenedSpellExecutor());
   abilityRegistry.register(new TwinnedSpellExecutor());
   abilityRegistry.register(new FlexibleCastingExecutor());
-  
+  abilityRegistry.register(new InnateSorceryExecutor());
+  abilityRegistry.register(new MagicalCunningExecutor());
+
   const aiOrchestrator = new AiTurnOrchestrator(
     deps.combatRepo,
     deps.charactersRepo,
@@ -433,6 +441,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       abilityRegistryInner.register(new SecondWindExecutor());
       abilityRegistryInner.register(new NimbleEscapeExecutor());
       abilityRegistryInner.register(new CunningActionExecutor());
+      abilityRegistryInner.register(new SteadyAimExecutor());
       abilityRegistryInner.register(new OffhandAttackExecutor());
       abilityRegistryInner.register(new FlurryOfBlowsExecutor());
       abilityRegistryInner.register(new PatientDefenseExecutor());

@@ -25,7 +25,10 @@ describe("Character rest", () => {
       experiencePoints: 0,
     });
 
-    expect(c.getResourcePools()).toEqual([{ name: "pactMagic", current: 2, max: 2 }]);
+    expect(c.getResourcePools()).toEqual([
+      { name: "pactMagic", current: 2, max: 2 },
+      { name: "magicalCunning", current: 1, max: 1 },
+    ]);
   });
 
   it("refreshes warlock pact slots on short rest", () => {

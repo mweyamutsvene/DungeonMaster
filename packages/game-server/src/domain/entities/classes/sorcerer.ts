@@ -74,6 +74,7 @@ export const Sorcerer: CharacterClassDefinition = {
     "sorcery-points": 2,
     [FLEXIBLE_CASTING]: 2,
     "metamagic": 2,
+    "sorcerous-restoration": 5,
   },
   resourcesAtLevel: (level) => {
     const sp = createSorceryPointsState(level);
@@ -82,6 +83,7 @@ export const Sorcerer: CharacterClassDefinition = {
   capabilitiesForLevel: (level): readonly ClassCapability[] => {
     const caps: ClassCapability[] = [
       { name: "Spellcasting", economy: "action", effect: "Cast sorcerer spells using CHA" },
+      { name: "Innate Sorcery", economy: "bonusAction", cost: "2/long rest", effect: "Advantage on Sorcerer spell attacks and +1 spell save DC for 1 minute", abilityId: "class:sorcerer:innate-sorcery" },
     ];
     if (level >= 2) {
       caps.push({ name: "Sorcery Points", economy: "free", cost: `${sorceryPointsForLevel(level)} points/long rest`, effect: "Fuel Metamagic options and convert to/from spell slots" });
@@ -90,7 +92,12 @@ export const Sorcerer: CharacterClassDefinition = {
     return caps;
   },
   restRefreshPolicy: [
-    { poolKey: "sorceryPoints", refreshOn: "long", computeMax: (level) => sorceryPointsForLevel(level) },
+    {
+      poolKey: "sorceryPoints",
+      // Sorcerous Restoration (L5): sorcery points also refresh on short rest.
+      refreshOn: (rest, level) => rest === "long" || (rest === "short" && level >= 5),
+      computeMax: (level) => sorceryPointsForLevel(level),
+    },
   ],
   subclasses: [DraconicSorceryRedSubclass],
 };
@@ -102,6 +109,8 @@ export const SORCERER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     { keyword: "twinned-spell", normalizedPatterns: [/twinnedspell|twinspell|twin/], abilityId: "class:sorcerer:twinned-spell", category: "classAction" },
     // Flexible Casting — Font of Magic bonus action, either direction
     { keyword: "flexible-casting", normalizedPatterns: [/convert.*sorcerypoint|convert.*spellslot.*sorcery|convert.*slot.*sorcery/], abilityId: "class:sorcerer:flexible-casting", category: "bonusAction" },
+    // Innate Sorcery — Sorcerer L1 bonus action, 1-minute self-buff
+    { keyword: "innate-sorcery", normalizedPatterns: [/^innatesorcery$/, /^activateinnatesorcery$/], abilityId: "class:sorcerer:innate-sorcery", category: "bonusAction" },
   ],
   attackEnhancements: [],
 };

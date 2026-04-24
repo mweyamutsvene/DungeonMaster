@@ -31,18 +31,20 @@ describe("Sorcerer sorcery points", () => {
 });
 
 describe("Sorcerer capabilitiesForLevel", () => {
-  it("returns only Spellcasting at level 1", () => {
+  it("returns Spellcasting + Innate Sorcery at level 1", () => {
     const caps = Sorcerer.capabilitiesForLevel!(1);
-    expect(caps).toHaveLength(1);
-    expect(caps[0].name).toBe("Spellcasting");
-    expect(caps[0].economy).toBe("action");
-  });
-
-  it("returns Sorcery Points and Metamagic at level 2", () => {
-    const caps = Sorcerer.capabilitiesForLevel!(2);
-    expect(caps).toHaveLength(3);
+    expect(caps).toHaveLength(2);
     const names = caps.map((c) => c.name);
     expect(names).toContain("Spellcasting");
+    expect(names).toContain("Innate Sorcery");
+  });
+
+  it("returns Spellcasting, Innate Sorcery, Sorcery Points, and Metamagic at level 2", () => {
+    const caps = Sorcerer.capabilitiesForLevel!(2);
+    expect(caps).toHaveLength(4);
+    const names = caps.map((c) => c.name);
+    expect(names).toContain("Spellcasting");
+    expect(names).toContain("Innate Sorcery");
     expect(names).toContain("Sorcery Points");
     expect(names).toContain("Metamagic");
   });

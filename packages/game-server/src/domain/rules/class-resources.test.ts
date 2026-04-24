@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { defaultResourcePoolsForClass } from "./class-resources.js";
 
 describe("class resources", () => {
-  it("initializes warlock pact slots", () => {
+  it("initializes warlock pact slots + Magical Cunning at level 2", () => {
     const pools = defaultResourcePoolsForClass({ classId: "warlock", level: 2 });
-    expect(pools).toEqual([{ name: "pactMagic", current: 2, max: 2 }]);
+    expect(pools).toEqual([
+      { name: "pactMagic", current: 2, max: 2 },
+      { name: "magicalCunning", current: 1, max: 1 },
+    ]);
   });
 
   it("initializes druid wild shape starting at level 2", () => {

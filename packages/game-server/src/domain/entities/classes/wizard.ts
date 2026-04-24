@@ -136,6 +136,7 @@ export const Wizard: CharacterClassDefinition = {
     const caps: ClassCapability[] = [
       { name: "Spellcasting", economy: "action", effect: "Cast wizard spells using INT" },
       { name: "Arcane Recovery", economy: "free", cost: "1 use/long rest", effect: `Recover spell slots totaling up to ${arcaneRecoveryMaxRecoveredSlotLevels(level)} levels`, abilityId: "class:wizard:arcane-recovery", resourceCost: { pool: "arcaneRecovery", amount: 1 } },
+      { name: "Ritual Adept", economy: "free", effect: "Cast any ritual spell in your spellbook as a ritual without preparing it" },
     ];
     return caps;
   },

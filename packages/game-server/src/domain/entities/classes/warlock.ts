@@ -87,6 +87,7 @@ export const Warlock: CharacterClassDefinition = {
     "spellcasting": 1,
     "pact-magic": 1,
     [ELDRITCH_INVOCATIONS]: 2,
+    "magical-cunning": 2,
     [PACT_BOON]: 3,
     [MYSTIC_ARCANUM_6]: 11,
     [MYSTIC_ARCANUM_7]: 13,
@@ -99,15 +100,23 @@ export const Warlock: CharacterClassDefinition = {
     caps.push({ name: "Pact Magic", economy: "action", cost: "Pact Magic slots", effect: "Cast warlock spells using Pact Magic slots (recharge on short rest)" });
     if (level >= 2) {
       caps.push({ name: "Eldritch Invocations", economy: "free", effect: "Eldritch Invocations grant passive or activated abilities" });
+      caps.push({ name: "Magical Cunning", economy: "action", cost: "1/long rest", effect: "1-minute ritual: recover half your Pact Magic slots (rounded up)", abilityId: "class:warlock:magical-cunning", resourceCost: { pool: "magicalCunning", amount: 1 } });
     }
     if (level >= 3) {
       caps.push({ name: "Pact Boon", economy: "free", effect: "Gain Pact of the Blade/Chain/Tome boon" });
     }
     return caps;
   },
-  resourcesAtLevel: (level) => [createPactMagicState(level).pool],
+  resourcesAtLevel: (level) => {
+    const pools = [createPactMagicState(level).pool];
+    if (level >= 2) {
+      pools.push({ name: "magicalCunning", current: 1, max: 1 });
+    }
+    return pools;
+  },
   restRefreshPolicy: [
     { poolKey: "pactMagic", refreshOn: "both", computeMax: (level) => pactMagicSlotsForLevel(level).slots },
+    { poolKey: "magicalCunning", refreshOn: "long", computeMax: (level) => (level >= 2 ? 1 : 0) },
   ],
   subclasses: [TheFiendSubclass],
 };

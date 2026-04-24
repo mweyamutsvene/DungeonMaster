@@ -11,7 +11,7 @@ export { RageExecutor, RecklessAttackExecutor, BrutalStrikeExecutor, FrenzyExecu
 export { BardicInspirationExecutor } from "./bard/index.js";
 
 // Cleric abilities
-export { TurnUndeadExecutor } from "./cleric/index.js";
+export { TurnUndeadExecutor, DivineSparkExecutor } from "./cleric/index.js";
 
 // Druid abilities
 export { WildShapeExecutor } from "./druid/index.js";
@@ -36,10 +36,13 @@ export { LayOnHandsExecutor, ChannelDivinityExecutor } from "./paladin/index.js"
 export { MoveHuntersMarkExecutor } from "./ranger/index.js";
 
 // Rogue abilities
-export { CunningActionExecutor } from "./rogue/index.js";
+export { CunningActionExecutor, SteadyAimExecutor } from "./rogue/index.js";
 
 // Sorcerer abilities
-export { QuickenedSpellExecutor, TwinnedSpellExecutor, FlexibleCastingExecutor } from "./sorcerer/index.js";
+export { QuickenedSpellExecutor, TwinnedSpellExecutor, FlexibleCastingExecutor, InnateSorceryExecutor } from "./sorcerer/index.js";
+
+// Warlock abilities
+export { MagicalCunningExecutor } from "./warlock/index.js";
 
 // Monster abilities
 export { NimbleEscapeExecutor } from "./monster/index.js";

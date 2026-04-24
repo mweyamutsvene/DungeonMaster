@@ -5,3 +5,4 @@
  */
 
 export { CunningActionExecutor } from "./cunning-action-executor.js";
+export { SteadyAimExecutor } from "./steady-aim-executor.js";
