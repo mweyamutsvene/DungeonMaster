@@ -235,7 +235,7 @@ Each sub-item is a feature implementation AND a scenario (or assertion addition 
 Add spells that multiple classes need but are absent.
 
 - [x] Paladin smite-spell family (Searing, Thunderous, Wrathful, Branding, Divine Favor) — completed as part of Phase 3.6
-- [ ] Druid: Entangle, Pass Without Trace, Goodberry, Call Lightning, Summon Beast (scoped summon)
+- [ ] Druid: Entangle, Pass Without Trace, Call Lightning (~~Goodberry~~ → Phase 4.6; ~~Summon Beast~~ → Phase 5 summon-family)
 - [ ] Wizard/Sorcerer: Mirror Image, Haste, Fly, Hypnotic Pattern
 - [x] **Warlock: Armor of Agathys (L1)** — base tier only. Catalog entry in `level-1.ts` grants 5 temp HP (`type: 'temp_hp'`) + 5 cold retaliatory damage on melee hit (`type: 'retaliatory_damage'`), duration 1 hour (600 rounds), self-cast, VSM components, Warlock class list. Extended `buff-debuff-spell-delivery-handler.ts` to apply flat `temp_hp` effects immediately on cast (with max-of-current-vs-new semantics), mirroring the existing `recurring_temp_hp` on-cast hook. Retaliation fires through the existing `handleRetaliatoryDamage()` infrastructure in `damage-resolver.ts`. Unit test `armor-of-agathys.test.ts` (7/7). E2E `warlock/armor-of-agathys.json` (12/12) — Warlock casts, absorbs 5 of 9 melee damage, deals 5 cold back to attacker. Upcast scaling (+5 temp HP & +5 retaliation per slot level above 1) deferred as Phase 4 follow-up.
 - [x] **Armor of Agathys upcast scaling** — added `upcastFlatBonus?: number` field to `SpellEffectDeclaration` (domain `prepared-spell-definition.ts`). Buff-debuff delivery handler now scales `resolvedValue` by `upcastFlatBonus × (castAtLevel - spellLevel)` when declared. AoA catalog entry declares `upcastFlatBonus: 5` on both `temp_hp` and `retaliatory_damage` effects — slot-2 cast yields 10 temp HP + 10 cold retaliation. Does NOT affect dice-based upcast (`upcastScaling.additionalDice`). Unit test `armor-of-agathys.test.ts` grew to 8 tests. E2E `warlock/armor-of-agathys-upcast.json` (11/11) — Warlock casts at slot 2, 10 temp HP fully absorbs 9 damage (HP stays 24, tempHp 10→1), Brawler takes 10 cold (30→20).
@@ -246,14 +246,104 @@ Each spell gets catalog entry + unit test + one scenario assertion.
 
 ---
 
+### Phase 4.5 — Recurring Attack Rider Primitive (iterative, per-spell commits)
+Build a generic persistent caster-side effect that exposes a recurring attack command for N rounds. Replaces the need for bespoke per-spell architecture (per Phase 3.3 Spiritual Weapon lite, now superseded by this primitive). Does NOT create new combatants — the "weapon / sphere / bolt" is conceptual; damage is dealt directly by the caster via a bonus-action or action command.
+
+**Delivery strategy: Option B — ship one spell per commit, growing the primitive only when a concrete new spell demands it.** Rationale: avoids over-abstraction, isolates regression blast radius, each E2E validates the primitive against a real use case, each subsequent spell proves the primitive's extensibility.
+
+#### Commit 1 — Primitive v1 + Spiritual Weapon (Cleric L2)
+Minimal primitive sufficient for the simplest recurring spell: attack-roll only, bonus-action only, rounds duration only.
+
+- [ ] Add effect type `recurring_attack_rider` on `SpellEffectDeclaration` (`domain/entities/spells/prepared-spell-definition.ts`):
+  ```ts
+  {
+    type: 'recurring_attack_rider',
+    target: 'custom',
+    attackProfile: {
+      kind: 'melee_spell',       // v1: melee_spell only; ranged_spell / save_based added in later commits
+      damage: { count, sides, modifier?: 'spellcasting' },
+      damageType: string,
+      range: number,
+    },
+    command: 'bonus',             // v1: bonus only; 'action' added in commit 3
+    commandText: string,           // e.g. 'spiritual weapon attack'
+    duration: 'rounds',            // v1: rounds only; 'concentration' added in commit 2
+    roundsRemaining: number,
+    appliesTo: 'self',
+  }
+  ```
+- [ ] Extend `BuffDebuffSpellDeliveryHandler` with a branch that installs the rider as an ActiveEffect on the caster (same pattern as the `temp_hp` on-cast branch).
+- [ ] New parser branch in `combat-text-parser.ts` / `ActionDispatcher` for `bonus: <commandText> at <target>`. Resolves `commandText` → looks up matching rider effect on caster → dispatches to `AttackActionHandler` with the `attackProfile`.
+- [ ] Bonus action consumed via existing `bonusActionUsed` resource.
+- [ ] Update `SPIRITUAL_WEAPON` catalog entry in `level-2.ts` to use `recurring_attack_rider`: 1d8 force melee spell attack, bonus-action, 10 rounds, no concentration, upcast +1d8 per slot above 2.
+- [ ] Remove stub `attackType` / `damage` fields on `SPIRITUAL_WEAPON` (now internal to rider).
+- [ ] Unit tests: `recurring-attack-rider.test.ts` — installation, command-text resolution, bonus-action consumption, expiry on `roundsRemaining: 0`, spellcasting-modifier resolution.
+- [ ] E2E `cleric/spiritual-weapon-loop.json` — L3 Cleric casts SW turn 1 + main attack; turns 2–4 use bonus action to attack. Verify force damage, bonus-action consumption, expiry.
+- [ ] Success criteria: SW works end-to-end; primitive schema minimally reflects only what SW needs; no concentration code in the rider branch.
+
+#### Commit 2 — Concentration extension + Flame Blade (Druid L2)
+- [ ] Extend `duration` union on `recurring_attack_rider` to accept `'concentration'`. Reuse existing concentration-drop pipeline — no new code, just pass-through.
+- [ ] Extend `command` union to accept `'action'` (Flame Blade uses action, not bonus).
+- [ ] Add `FLAME_BLADE` catalog entry: 3d6 fire melee spell attack, action command, concentration, 10 rounds, upcast +1d6 per 2 slot levels above 2.
+- [ ] Action consumed via existing `actionUsed` resource.
+- [ ] Unit test additions: concentration-drop drops rider, action-command consumes action not bonus.
+- [ ] E2E `druid/flame-blade.json` — Druid casts, action-attacks twice over 2 turns, concentration drop ends effect early, upcast at L4 slot = 4d6.
+- [ ] Success criteria: SW still works unchanged; Flame Blade proves action + concentration variants; primitive now handles all duration and command permutations needed.
+
+#### Commit 3 — Save-based attack variant + Flaming Sphere (Druid/Wizard L2)
+- [ ] Extend `attackProfile.kind` to accept `'save_based'` with `saveAbility` + `halfOnSave` fields.
+- [ ] New dispatch branch: `save_based` routes to `SaveSpellDeliveryHandler` (or equivalent save-then-damage path) instead of `AttackActionHandler`.
+- [ ] Add `FLAMING_SPHERE` catalog entry: DEX save 2d6 fire, bonus-action "ram" command, concentration, 10 rounds, upcast +1d6.
+- [ ] Unit test additions: save-based variant rolls target save, half-on-save respected.
+- [ ] E2E `druid/flaming-sphere.json` — Druid casts, bonus-action rams target over 3 rounds, half on save, concentration drop ends.
+- [ ] Success criteria: SW and Flame Blade still pass unchanged; primitive now handles the three attackProfile kinds (melee_spell, ranged_spell to follow in commit 4, save_based).
+
+#### Commit 4 — Ranged + locked-target + Witch Bolt (Sorcerer/Warlock/Wizard L1)
+- [ ] Extend `attackProfile.kind` to accept `'ranged_spell'`.
+- [ ] Add `lockedTargetId?: string` optional field on the rider — populated at install time when spell declares `lockTargetOnCast: true`.
+- [ ] Parser extension: for locked-target spells, the recurring command ignores an explicit target argument and uses `lockedTargetId`.
+- [ ] Add `WITCH_BOLT` catalog entry: initial 1d12 lightning ranged spell attack on cast + action-tick each subsequent turn for 1d12 auto-lightning on locked target, concentration, 10 rounds, upcast base +1d12.
+- [ ] Unit test additions: locked-target persistence, target-died-ends-effect (RAW 2024: Witch Bolt ends if target is reduced to 0 HP or leaves range).
+- [ ] E2E `warlock/witch-bolt.json` — Warlock casts (initial 1d12), ticks 2 more rounds, concentration drop stops ticks.
+- [ ] Success criteria: all 4 spells pass their scenarios; adding a 5th recurring-attack spell (L5 Dawn, L7 Crown of Stars) becomes catalog-only or single-field extension.
+
+#### Cross-commit risks
+- [ ] Does `recurring_attack_rider` interact with existing Hex / Hunter's Mark caster-side damage riders? — both coexist; Hex/HM are `bonus`/`penalty` on `damage_rolls`, SW/Flame Blade/etc. are new effect type.
+- [ ] Does the bonus-action `commandText` parser collide with class-ability parsing (Flurry of Blows, etc.)? — `bonus: spiritual weapon attack` prefix disambiguates; verify ActionDispatcher order.
+- [ ] Does concentration drop on Flaming Sphere correctly end the rider? — test path.
+- [ ] Witch Bolt target-dies edge case — RAW says the spell ends; ensure rider is cleared when `lockedTargetId`'s HP hits 0.
+
+---
+
+### Phase 4.6 — Goodberry (Inventory Integration, NEW)
+**Scope warning**: Goodberry is NOT a pure spell — it creates 10 physical items that persist outside combat, can be transferred to allies, eaten to heal, and expire after 24 hours. Requires inventory system integration.
+
+Deferred analysis below. Moved to Phase 5 deferred until inventory-system supports:
+- Magical consumable item creation at runtime (not just static catalog items).
+- Item transfer between party members (inventory-system already has some of this).
+- Item-expiry timers (new — currently only effects expire).
+- Healing-on-consume hook (the "use potion" pattern exists — extend to generic "consume item → apply healing").
+
+**Path forward**:
+1. Audit `InventorySystem` flow (`session-inventory.ts` + item-lookup-service).
+2. Determine if existing potion flow covers "eat to heal 1 HP" — if yes, Goodberry becomes catalog + scenario.
+3. Add item-expiry timer if needed.
+4. Catalog entry declares a "creates-item" spell type (new primitive).
+
+Rescheduled to post-L1–5 plan — captured here as a reminder of the inventory dependency.
+
+---
+
 ### Phase 5 — Deferred / Out of Scope (document but don't build now)
-- Spiritual Weapon full summon-entity architecture (Phase 3.3 uses lite version)
-- Counterspell / Silvery Barbs / Absorb Elements generalised reaction-spell routing (existing case-by-case implementations suffice for L1-5)
-- Druid Wild Shape full CR-scaled beast forms (L5 uses 2024 fixed forms)
-- Paladin Aura of Protection (L6)
-- Sorcerer Mystic Arcanum (L11+)
-- Warlock Mystic Arcanum (L11+)
-- Bard Magical Secrets (L10)
+- **Summon-family spells requiring full summon-entity architecture**: Summon Beast (2024 Bestial Spirit), Conjure Animals, Conjure Minor Elementals, Summon Fey, Summon Undead, Animate Dead, Find Familiar, Mordenkainen's Faithful Hound. All of these require: (a) ability to spawn a new `Combatant` mid-encounter with stat block from catalog, (b) summoner linkage + death-on-concentration-drop, (c) independent initiative slot and AI turn, (d) minion flag + command-action consumption by summoner, (e) optional persistence across encounters (Find Familiar, Animate Dead). See Phase 4.5 note — Spiritual Weapon was INCORRECTLY classified under this category; it is not a summon, just a persistent rider, and is handled by the Phase 4.5 primitive.
+- Spiritual Weapon full summon-entity architecture — **superseded by Phase 4.5 recurring-attack-rider primitive; this note stays only for archaeological reference.**
+- Goodberry (see Phase 4.6 — requires inventory-system integration for item creation + expiry timers).
+- Counterspell / Silvery Barbs / Absorb Elements generalised reaction-spell routing (existing case-by-case implementations suffice for L1-5).
+- Druid Wild Shape full CR-scaled beast forms (L5 uses 2024 fixed forms).
+- Paladin Aura of Protection (L6).
+- Sorcerer Mystic Arcanum (L11+).
+- Warlock Mystic Arcanum (L11+).
+- Bard Magical Secrets (L10).
 
 ---
 
