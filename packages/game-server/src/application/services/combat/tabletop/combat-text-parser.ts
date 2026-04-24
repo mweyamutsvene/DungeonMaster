@@ -509,14 +509,51 @@ export function tryParseSheatheWeaponText(input: string): { weaponName: string }
  * D&D 5e 2024: Per-item `actionCosts.use` controls whether this consumes an
  * Action or a Bonus Action (see `InteractionHandlers.handleUseItemAction`).
  * `eat` is a Goodberry-specific verb; `drink`/`quaff` for potions; `use` generic.
+ *
+ * Rejects inputs that match `give/hand/feed/administer X to Y` — those route
+ * to `tryParseGiveItemText` / `tryParseAdministerItemText` instead.
  */
 export function tryParseUseItemText(input: string): { itemName: string } | null {
   const normalized = input.trim();
+  // Exclude give/administer patterns (they have a "to <target>" tail).
+  if (/^(?:give|hand|feed|administer)\s+.+\s+to\s+\S+/i.test(normalized)) return null;
   const match = normalized.match(/\b(?:use|drink|consume|quaff|eat|take)\s+(?:a\s+|the\s+|my\s+|an?\s+)?(.+?)$/i);
   if (!match) return null;
   const itemName = match[1]!.trim();
   if (!itemName || itemName.length === 0) return null;
   return { itemName };
+}
+
+/**
+ * Parse "give <item> to <target>" / "hand <item> to <target>".
+ * D&D 5e 2024: transfer only — no activation. Actor consumes free object
+ * interaction (default) or falls through to Utilize action per the item's
+ * `actionCosts.give`. See `InteractionHandlers.handleGiveItemAction`.
+ */
+export function tryParseGiveItemText(input: string): { itemName: string; targetName: string } | null {
+  const normalized = input.trim();
+  const match = normalized.match(/^(?:give|hand)\s+(?:a\s+|the\s+|my\s+|an?\s+)?(.+?)\s+to\s+(\S.*?)$/i);
+  if (!match) return null;
+  const itemName = match[1]!.trim();
+  const targetName = match[2]!.trim();
+  if (!itemName || !targetName) return null;
+  return { itemName, targetName };
+}
+
+/**
+ * Parse "feed <item> to <target>" / "administer <item> to <target>".
+ * D&D 5e 2024: force-feed/apply. Actor consumes 1× item; target receives
+ * the item's `potionEffects`. Works on unconscious targets. See
+ * `InteractionHandlers.handleAdministerItemAction`.
+ */
+export function tryParseAdministerItemText(input: string): { itemName: string; targetName: string } | null {
+  const normalized = input.trim();
+  const match = normalized.match(/^(?:feed|administer)\s+(?:a\s+|the\s+|my\s+|an?\s+)?(.+?)\s+to\s+(\S.*?)$/i);
+  if (!match) return null;
+  const itemName = match[1]!.trim();
+  const targetName = match[2]!.trim();
+  if (!itemName || !targetName) return null;
+  return { itemName, targetName };
 }
 
 /**

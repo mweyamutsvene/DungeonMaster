@@ -19,6 +19,7 @@ import type { ICombatRepository } from "../../../repositories/combat-repository.
 import type { IEventRepository } from "../../../repositories/event-repository.js";
 import type { PendingActionRepository } from "../../../repositories/pending-action-repository.js";
 import type { CombatService } from "../combat-service.js";
+import type { InventoryService } from "../../entities/inventory-service.js";
 import type { ActionService } from "../action-service.js";
 import type { TwoPhaseActionService } from "../two-phase-action-service.js";
 import type { CombatantResolver } from "../helpers/combatant-resolver.js";
@@ -524,4 +525,10 @@ export interface TabletopCombatServiceDeps {
   victoryPolicy?: CombatVictoryPolicy;
   abilityRegistry: AbilityRegistry;
   diceRoller?: DiceRoller;
+  /**
+   * Optional — required by `InteractionHandlers.handleGiveItemAction` and
+   * `handleAdministerItemAction`. When absent, give/administer fail loud.
+   * Wired in production by `app.ts`; test harnesses construct it directly.
+   */
+  inventoryService?: InventoryService;
 }

@@ -233,6 +233,27 @@ export function useBonusAction(resources: JsonValue): JsonValue {
 }
 
 /**
+ * Check if a combatant still has their free object interaction available.
+ *
+ * D&D 5e 2024: once per turn a creature may interact with one object freely
+ * (e.g. hand item to ally, draw a weapon, open a door). After spending it,
+ * additional object interactions cost the Utilize action — the caller must
+ * decide whether to fall through to an action or reject.
+ */
+export function hasFreeObjectInteractionAvailable(resources: JsonValue): boolean {
+  const normalized = normalizeResources(resources);
+  return readBoolean(normalized, "objectInteractionUsed") !== true;
+}
+
+/**
+ * Mark a combatant's free object interaction as spent. Idempotent.
+ */
+export function useFreeObjectInteraction(resources: JsonValue): JsonValue {
+  const normalized = normalizeResources(resources);
+  return { ...normalized, objectInteractionUsed: true } as JsonValue;
+}
+
+/**
  * Read a number value from a resources object, returning null if not present or wrong type.
  */
 export function readNumber(obj: Record<string, unknown>, key: string): number | null {

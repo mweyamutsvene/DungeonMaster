@@ -44,7 +44,10 @@ import { createEffect } from "../../../../../domain/entities/combat/effects.js";
 import {
   inferActorRef,
   getActorNameFromRoster,
+  findCombatantByName,
 } from "../combat-text-parser.js";
+import { getEntityIdFromRef } from "../../helpers/combatant-ref.js";
+import { ItemActionHandler } from "../../item-action-handler.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import type { TabletopCombatServiceDeps, ActionParseResult } from "../tabletop-types.js";
 import type { LlmRoster } from "../../../../commands/game-command.js";
@@ -657,6 +660,119 @@ export class InteractionHandlers {
       type: "SIMPLE_ACTION_COMPLETE",
       action: "Use Item",
       message,
+    };
+  }
+
+  /**
+   * Handle "give <item> to <target>" / "hand <item> to <target>".
+   * D&D 5e 2024: transferring to a willing, conscious ally within reach uses
+   * the Free Object Interaction (default) or Utilize action per the item's
+   * `actionCosts.give`. Transfer is atomic via `InventoryService.transferItem`
+   * (optimistic concurrency + UoW) so both character sheets update together
+   * or not at all. Both combatants' live `resources.inventory` are mirrored.
+   */
+  async handleGiveItemAction(
+    sessionId: string,
+    encounterId: string,
+    actorId: string,
+    itemName: string,
+    targetName: string,
+    roster: LlmRoster,
+  ): Promise<ActionParseResult> {
+    if (!this.deps.inventoryService) {
+      throw new ValidationError("InventoryService not configured — give not available.");
+    }
+    const handler = new ItemActionHandler({
+      combat: this.deps.combatRepo,
+      characters: this.deps.characters,
+      inventoryService: this.deps.inventoryService,
+      events: this.deps.events,
+      diceRoller: this.deps.diceRoller,
+    });
+
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
+    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
+
+    const targetRef = findCombatantByName(targetName, roster);
+    if (!targetRef) throw new ValidationError(`Target "${targetName}" not found in encounter roster`);
+    const targetEntityId = getEntityIdFromRef(targetRef);
+    const targetCombatant = findCombatantByEntityId(combatants, targetEntityId);
+    if (!targetCombatant) throw new ValidationError(`Target "${targetName}" not in combat`);
+
+    const result = await handler.giveItem({
+      sessionId,
+      encounterId,
+      actorCombatantId: actorCombatant.id,
+      targetCombatantId: targetCombatant.id,
+      itemName,
+    });
+
+    const actorName = getActorNameFromRoster(actorId, roster);
+    return {
+      requiresPlayerInput: false,
+      actionComplete: true,
+      type: "SIMPLE_ACTION_COMPLETE",
+      action: "Give Item",
+      message: `${actorName} hands ${itemName} to ${targetName}. ${result.message}`,
+    };
+  }
+
+  /**
+   * Handle "feed <item> to <target>" / "administer <item> to <target>".
+   * D&D 5e 2024: force-feed a consumable to another creature (works on
+   * unconscious targets). The actor loses 1× item; the target receives its
+   * `potionEffects` (healing, etc.). Default administer cost is Utilize; the
+   * item's `actionCosts.administer` overrides (e.g. Goodberry = Bonus). If
+   * healing lifts an Unconscious target above 0 HP, the condition is removed.
+   */
+  async handleAdministerItemAction(
+    sessionId: string,
+    encounterId: string,
+    actorId: string,
+    itemName: string,
+    targetName: string,
+    roster: LlmRoster,
+  ): Promise<ActionParseResult> {
+    if (!this.deps.inventoryService) {
+      throw new ValidationError("InventoryService not configured — administer not available.");
+    }
+    const handler = new ItemActionHandler({
+      combat: this.deps.combatRepo,
+      characters: this.deps.characters,
+      inventoryService: this.deps.inventoryService,
+      events: this.deps.events,
+      diceRoller: this.deps.diceRoller,
+    });
+
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
+    if (!actorCombatant) throw new ValidationError("Actor not found in combat");
+
+    const targetRef = findCombatantByName(targetName, roster);
+    if (!targetRef) throw new ValidationError(`Target "${targetName}" not found in encounter roster`);
+    const targetEntityId = getEntityIdFromRef(targetRef);
+    const targetCombatant = findCombatantByEntityId(combatants, targetEntityId);
+    if (!targetCombatant) throw new ValidationError(`Target "${targetName}" not in combat`);
+
+    const result = await handler.administerItem({
+      sessionId,
+      encounterId,
+      actorCombatantId: actorCombatant.id,
+      targetCombatantId: targetCombatant.id,
+      itemName,
+    });
+
+    const actorName = getActorNameFromRoster(actorId, roster);
+    const hpSuffix = result.healingApplied && result.healingApplied > 0
+      ? ` (+${result.healingApplied} HP)`
+      : "";
+    return {
+      requiresPlayerInput: false,
+      actionComplete: true,
+      type: "SIMPLE_ACTION_COMPLETE",
+      action: "Administer Item",
+      message: `${actorName} administers ${itemName} to ${targetName}${hpSuffix}.`,
     };
   }
 }

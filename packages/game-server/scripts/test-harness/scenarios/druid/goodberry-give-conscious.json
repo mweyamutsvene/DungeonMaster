@@ -1,0 +1,150 @@
+{
+  "name": "Druid: Give Goodberry to Conscious Ally (transfer, no activation)",
+  "description": "A L3 Druid hands one of her 5 pre-placed Goodberry berries to her Fighter ally as a Free Object Interaction. Verifies: (1) `give X to Y` parser routes to handleGiveItemAction, (2) InventoryService.transferItem atomically updates both character sheets, (3) both live combatant.resources.inventory mirror the transfer (Druid 5→4, Fighter 0→1), (4) actor consumes objectInteractionUsed=true (not actionSpent — give uses the free object interaction per RAW), (5) target receives the item unequipped with longRestsRemaining preserved. Drives Commit 4 of the inventory-G2 plan.",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Druid L3 with 5 Goodberry berries pre-placed (longRestsRemaining=1 approximating 24h RAW).",
+        "name": "Ilynn Sprout",
+        "className": "Druid",
+        "subclass": "Circle of the Land",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 16, "charisma": 10
+          },
+          "maxHp": 27, "currentHp": 27,
+          "armorClass": 14, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 13,
+          "spellAttackBonus": 5,
+          "inventory": [
+            {
+              "magicItemId": "goodberry-berry",
+              "name": "Goodberry",
+              "equipped": false,
+              "attuned": false,
+              "quantity": 5,
+              "longRestsRemaining": 1
+            }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Fighter party member — conscious recipient, starts with empty inventory.",
+        "name": "Marcus",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 12, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 30, "currentHp": 30,
+          "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 2,
+          "inventory": [],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 50, "hp": 50,
+          "armorClass": 10, "speed": 0,
+          "challengeRating": 0.125,
+          "experienceValue": 25,
+          "actions": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "I steady myself to share a berry with Marcus." },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Ilynn Sprout",
+      "timeout": 10000
+    },
+    {
+      "comment": "Pre-transfer sanity: Druid has 5 Goodberry, Fighter has 0.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 5 }] }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Marcus",
+      "expect": {
+        "characterInventory": { "doesNotHave": ["Goodberry"] }
+      }
+    },
+    {
+      "comment": "Give Goodberry to Marcus — parser routes to handleGiveItemAction, InventoryService.transferItem updates both sheets atomically.",
+      "type": "action",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "give Goodberry to Marcus" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Druid inventory decremented: 5 → 4.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 4 }] }
+      }
+    },
+    {
+      "comment": "Fighter inventory received 1 Goodberry (unequipped, attunement stripped during transfer).",
+      "type": "assertState",
+      "actor": "Marcus",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 1 }] }
+      }
+    }
+  ]
+}

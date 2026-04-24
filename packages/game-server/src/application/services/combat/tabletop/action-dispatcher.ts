@@ -62,6 +62,8 @@ import {
   tryParseDrawWeaponText,
   tryParseSheatheWeaponText,
   tryParseUseItemText,
+  tryParseGiveItemText,
+  tryParseAdministerItemText,
   tryParseAttackText,
   tryParseEndTurnText,
   tryParseLegendaryAction,
@@ -582,6 +584,38 @@ export class ActionDispatcher {
         tryParse: (text) => tryParseSheatheWeaponText(text),
         handle: (parsed, ctx) =>
           this.interactionHandlers.handleSheatheWeaponAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed.weaponName, ctx.roster),
+      },
+
+      // 17b. Give item to ally (precedes useItem so "give X to Y" doesn't get
+      // swallowed; precedes attack so "give dagger to goblin" doesn't become
+      // an attack on goblin).
+      {
+        id: "giveItem",
+        tryParse: (text) => tryParseGiveItemText(text),
+        handle: (parsed, ctx) =>
+          this.interactionHandlers.handleGiveItemAction(
+            ctx.sessionId,
+            ctx.encounterId,
+            ctx.actorId,
+            parsed.itemName,
+            parsed.targetName,
+            ctx.roster,
+          ),
+      },
+
+      // 17c. Administer / force-feed item to target.
+      {
+        id: "administerItem",
+        tryParse: (text) => tryParseAdministerItemText(text),
+        handle: (parsed, ctx) =>
+          this.interactionHandlers.handleAdministerItemAction(
+            ctx.sessionId,
+            ctx.encounterId,
+            ctx.actorId,
+            parsed.itemName,
+            parsed.targetName,
+            ctx.roster,
+          ),
       },
 
       // 18. Use item

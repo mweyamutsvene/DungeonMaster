@@ -1,0 +1,172 @@
+{
+  "name": "Druid: Administer Goodberry to Unconscious Ally",
+  "description": "Druid + Fighter fight a Goblin Brute. Valeria (Fighter, 3 HP, AC 8) gets KO'd by the goblin's guaranteed-lethal greatclub on round 1. On round 2, the Druid force-feeds one of her 10 Goodberry berries to the unconscious Fighter — 1 HP flat heal revives her (HP 0 → 1) and the Unconscious condition is auto-removed per RAW. Verifies: (1) `feed X to Y` / `administer X to Y` parser routes to handleAdministerItemAction, (2) actor's inventory decrements (10 → 9 Goodberry) — no transfer of the consumed item to target, (3) target's HP applies via potionEffects.healing flat path (0d0+1), (4) Unconscious auto-removes when hpAfter > 0, (5) Druid consumes Bonus Action (goodberry-berry.actionCosts.administer='bonus' per spell RAW, overriding default 'utilize'). Drives Commit 4 of the inventory-G2 plan.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Ilynn Sprout",
+        "className": "Druid",
+        "subclass": "Circle of the Land",
+        "level": 3,
+        "position": { "x": 8, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10, "dexterity": 12, "constitution": 14,
+            "intelligence": 10, "wisdom": 16, "charisma": 10
+          },
+          "maxHp": 27, "currentHp": 27,
+          "armorClass": 14, "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 13,
+          "spellAttackBonus": 5,
+          "inventory": [
+            {
+              "magicItemId": "goodberry-berry",
+              "name": "Goodberry",
+              "equipped": false,
+              "attuned": false,
+              "quantity": 10,
+              "longRestsRemaining": 1
+            }
+          ],
+          "attacks": [
+            {
+              "name": "Quarterstaff",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Valeria",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16, "dexterity": 14, "constitution": 14,
+            "intelligence": 10, "wisdom": 12, "charisma": 8
+          },
+          "maxHp": 28, "currentHp": 3, "armorClass": 8, "speed": 30,
+          "proficiencyBonus": 2,
+          "inventory": [],
+          "attacks": [
+            {
+              "name": "Longsword", "kind": "melee", "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Goblin Brute",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 14, "constitution": 12,
+            "intelligence": 8, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 50, "hp": 50, "armorClass": 13, "speed": 30,
+          "challengeRating": 1, "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 8,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "attack"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "We brace against the goblin!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true },
+      "comment": "Druid initiates — rolls initiative."
+    },
+    {
+      "type": "rollResult",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "1" },
+      "comment": "Very low initiative (1+1 DEX=2) so Druid goes LAST. Valeria auto-rolls high, Goblin auto-rolls mid. Expected order: Valeria > Goblin > Druid. Goblin's turn KOs Valeria before Druid acts.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Valeria",
+      "comment": "Valeria goes first (auto-rolled initiative). She ends turn immediately — we want the Goblin to KO her next."
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Ilynn Sprout",
+      "comment": "Wait through the goblin's turn. Goblin attacks Valeria (AC 8, goblin +8 attack, 2d8+4 damage = guaranteed KO from 3 HP)."
+    },
+    {
+      "type": "assertState",
+      "actor": "Valeria",
+      "comment": "Valeria KO'd by the goblin — 0 HP + Unconscious condition.",
+      "expect": {
+        "characterHp": { "min": 0, "max": 0 },
+        "characterConditions": {
+          "hasConditions": ["unconscious"]
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "comment": "Druid still has her full 10 goodberries.",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 10 }] }
+      }
+    },
+    {
+      "type": "action",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "feed Goodberry to Valeria" },
+      "comment": "Druid force-feeds a goodberry to the unconscious Fighter as a Bonus Action (per goodberry-berry.actionCosts.administer='bonus').",
+      "expect": {
+        "type": "SIMPLE_ACTION_COMPLETE",
+        "action": "Administer Item"
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Valeria",
+      "comment": "Valeria revived with 1 HP (flat goodberry heal) and Unconscious auto-removed (hpAfter > 0).",
+      "expect": {
+        "characterHp": { "min": 1, "max": 1 },
+        "characterConditions": {
+          "doesNotHaveConditions": ["unconscious"]
+        }
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "comment": "Druid's goodberry stack decremented 10 → 9 — the item was consumed on the target, NOT transferred.",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 9 }] }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Ilynn Sprout"
+    }
+  ]
+}

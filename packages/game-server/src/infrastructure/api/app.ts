@@ -339,6 +339,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     victoryPolicy,
     abilityRegistry,
     diceRoller,
+    inventoryService,
   });
 
   registerHealthRoutes(app);
