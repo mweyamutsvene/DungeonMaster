@@ -59,7 +59,7 @@ describe("listSpellsByLevel", () => {
 
   it("returns level 1 spells", () => {
     const level1 = listSpellsByLevel(1);
-    expect(level1.length).toBe(35);
+    expect(level1.length).toBe(36);
     const names = level1.map((s) => s.name);
     expect(names).toContain("Burning Hands");
     expect(names).toContain("Magic Missile");
@@ -72,6 +72,7 @@ describe("listSpellsByLevel", () => {
     expect(names).toContain("Thunderous Smite");
     expect(names).toContain("Wrathful Smite");
     expect(names).toContain("Divine Favor");
+    expect(names).toContain("Goodberry");
     expect(names).toContain("Ensnaring Strike");
     expect(names).toContain("Armor of Agathys");
     expect(names).toContain("Entangle");

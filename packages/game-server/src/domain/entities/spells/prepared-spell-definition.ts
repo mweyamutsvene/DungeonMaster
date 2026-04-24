@@ -17,6 +17,29 @@ export interface SpellDice {
 }
 
 /**
+ * Declarative side-effect that fires on successful spell cast, AFTER the delivery
+ * handler has resolved. Runs through a single wrapper in `SpellActionHandler` so
+ * there is exactly one call site (C-R2-1 in the inventory-G2 plan).
+ *
+ * Currently only `creates_item` is supported; other variants can be added here
+ * as the plan catalog grows.
+ */
+export type SpellSideEffectDeclaration =
+  | {
+      readonly type: 'creates_item';
+      /** Magic item to create, identified by its catalog id (e.g. `goodberry-berry`). */
+      readonly itemRef: { readonly magicItemId: string };
+      /** Quantity of items to create. */
+      readonly quantity: number;
+      /**
+       * Expiry in long rests. When the character takes N long rests, the item
+       * is removed from inventory. 1 = Goodberry (24h approximation).
+       * Omit for permanent items.
+       */
+      readonly longRestsRemaining?: number;
+    };
+
+/**
  * Upcast scaling declaration for a prepared spell.
  * Defines the additional dice gained per slot level above the spell's base level.
  *
@@ -140,6 +163,12 @@ export interface PreparedSpellDefinition {
    *   dartCount + (castAtLevel - spell.level)
    */
   readonly dartCount?: number;
+  /**
+   * Declarative side effects processed AFTER delivery (C-R2-1 wrapper).
+   * Used by spells like Goodberry that create inventory items on cast.
+   * Fires only when the cast actually completes (not on REACTION_CHECK pause).
+   */
+  readonly onCastSideEffects?: readonly SpellSideEffectDeclaration[];
 }
 
 /**

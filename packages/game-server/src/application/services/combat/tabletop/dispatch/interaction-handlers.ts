@@ -464,11 +464,6 @@ export class InteractionHandlers {
 
     let resources = normalizeResources(actorCombatant.resources);
 
-    // Check action economy: using an item costs an action
-    if (resources.actionSpent) {
-      throw new ValidationError("You have already used your action this turn");
-    }
-
     // Find item in combatant inventory
     const inventory = getInventory(actorCombatant.resources);
     const item = findInventoryItem(inventory, itemName);
@@ -488,6 +483,25 @@ export class InteractionHandlers {
       throw new ValidationError(`Don't know how to use "${itemName}". Only potions are supported.`);
     }
 
+    // Resolve action-economy cost. D&D 5e 2024:
+    // - Potions default to Bonus Action for self-use (2024 PHB rule change).
+    // - Catalog entries may override via `actionCosts.use`.
+    // - Spell-created items (Goodberry) explicitly declare `use: 'bonus'`.
+    // Pre-2024 behavior (action-cost) is kept for items where `actionCosts.use`
+    // is undefined AND we have no category default wired in — safer fallthrough.
+    const useCost = itemDef?.actionCosts?.use;
+    if (useCost === 'none') {
+      throw new ValidationError(`"${itemName}" cannot be used in combat`);
+    }
+    const consumesBonusAction = useCost === 'bonus';
+    if (consumesBonusAction) {
+      if (resources.bonusActionUsed) {
+        throw new ValidationError("You have already used your bonus action this turn");
+      }
+    } else if (resources.actionSpent) {
+      throw new ValidationError("You have already used your action this turn");
+    }
+
     // Consume the item
     const { updatedInventory } = useConsumableItem(inventory, itemName);
 
@@ -498,11 +512,22 @@ export class InteractionHandlers {
     // ── Apply healing ──────────────────────────────────────────────────
     if (potionEffects?.healing) {
       const formula = potionEffects.healing;
-      if (!this.deps.diceRoller) {
-        throw new ValidationError("Dice roller not configured");
+      // Flat-heal case (Goodberry = 0d0+1): skip dice roll entirely — rollDie
+      // rejects count < 1. Use the modifier as the entire heal amount.
+      const isFlatHeal = formula.diceCount === 0 || formula.diceSides === 0;
+      let healAmount: number;
+      let formulaLabel: string;
+      if (isFlatHeal) {
+        healAmount = formula.modifier ?? 0;
+        formulaLabel = String(healAmount);
+      } else {
+        if (!this.deps.diceRoller) {
+          throw new ValidationError("Dice roller not configured");
+        }
+        const diceResult = this.deps.diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
+        healAmount = diceResult.total;
+        formulaLabel = `${formula.diceCount}d${formula.diceSides}+${formula.modifier} = ${healAmount}`;
       }
-      const diceResult = this.deps.diceRoller.rollDie(formula.diceSides, formula.diceCount, formula.modifier);
-      const healAmount = diceResult.total;
       const hpBefore = actorCombatant.hpCurrent;
       const hpMax = actorCombatant.hpMax;
       const hpAfter = Math.min(hpMax, hpBefore + healAmount);
@@ -512,7 +537,7 @@ export class InteractionHandlers {
         hpCurrent: hpAfter,
       });
 
-      messageParts.push(`heals ${actualHeal} HP (${formula.diceCount}d${formula.diceSides}+${formula.modifier} = ${healAmount}). HP: ${hpAfter}/${hpMax}`);
+      messageParts.push(`heals ${actualHeal} HP (${formulaLabel}). HP: ${hpAfter}/${hpMax}`);
     }
 
     // ── Apply instant damage ───────────────────────────────────────────
@@ -610,7 +635,7 @@ export class InteractionHandlers {
     // ── Persist all changes ────────────────────────────────────────────
     const finalResources = {
       ...resources,
-      actionSpent: true,
+      ...(consumesBonusAction ? { bonusActionUsed: true } : { actionSpent: true }),
       inventory: updatedInventory,
     };
 

@@ -30,6 +30,7 @@ import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
+import { processSpellCastSideEffects } from "./spell-cast-side-effect-processor.js";
 import { readConditionNames, getConditionEffects } from "../../../../domain/entities/combat/conditions.js";
 import type { Condition } from "../../../../domain/entities/combat/conditions.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
@@ -78,6 +79,38 @@ export class SpellActionHandler {
       new ZoneSpellDeliveryHandler(handlerDeps),
       new BuffDebuffSpellDeliveryHandler(handlerDeps),
     ];
+  }
+
+  /**
+   * Run `onCastSideEffects` processing on a successful cast (C-R2-1 single
+   * wrapper call site). No-op for spells without side effects or for results
+   * that didn't actually complete (REACTION_CHECK, etc.).
+   */
+  private async finalizeSpellCast<T extends ActionParseResult>(
+    spellMatch: { readonly onCastSideEffects?: unknown; readonly name: string } | null,
+    casterCharId: string,
+    characters: SessionCharacterRecord[],
+    actorCombatant: { readonly id: string; readonly resources?: unknown } | null,
+    sessionId: string,
+    encounterId: string,
+    result: T,
+  ): Promise<T> {
+    const sideEffects = (spellMatch as { readonly onCastSideEffects?: readonly unknown[] } | null)?.onCastSideEffects;
+    if (!sideEffects || !Array.isArray(sideEffects) || sideEffects.length === 0) return result;
+    if (!result.actionComplete) return result;
+
+    const caster = characters.find((c) => c.id === casterCharId) ?? null;
+    await processSpellCastSideEffects({
+      spell: spellMatch as unknown as import("../../../../domain/entities/spells/prepared-spell-definition.js").PreparedSpellDefinition,
+      caster,
+      actorCombatant,
+      encounterId,
+      sessionId,
+      charactersRepo: this.deps.characters,
+      combatRepo: this.deps.combatRepo,
+      eventsRepo: this.deps.events,
+    });
+    return result;
   }
 
   /** Resolve encounter, combatants, and actor combatant in one call. */
@@ -351,7 +384,15 @@ export class SpellActionHandler {
           combatants: freshCombatants,
           actorCombatant: freshActorCombatant,
         };
-        return handler.handle(ctx);
+        return this.finalizeSpellCast(
+          spellMatch,
+          actorId,
+          characters,
+          freshActorCombatant ?? null,
+          sessionId,
+          encounter.id,
+          await handler.handle(ctx),
+        );
       }
 
       // Warn when a known spell has no delivery handler — likely missing effects[], damage, or healing definition
@@ -432,13 +473,21 @@ export class SpellActionHandler {
 
           const diceNotation = `${diceCount}d${diceSides}${modifier ? `+${modifier}` : ""}`;
           const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
-          return {
-            requiresPlayerInput: false,
-            actionComplete: true,
-            type: "SIMPLE_ACTION_COMPLETE",
-            action: "CastSpell",
-            message: `Cast ${castInfo.spellName} at ${castInfo.targetName}.${slotNote} ${dartCount} darts (${dartRolls.map((r) => `${diceNotation}=${r}`).join(", ")}) = ${totalDamage} ${damageType} damage. HP: ${hpBefore} → ${hpAfter}.`,
-          };
+          return this.finalizeSpellCast(
+            spellMatch,
+            actorId,
+            characters,
+            actorCombatant ?? null,
+            sessionId,
+            encounter.id,
+            {
+              requiresPlayerInput: false,
+              actionComplete: true,
+              type: "SIMPLE_ACTION_COMPLETE",
+              action: "CastSpell",
+              message: `Cast ${castInfo.spellName} at ${castInfo.targetName}.${slotNote} ${dartCount} darts (${dartRolls.map((r) => `${diceNotation}=${r}`).join(", ")}) = ${totalDamage} ${damageType} damage. HP: ${hpBefore} → ${hpAfter}.`,
+            },
+          );
         }
       }
     }
@@ -461,12 +510,20 @@ export class SpellActionHandler {
     const targetNote = castInfo.targetName ? ` at ${castInfo.targetName}` : "";
     const slotNote = effectiveCastLevel > 0 ? ` (level ${effectiveCastLevel} slot spent)` : "";
 
-    return {
-      requiresPlayerInput: false,
-      actionComplete: true,
-      type: "SIMPLE_ACTION_COMPLETE",
-      action: "CastSpell",
-      message: `Cast ${castInfo.spellName}${targetNote}.${slotNote}`,
-    };
+    return this.finalizeSpellCast(
+      spellMatch,
+      actorId,
+      characters,
+      actorCombatant ?? null,
+      sessionId,
+      encounter.id,
+      {
+        requiresPlayerInput: false,
+        actionComplete: true,
+        type: "SIMPLE_ACTION_COMPLETE",
+        action: "CastSpell",
+        message: `Cast ${castInfo.spellName}${targetNote}.${slotNote}`,
+      },
+    );
   }
 }

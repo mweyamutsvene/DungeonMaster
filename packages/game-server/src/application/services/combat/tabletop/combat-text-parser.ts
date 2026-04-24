@@ -505,12 +505,14 @@ export function tryParseSheatheWeaponText(input: string): { weaponName: string }
 }
 
 /**
- * Parse "use/drink/consume/quaff <item>" text.
- * D&D 5e 2024: Drinking a potion costs an Action.
+ * Parse "use/drink/consume/quaff/eat <item>" text.
+ * D&D 5e 2024: Per-item `actionCosts.use` controls whether this consumes an
+ * Action or a Bonus Action (see `InteractionHandlers.handleUseItemAction`).
+ * `eat` is a Goodberry-specific verb; `drink`/`quaff` for potions; `use` generic.
  */
 export function tryParseUseItemText(input: string): { itemName: string } | null {
   const normalized = input.trim();
-  const match = normalized.match(/\b(?:use|drink|consume|quaff|take)\s+(?:a\s+|the\s+|my\s+|an?\s+)?(.+?)$/i);
+  const match = normalized.match(/\b(?:use|drink|consume|quaff|eat|take)\s+(?:a\s+|the\s+|my\s+|an?\s+)?(.+?)$/i);
   if (!match) return null;
   const itemName = match[1]!.trim();
   if (!itemName || itemName.length === 0) return null;

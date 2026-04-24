@@ -1,0 +1,131 @@
+{
+  "name": "Druid: Goodberry — create 10 berries, eat one as bonus action",
+  "description": "L3 Druid at 20/27 HP casts Goodberry (Action, L1 slot). Verifies: (1) 10 Goodberry items appear in character inventory via onCastSideEffects primitive, (2) catalog lookup by magicItemId resolves to the GOODBERRY_BERRY entry, (3) eating a goodberry via 'eat goodberry' consumes the Bonus Action (not the Action — per goodberry-berry actionCosts.use='bonus') and heals exactly 1 HP, (4) inventory count decrements 10 → 9. Drives the inventory-G2 plan's `creates_item` primitive + `actionCosts.use='bonus'` wiring in `handleUseItemAction`.",
+  "setup": {
+    "character": {
+      "name": "Ilynn Sprout",
+      "className": "Druid",
+      "subclass": "Circle of the Land",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10, "dexterity": 12, "constitution": 14,
+          "intelligence": 10, "wisdom": 16, "charisma": 10
+        },
+        "maxHp": 27, "currentHp": 20,
+        "armorClass": 14, "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "wisdom",
+        "spellSaveDC": 13,
+        "spellAttackBonus": 5,
+        "resourcePools": [
+          { "name": "spellSlot_1", "current": 4, "max": 4 },
+          { "name": "spellSlot_2", "current": 2, "max": 2 }
+        ],
+        "preparedSpells": [
+          { "name": "Goodberry", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "type": "construct",
+          "abilityScores": {
+            "strength": 10, "dexterity": 10, "constitution": 10,
+            "intelligence": 1, "wisdom": 1, "charisma": 1
+          },
+          "maxHp": 50, "hp": 50,
+          "armorClass": 10, "speed": 0,
+          "challengeRating": 0.125,
+          "experienceValue": 25,
+          "actions": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "I ready a sprig of mistletoe to conjure sustenance." },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Ilynn Sprout",
+      "timeout": 10000
+    },
+    {
+      "comment": "Pre-cast sanity: inventory is empty — no Goodberry items yet.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterInventory": { "doesNotHave": ["Goodberry"] }
+      }
+    },
+    {
+      "comment": "Cast Goodberry: action spell, self-target, L1 slot. onCastSideEffects creates 10 goodberry-berry items in the caster's inventory with longRestsRemaining:1.",
+      "type": "action",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "cast Goodberry" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Post-cast: 10 Goodberry items appear in inventory via the creates_item side-effect primitive.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 10 }] }
+      }
+    },
+    {
+      "comment": "L1 slot spent: 4 → 3.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 }
+      }
+    },
+    {
+      "comment": "Eat one Goodberry — consumes BONUS action (not Action — because goodberry-berry.actionCosts.use='bonus'), heals exactly 1 HP flat via potionEffects.healing {0d0+1}.",
+      "type": "action",
+      "actor": "Ilynn Sprout",
+      "input": { "text": "eat Goodberry" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Healing applied: 20 → 21 HP (exactly +1, not dice-rolled).",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": { "hpCurrent": 21 }
+    },
+    {
+      "comment": "Inventory decremented: 10 → 9 Goodberry items remaining.",
+      "type": "assertState",
+      "actor": "Ilynn Sprout",
+      "expect": {
+        "characterInventory": { "has": [{ "name": "Goodberry", "quantity": 9 }] }
+      }
+    }
+  ]
+}

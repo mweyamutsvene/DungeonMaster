@@ -809,6 +809,42 @@ export const WITCH_BOLT = {
   description: 'A crackling beam: 1d12 lightning on hit. On each subsequent turn you can spend an action to re-invoke the beam without attacking roll, dealing 1d12 lightning (concentration).',
 } as const satisfies CanonicalSpell;
 
+/**
+ * Goodberry — D&D 5e 2024.
+ *
+ * Action casting time, VSM (mistletoe), self range, Instantaneous duration,
+ * no concentration. Creates 10 magical berries in the caster's inventory via
+ * `onCastSideEffects: [{ type: 'creates_item', itemRef: 'goodberry-berry', quantity: 10, longRestsRemaining: 1 }]`.
+ *
+ * The berries themselves are a separate `MagicItemDefinition` in `magic-item-catalog.ts`
+ * (see `GOODBERRY_BERRY` — eating one is a Bonus Action, heals 1 HP).
+ *
+ * Goodberry has no combat effects — it's entirely item-creation. The spell catalog
+ * entry still validates as `CanonicalSpell` because `onCastSideEffects` is an
+ * optional field on `PreparedSpellDefinition`.
+ *
+ * Per the inventory-G2 plan: "RAW 24h approximated via 1 long rest until in-world
+ * clock exists."
+ */
+export const GOODBERRY = {
+  name: 'Goodberry',
+  level: 1,
+  onCastSideEffects: [
+    {
+      type: 'creates_item' as const,
+      itemRef: { magicItemId: 'goodberry-berry' },
+      quantity: 10,
+      longRestsRemaining: 1,
+    },
+  ],
+  school: 'transmutation',
+  castingTime: 'action',
+  range: 'self',
+  components: { v: true, s: true, m: 'a sprig of mistletoe' },
+  classLists: ['Druid', 'Ranger'],
+  description: 'Up to ten berries appear in your hand infused with magic for the next 24 hours. A creature can eat one as a Bonus Action to regain 1 Hit Point and count it as a full meal.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
   ARMOR_OF_AGATHYS,
@@ -823,6 +859,7 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ENSNARING_STRIKE,
   ENTANGLE,
   FAERIE_FIRE,
+  GOODBERRY,
   GUIDING_BOLT,
   HEALING_WORD,
   HELLISH_REBUKE,

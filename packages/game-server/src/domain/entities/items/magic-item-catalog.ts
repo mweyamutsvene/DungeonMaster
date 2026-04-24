@@ -222,6 +222,32 @@ const POTION_OF_SUPREME_HEALING: MagicItemDefinition = {
   potionEffects: { healing: { diceCount: 10, diceSides: 4, modifier: 20 } },
 };
 
+/**
+ * Goodberry (created by the Goodberry spell).
+ *
+ * D&D 5e 2024: Cast the Goodberry spell — 10 magical berries appear in your
+ * inventory. A creature can eat one berry as a Bonus Action (self) or you can
+ * administer one to an ally (Bonus Action per spell text — overrides the
+ * default potion `administer:'utilize'`). Each berry heals 1 HP and provides
+ * sustenance. Berries lose their magic after 24 hours — we approximate via
+ * `longRestsRemaining: 1` on the `CharacterItemInstance` until an in-world
+ * clock exists.
+ */
+const GOODBERRY_BERRY: MagicItemDefinition = {
+  id: "goodberry-berry",
+  name: "Goodberry",
+  category: "potion",
+  rarity: "common",
+  attunement: { required: false },
+  description: "A magical berry created by the Goodberry spell. Eating one as a Bonus Action restores 1 Hit Point and provides as much nourishment as a full meal. The berry loses its magic after 24 hours.",
+  potionEffects: { healing: { diceCount: 0, diceSides: 0, modifier: 1 } },
+  actionCosts: {
+    use: 'bonus',              // Eat a berry yourself (bonus action per spell text).
+    give: 'free-object-interaction',  // Hand berry to conscious ally.
+    administer: 'bonus',       // Force-feed unconscious ally (override of potion default 'utilize').
+  },
+};
+
 // ─── Tier 1: Simple Effect Potions ──────────────────────────────────────
 
 /**
@@ -706,6 +732,8 @@ const ALL_MAGIC_ITEMS: readonly MagicItemDefinition[] = [
   POTION_OF_GREATER_HEALING,
   POTION_OF_SUPERIOR_HEALING,
   POTION_OF_SUPREME_HEALING,
+  // Spell-created items
+  GOODBERRY_BERRY,
   // Tier 1: Simple effect potions
   POTION_OF_FIRE_RESISTANCE,
   POTION_OF_COLD_RESISTANCE,
