@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "dnd-rules-query": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": ["-C", "packages/rules-query-mcp", "start"]
+    }
+  }
+}
