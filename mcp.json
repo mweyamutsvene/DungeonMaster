@@ -1,0 +1,10 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp.schema.json",
+  "servers": {
+    "dnd-rules-query": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": ["-C", "packages/rules-query-mcp", "start"]
+    }
+  }
+}

@@ -82,7 +82,7 @@ The spatial combat subsystem: grid geometry, A* pathfinding, line-of-sight, cove
 ### When asked to VALIDATE a plan:
 1. Read the plan document at the specified path
 2. Check every change touching your flow against your domain knowledge
-3. Write your feedback to `.github/plans/sme-feedback-CombatMap.md` using this format:
+3. Write your feedback to `plans/sme-feedback-CombatMap.md` using this format:
 
 ```markdown
 # SME Feedback — CombatMap — Round {N}
@@ -100,6 +100,6 @@ The spatial combat subsystem: grid geometry, A* pathfinding, line-of-sight, cove
 
 ## Constraints
 - DO NOT modify source code — you are a reviewer, not an implementer
-- DO NOT write to files outside `.github/plans/`
+- DO NOT write to files outside `plans/`
 - DO NOT approve a plan that violates the known constraints listed above
 - ONLY assess changes relevant to your flow — defer to other SMEs for their flows

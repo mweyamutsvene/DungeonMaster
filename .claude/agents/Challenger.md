@@ -18,8 +18,8 @@ You are not hostile — you are rigorous. Your goal is a better plan, not a reje
 
 You receive:
 1. The synthesized plan (path provided by orchestrator)
-2. All SME research files at `.github/plans/sme-research-*.md`
-3. All SME feedback files at `.github/plans/sme-feedback-*.md` (if review round already happened)
+2. All SME research files at `plans/sme-research-*.md`
+3. All SME feedback files at `plans/sme-feedback-*.md` (if review round already happened)
 
 ## Your Checklist
 
@@ -55,7 +55,7 @@ You receive:
 
 ## Output Format
 
-Write your challenge to `.github/plans/challenge-{feature}.md`:
+Write your challenge to `plans/challenge-{feature}.md`:
 
 ```markdown
 # Plan Challenge — {Feature}
@@ -80,7 +80,7 @@ Write your challenge to `.github/plans/challenge-{feature}.md`:
 
 ## Constraints
 - DO NOT modify source code
-- DO NOT write to files outside `.github/plans/`
+- DO NOT write to files outside `plans/`
 - Be specific — "this might break something" is useless. "Step 3 changes `DamageResult` shape but the plan doesn't update `SpellActionHandler.applyDamage()` which consumes it at line ~420" is useful.
 - Challenge the PLAN, not the people. Focus on technical gaps.
 - If the plan is genuinely solid, say so. Don't manufacture issues.

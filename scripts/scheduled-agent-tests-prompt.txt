@@ -1,5 +1,0 @@
-Run this prompt- C:\Users\tommy\Development\DungeonMaster\.github\prompts\plan-pending-action-queue.prompt.md
-
-$promptContent = Get-Content $promptFile -Raw
-
-gh copilot --model "claude-opus-4.6" --agent "DMDeveloper" --allow-all  -p "Run this prompt- C:\Users\tommy\Development\DungeonMaster\.github\prompts\plan-pending-action-queue.prompt.md"

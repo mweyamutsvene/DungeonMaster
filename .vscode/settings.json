@@ -13,5 +13,8 @@
   "[markdown]": {
     "editor.wordWrap": "on"
   },
-  "chat.subagents.allowInvocationsFromSubagents": true
+  "chat.subagents.allowInvocationsFromSubagents": true,
+  "claudeCode.initialPermissionMode": "bypassPermissions",
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions": true
 }

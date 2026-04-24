@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tsx scripts/hooks/typecheck-after-edit.ts",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "tsx scripts/hooks/check-domain-purity.ts",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "tsx scripts/hooks/test-first-gate.ts",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tsx scripts/hooks/session-context.ts",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
