@@ -7,17 +7,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tsx scripts/hooks/typecheck-after-edit.ts",
+            "command": "pnpm exec tsx scripts/hooks/typecheck-after-edit.ts",
             "timeout": 60
           },
           {
             "type": "command",
-            "command": "tsx scripts/hooks/check-domain-purity.ts",
+            "command": "pnpm exec tsx scripts/hooks/check-domain-purity.ts",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "tsx scripts/hooks/test-first-gate.ts",
+            "command": "pnpm exec tsx scripts/hooks/test-first-gate.ts",
             "timeout": 5
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tsx scripts/hooks/session-context.ts",
+            "command": "pnpm exec tsx scripts/hooks/session-context.ts",
             "timeout": 10
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tsx scripts/hooks/post-impl-challenger.ts",
+            "command": "pnpm exec tsx scripts/hooks/post-impl-challenger.ts",
             "timeout": 10
           }
         ]
