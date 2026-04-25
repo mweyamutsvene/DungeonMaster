@@ -10,7 +10,7 @@ updated: 2026-04-25
 
 # D&D 5e 2024 Engine — Mechanics & E2E Coverage Consolidated Report (L1-5)
 
-> **Purpose:** single source of truth for what mechanics our engine supports, what needs rework, what's missing for L1-5 play, and how well our 270 E2E scenarios cover them.
+> **Purpose:** single source of truth for what mechanics our engine supports, what needs rework, what's missing for L1-5 play, and how well our 286 E2E scenarios cover them.
 >
 > **Method:** 13 per-flow audits in `plans/audit-{Flow}.md` + E2E audit in `plans/audit-E2E-Scenarios.md`. This document synthesizes across them. Every row links back to the source audit.
 
@@ -111,6 +111,13 @@ Additional deterministic scenarios added and validated in this thread:
   - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-grapple-shove-escape-unarmed.json`
   - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-utility-actions.json`
   - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-cover-ac-dex.json`
+- Hide/stealth validation scenarios:
+  - `packages/game-server/scripts/test-harness/scenarios/core/hide-stealth-vs-passive.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/hide-vs-blinded-observer.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/hide-vs-mixed-blinded-observers.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/hidden-breaks-on-attack.json`
+  - `packages/game-server/scripts/test-harness/scenarios/rogue/cunning-action-hide.json`
+  - `packages/game-server/scripts/test-harness/scenarios/ranger/party-scout.json`
 - SpellSystem coverage scenarios:
   - `packages/game-server/scripts/test-harness/scenarios/wizard/spell-delivery-modes-full-spectrum.json`
   - `packages/game-server/scripts/test-harness/scenarios/wizard/cantrip-scaling-level1.json`
@@ -146,7 +153,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Cover + Dex save bonus from AoE | SUPPORTED | STRONG | Dex-save interaction validated with deterministic assertions in `core/combat-rules-matrix-cover-ac-dex.json`. |
 | Dodge / Disengage / Dash | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
 | Help / Search / Ready / Use Object | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
-| Hide action | REWORK | WEAK | Likely stub; needs Stealth vs passive Perception + Invisible application |
+| Hide action | SUPPORTED | STRONG | Stealth vs passive Perception and visibility gating are implemented in `hide.ts` + `skill-action-handler.ts`, with dedicated blinded/multi-observer and hidden-break regressions. |
 | Two-weapon fighting (light + bonus off-hand) | REWORK | MODERATE | Wiring incomplete; 2024 mod-only-if-negative rule |
 | Fall damage (1d6/10ft, max 20d6, prone) | PARTIAL | MODERATE | Implemented for pit-entry flow; universal off-ledge pipeline remains open. |
 | Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | STRONG | Validated in control matrix (`core/combat-rules-matrix-grapple-shove-escape-unarmed.json`). |
@@ -454,7 +461,7 @@ Additional deterministic scenarios added and validated in this thread:
 
 # 3. E2E Coverage Snapshot  ([audit](audit-E2E-Scenarios.md))
 
-**270 scenarios / 24 folders / 21 unique mechanic tags.**
+**286 scenarios / 24 folders / 21 unique mechanic tags.**
 
 Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` scan of `scripts/test-harness/scenarios` only; `scripts/test-harness/scenarios-pending` is excluded from `--all`.
 
@@ -568,7 +575,7 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 |---|---|---|
 | 16 | Surprise (2024 disadv on init) + Alert feat | CombatRules |
 | 17 | Two-weapon fighting full wiring | CombatRules |
-| 18 | Hide action implementation (Stealth vs passive) | CombatRules |
+| 18 | Hide edge-case hardening (special senses/observer state interactions) | CombatRules |
 | 19 | Grapple escape action | CombatRules |
 | 20 | Forced movement tracking + OA/fall interaction | CombatRules |
 | 21 | Critical damage dice-vs-flat (2024) | CombatRules |
@@ -610,13 +617,13 @@ Everything tagged P2 in the per-flow audits.
 
 ## 5.1 Goals
 
-The current 270 scenarios were written when the engine couldn't drive monster turns or multi-PC parties. Now that it can, the target shape should be:
+The current 286 scenarios were written when the engine couldn't drive monster turns or multi-PC parties. Now that it can, the target shape should be:
 
 - **20-30 "rich" multi-turn scenarios** (5-12 turns each) that exercise 5-10 mechanics in one encounter.
 - **~80 "focused" scenarios** (1-3 turns) for regression-critical single mechanics (e.g., Shield spell AC applies retroactively).
 - **~30 "edge case" scenarios** for rare interactions (e.g., crit on paralyzed, Sleep on immune fey).
 
-Target total: **~140 scenarios** (down from 270), net 50%+ more mechanic coverage per scenario.
+Target total: **~140 scenarios** (down from 286), net 50%+ more mechanic coverage per scenario.
 
 ## 5.2 Proposed scenario set (new + consolidated)
 
@@ -693,7 +700,7 @@ The unit-style `core/*` scenarios that test a genuinely independent mechanic (e.
 - **`caster-resource-economy-extended.json`** — extend existing `class-combat/wizard/spell-slot-economy.json` to 15+ turns with concentration swapping.
 
 ### Full suite status
-**Current discovered inventory is 270 scenarios.** Re-run `pnpm -C packages/game-server test:e2e:combat:mock -- --all` for a fresh full-suite pass snapshot before asserting a universal pass count in this report.
+**Current discovered inventory is 286 scenarios.** Latest full run (`pnpm -C packages/game-server test:e2e:combat:mock -- --all --no-color`, 2026-04-25) reports **285 passed, 1 failed**. Remaining failure is `feat/lucky-reroll`.
 
 ---
 
