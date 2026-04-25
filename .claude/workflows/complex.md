@@ -150,10 +150,10 @@ Failures:
 
 | Role | Template | Output Path |
 |------|----------|-------------|
-| SME (any flow) | `.claude/agents/sme-{flow}.md` | `sme-research-{Flow}.md` / `sme-feedback-{Flow}.md` |
-| Challenger | `.claude/agents/challenger.md` | `challenge-{feature}.md` |
-| Implementer (any flow) | `.claude/agents/impl-{flow}.md` | Source files in scope |
-| Vitest Writer | `.claude/agents/test-vitest.md` | `*.test.ts` files |
-| E2E Writer | `.claude/agents/test-e2e.md` | `scenarios/*.json` |
+| SME (any flow) | `.github/agents/{Flow}-sme.md` | `sme-research-{Flow}.md` / `sme-feedback-{Flow}.md` |
+| Challenger | `.github/agents/Challenger.md` | `challenge-{feature}.md` |
+| Implementer (any flow) | `.github/agents/{Flow}-implementer.md` | Source files in scope |
+| Vitest Writer | `.github/agents/VitestWriter.md` | `*.test.ts` files |
+| E2E Writer | `.github/agents/E2EScenarioWriter.md` | `scenarios/*.json` |
 
 Flow names: `combat-rules`, `class-abilities`, `spell-system`, `combat-orchestration`, `ai-behavior`, `entity-management`

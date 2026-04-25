@@ -49,7 +49,7 @@ With `github.copilot.chat.agent.runTasks: true` in user settings, the agent can 
 
 ## Agent System
 
-- **Canonical agents:** [.claude/agents/](../.claude/agents/) — VS Code 1.109+ reads this directory natively. SMEs, implementers, test writers, Challenger live here.
+- **Canonical agents:** [.github/agents/](agents/) — SMEs, implementers, test writers, and Challenger live here.
 - **Copilot-only orchestrator:** [.github/agents/developer.agent.md](agents/developer.agent.md) — uses Copilot-specific tools (`vscode`, `browser`, `mermaid`).
 - **Per-glob auto-loaded context:** [.github/instructions/](instructions/) — `.instructions.md` files with `applyTo` globs inject scope-specific rules when editing matching paths.
 

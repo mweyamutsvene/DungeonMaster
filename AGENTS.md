@@ -53,8 +53,8 @@ Each flow has a nested `CLAUDE.md` at its scope directory with stable architectu
 
 ### Agent Locations
 
-- **`.claude/agents/*.md`** — canonical for both tools. VS Code Copilot reads this directory natively (1.109+); Claude Code reads it natively. Add new SMEs, implementers, test writers, and challengers here.
-- **`.github/agents/*.agent.md`** — Copilot-only orchestrator + utility agents that reference Copilot-specific tools (`vscode`, `browser`, `mermaid`). Don't add new agents here unless they truly need Copilot-only tools.
+- **`.github/agents/*.md`** — canonical for both tools. Add new SMEs, implementers, test writers, and challengers here.
+- **`.claude/agents/*.md`** — legacy compatibility mirror only (if present in local setups). Do not treat as source-of-truth.
 
 ### Agent Roles (per flow)
 
