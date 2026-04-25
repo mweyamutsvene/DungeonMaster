@@ -20,12 +20,37 @@ export type SpellSchool =
   | 'necromancy'
   | 'transmutation';
 
+/**
+ * Material component declaration. Two forms:
+ *  - `string` — descriptive only; component pouch / arcane focus satisfies. Backward-compat default.
+ *  - `StructuredMaterialComponent` — explicit cost / consumed semantics for spells with required
+ *    expensive components (Revivify 300gp diamond, Continual Flame 50gp ruby dust, etc.).
+ */
+export type MaterialComponent = string | StructuredMaterialComponent;
+
+export interface StructuredMaterialComponent {
+  /** Human-readable description (always shown). */
+  readonly description: string;
+  /** Item name keyword to match against inventory (e.g., "diamond", "ruby"). */
+  readonly itemKeyword?: string;
+  /** Minimum GP value the matching item must have. Implies pouch does NOT satisfy. */
+  readonly costGp?: number;
+  /** When true, the matching item is removed from inventory on cast. */
+  readonly consumed?: boolean;
+  /**
+   * When true (default for non-costGp components), a generic component pouch / arcane focus
+   * satisfies this component. Set false explicitly when a pouch should NOT satisfy.
+   * If costGp is set, this defaults to false.
+   */
+  readonly componentPouchSatisfies?: boolean;
+}
+
 export interface CanonicalSpell extends PreparedSpellDefinition {
   readonly school: SpellSchool;
   readonly ritual?: boolean;
   readonly castingTime: 'action' | 'bonus_action' | 'reaction';
   readonly range: number | 'self' | 'touch';
-  readonly components?: { readonly v?: boolean; readonly s?: boolean; readonly m?: string };
+  readonly components?: { readonly v?: boolean; readonly s?: boolean; readonly m?: MaterialComponent };
   readonly classLists: readonly string[];
   readonly description: string;
 }

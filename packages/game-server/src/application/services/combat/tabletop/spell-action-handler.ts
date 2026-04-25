@@ -30,6 +30,7 @@ import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 import { getCanonicalSpell } from "../../../../domain/entities/spells/catalog/index.js";
+import { parseMaterialComponent } from "../../../../domain/entities/spells/catalog/material-component.js";
 import { processSpellCastSideEffects } from "./spell-cast-side-effect-processor.js";
 import { readConditionNames, getConditionEffects } from "../../../../domain/entities/combat/conditions.js";
 import type { Condition } from "../../../../domain/entities/combat/conditions.js";
@@ -189,6 +190,32 @@ export class SpellActionHandler {
               `Cannot cast ${castInfo.spellName} — verbal component required but caster cannot speak (${conditionNames.filter((name) => getConditionEffects(name as Condition).cannotSpeak).join(", ")})`,
             );
           }
+        }
+      }
+
+      // D&D 5e 2024: Material component enforcement (consumed components only).
+      // We enforce inventory presence ONLY for components that are CONSUMED on cast
+      // (Revivify's 300gp diamond, Continual Flame's 50gp ruby dust, etc.). Non-consumed
+      // costed components (e.g., Bless's Holy Symbol focus, Chromatic Orb's reusable diamond)
+      // are assumed satisfied by a spellcasting focus / component pouch / repeated reuse.
+      // This is intentionally narrower than strict RAW to avoid breaking baseline gameplay
+      // for spells whose foci every caster always carries.
+      // TODO: SS-M10 — actual decrement of consumed items at cast time (currently validated only).
+      const material = parseMaterialComponent(canonical?.components?.m);
+      if (material?.consumed && material.costGp && material.costGp > 0 && character) {
+        const inventoryRaw = (sheet as { inventory?: unknown })?.inventory;
+        const inventory = Array.isArray(inventoryRaw) ? inventoryRaw as Array<Record<string, unknown>> : [];
+        const keyword = material.itemKeyword?.toLowerCase();
+        const found = inventory.find((item) => {
+          const name = typeof item.name === "string" ? item.name.toLowerCase() : "";
+          if (keyword && !name.includes(keyword)) return false;
+          const value = typeof item.valueGp === "number" ? item.valueGp : 0;
+          return value >= (material.costGp ?? 0);
+        });
+        if (!found) {
+          throw new ValidationError(
+            `Cannot cast ${castInfo.spellName} — required material component (consumed): ${material.description}`,
+          );
         }
       }
     }

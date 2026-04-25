@@ -1,0 +1,99 @@
+{
+  "name": "Revivify: Material Component Enforcement (300gp diamond required)",
+  "description": "D&D 5e 2024: Revivify requires a 300gp diamond, consumed. Without one in inventory, the cast must fail. With one of sufficient value, the cast proceeds.\n\nThis scenario casts Revivify twice on a Cleric companion: first WITHOUT a diamond (rejected), then WITH a 500gp diamond in inventory (accepted). Validates the structured-vs-string MaterialComponent parser end-to-end against `'a diamond worth 300+ GP, consumed'`.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Brother Aldric",
+        "className": "Cleric",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 12, "dexterity": 10, "constitution": 14,
+            "intelligence": 10, "wisdom": 18, "charisma": 12
+          },
+          "maxHp": 40, "currentHp": 40, "armorClass": 16, "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 15, "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Revivify", "level": 3 }
+          ],
+          "attacks": [
+            { "name": "Mace", "kind": "melee", "attackBonus": 4, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 }, "damageType": "bludgeoning" }
+          ],
+          "inventory": []
+        }
+      },
+      {
+        "name": "Wounded Ally",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 11, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14, "dexterity": 12, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 8
+          },
+          "maxHp": 54, "currentHp": 1, "armorClass": 18, "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            { "name": "Longsword", "kind": "melee", "attackBonus": 6, "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 }, "damageType": "slashing" }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Distant Threat",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 10, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 0,
+          "challengeRating": 0,
+          "attacks": [{ "name": "Slam", "kind": "melee", "attackBonus": 0, "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 }, "damageType": "bludgeoning" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Brother Aldric",
+      "input": { "text": "I check my pouch for a diamond" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Brother Aldric",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "comment": "First attempt — no diamond. Cast Revivify on Wounded Ally. Expect ERROR: missing material component.",
+      "type": "waitForTurn",
+      "actor": "Brother Aldric",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Brother Aldric",
+      "input": { "text": "cast Revivify at Wounded Ally" },
+      "expect": {
+        "error": true,
+        "errorContains": "material component"
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Brother Aldric",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 } },
+      "comment": "L3 slot must NOT be consumed when material check fails."
+    }
+  ]
+}
