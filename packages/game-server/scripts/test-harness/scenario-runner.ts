@@ -156,6 +156,12 @@ interface RollResultAction {
     }>;
     /** Alert feat initiative swap offer */
     initiativeSwapOffer?: boolean;
+    /** Assert current turn actor name in responses that include turn state */
+    currentTurnActor?: string;
+    /** Expect an error response (non-200 status) */
+    error?: boolean;
+    /** Error message should contain this string */
+    errorContains?: string;
   };
 }
 
@@ -937,6 +943,22 @@ export async function runScenario(
           logRequest("POST", `${baseUrl}/sessions/${sessionId}/combat/roll-result`, payload);
           const res = await httpPost(`${baseUrl}/sessions/${sessionId}/combat/roll-result`, payload);
           logResponse(res.status, res.body);
+
+          if (action.expect?.error) {
+            if (res.status === 200) {
+              throw new Error("Expected error response but got success (status 200)");
+            }
+            const errorBody = res.body as any;
+            const errorMessage = errorBody?.message ?? errorBody?.error ?? JSON.stringify(errorBody);
+            if (action.expect.errorContains) {
+              if (!errorMessage.toLowerCase().includes(action.expect.errorContains.toLowerCase())) {
+                throw new Error(`Expected error containing "${action.expect.errorContains}" but got: ${errorMessage}`);
+              }
+            }
+            log(`${colors.green}✓${colors.reset} Got expected rollResult error: ${errorMessage}`);
+            break;
+          }
+
           if (res.status !== 200) {
             throw new Error(`rollResult failed: ${JSON.stringify(res.body)}`);
           }
@@ -1150,6 +1172,13 @@ export async function runScenario(
               if (hasOffer) {
                 log(`   ${colors.green}✓${colors.reset} Initiative swap offer: eligible targets = ${((body as any).initiativeSwapOffer.eligibleTargets ?? []).map((t: any) => t.actorName).join(", ")}`);
               }
+            }
+            if (action.expect.currentTurnActor) {
+              const actual = (body as any).currentTurn?.actorName;
+              if (actual !== action.expect.currentTurnActor) {
+                throw new Error(`Expected currentTurnActor=${action.expect.currentTurnActor}, got ${actual}`);
+              }
+              log(`   ${colors.green}✓${colors.reset} currentTurnActor=${actual}`);
             }
           }
           break;

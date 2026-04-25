@@ -102,33 +102,54 @@ Aside from those, the deterministic rules engine is a competent implementation o
 
 # 2. Mechanics Catalog (by flow)
 
+## Coverage upgrade evidence (2026-04-25)
+
+Additional deterministic scenarios added and validated in this thread:
+
+- CombatRules matrix scenarios:
+  - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-grapple-shove-escape-unarmed.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-utility-actions.json`
+  - `packages/game-server/scripts/test-harness/scenarios/core/combat-rules-matrix-cover-ac-dex.json`
+- SpellSystem coverage scenarios:
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/spell-delivery-modes-full-spectrum.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/cantrip-scaling-level1.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/cantrip-scaling-level11.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/cantrip-scaling-level17.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/counterspell-2024-decline.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/dispel-magic-ability-check.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/haste-speed-multiplier.json`
+  - `packages/game-server/scripts/test-harness/scenarios/wizard/verbal-component-enforcement.json`
+- Unit test hardening:
+  - `packages/game-server/src/application/services/combat/tabletop/spell-action-handler.test.ts` (31 passing tests, including verbal component enforcement and upcasting validations)
+
 ## 2.1 CombatRules  ([audit](audit-CombatRules.md))
 
 | Mechanic | Status | Coverage | Notes |
 |---|---|---|---|
 | Attack resolution (adv/disadv, crit on 20, auto-miss on 1) | SUPPORTED | STRONG | attack-resolver.ts + attack.ts |
 | Damage types + resistance/immunity/vulnerability | SUPPORTED | STRONG | damage.ts |
-| Temp HP absorption | SUPPORTED | MODERATE | hit-points.ts |
-| Conditions (13/15): blinded, charmed, deafened, frightened, grappled, incapacitated, paralyzed, poisoned, prone, restrained, stunned, unconscious, invisible + petrified | SUPPORTED | MODERATE | conditions.ts |
-| Exhaustion (2024: 10 levels, -2/level) | SUPPORTED | MODERATE | Implemented and E2E-covered (`core/exhaustion-accumulation.json`). |
+| Temp HP absorption | SUPPORTED | STRONG | hit-points.ts + dedicated matrix scenario (`core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`). |
+| Conditions (13/15): blinded, charmed, deafened, frightened, grappled, incapacitated, paralyzed, poisoned, prone, restrained, stunned, unconscious, invisible + petrified | SUPPORTED | STRONG | conditions.ts + dedicated matrix assertions (`core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`, `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`). |
+| Exhaustion (2024: 10 levels, -2/level) | SUPPORTED | STRONG | Implemented and now matrix-asserted in `core/combat-rules-matrix-temp-hp-conditions-exhaustion.json` (in addition to `core/exhaustion-accumulation.json`). |
 | Saving throws (adv/disadv, proficiency) | SUPPORTED | STRONG | saving-throw.ts |
 | Ability checks + 18-skill proficiency + expertise | SUPPORTED | STRONG | ability-check.ts |
 | Death saves (3/3, nat 1/20, damage at 0) | SUPPORTED | STRONG | death-saves.ts |
 | Initiative | SUPPORTED | STRONG | initiative.ts |
-| **Surprise (2024: disadvantage on init)** | **MISSING P1** | NONE | |
-| **Alert feat (2024)** | **MISSING P1** | NONE | |
+| Surprise (2024: disadvantage on init) | SUPPORTED | MODERATE | DM override and auto-computed hidden-vs-passive-perception surprise paths are wired into initiative mode computation and covered by `core/surprise-ambush.json` and `core/auto-surprise-hidden.json`. |
+| Alert feat (2024) | SUPPORTED | MODERATE | Initiative proficiency bonus, swap offer/decline, and willing-target filtering are implemented; unconscious/incapacitated allies are excluded from eligible targets and invalid swap attempts are rejected (`core/alert-initiative-swap.json`, `core/alert-decline-swap.json`, `core/surprise-alert-willing-swap-red.json`). |
 | Concentration (gain/damage save/break/replace/end) | SUPPORTED | STRONG | concentration.ts |
 | Movement (walk/climb/swim/fly, difficult terrain 2×) | SUPPORTED | STRONG | movement.ts |
-| Grapple + shove (2024 unarmed option) | SUPPORTED | MODERATE | grapple-shove.ts |
-| Grapple escape action | SUPPORTED | MODERATE | Escape action path is implemented and exercised in E2E. |
-| Cover (half +2, 3/4 +5, total untargetable) | SUPPORTED | MODERATE | combat-map.ts |
-| Cover + Dex save bonus from AoE | SUPPORTED | MODERATE | Dex-save cover branch is implemented and scenario-covered; AC-side assertions remain thinner. |
-| Dodge / Disengage / Dash | SUPPORTED | MODERATE | actions.ts |
-| Help / Search / Ready / Use Object | SUPPORTED | MODERATE | actions.ts |
+| Grapple + shove (2024 unarmed option) | SUPPORTED | STRONG | grapple-shove.ts + matrix validation in `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`. |
+| Grapple escape action | SUPPORTED | STRONG | Escape path validated in matrix control scenario `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`. |
+| Cover (half +2, 3/4 +5, total untargetable) | SUPPORTED | STRONG | combat-map.ts + AC-focused matrix coverage in `core/combat-rules-matrix-cover-ac-dex.json`. |
+| Cover + Dex save bonus from AoE | SUPPORTED | STRONG | Dex-save interaction validated with deterministic assertions in `core/combat-rules-matrix-cover-ac-dex.json`. |
+| Dodge / Disengage / Dash | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
+| Help / Search / Ready / Use Object | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
 | Hide action | REWORK | WEAK | Likely stub; needs Stealth vs passive Perception + Invisible application |
 | Two-weapon fighting (light + bonus off-hand) | REWORK | MODERATE | Wiring incomplete; 2024 mod-only-if-negative rule |
 | Fall damage (1d6/10ft, max 20d6, prone) | PARTIAL | MODERATE | Implemented for pit-entry flow; universal off-ledge pipeline remains open. |
-| Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | MODERATE | |
+| Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | STRONG | Validated in control matrix (`core/combat-rules-matrix-grapple-shove-escape-unarmed.json`). |
 | Critical hit damage dice-vs-flat separation (2024) | REWORK | WEAK | Currently doubles all dice |
 | **Forced movement (Thunderwave push, bull rush distance + OA/fall interaction)** | **MISSING P1** | NONE | |
 | Suffocation / drowning | MISSING P2 | NONE | |
@@ -173,21 +194,21 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Mechanic | Status | Coverage | Notes |
 |---|---|---|---|
 | Spell slot economy (track/consume/ritual flag) | SUPPORTED | STRONG | |
-| Delivery modes (attack, save, heal, buff, zone, auto-hit MM) | SUPPORTED | MODERATE | |
+| Delivery modes (attack, save, heal, buff, zone, auto-hit MM) | SUPPORTED | STRONG | Comprehensive deterministic E2E in `wizard/spell-delivery-modes-full-spectrum.json`. |
 | Spell attack rolls vs saves (DC = 8+prof+mod) | SUPPORTED | STRONG | |
 | Concentration lifecycle | SUPPORTED | STRONG | |
-| Upcasting (dice + flat scaling) | SUPPORTED | MODERATE | Cantrips reject, validated |
-| Cantrip scaling (1/2/3/4× at L1/5/11/17) | SUPPORTED | WEAK | Scaling present, tests thin |
-| Counterspell (2024 rules) | SUPPORTED | MODERATE | Verify Con-save-by-target implementation |
-| Verbal component enforcement | SUPPORTED | WEAK | `cannotSpeak` blocks |
-| Dispel Magic (L3) | SUPPORTED | WEAK | Implemented and E2E-covered (`wizard/dispel-magic-concentration-break.json`). |
+| Upcasting (dice + flat scaling) | SUPPORTED | STRONG | Cantrips reject + upcast validations in unit tests (`spell-action-handler.test.ts`) and expanded E2E set. |
+| Cantrip scaling (1/2/3/4× at L1/5/11/17) | SUPPORTED | STRONG | Tiered E2E matrix now covers L1/L11/L17 plus existing L5 scenario. |
+| Counterspell (2024 rules) | SUPPORTED | STRONG | Existing Con-save branches + decline-path E2E (`wizard/counterspell-2024-decline.json`). |
+| Verbal component enforcement | SUPPORTED | STRONG | E2E lockout scenario + direct unit assertions in `spell-action-handler.test.ts`. |
+| Dispel Magic (L3) | SUPPORTED | STRONG | Auto-dispel + ability-check success/fail branch scenario (`wizard/dispel-magic-ability-check.json`). |
 | Material component enforcement | PARTIAL | WEAK | Consumed costed components are parsed and validated before cast; decrement writeback remains open. |
 | Auto-AoE target resolution | PARTIAL | WEAK | Delivery path supports area targeting; evaluator/path quality and broad scenario depth remain open. |
 | **War Caster feat concentration advantage** | **MISSING P1** | NONE | `concentrationSaveRollMode` hardcoded false |
 | Somatic component free-hand validation | MISSING P1 | NONE | |
 | Spiritual Weapon multi-round bonus action | MISSING P1 | NONE | L2 cleric staple |
 | Mirror Image duplicate AC override | MISSING P1 | WEAK | Not wired into hit-resolution |
-| Haste speed_multiplier | SUPPORTED | WEAK | Speed multiplier path is implemented; broader haste action-model depth remains limited. |
+| Haste speed_multiplier | SUPPORTED | STRONG | Deterministic speed-budget scenario (`wizard/haste-speed-multiplier.json`). |
 | Slot refund on counterspell failure | MISSING P1 | NONE | Both outcomes consume slot |
 | Spell prep/known distinction | MISSING P2 | NONE | No cleric/druid re-prep vs sorcerer-known |
 | Ritual casting integration depth | MISSING P2 | WEAK | |

@@ -52,6 +52,28 @@ function rollInitiativeD20(
   return mode === "advantage" ? Math.max(roll1, roll2) : Math.min(roll1, roll2);
 }
 
+function getConditionNames(conditions: unknown): string[] {
+  if (!Array.isArray(conditions)) return [];
+  return conditions
+    .map((c: unknown) => {
+      if (typeof c === "string") return c.toLowerCase();
+      if (typeof c === "object" && c !== null && "condition" in c) {
+        return String((c as { condition?: unknown }).condition ?? "").toLowerCase();
+      }
+      return "";
+    })
+    .filter((name) => name.length > 0);
+}
+
+function isWillingSwapTargetFromState(state: { hp?: number; conditions?: unknown }): boolean {
+  const hp = state.hp ?? 0;
+  if (hp <= 0) return false;
+  const conditionNames = getConditionNames(state.conditions);
+  if (conditionNames.includes("unconscious")) return false;
+  if (conditionNames.includes("incapacitated")) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Private helper — build combatant resources from entity sheet/statBlock
 // ---------------------------------------------------------------------------
@@ -412,11 +434,28 @@ export class InitiativeHandler {
       if (charFeatIds.length > 0) {
         const featMods = computeFeatModifiers(charFeatIds);
         if (featMods.initiativeSwapEnabled) {
-          // Eligible targets: party allies (other PCs + NPCs) — not enemies, not self
+          // Eligible targets: willing party allies (other PCs + NPCs) — not enemies, not self.
+          // We exclude unconscious/incapacitated allies because they cannot be willing participants.
           swapEligibleTargets = turnOrder.filter((t) => {
             if (t.actorId === actorId) return false;
-            if (characters.some((c) => c.id === t.actorId)) return true;
-            if (npcs.some((n) => n.id === t.actorId)) return true;
+            const allyCharacter = characters.find((c) => c.id === t.actorId);
+            if (allyCharacter) {
+              const allySheet = allyCharacter.sheet as Record<string, unknown> | undefined;
+              return isWillingSwapTargetFromState({
+                hp: Number(allySheet?.currentHp ?? allySheet?.maxHp ?? 0),
+                conditions: allySheet?.conditions,
+              });
+            }
+
+            const allyNpc = npcs.find((n) => n.id === t.actorId);
+            if (allyNpc) {
+              const npcBlock = allyNpc.statBlock as Record<string, unknown> | undefined;
+              return isWillingSwapTargetFromState({
+                hp: Number(npcBlock?.hp ?? npcBlock?.maxHp ?? 0),
+                conditions: npcBlock?.conditions,
+              });
+            }
+
             return false;
           });
           alertSwapAvailable = swapEligibleTargets.length > 0;
@@ -562,6 +601,24 @@ export class InitiativeHandler {
 
     // Apply the swap if requested
     if (swapTargetId) {
+      const targetCharacter = characters.find((c) => c.id === swapTargetId);
+      const targetNpc = npcs.find((n) => n.id === swapTargetId);
+      const targetIsWilling = targetCharacter
+        ? isWillingSwapTargetFromState({
+            hp: Number((targetCharacter.sheet as any)?.currentHp ?? (targetCharacter.sheet as any)?.maxHp ?? 0),
+            conditions: (targetCharacter.sheet as any)?.conditions,
+          })
+        : targetNpc
+          ? isWillingSwapTargetFromState({
+              hp: Number((targetNpc.statBlock as any)?.hp ?? (targetNpc.statBlock as any)?.maxHp ?? 0),
+              conditions: (targetNpc.statBlock as any)?.conditions,
+            })
+          : false;
+
+      if (!targetIsWilling) {
+        throw new ValidationError("That ally is not willing/capable to swap initiative.");
+      }
+
       const combatants = await this.deps.combatRepo.listCombatants(encounterId);
       const holderCombatant = findCombatantByEntityId(combatants, actorId);
       const targetCombatant = findCombatantByEntityId(combatants, swapTargetId);
