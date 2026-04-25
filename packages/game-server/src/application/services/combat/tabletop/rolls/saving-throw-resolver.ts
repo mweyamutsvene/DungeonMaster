@@ -133,6 +133,7 @@ export class SavingThrowResolver {
     characters: any[],
     monsters: any[],
     npcs: any[],
+    opts?: { forcedRoll?: number; bonusAdjustment?: number },
   ): Promise<SavingThrowResolution> {
     const target =
       monsters.find((m) => m.id === action.actorId) ||
@@ -435,22 +436,26 @@ export class SavingThrowResolver {
 
     const hasFinalAdvantage = hasEffectAdvantage || speciesAdvantage;
 
-    // Roll the d20 (with advantage/disadvantage from effects)
-    let roll;
-    if (hasFinalAdvantage && !hasEffectDisadvantage) {
+    // Roll the d20 (with advantage/disadvantage from effects).
+    // When forcedRoll is provided (interrupt resume path), skip rolling and use that value.
+    let rawRoll: number;
+    if (opts?.forcedRoll !== undefined) {
+      rawRoll = opts.forcedRoll;
+      if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Using forced roll: ${rawRoll}`);
+    } else if (hasFinalAdvantage && !hasEffectDisadvantage) {
       const roll1 = this.diceRoller.d20();
       const roll2 = this.diceRoller.d20();
-      roll = roll1.total >= roll2.total ? roll1 : roll2;
-      if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Advantage on save: d20(${roll1.total}, ${roll2.total}) → ${roll.total}`);
+      rawRoll = roll1.total >= roll2.total ? roll1.total : roll2.total;
+      if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Advantage on save: d20(${roll1.total}, ${roll2.total}) → ${rawRoll}`);
     } else if (hasEffectDisadvantage && !hasFinalAdvantage) {
       const roll1 = this.diceRoller.d20();
       const roll2 = this.diceRoller.d20();
-      roll = roll1.total <= roll2.total ? roll1 : roll2;
-      if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Disadvantage on save: d20(${roll1.total}, ${roll2.total}) → ${roll.total}`);
+      rawRoll = roll1.total <= roll2.total ? roll1.total : roll2.total;
+      if (this.debugLogsEnabled) console.log(`[SavingThrowResolver] Disadvantage on save: d20(${roll1.total}, ${roll2.total}) → ${rawRoll}`);
     } else {
-      roll = this.diceRoller.d20();
+      rawRoll = this.diceRoller.d20().total;
     }
-    const rawRoll = roll.total;
+    if (opts?.bonusAdjustment) totalModifier += opts.bonusAdjustment;
     const total = rawRoll + totalModifier;
     const success = isSavingThrowSuccess(rawRoll, total, action.dc);
 

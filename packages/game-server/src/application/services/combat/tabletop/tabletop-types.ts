@@ -231,6 +231,18 @@ export interface SavingThrowPendingAction {
   context?: Record<string, unknown>;
   /** When true, target auto-fails (e.g., Stunned/Paralyzed auto-fail STR/DEX saves) — skip d20 roll */
   autoFail?: boolean;
+  /** True when a roll interrupt was already resolved — suppresses further interrupt checks. */
+  interruptResolved?: boolean;
+  /**
+   * Override the d20 value used for save determination.
+   * Set when Lucky feat rerolls, Portent replaces, or Halfling Lucky rerolls nat-1.
+   */
+  interruptForcedRoll?: number;
+  /**
+   * Additive bonus to save total from interrupt resolution.
+   * Example: Bardic Inspiration die rolled a 4 → interruptBonusAdjustment = 4.
+   */
+  interruptBonusAdjustment?: number;
 }
 
 /**

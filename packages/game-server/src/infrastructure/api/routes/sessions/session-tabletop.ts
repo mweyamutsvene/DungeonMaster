@@ -14,7 +14,7 @@ import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { ValidationError } from "../../../../application/errors.js";
 import type { CombatantStateRecord, CombatEncounterRecord } from "../../../../application/types.js";
-import type { DamagePendingAction, AttackPendingAction } from "../../../../application/services/combat/tabletop/tabletop-types.js";
+import type { DamagePendingAction, AttackPendingAction, SavingThrowPendingAction } from "../../../../application/services/combat/tabletop/tabletop-types.js";
 import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
 import {
@@ -366,9 +366,94 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
     }
     const interruptData = rawPending as unknown as PendingRollInterruptData;
 
-    if (interruptData.resumeContext.kind !== "attack") {
-      // Saving throw interrupt path — not yet implemented
-      throw new ValidationError("Save roll interrupts are not yet supported via this endpoint");
+    // ── Save interrupt resume path ──────────────────────────────────────────
+    if (interruptData.resumeContext.kind === "save") {
+      const saveCtx = interruptData.resumeContext;
+      const originalSaveAction = saveCtx.originalSaveAction as unknown as SavingThrowPendingAction;
+      const rawD20 = interruptData.rawRoll[0] ?? 1;
+
+      let interruptForcedRoll: number | undefined = rawD20; // default: keep original d20
+      let interruptBonusAdjustment: number | undefined;
+
+      if (choice === "decline") {
+        // Use original d20, no bonus
+      } else if (choice.kind === "bardic-inspiration") {
+        const biOption = interruptData.options.find(
+          o => o.kind === "bardic-inspiration" && (!(choice as any).effectId || o.effectId === (choice as any).effectId),
+        ) as Extract<RollInterruptOption, { kind: "bardic-inspiration" }> | undefined;
+        if (!biOption) throw new ValidationError("Bardic Inspiration option not found in interrupt");
+        if (!deps.diceRoller) throw new ValidationError("DiceRoller not available");
+
+        const biRoll = deps.diceRoller.rollDie(biOption.sides).total;
+        interruptBonusAdjustment = biRoll;
+
+        const combatants = await deps.combatRepo.listCombatants(encounterId);
+        const actorCombatant = combatants.find(
+          c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+        );
+        if (actorCombatant) {
+          const updatedResources = removeActiveEffectById(actorCombatant.resources ?? {}, biOption.effectId);
+          await deps.combatRepo.updateCombatantState(actorCombatant.id, { resources: updatedResources as any });
+        }
+        console.log(`[roll-interrupt] Save BI used: +${biRoll} (1d${biOption.sides})`);
+
+      } else if (choice.kind === "lucky-feat") {
+        if (!deps.diceRoller) throw new ValidationError("DiceRoller not available");
+        const newRoll = deps.diceRoller.d20().total;
+        interruptForcedRoll = newRoll;
+
+        const combatants = await deps.combatRepo.listCombatants(encounterId);
+        const actorCombatant = combatants.find(
+          c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+        );
+        if (actorCombatant) {
+          const res = normalizeResources(actorCombatant.resources);
+          const updated = spendResourceFromPool(res, "luckPoints", 1);
+          await deps.combatRepo.updateCombatantState(actorCombatant.id, { resources: updated as any });
+        }
+        console.log(`[roll-interrupt] Save Lucky feat: rerolled d20 → ${newRoll}`);
+
+      } else if (choice.kind === "halfling-lucky") {
+        if (!deps.diceRoller) throw new ValidationError("DiceRoller not available");
+        const newRoll = deps.diceRoller.d20().total;
+        interruptForcedRoll = newRoll;
+        console.log(`[roll-interrupt] Save Halfling Lucky: rerolled nat-1 → ${newRoll}`);
+
+      } else if (choice.kind === "portent") {
+        const portentOption = interruptData.options.find(
+          o => o.kind === "portent" && o.portentEffectId === (choice as any).portentEffectId,
+        ) as Extract<RollInterruptOption, { kind: "portent" }> | undefined;
+        if (!portentOption) throw new ValidationError("Portent option not found");
+        interruptForcedRoll = portentOption.valueRolled;
+
+        const combatants = await deps.combatRepo.listCombatants(encounterId);
+        const actorCombatant = combatants.find(
+          c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+        );
+        if (actorCombatant) {
+          const updatedResources = removeActiveEffectById(actorCombatant.resources ?? {}, portentOption.portentEffectId);
+          await deps.combatRepo.updateCombatantState(actorCombatant.id, { resources: updatedResources as any });
+        }
+        console.log(`[roll-interrupt] Save Portent used: replacing d20 with ${portentOption.valueRolled}`);
+
+      } else {
+        throw new ValidationError(`Unknown interrupt choice kind: ${(choice as any).kind}`);
+      }
+
+      const resolvedSaveAction: SavingThrowPendingAction = {
+        ...originalSaveAction,
+        interruptResolved: true,
+        ...(interruptForcedRoll !== undefined ? { interruptForcedRoll } : {}),
+        ...(interruptBonusAdjustment !== undefined ? { interruptBonusAdjustment } : {}),
+      };
+      await deps.combatRepo.clearPendingAction(encounterId);
+      await deps.combatRepo.setPendingAction(encounterId, resolvedSaveAction);
+      // SAVING_THROW is in SKIP_ROLL_PARSE — roll text is ignored; handler reads from pending action
+      return deps.tabletopCombat.processRollResult(sessionId, "resolved", actorId);
+    }
+
+    if ((interruptData.resumeContext as { kind: string }).kind !== "attack") {
+      throw new ValidationError(`Unsupported roll interrupt kind: ${(interruptData.resumeContext as { kind: string }).kind}`);
     }
 
     const ctx = interruptData.resumeContext;

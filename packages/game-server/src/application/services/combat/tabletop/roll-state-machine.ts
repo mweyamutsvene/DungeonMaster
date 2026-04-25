@@ -1527,13 +1527,83 @@ export class RollStateMachine {
       throw new ValidationError("DiceRoller is required for saving throw resolution");
     }
 
-    // Auto-resolve the saving throw
+    // ── Roll interrupt: pause before resolving if a player character has options ──
+    // Auto-fails skip this (no d20 rolled). Interrupt already resolved also skips.
+    const isPlayerChar = !action.autoFail && characters.some(c => c.id === action.actorId);
+    if (isPlayerChar && !action.interruptResolved && this.deps.diceRoller) {
+      const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
+      const actorCombatant = combatants.find(
+        c => c.characterId === action.actorId || c.monsterId === action.actorId || c.npcId === action.actorId,
+      );
+      const actorChar = characters.find(c => c.id === action.actorId);
+      const actorSheet = ((actorChar as any)?.sheet ?? {}) as Record<string, unknown>;
+
+      // Pre-roll the d20 so Halfling Lucky (rawD20 === 1) can be checked
+      const rawD20 = this.deps.diceRoller.d20().total;
+      const interruptOptions = this.rollInterruptResolver.findSaveInterruptOptions(
+        actorCombatant ?? undefined, actorSheet, rawD20,
+      );
+
+      if (interruptOptions.length > 0) {
+        const interruptData: PendingRollInterruptData =
+          this.rollInterruptResolver.buildSaveInterruptData(
+            sessionId, encounter.id, action.actorId,
+            rawD20, 0, rawD20,
+            interruptOptions, action,
+          );
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
+        await this.deps.combatRepo.setPendingAction(encounter.id, interruptData as any);
+
+        const optionDescriptions = interruptOptions.map((o) => {
+          if (o.kind === "bardic-inspiration") return `Bardic Inspiration (+1d${o.sides})`;
+          if (o.kind === "lucky-feat") return `Lucky feat (${o.pointsRemaining} pts)`;
+          if (o.kind === "halfling-lucky") return "Halfling Lucky (reroll nat 1)";
+          if (o.kind === "portent") return `Portent (replace with ${o.valueRolled})`;
+          return (o as { kind: string }).kind;
+        }).join(", ");
+
+        return {
+          rollType: "savingThrow" as const,
+          ability: action.ability,
+          dc: action.dc,
+          rawRoll: rawD20,
+          modifier: 0,
+          total: rawD20,
+          success: false,
+          reason: action.reason,
+          outcomeSummary: "Pending interrupt resolution",
+          actionComplete: false,
+          requiresPlayerInput: true,
+          message: `${action.ability.charAt(0).toUpperCase() + action.ability.slice(1)} save: d20(${rawD20}) vs DC ${action.dc}. Roll interrupt: ${optionDescriptions}. Use or decline?`,
+        };
+      }
+
+      // No interrupt options — resolve with the pre-rolled d20
+      const resolution = await this.savingThrowResolver.resolve(
+        action, encounter.id, characters, monsters, npcs, { forcedRoll: rawD20 },
+      );
+      await this.deps.combatRepo.clearPendingAction(encounter.id);
+      const narration = await this.eventEmitter.generateNarration("savingThrow", {
+        reason: action.reason, ability: action.ability, dc: action.dc,
+        rawRoll: resolution.rawRoll, modifier: resolution.modifier,
+        total: resolution.total, success: resolution.success,
+        outcomeSummary: resolution.appliedOutcome.summary,
+      });
+      return this.savingThrowResolver.buildResult(action, resolution, {
+        actionComplete: true, requiresPlayerInput: false, narration,
+      });
+    }
+
+    // Auto-resolve the saving throw (non-player, auto-fail, or interrupt already resolved)
     const resolution = await this.savingThrowResolver.resolve(
       action,
       encounter.id,
       characters,
       monsters,
       npcs,
+      (action.interruptForcedRoll !== undefined || action.interruptBonusAdjustment !== undefined)
+        ? { forcedRoll: action.interruptForcedRoll, bonusAdjustment: action.interruptBonusAdjustment }
+        : undefined,
     );
 
     // Clear the pending action

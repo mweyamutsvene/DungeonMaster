@@ -13,7 +13,9 @@ Speak caveman. Keep short.
 5. `abilityRegistry` required in deps.
 6. New action type needs parser + dispatcher route.
 7. Dispatch handlers private to `ActionDispatcher`.
-8. Roll resolvers private to `RollStateMachine` (`SavingThrowResolver` shared).
+8. Roll resolvers private to `RollStateMachine` (`SavingThrowResolver` shared). `RollInterruptResolver` instantiated in `RollStateMachine` constructor — scans actor effects/feats/species for BI/Lucky/Portent/Halfling Lucky options after d20 roll, before hit/save resolution.
 9. Spell-delivery handlers live in `tabletop/spell-delivery/`. `SpellActionHandler` owns route order and picks first handler that matches.
 
 Spell cast can pause before delivery for Counterspell. Spend/action timing must stay consistent across pause and resolve paths.
+
+d20 roll-interrupt: after rolling, if options exist → store `PendingRollInterruptData` on encounter pendingAction slot, return `requiresPlayerInput: true`. Resume via `POST .../pending-roll-interrupt/resolve` with `interruptResolved: true` on the reconstructed pending action. Both attack and save paths implemented.

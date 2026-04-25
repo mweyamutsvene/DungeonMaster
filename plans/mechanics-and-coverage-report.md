@@ -5,7 +5,7 @@ feature: mechanics-and-coverage-l1-5
 author: claude-orchestrator
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # D&D 5e 2024 Engine — Mechanics & E2E Coverage Consolidated Report (L1-5)
@@ -41,7 +41,7 @@ Architecture is sound across every flow. After three rounds of implementation + 
 
 ### Genuine remaining gaps (architectural)
 
-1. ~~**d20 roll-interrupt hook**~~ ✅ DONE — `RollInterruptResolver` + `PendingRollInterruptData` + resolve endpoint landed. Attack path supports Bardic Inspiration, Lucky feat, Halfling Lucky, Portent. Saving throw path and Cutting Words still open (lower priority).
+1. ~~**d20 roll-interrupt hook**~~ ✅ DONE — `RollInterruptResolver` + `PendingRollInterruptData` + resolve endpoint landed. **Both attack and save paths implemented.** Attack + save paths: BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace. Concentration saves covered automatically (route through SAVING_THROW). Cutting Words/Silvery Barbs still open (require ally-scan at interrupt time — deferred until Bard class lands).
 2. **Subclass L3 features** for 12 base subclasses — typed framework exists; mechanical implementations missing for ~7. Plan in [plan-subclass-framework.md](plan-subclass-framework.md).
 3. **Wild Shape stat-block swap** — current implementation is temp-HP overlay, not real form swap. Plan in [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md).
 4. **Background field + Origin Feat / ASI pipeline** — Character.background field absent. Plan in [plan-background-pipeline.md](plan-background-pipeline.md).
@@ -134,33 +134,33 @@ Additional deterministic scenarios added and validated in this thread:
 
 | Mechanic | Status | Coverage | Notes |
 |---|---|---|---|
-| Attack resolution (adv/disadv, crit on 20, auto-miss on 1) | SUPPORTED | STRONG | attack-resolver.ts + attack.ts |
-| Damage types + resistance/immunity/vulnerability | SUPPORTED | STRONG | damage.ts |
-| Temp HP absorption | SUPPORTED | STRONG | hit-points.ts + dedicated matrix scenario (`core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`). |
-| Conditions (13/15): blinded, charmed, deafened, frightened, grappled, incapacitated, paralyzed, poisoned, prone, restrained, stunned, unconscious, invisible + petrified | SUPPORTED | STRONG | conditions.ts + dedicated matrix assertions (`core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`, `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`). |
-| Exhaustion (2024: 10 levels, -2/level) | SUPPORTED | STRONG | Implemented and now matrix-asserted in `core/combat-rules-matrix-temp-hp-conditions-exhaustion.json` (in addition to `core/exhaustion-accumulation.json`). |
-| Saving throws (adv/disadv, proficiency) | SUPPORTED | STRONG | saving-throw.ts |
-| Ability checks + 18-skill proficiency + expertise | SUPPORTED | STRONG | ability-check.ts |
-| Death saves (3/3, nat 1/20, damage at 0) | SUPPORTED | STRONG | death-saves.ts |
-| Initiative | SUPPORTED | STRONG | initiative.ts |
+| Attack resolution (adv/disadv, crit on 20, auto-miss on 1) | SUPPORTED | STRONG | Implemented in `combat-rules.ts` + `domain/combat/attack-resolver.ts`; unit tests assert nat20/nat1 and roll-mode behavior, with E2E coverage in `core/critical-hit.json` and advantage/disadvantage scenarios. |
+| Damage types + resistance/immunity/vulnerability | SUPPORTED | MODERATE | `damage-defenses.ts` is 2024-correct (immunity precedence, resistance/vulnerability cancel path) and unit-tested; E2E coverage exists but is not yet exhaustive for precedence/cancel combinations. |
+| Temp HP absorption | SUPPORTED | MODERATE | Runtime path is `helpers/temp-hp.ts` + damage resolvers (tabletop/AI) with matrix/E2E support; attribution to `hit-points.ts` was stale and direct helper-level tests remain limited. |
+| Conditions (15/15): blinded, charmed, deafened, frightened, grappled, incapacitated, invisible, paralyzed, petrified, poisoned, prone, restrained, stunned, unconscious, exhaustion | SUPPORTED | MODERATE | All core 2024 conditions are implemented; unit coverage is broad, but E2E matrix assertions are concentrated on a subset (`core/combat-rules-matrix-temp-hp-conditions-exhaustion.json`, `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`, `core/condition-stacking.json`). |
+| Exhaustion (2024: 10 levels, -2/level) | SUPPORTED | MODERATE | 10-level model and -2/level penalties are implemented and tested (`core/exhaustion-accumulation.json`, matrix scenario), but save/check/speed/death lifecycle assertions are still incomplete. |
+| Saving throws (adv/disadv, proficiency) | SUPPORTED | MODERATE | Implemented in `saving-throw-resolver.ts` + `save-to-end.ts`; coverage includes proficiency and roll-mode paths, but direct tabletop-branch assertions are not yet comprehensive. |
+| Ability checks + 18-skill proficiency + expertise | SUPPORTED | MODERATE | `ability-checks.ts` and skill typing support proficiency/expertise/half-proficiency correctly; tests validate core math but not a full 18-skill matrix. |
+| Death saves (3/3, nat 1/20, damage at 0) | SUPPORTED | MODERATE | Domain rules are complete and well unit-tested with E2E death-save flows, but explicit post-KO damage branch coverage (including crit-at-0) is not yet comprehensive at integration/E2E level. |
+| Initiative | SUPPORTED | MODERATE | Initiative, tie-breakers, and Alert interactions are implemented and tested, but cross-path tie behavior and full initiative modifier branch coverage remain uneven. |
 | Surprise (2024: disadvantage on init) | SUPPORTED | MODERATE | DM override and auto-computed hidden-vs-passive-perception surprise paths are wired into initiative mode computation and covered by `core/surprise-ambush.json` and `core/auto-surprise-hidden.json`. |
 | Alert feat (2024) | SUPPORTED | MODERATE | Initiative proficiency bonus, swap offer/decline, and willing-target filtering are implemented; unconscious/incapacitated allies are excluded from eligible targets and invalid swap attempts are rejected (`core/alert-initiative-swap.json`, `core/alert-decline-swap.json`, `core/surprise-alert-willing-swap-red.json`). |
-| Concentration (gain/damage save/break/replace/end) | SUPPORTED | STRONG | concentration.ts |
-| Movement (walk/climb/swim/fly, difficult terrain 2×) | SUPPORTED | STRONG | movement.ts |
-| Grapple + shove (2024 unarmed option) | SUPPORTED | STRONG | grapple-shove.ts + matrix validation in `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`. |
-| Grapple escape action | SUPPORTED | STRONG | Escape path validated in matrix control scenario `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`. |
-| Cover (half +2, 3/4 +5, total untargetable) | SUPPORTED | STRONG | combat-map.ts + AC-focused matrix coverage in `core/combat-rules-matrix-cover-ac-dex.json`. |
-| Cover + Dex save bonus from AoE | SUPPORTED | STRONG | Dex-save interaction validated with deterministic assertions in `core/combat-rules-matrix-cover-ac-dex.json`. |
-| Dodge / Disengage / Dash | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
-| Help / Search / Ready / Use Object | SUPPORTED | STRONG | actions.ts + utility matrix (`core/combat-rules-matrix-utility-actions.json`). |
-| Hide action | SUPPORTED | STRONG | Stealth vs passive Perception and visibility gating are implemented in `hide.ts` + `skill-action-handler.ts`, with dedicated blinded/multi-observer and hidden-break regressions. |
-| Two-weapon fighting (light + bonus off-hand) | REWORK | MODERATE | Wiring incomplete; 2024 mod-only-if-negative rule |
-| Fall damage (1d6/10ft, max 20d6, prone) | PARTIAL | MODERATE | Implemented for pit-entry flow; universal off-ledge pipeline remains open. |
-| Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | STRONG | Validated in control matrix (`core/combat-rules-matrix-grapple-shove-escape-unarmed.json`). |
-| Critical hit damage dice-vs-flat separation (2024) | REWORK | WEAK | Currently doubles all dice |
-| **Forced movement (Thunderwave push, bull rush distance + OA/fall interaction)** | **MISSING P1** | NONE | |
+| Concentration (gain/damage save/break/replace/end) | SUPPORTED | MODERATE | Core concentration lifecycle is implemented (`concentration.ts`) and scenario-covered (damage/save, replacement, dispel), but branch assertions are still uneven across all break/end paths. |
+| Movement (walk/climb/swim/fly, difficult terrain 2×) | PARTIAL | MODERATE | Difficult terrain and movement budgets are implemented and tested, but full movement-mode parity (walk/climb/swim/fly) is not fully wired or covered end-to-end. |
+| Grapple + shove (2024 unarmed option) | PARTIAL | MODERATE | Functional and scenario-covered, but live save-resolution path still has known fidelity gaps versus dedicated saving-throw handling. |
+| Grapple escape action | SUPPORTED | MODERATE | Escape action is implemented end-to-end and scenario-covered, but branch-depth assertions (success/failure/economy edge branches) are not yet strong across all paths. |
+| Cover (half +2, 3/4 +5, total untargetable) | SUPPORTED | MODERATE | Cover math is implemented in `combat-map` modules; current E2E emphasis is half-cover and does not yet provide deep three-quarters/full-cover branch assertions. |
+| Cover + Dex save bonus from AoE | SUPPORTED | MODERATE | Dex-save cover bonus is implemented and unit-tested (+2/+5; non-Dex exclusion), with matrix E2E support but limited broader branch depth. |
+| Dodge / Disengage / Dash | SUPPORTED | MODERATE | Implemented in action service + OA detection/movement logic; Disengage/Dash are well covered while deterministic Dodge effect assertions remain thinner. |
+| Help / Search / Ready / Use Object | SUPPORTED | STRONG | Implemented across `tabletop/dispatch/social-handlers.ts` + `tabletop/dispatch/interaction-handlers.ts` with supporting rule helpers in `search-use-object.ts`; covered by utility matrix and targeted scenarios/tests. |
+| Hide action | PARTIAL | MODERATE | Stealth vs passive Perception and key visibility regressions are covered, but full 2024 hide/invisible-equivalence lifecycle parity is still incomplete. |
+| Two-weapon fighting (light + bonus off-hand) | SUPPORTED | MODERATE | Wiring is now end-to-end (eligibility, parser parity, Nick, Dual Wielder checks) with broad scenario support; remaining fidelity gap is the negative-modifier damage edge case. |
+| Fall damage (1d6/10ft, max 20d6, prone) | PARTIAL | WEAK | Damage math exists and pit-entry flow works, but prone semantics and universal off-ledge integration remain incomplete and under-asserted. |
+| Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | MODERATE | Implemented and exercised in grapple/shove + combat flows; direct non-monk baseline formula assertions are still limited. |
+| Critical hit damage dice-vs-flat separation (2024) | SUPPORTED | MODERATE | Current resolver doubles dice while keeping flat modifiers single-applied; prior REWORK note was stale, but dedicated end-to-end flat-rider crit assertions remain sparse. |
+| **Forced movement (Thunderwave push, bull rush distance + OA/fall interaction)** | **PARTIAL P1** | MODERATE | Forced movement primitives and some integrations exist (push + OA suppression), but combined push/OA/fall interaction coverage is still incomplete. |
 | Suffocation / drowning | MISSING P2 | NONE | |
-| Mounted combat | MISSING P2 | NONE | |
+| Mounted combat | PARTIAL P2 | WEAK | Domain mount foundations and unit tests exist, but tabletop/action-economy integration and E2E scenario coverage are still absent. |
 
 ## 2.2 ClassAbilities  ([audit](audit-ClassAbilities.md))
 
@@ -171,7 +171,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Class | L1 | L2 | L3 (subclass) | L4 | L5 |
 |---|---|---|---|---|---|
 | **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack, Danger Sense (SUP) | Primal Path mechanical features MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement SUP |
-| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; attack-roll consumption wired via roll-interrupt hook) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words save-path still open) | ASI | Font of Inspiration + BI d8 SUP |
+| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; attack + save consumption wired via roll-interrupt hook) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words require ally-scan — deferred) | ASI | Font of Inspiration + BI d8 SUP |
 | **Cleric** | Spellcasting, Divine Order MISSING | Channel Divinity (Turn Undead + Divine Spark) SUP | Divine Domain MISSING | ASI | Sear/Destroy Undead SUP |
 | **Druid** | Spellcasting, Primal Order MISSING | Wild Shape PARTIAL (temp HP + metadata; full swap/hydration pending) | Primal Circle MISSING | ASI | no universal |
 | **Fighter** | Fighting Style, Second Wind SUP, Weapon Mastery 3 (cross-flow) | Action Surge SUP, Tactical Mind MISSING | Martial Archetype MISSING | ASI | Extra Attack, Tactical Shift PARTIAL |
@@ -192,8 +192,8 @@ Additional deterministic scenarios added and validated in this thread:
 | Attack enhancement stacking order | REWORK | Reckless + Sneak + Smite + Stunning Strike composition |
 | Attack reaction dedup | REWORK | Shield, Deflect, Uncanny Dodge, Protection, Cutting Words compete |
 | Bonus action routing | REWORK | Verify all bonus-action features consume economy |
-| Bardic Inspiration consumption | PARTIAL | Attack rolls: BI die consumed via roll-interrupt hook. Saving throw and ability check paths still open. |
-| d20 roll-interrupt hook | PARTIAL | Attack path done (BI, Lucky, Halfling Lucky, Portent). Save path + Cutting Words/Silvery Barbs still open. |
+| Bardic Inspiration consumption | PARTIAL | Attack rolls + saving throws: BI die consumed via roll-interrupt hook. Ability check path still open. |
+| d20 roll-interrupt hook | SUPPORTED | Attack + save paths done (BI, Lucky, Halfling Lucky, Portent). Cutting Words/Silvery Barbs still open (require ally-scan, deferred). |
 | Condition application from class abilities | REWORK | Stunning Strike, Cunning Strike, BM maneuvers need uniform save→condition flow |
 
 ## 2.3 SpellSystem  ([audit](audit-SpellSystem.md))
@@ -303,7 +303,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Forced movement / stand-from-prone / teleport OA exclusion | REWORK | Verify filters voluntary-only |
 | Reaction reset at own-turn-start (not round) | REWORK | Verify correct event |
 
-**Summary:** Architecture sound; reaction coverage is materially broader (OA, Shield, Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, Interception, Sentinel). Roll-interrupt hook landed (BI/Lucky/Portent on attack rolls). Remaining key gaps are Polearm Master enter-reach OA and CW/Silvery Barbs wiring on save/ability-check paths.
+**Summary:** Architecture sound; reaction coverage is materially broader (OA, Shield, Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, Interception, Sentinel). Roll-interrupt hook fully landed — attack + save paths both done (BI/Lucky/Portent/Halfling Lucky). Remaining key gaps are Polearm Master enter-reach OA and CW/Silvery Barbs (require ally-scan at interrupt time — deferred).
 
 ## 2.8 CombatMap  ([audit](audit-CombatMap.md))
 
@@ -536,7 +536,7 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 
 | # | Item | Flow | Notes |
 |---|---|---|---|
-| 1 | ~~**d20 roll-interrupt architectural hook**~~ ✅ DONE | ReactionSystem | `RollInterruptResolver` + `PendingRollInterruptData` + `POST …/pending-roll-interrupt/resolve`. Attack path: BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace. Save path + Cutting Words/Silvery Barbs remain open (next increment). **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
+| 1 | ~~**d20 roll-interrupt architectural hook**~~ ✅ DONE | ReactionSystem | `RollInterruptResolver` + `PendingRollInterruptData` + `POST …/pending-roll-interrupt/resolve`. **Both attack + save paths done.** BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace — all on attack rolls AND saving throws. Concentration saves covered automatically. Cutting Words/Silvery Barbs deferred (ally-scan). **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
 | 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
 | 3 | ~~**AI spell delivery resolution**~~ ✅ DONE | AISpellEvaluation | Delivery path is implemented and E2E-validated. |
 | 4 | ~~**Exhaustion mechanic (2024, 10-level, -2/level d20)**~~ ✅ DONE | CombatRules | Reconciled `conditions.ts` to 2024 RAW (was 2014-style 1-6/-level). `scenarios/core/exhaustion-accumulation.json` validates. Orphan `domain/rules/exhaustion.ts` deleted. Level 10 death helper available but auto-death trigger on application is future work. |
@@ -569,43 +569,49 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 - ~~Channel Divinity pool + Turn Undead~~ → implemented
 - ~~Sneak Attack, Cunning Action, Uncanny Dodge, Font of Magic, Quickened/Twinned Metamagic, Agonizing Blast, Pact slot, Second Wind, Action Surge, Lay on Hands~~ → all implemented
 
-### Tier 2: Must-fix for fidelity at L1-5
+### Tier 2: Must-fix for fidelity at L1-5 (updated for current implementation)
 
-| # | Item | Flow |
-|---|---|---|
-| 16 | Surprise (2024 disadv on init) + Alert feat | CombatRules |
-| 17 | Two-weapon fighting full wiring | CombatRules |
-| 18 | Hide edge-case hardening (special senses/observer state interactions) | CombatRules |
-| 19 | Grapple escape action | CombatRules |
-| 20 | Forced movement tracking + OA/fall interaction | CombatRules |
-| 21 | Critical damage dice-vs-flat (2024) | CombatRules |
-| 22 | Auto-AoE quality hardening | SpellSystem |
-| 23 | War Caster feat concentration advantage | SpellSystem |
-| 24 | Counterspell value-aware AI reaction decision | ReactionSystem + AIBehavior |
-| 25 | Feather Fall / fall-damage pending choice | ReactionSystem |
-| 26 | Cunning Strike Disarm + Daze | ClassAbilities |
-| 27 | Tactical Mind after roll-interrupt | ClassAbilities |
-| 28 | Roll-interrupt reaction kind (Cutting Words + BI) | ReactionSystem (architectural) |
-| 29 | Future reaction feats (Sentinel, Polearm Master) | ReactionSystem |
-| 30 | OA once-per-trigger + reaction lifecycle cleanup | ActionEconomy |
-| 31 | Flying movement mode in A* | CombatMap |
-| 32 | Zone LOS blocking enforcement | CombatMap |
-| 33 | Creature size (multi-tile footprint) | CombatMap |
-| 34 | Reach-aware adjacency helper | CombatMap |
-| 35 | Diagonal corner-clipping | CombatMap |
-| 36 | Invisibility/hidden map state | CombatMap |
-| 37 | Line of effect at AoE + spell target | CombatMap |
-| 38 | ASI merging into effective ability scores | CreatureHydration |
-| 39 | Mage Armor AC detection | CreatureHydration |
-| 40 | Magic item bonus parity across all combat paths | CreatureHydration + InventorySystem |
-| 41 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities |
-| 42 | Lightning Bolt, Sleet Storm, Bestow Curse (L3 catalog) | SpellCatalog |
-| 43 | Mage Hand, Shillelagh, Guidance, Spare the Dying cantrips | SpellCatalog |
-| 44 | Magic Weapon, Prayer of Healing, Blur (L2 catalog) | SpellCatalog |
-| 45 | Upcast value computation for AI | AISpellEvaluation |
-| 46 | Potion subsystem edge-fidelity hardening | InventorySystem |
-| 47 | Magic weapon bonus regression coverage hardening | InventorySystem + CombatRules |
-| 48 | Charge recharge on LR | InventorySystem + EntityManagement |
+| # | Item | Flow | Current state |
+|---|---|---|---|
+| 1 | Forced movement tracking + OA/fall interaction | CombatRules | MISSING |
+| 2 | Critical damage dice-vs-flat (2024) | CombatRules | REWORK |
+| 3 | Auto-AoE quality hardening | SpellSystem | PARTIAL |
+| 4 | War Caster feat concentration advantage | SpellSystem | MISSING |
+| 5 | Counterspell value-aware AI reaction decision | ReactionSystem + AIBehavior | PARTIAL |
+| 6 | Feather Fall / fall-damage pending choice | ReactionSystem | MISSING |
+| 7 | Cunning Strike Disarm + Daze | ClassAbilities | MISSING |
+| 8 | Tactical Mind after roll-interrupt | ClassAbilities | MISSING |
+| 9 | Roll-interrupt save/ability-check path (Cutting Words + BI) | ReactionSystem (architectural) | PARTIAL |
+| 10 | Future reaction feats (Sentinel, Polearm Master) | ReactionSystem | PARTIAL/MISSING |
+| 11 | OA once-per-trigger + reaction lifecycle cleanup | ActionEconomy | PARTIAL |
+| 12 | Flying movement mode in A* | CombatMap | MISSING |
+| 13 | Zone LOS blocking enforcement | CombatMap | MISSING |
+| 14 | Reach-aware adjacency helper | CombatMap | MISSING |
+| 15 | Invisibility/hidden map state | CombatMap | MISSING |
+| 16 | Line of effect at AoE + spell target | CombatMap | MISSING |
+| 17 | ASI merging into effective ability scores | CreatureHydration | MISSING |
+| 18 | Mage Armor AC detection | CreatureHydration | MISSING |
+| 19 | Magic item bonus parity across all combat paths | CreatureHydration + InventorySystem | PARTIAL |
+| 20 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities | PARTIAL |
+| 21 | Lightning Bolt, Sleet Storm, Bestow Curse (L3 catalog) | SpellCatalog | MISSING |
+| 22 | Mage Hand, Shillelagh, Guidance, Spare the Dying cantrips | SpellCatalog | MISSING |
+| 23 | Magic Weapon, Prayer of Healing, Blur (L2 catalog) | SpellCatalog | MISSING |
+| 24 | Upcast value computation for AI | AISpellEvaluation | MISSING |
+| 25 | Potion subsystem edge-fidelity hardening | InventorySystem | PARTIAL |
+| 26 | Charge recharge on LR | InventorySystem + EntityManagement | MISSING |
+
+**Moved out of Tier 2 (implemented/covered):**
+- Two-weapon fighting full wiring
+: E2E evidence: `core/twf-requires-attack-action.json`, `core/twf-light-required.json`, `core/twf-dual-wielder-non-light.json`, `core/twf-style-adds-offhand-modifier.json`, `core/twf-parser-fallback-parity.json`, `core/twf-nick-once-per-turn.json`, `core/offhand-attack.json`.
+- Surprise (2024 initiative disadvantage) + Alert feat
+: E2E evidence: `core/surprise-ambush.json`, `core/auto-surprise-hidden.json`, `core/alert-initiative-swap.json`, `core/alert-decline-swap.json`, `core/surprise-alert-willing-swap-red.json`.
+- Grapple escape action
+: E2E evidence: `core/grapple-escape.json`, `core/combat-rules-matrix-grapple-shove-escape-unarmed.json`.
+- Diagonal corner-clipping checks
+: E2E evidence: `core/ai-pathfinding.json`, `core/move-toward-obstacle.json`, `core/move-toward-blocked.json`.
+
+**Coverage follow-up (not a Tier 2 blocker):**
+- Creature size (multi-tile footprint) pathing support is implemented, and scenarios include Large/Small combatants (e.g., `core/ai-grapple.json`, `core/ai-grapple-condition.json`, `core/heavy-weapon-small-creature.json`), but a dedicated footprint assertion scenario should still be added for stronger regression coverage.
 
 ### Tier 3: Polish for deeper L1-5 play
 

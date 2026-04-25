@@ -22,7 +22,7 @@ The combat orchestration layer: `TabletopCombatService` facade (4 public methods
 |----------|----------|---------|
 | `TabletopCombatService` facade | `application/services/combat/tabletop-combat-service.ts` | 4 public methods: `initiateAction()`, `processRollResult()`, `parseCombatAction()`, `completeMove()` |
 | `ActionDispatcher.dispatch()` | `application/services/combat/tabletop/action-dispatcher.ts` | Routes parsed actions → movement, attack, spell, grapple, ready, ability handlers |
-| `RollStateMachine` | `application/services/combat/tabletop/roll-state-machine.ts` | Handles initiative, attack, damage, death save, concentration rolls |
+| `RollStateMachine` | `application/services/combat/tabletop/roll-state-machine.ts` | Handles initiative, attack, damage, death save, concentration/saving throw rolls. Contains d20 roll-interrupt hook (attack + save paths) via `RollInterruptResolver`. |
 | `CombatTextParser` | `application/services/combat/tabletop/combat-text-parser.ts` | 20+ pure functions: `tryParseMoveText()`, `tryParseAttackText()`, etc. |
 | `TabletopCombatServiceDeps` | `application/services/combat/tabletop/tabletop-types.ts` | Central dependency bag for all repos, services, registries |
 | `TabletopPendingAction` | `application/services/combat/tabletop/tabletop-types.ts` | Union of all pending action types (initiate, attack, damage, save, death save) |
@@ -33,7 +33,8 @@ The combat orchestration layer: `TabletopCombatService` facade (4 public methods
 2. **RollStateMachine is the largest module** — handles all dice resolution including Sneak Attack, Divine Smite, mastery effects, resource pool initialization. Grep for current resolver list in `rolls/`.
 3. **ActionDispatcher integrates text parsers AND class ability detection** — text parsing → `tryMatchClassAction()` → handler routing. Adding new action types requires both parser and dispatcher changes.
 4. **CombatTextParser functions are pure** — no `this.deps`, no side effects. They receive text and return parsed action objects or null.
-5. **Pending action state machine**: `initiate → (attack_pending | damage_pending | save_pending | death_save_pending) → resolved`. Invalid state transitions must be rejected.
+5. **Pending action state machine**: `initiate → (attack_pending | damage_pending | save_pending | death_save_pending) → resolved`. Invalid state transitions must be rejected. A `roll_interrupt` pending action can interrupt the attack or save path — it is NOT a TabletopPendingAction; it sits in the same encounter pendingAction slot and is resolved via `POST .../pending-roll-interrupt/resolve`.
+6b. **Roll-interrupt pattern**: after d20 roll, `RollInterruptResolver` scans for BI/Lucky/Portent/Halfling Lucky. If options → store `PendingRollInterruptData`, return `requiresPlayerInput: true`. Resume reconstructs the original action with `interruptResolved: true` + override fields, calls `processRollResult` again.
 6. **Two-phase action flow** (`TwoPhaseActionService`): move phase → action phase → bonus phase → end turn. Action economy is tracked per phase.
 
 ## Modes of Operation

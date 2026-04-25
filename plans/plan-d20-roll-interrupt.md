@@ -12,83 +12,42 @@ updated: 2026-04-25
 
 **Problem**: No hook between "d20 rolled" and "hit/save resolved." Blocks: Bardic Inspiration consumption, Lucky feat, Diviner Portent, Cutting Words, Tactical Mind, Silvery Barbs, Halfling Lucky. Highest-leverage architectural gap.
 
-**Precedent**: `PendingLuckyRerollData` at `pending-action.ts:117` — generalize it.
+## What Was Built
 
-## Design
+### Types (`domain/entities/combat/pending-action.ts`)
+`RollInterruptOption` union (bardic-inspiration, lucky-feat, halfling-lucky, portent, cutting-words) + `PendingRollInterruptData` + resume context types (`AttackRollResumeContext`, `SaveRollResumeContext`).
 
-### Phase 1 — generalize Lucky pattern
+### Resolver (`tabletop/rolls/roll-interrupt-resolver.ts`)
+`RollInterruptResolver` class — scans actor `activeEffects`, luckPoints, feat list, and species for available options. Provides `findAttackInterruptOptions`, `findSaveInterruptOptions`, `buildAttackInterruptData`, `buildSaveInterruptData`.
 
-```ts
-interface PendingRollInterruptData {
-  type: "roll_interrupt";
-  sessionId: string;
-  actorEntityId: string;
-  rollKind: "attack" | "save" | "ability_check" | "damage" | "concentration";
-  rawRoll: number[];
-  modifier: number;
-  totalBeforeInterrupt: number;
-  options: RollInterruptOption[];
-  resumeContext: { /* attack pending ID, save target ID, etc. */ };
-}
+### Attack path hook (`tabletop/roll-state-machine.ts` → `handleAttackRoll`)
+After d20 roll, before hit/miss: checks options, stores `PendingRollInterruptData`, returns `requiresPlayerInput: true`. Re-entry with `interruptResolved: true` skips the check and applies `interruptBonusAdjustment` / `interruptForcedRoll`.
 
-type RollInterruptOption =
-  | { kind: "bardic-inspiration"; effectId: string; sides: number; sourceCombatantId: string }
-  | { kind: "lucky-feat"; pointsRemaining: number }
-  | { kind: "halfling-lucky" }
-  | { kind: "portent"; valueRolled: number; portentEffectId: string }
-  | { kind: "second-wind-reroll" }
-  | { kind: "cutting-words"; effectId: string; sides: number; sourceCombatantId: string };
-```
+### Save path hook (`tabletop/roll-state-machine.ts` → `handleSavingThrowAction`)
+Player character saves only. Pre-rolls d20, checks options, stores interrupt. Re-entry passes `forcedRoll` + `bonusAdjustment` to `SavingThrowResolver.resolve()`. Concentration saves (CON) covered automatically since they route through the same SAVING_THROW path.
 
-### Phase 2 — hook into roll paths
+### Resolution endpoint (`infrastructure/api/routes/sessions/session-tabletop.ts`)
+`POST /sessions/:id/combat/:encounterId/pending-roll-interrupt/resolve`
+Handles both attack and save resume contexts. Choices: `decline`, `bardic-inspiration`, `lucky-feat`, `halfling-lucky`, `portent`.
 
-New `RollInterruptResolver`: invoked after d20 roll, before resolution.
-- Computes `totalBeforeInterrupt`
-- Scans actor `activeEffects` + ally effects (BI) + party effects (Cutting Words)
-- Options exist → create `PendingRollInterruptData`, pause
-- No options → finalize as today
-
-Hook points: `RollStateMachine.processRollResult()`, `SavingThrowResolver.resolve()`, `AbilityCheckResolver`, `attack-resolver.ts`.
-
-### Phase 3 — resolution endpoint
-
-`POST /sessions/:id/combat/:enc/pending-roll-interrupt/resolve`
-Body: `{ pendingId, choice: "decline" | { kind: "bardic-inspiration", ... } | ... }`
-
-- `decline` → finalize with `totalBeforeInterrupt`
-- BI/Cutting Words → roll die, add/subtract, consume effect, finalize
-- Lucky → reroll d20, decrement points, finalize
-- Portent → replace d20 with pre-rolled value, consume effect, finalize
-- Second-wind-reroll → reroll d20, spend Second Wind, finalize
-
-### Phase 4 — AI/UI
-
-Mock LLM: choose interrupt only if new total changes fail→success.
-Player CLI: prompt on `PendingRollInterruptData` pending.
-
-## Files
+## Files Changed
 
 | File | Change |
 |---|---|
-| `domain/entities/combat/pending-action.ts` | Add `PendingRollInterruptData` + `roll_interrupt` type |
-| `tabletop/rolls/roll-interrupt-resolver.ts` (NEW) | Detect + build pending action |
-| `tabletop/roll-state-machine.ts` | Hook after d20, before hit/save |
-| `tabletop/rolls/saving-throw-resolver.ts` | Same hook |
-| `helpers/concentration-helper.ts` | Same hook |
-| `domain/rules/attack-resolver.ts` | Same hook (AI/OA path) |
-| `infrastructure/api/routes/sessions/session-tabletop.ts` | New resolve endpoint |
+| `domain/entities/combat/pending-action.ts` | `PendingRollInterruptData`, `RollInterruptOption`, resume contexts |
+| `tabletop/rolls/roll-interrupt-resolver.ts` (NEW) | Option detection + payload builders |
+| `tabletop/tabletop-types.ts` | `AttackPendingAction` + `SavingThrowPendingAction` interrupt fields; `AttackResult.rollInterrupt` |
+| `tabletop/roll-state-machine.ts` | Attack + save interrupt hooks |
+| `tabletop/rolls/saving-throw-resolver.ts` | `opts?: { forcedRoll?, bonusAdjustment? }` parameter |
+| `infrastructure/api/routes/sessions/session-tabletop.ts` | Resolve endpoint (attack + save paths) |
 
 ## Tests
-- Unit: `roll-interrupt-resolver.test.ts` — 10+ cases (no options, BI declined, BI used changes outcome, Lucky lower, Portent replace, multiple options)
-- E2E: `scenarios/wizard/d20-interrupt-bardic-inspiration.json` (in scenarios-pending/) → move to active
+- Unit: `roll-interrupt-resolver.test.ts` — 15 cases (all options, edge cases, multiple options, save delegation)
 
-## Risks
-- Every d20 → effect-bag scan + ally scan → cache per combatant per encounter, invalidate on mutation
-- Interrupt → reroll → another interrupt → guard with single-pass flag; second interrupt auto-declined
-- AI must know AC/DC to evaluate "would this change outcome?" — already in tactical context
-
-## Scope
-~2–3 days. 8–10 files. ~600 LOC.
+## Scope Notes
+- `domain/combat/attack-resolver.ts` (AI auto-attacks): not hooked — AI attacks auto-resolve without player input; Lucky/BI not applicable for non-player turns
+- `helpers/concentration-helper.ts`: no separate hook needed — concentration checks are SAVING_THROW actions and covered by the save path hook
+- Cutting Words (enemy attack interrupts from ally Bard): architecture is in place; actual detection requires scanning ally combatants — deferred until Bard class abilities land
 
 ## Unblocks
-Bardic Inspiration, Lucky feat, Tactical Mind, Cutting Words, Diviner Portent, Halfling Lucky — all immediate once landed.
+Bardic Inspiration, Lucky feat, Halfling Lucky, Portent — all functional once Bard/Diviner/Halfling abilities are wired in.
