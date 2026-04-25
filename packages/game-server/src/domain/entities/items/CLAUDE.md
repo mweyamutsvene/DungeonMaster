@@ -1,13 +1,16 @@
-# InventorySystem — Architectural Constraints
+# InventorySystem — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
-`domain/entities/items/` — item entity models, weapon/armor/magic catalogs, equipment/inventory types. Consumed by `infrastructure/api/routes/sessions/session-inventory.ts`, `application/services/entities/item-lookup-service.ts`, and combat resolvers (attack damage bonuses, AC computation).
+`domain/entities/items/` data models and catalogs.
 
 ## Laws
-1. **Entities only, no services** — this directory holds pure item data and the functions that transform it. Repository access and HTTP routing live outside.
-2. **Catalogs are static, DB is authoritative** — `weapon-catalog.ts`, `armor-catalog.ts`, `magic-item-catalog.ts` provide the reference definitions. `item-lookup-service.ts` queries the DB first and falls back to the catalog. Keep catalog entries in sync with content parsed out of `content/rulebook/equipment-parser.ts`.
-3. **Weapon properties drive combat** — `weapon-properties.ts` defines finesse / heavy / light / two-handed / versatile / thrown / reach. Attack resolvers consume these flags; do not branch on weapon names.
-4. **Equipped state is separate from inventory** — `equipped-items.ts` models currently worn/wielded items for AC and attack math; `inventory.ts` holds the full backpack. Equip/unequip is a transition between the two.
-5. **Magic item bonuses are additive** — a +1 weapon contributes to both attack and damage rolls via the equipped-items layer; magic items must declare bonuses in the catalog rather than having consumers look them up by name.
-6. **Ground items live on the combat map** — `ground-item.ts` is the domain type; persistence and pickup flow through `combat-map-items.ts` under `domain/rules/`. Changes to ground-item shape ripple there.
-7. **D&D 5e 2024 rules** — encumbrance = STR × 15 lbs; object interactions are free once per turn (draw/sheathe) and cost an action beyond that.
+1. This layer is entities/data only. No services, no HTTP.
+2. Catalogs are static reference; DB lookup first, catalog fallback second.
+3. Weapon properties drive mechanics. Use `weapon-properties.ts`, not weapon-name branching.
+4. Equipped data is not inventory data. Keep transition explicit.
+5. Magic bonuses are additive (attack and damage).
+6. Ground item live on combat map. Inventory files define shape. Combat map + tabletop handler do drop and pickup work.
+7. Encumbrance helper here. Not full runtime police yet. Object interaction spend tracked in combat resource as `objectInteractionUsed`.
+8. `equipped-items.ts` only hold types. `armor-catalog.ts` recompute real AC from equipped inventory.

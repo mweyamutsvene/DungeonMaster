@@ -1,11 +1,15 @@
-# CombatRules — Architectural Constraints
+# CombatRules — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
 `domain/rules/`, `domain/combat/`, `domain/effects/`
 
 ## Laws
-1. **Rules are pure functions** — take inputs, return outputs. Never read from repositories, never emit events, no side effects.
-2. **Dependency direction** — rules import from `domain/entities/` (creature/item types) but entities NEVER import from rules (sole exception: `character.ts` imports rest/hp rules).
-3. **D&D 5e 2024 edition** — always validate against 2024 rules, not 2014.
-4. **`class-resources.ts` is a coupling hub** — it imports all class files to build resource pools. Changes to class resource shapes propagate there.
-5. **`combat-map.ts` is a high-fanout module** — changes affect pathfinding, cover, zone damage, and movement simultaneously. Test all downstream consumers.
+1. `domain/rules/` stay pure. `domain/combat/` and `domain/effects/` can hold state or mutate creature, but still no repo, DB, API, event bus, or LLM stuff.
+2. Keep imports inside domain only. Rules can read entities. Some entities already read shared rule helpers too. Do not pull app or infra into this flow, and do not make cycle.
+3. Use D&D 5e 2024 rules, not 2014.
+4. `class-resources.ts` is coupling hub; class resource shape changes ripple there.
+5. Combat map modules are high fanout; map changes require downstream tests (path, cover, zone, movement).
+
+6. Movement state live in `rules/movement.ts` now. `combat/movement.ts` dead. Do not bring dead file back.

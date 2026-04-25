@@ -6,101 +6,11 @@ applyTo: "packages/game-server/src/domain/rules/**,packages/game-server/src/doma
 # CombatRules Flow
 
 ## Purpose
-Pure D&D 5e 2024 rules engine — deterministic game mechanics with no Fastify, Prisma, or LLM dependencies. Takes inputs, returns outputs. Never reads repositories or emits events.
+CombatRules spans three related domain surfaces. Most files in `domain/rules/` are pure deterministic rule helpers. `domain/combat/` adds combat-specific state and resolution, such as initiative ordering, turn progression, and attack application. `domain/effects/` provides reusable in-memory effect models. None of these files depend on Fastify, Prisma, repositories, or LLM adapters.
 
 ## Architecture
 
-```mermaid
-classDiagram
-    class Combat {
-        -combatants Map
-        -activeEffects Map
-        -positions Map
-        -movementStates Map
-        +endTurn()
-        +addEffect()
-        +cleanupExpiredEffects()
-        +restoreState() / restoreActionEconomy()
-    }
-    class AttackResolver {
-        +resolveAttack(diceRoller, attacker, target, spec)
-    }
-    class CombatRules {
-        +resolveToHit(diceRoller, AC, bonus, mode)
-        +resolveDamage(diceRoller, sides, count, mod)
-    }
-    class RulesMovement {
-        +Position (x, y)
-        +attemptMovement()
-        +calculateDistance()
-        +snapToGrid()
-        +calculateLongJumpDistance()
-    }
-    class CombatMovement {
-        +MovementState (position, movementUsed)
-        +moveToPosition()
-        +pushAwayFrom()
-        +pullToward()
-        +resetMovement()
-    }
-    class Pathfinding {
-        +findPath() [A*]
-        +getReachableCells() [Dijkstra]
-        +diagonalStepCost()
-    }
-    class WeaponMastery {
-        +WEAPON_MASTERY_MAP
-        +resolveWeaponMastery()
-    }
-    class FeatModifiers {
-        +computeFeatModifiers(featIds) → FeatModifiers
-    }
-    class DamageDefenses {
-        +DamageType (13 types)
-        +applyDamageDefenses()
-    }
-    class DiceRoller {
-        <<interface>>
-        +roll()
-    }
-    class Rest {
-        +refreshClassResourcePools()
-        +spendHitDice()
-        +recoverHitDice()
-    }
-    class CombatMap {
-        +getCoverLevel()
-        +getCoverACBonus()
-        +isPositionPassable()
-    }
-    class Concentration {
-        +ConcentrationState
-        +concentrationCheckOnDamage()
-    }
-    class GrappleShove {
-        +resolveGrapple()
-        +resolveShove()
-    }
-    class DeathSaves {
-        +resolveDeathSave()
-    }
-    class Hide {
-        +attemptHide()
-        +computeSurprise()
-    }
-
-    Combat --> CombatMovement
-    Combat --> ActiveEffect
-    AttackResolver --> FeatModifiers
-    AttackResolver --> DamageDefenses
-    AttackResolver --> DiceRoller
-    CombatRules --> DiceRoller
-    Pathfinding --> CombatMap
-    RulesMovement --> CombatMap
-    GrappleShove --> DiceRoller
-    Concentration --> DiceRoller
-    Rest ..> ClassDefinition : refreshPolicy
-```
+This flow is module-oriented, not class-oriented. `rules/movement.ts` owns grid math, jump rules, forced movement, and the shared `MovementState` type. `rules/pathfinding.ts` performs A* pathfinding and reachable-cell search over the combat-map module family. `combat/combat.ts` is the stateful combat holder for initiative, action economy, active effects, positions, and movement state. `combat/attack-resolver.ts` is the full attack pipeline, while `rules/combat-rules.ts` remains the low-level to-hit and damage primitive layer. `rules/hide.ts`, `rules/rest.ts`, `rules/weapon-mastery.ts`, `rules/feat-modifiers.ts`, and `rules/damage-defenses.ts` remain pure helper modules. `domain/effects/*` contains reusable effect classes such as damage, condition, and healing effects.
 
 ## Movement File
 
@@ -200,8 +110,7 @@ Effects are declared as data (`ActiveEffect` with `EffectDuration`). Two cleanup
 | `DiceRoller` interface | `dice-roller.ts` | Abstraction for all randomness — enables deterministic testing |
 | `DamageDefenses` / `DamageType` | `damage-defenses.ts` | 13 damage types + resistance/immunity/vulnerability |
 | `CoverLevel` / `getCoverLevel()` | `combat-map-sight.ts` | Cover detection between attacker and target |
-| `Position` / `MovementAttempt` | `rules/movement.ts` | Grid coordinates and movement validation |
-| `MovementState` | `combat/movement.ts` | Turn-scoped movement tracking with push/pull |
+| `Position` / `MovementAttempt` / `MovementState` | `rules/movement.ts` | Shared grid coordinates, movement validation, and turn-scoped movement state used by `Combat` |
 | `ConcentrationState` | `concentration.ts` | Spell concentration state machine |
 | `DeathSaveState` | `death-saves.ts` | Death save success/failure tracking |
 | `TerrainType` (12 types) | `combat-map-types.ts` | Grid cell terrain classification |
@@ -224,6 +133,8 @@ Effects are declared as data (`ActiveEffect` with `EffectDuration`). Two cleanup
 | `combat-map-zones.ts` | `getMapZones`, `addZone`, `removeZone`, `updateZone`, `setMapZones` |
 | `combat-map-items.ts` | `getGroundItems`, `addGroundItem`, `removeGroundItem`, `getGroundItemsAtPosition`, `getGroundItemsNearPosition` |
 
+`combat-map-sight.ts` also exports obscuration helpers: `getObscuredLevelAt` and `getObscurationAttackModifiers`.
+
 ## Dependencies
 **Internal imports**: `domain/entities/` (creature types, item types, class definitions, combat/effects, combat/action-economy)
 **External SDKs**: None — pure TypeScript
@@ -231,10 +142,12 @@ Effects are declared as data (`ActiveEffect` with `EffectDuration`). Two cleanup
 ## Known Gotchas
 1. **combat-map.ts is a barrel** — the implementation spans 5 sub-modules (`-types`, `-core`, `-sight`, `-zones`, `-items`). Add new functionality to the appropriate sub-module, not the barrel.
 2. **class-resources.ts** imports all 10 class files to build resource pools — changes to class resource shapes propagate here
-3. **Rules are pure functions** — the only stateful exception is `Combat` class in `combat/combat.ts`. If you need state elsewhere, you're probably in the wrong layer.
+3. **Purity is scoped** — `domain/rules/` stays pure, but `domain/combat/` and `domain/effects/` can hold state or mutate creatures while still remaining domain-only.
 4. **D&D 5e 2024 rules** — not 2014. Verify against 2024 edition for any mechanic
-5. **Dependency direction**: Rules → entities (never reversed, except `character.ts` → rest/hp rules)
+5. **Dependency direction**: keep imports inside the domain layer. Rules can read entities, and some entities already read shared rule helpers too. Do not pull app or infra into this flow, and do not create cycles.
 6. **Cover uses ray-marching** — `getCoverLevel()` in `combat-map-sight.ts` samples the attacker→target line at `ceil(distance/gridSize)` intervals (same as `hasLineOfSight`). Cover cells at attacker and target positions are excluded — only intermediate cells count. `terrainToCoverLevel()` maps all terrain types: `"wall"` and `"cover-full"` → full, `"cover-three-quarters"` → three-quarters, `"cover-half"` and `"obstacle"` → half. Adding new terrain that should grant cover: add a case to `terrainToCoverLevel()` in `combat-map-sight.ts`.
 7. **Pathfinding reachability vs. Euclidean distance** — always use `getReachableCells(map, from, maxCostFeet, options)` when you need to know which cells are genuinely within a creature's movement budget. Euclidean distance (`calculateDistance`) is NOT a valid proxy for movement cost — it ignores walls, difficult terrain, and diagonal alternating cost. `findRetreatPosition` uses `getReachableCells` internally for this reason.
-8. **Two Position types exist** — `rules/movement.ts` has `Position{x, y}` and `combat/movement.ts` has `Position{x, y, elevation?}`. Pathfinding imports from `rules/movement.ts`. Do not import the wrong one.
+8. **Movement state lives in `rules/movement.ts` now** — do not reference or recreate `combat/movement.ts`; the live shared `Position` and `MovementState` types for this flow are in `rules/movement.ts`.
 9. **Damage defense order** — immunity beats resistance beats vulnerability. If both resistance and vulnerability apply to the same type, they cancel out (D&D 5e rule). Applied by `applyDamageDefenses()` in `damage-defenses.ts`.
+
+This flow also includes the `domain/effects/` abstraction family. `Effect` is the base class, with concrete effects such as `DamageEffect`, `ConditionEffect`, and `HealingEffect`. These mutate creatures in memory but stay inside the domain layer.

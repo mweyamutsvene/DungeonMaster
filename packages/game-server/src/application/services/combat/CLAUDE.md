@@ -1,29 +1,27 @@
-# Combat — Architectural Constraints
+# Combat — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
-`application/services/combat/` — the entire combat subsystem.
+`application/services/combat/`
 
-## Directory Structure
+## Map
+- `tabletop/`: text + dice flow.
+- `tabletop/dispatch/`: private dispatch handlers.
+- `tabletop/rolls/`: private roll resolvers.
+- `tabletop/spell-delivery/`: spell delivery handlers.
+- `action-handlers/`: programmatic actions.
+- `two-phase/`: reactions.
+- `helpers/`: shared stateless helpers.
+- `ai/`: AI turn logic.
+- `abilities/`: registry + class executors.
 
-| Directory | Owner Facade | Purpose |
-|-----------|-------------|---------|
-| `tabletop/` | `tabletop-combat-service.ts` | Text-based dice flow: parser chain, roll resolution, spell delivery |
-| `tabletop/dispatch/` | `action-dispatcher.ts` | 6 ActionDispatcher-private handler classes (movement, attack, class ability, grapple, social, interaction) |
-| `tabletop/rolls/` | `roll-state-machine.ts` | Roll resolvers (initiative, hit-rider, weapon mastery, damage, saving throw) |
-| `tabletop/spell-delivery/` | `spell-action-handler.ts` | Per-effect delivery: buff/debuff, healing, attack, save-based, zone |
-| `action-handlers/` | `action-service.ts` | Programmatic action execution: attack, grapple, skill |
-| `two-phase/` | `two-phase-action-service.ts` | Reaction resolution: move, attack, spell, damage reactions |
-| `helpers/` | (shared) | Shared utilities: hydration, resource utils, combatant resolution |
-| `ai/` | `ai-turn-orchestrator.ts` | AI decision making, battle planning, context building |
-| `ai/handlers/` | `ai-action-executor.ts` | Per-action AI handlers (attack, move, cast spell, grapple, hide, etc.) |
-| `abilities/` | — | AbilityRegistry + per-class executors |
-
-## Root-level files
-`tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts` (lifecycle), `tactical-view-service.ts` (battlefield views), `combat-victory-policy.ts` (end-condition checks), `index.ts`.
+Main facades:
+`tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts`.
 
 ## Laws
-1. **Three-facade architecture** — `TabletopCombatService`, `ActionService`, and `TwoPhaseActionService` are thin facades that delegate to their respective handler directories. Keep facades under ~600 lines.
-2. **Handler directories are private** — `action-handlers/` is only imported by `action-service.ts`; `two-phase/` is only imported by `two-phase-action-service.ts`; `tabletop/` dispatch handlers are only imported by `action-dispatcher.ts`.
-3. **`helpers/` is shared infrastructure** — any module in the combat subtree may import from `helpers/`. Helpers must remain stateless (no constructor deps, pure functions or simple classes).
-4. **`combat-service.ts` is the lifecycle owner** — turn advancement, combat start/end, combatant management. Other facades handle action resolution within a turn.
-5. **New handler extractions** follow the constructor pattern: `(deps, eventEmitter, debugLogsEnabled)` for tabletop handlers; session/combat/combatant repos for action-service handlers.
+1. `tabletop`, `action`, `two-phase` facades stay thin. `combat-service` own turn life. `tactical-view-service` build view/query data.
+2. Handler folders are private to owner facade.
+3. `helpers/` shared by combat modules, must stay stateless.
+4. `combat-service.ts` owns combat lifecycle.
+5. New handlers use constructor `(deps, eventEmitter, debugLogsEnabled)`.

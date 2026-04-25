@@ -6,7 +6,7 @@ applyTo: "packages/game-server/src/application/services/combat/ai/**,packages/ga
 # AIBehavior Flow
 
 ## Purpose
-AI-controlled combatant behavior and LLM integration. The AI system makes tactical decisions for monsters, NPCs, and AI-controlled characters. LLM providers handle intent parsing, narration, and AI decision-making. All LLM usage is optional — the system degrades gracefully.
+AI-controlled combatant behavior and LLM integration. The AI system makes tactical decisions for monsters, NPCs, and AI-controlled characters. LLM providers handle intent parsing, narration, and AI decision-making. All LLM usage is optional, but the flow does more than degrade gracefully: turn decisions fall back to deterministic AI and battle planning falls back to a deterministic planner when LLM pieces are missing or return `null`.
 
 ## Architecture
 
@@ -51,7 +51,7 @@ classDiagram
     }
     class IAiBattlePlanner {
         <<interface>>
-        +createBattlePlan()
+        +generatePlan()
     }
     class LlmProvider {
         <<interface>>
@@ -86,7 +86,7 @@ classDiagram
 | `AiActionHandler` | `ai/ai-action-handler.ts` | Strategy interface for action execution |
 | `AiActionHandlerContext` | `ai/ai-action-handler.ts` | Per-call runtime data (session, combatant, decision) |
 | `AiActionHandlerDeps` | `ai/ai-action-handler.ts` | Injected services + bound helper methods |
-| `LlmProvider` | `infrastructure/llm/types.ts` | Unified chat adapter for Ollama/OpenAI/GitHub Models |
+| `LlmProvider` | `infrastructure/llm/types.ts` | Unified chat adapter for Ollama, OpenAI, GitHub Models, and Copilot backends |
 | `IIntentParser` | `infrastructure/llm/intent-parser.ts` | Natural language → structured action |
 | `INarrativeGenerator` | `infrastructure/llm/narrative-generator.ts` | Events → prose narration |
 
@@ -97,7 +97,7 @@ classDiagram
 1. **Pre-turn checks** — skip if downed (0 HP monsters die, characters get death save pending actions), stunned, incapacitated, or paralyzed. Check `isAIControlled()` via FactionService.
 2. **Deferred bonus action** — if `resources.pendingBonusAction` is set (stashed when attack was paused by a reaction), execute it and end turn immediately.
 3. **Build context** — `AiContextBuilder.build()` hydrates entity data, distances, battlefield, zones, economy, battle plan.
-4. **Decide** — call `IAiDecisionMaker.decide()`. If null (LLM failure), break loop.
+4. **Decide** — call `IAiDecisionMaker.decide()`. If the configured decision maker returns `null`, retry that same step with deterministic AI before ending the turn.
 5. **Execute** — `AiActionExecutor.execute()` enforces action economy, delegates to `AiActionRegistry`.
 6. **Record** — append to `actionHistory` (summaries) and `turnResults` for the next context build.
 7. **Failure tracking** — 2 consecutive failures (`maxConsecutiveFailures`) → end turn. Resets on any success.
@@ -196,9 +196,10 @@ interface AiActionHandler {
 8. **Death saves** — `getDeathSaves()` included for dying allies/enemies (triage decisions).
 9. **Battlefield rendering** — `renderBattlefield()` produces ASCII grid + legend. Stripped from JSON payload (rendered as formatted section instead).
 10. **Zone context** — `getMapZones()` provides active zone data (Spirit Guardians, Spike Growth, etc.).
-11. **Potion detection** — `getInventory()` + `lookupMagicItem()` scans for healing potions; sets `hasPotions` flag. `useObject` action is only offered when creature has potions AND HP < 50%.
+11. **Item-use context** — item decisions now rely primarily on `canUseItems`, `usableItems`, and `bestBonusHealSpellEV`. `hasPotions` remains only as a backward-compatible compatibility flag for older prompt snapshots.
 12. **Inventory enrichment** — equipped melee/ranged weapons listed for attack selection.
 13. **Action history** — previous step summaries + results included so LLM sees feedback from its own actions.
+14. **Additional context fields** — `AiCombatContext` also carries `lastActionResult` for turn-local feedback and optional `mapData` for deterministic positioning heuristics, even when raw map data is not serialized into the prompt.
 
 ## System Prompt Engineering Conventions
 
@@ -218,6 +219,7 @@ new PromptBuilder('v1')
 - Section named `"system"` → system message. All others → joined as user message.
 - `addSectionIf(condition, name, content)` — JS evaluates `content` eagerly, so guard nulls in the calling code before passing.
 - Version string (`'v1'`) enables snapshot versioning for prompt regression tests.
+- Before serializing the combat-state JSON, `LlmAiDecisionMaker` truncates oversized context and may switch to a compact prompt variant for smaller models.
 
 ### System prompt structure (key sections)
 1. **COMBATANT IDENTITY** — name + type
@@ -240,6 +242,8 @@ new PromptBuilder('v1')
 ### Response format
 LLM returns a single JSON object matching `AiDecision`. `extractFirstJsonObject()` parses it. On parse failure, one retry with "reply with ONLY a single JSON object" instruction.
 
+When a turn pauses for player input, the orchestrator may also persist `turnShouldEndAfterReaction` so the resumed AI turn ends cleanly instead of consuming a queued decision meant for the next combatant.
+
 ## Mock Provider Conventions
 
 All mocks live in `infrastructure/llm/mocks/index.ts`. Used by deterministic tests — no real LLM calls.
@@ -251,6 +255,10 @@ All mocks live in `infrastructure/llm/mocks/index.ts`. Used by deterministic tes
 - **Context spy**: `capturedContexts` array records every `decide()` call. Use `getLastContext()` in test assertions. Call `clearCapturedContexts()` between test scenarios.
 - **Bonus action**: `setDefaultBonusAction(name)` — attached to attack decisions.
 - **Seed field**: fixed `seed` values in mock decisions control `DiceRoller` outcomes (e.g., `seed: 42` → d20=13).
+
+### Provider selection
+- Backend selection is driven by `DM_LLM_PROVIDER`, with backend-specific model and credential env vars validated in the LLM factory.
+- Current supported providers are Ollama, OpenAI, GitHub Models, and Copilot.
 
 ### MockIntentParser
 - Pattern-matching parser using regex. Extracts roster from `schemaHint`.

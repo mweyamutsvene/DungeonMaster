@@ -1,11 +1,13 @@
-# AIBehavior — Architectural Constraints
+# AIBehavior — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
 `combat/ai/*`, `infrastructure/llm/*`
 
 ## Laws
-1. **LLM is always optional** — every code path must handle "LLM not configured" gracefully.
-2. **AI decisions are advisory** — the rules engine validates and may reject LLM-suggested actions. Never trust LLM output as authoritative.
-3. **Battle plans are faction-scoped** — one plan per faction, re-planned when conditions change significantly.
-4. **Multiple LLM backends** — Ollama (local), OpenAI, GitHub Models. Factory pattern selects based on env vars. Always test with mock provider.
-5. **Prompt format changes** require updating snapshots via `test:llm:e2e:snapshot-update`.
+1. LLM optional always. If missing or null, deterministic AI take over.
+2. AI decision is suggestion only. Rules engine is judge.
+3. Battle plans are faction-scoped; replan on big state change.
+4. Support Ollama, OpenAI, GitHub Models, Copilot. Pick by env + factory.
+5. Prompt format change needs snapshot update: `test:llm:e2e:snapshot-update`.

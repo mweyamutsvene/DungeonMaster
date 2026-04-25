@@ -1,5 +1,5 @@
 ---
-description: "Architecture and conventions for the ClassAbilities flow: ClassCombatTextProfiles, AbilityExecutors, resource pool factories, ability-registry, per-class feature implementations."
+description: "Architecture and conventions for the ClassAbilities flow: ClassCombatTextProfiles, AbilityExecutors, class resource declarations, ability-registry, and per-class feature implementations."
 applyTo: "packages/game-server/src/domain/entities/classes/**,packages/game-server/src/domain/abilities/**,packages/game-server/src/application/services/combat/abilities/**"
 ---
 
@@ -7,6 +7,8 @@ applyTo: "packages/game-server/src/domain/entities/classes/**,packages/game-serv
 
 ## Purpose
 The class ability system: domain-declared class features (profiles, feature maps, resource pools) and application-layer executors that carry them out. Three complementary patterns — ClassCombatTextProfile for detection/matching, Feature Maps for boolean eligibility gates, and AbilityRegistry for execution.
+
+Subclasses are first-class participants in the flow. `SubclassDefinition` can add both feature gates and its own combat text profile, and `getAllCombatTextProfiles()` returns base-class profiles plus subclass profiles.
 
 ## Architecture
 
@@ -44,10 +46,10 @@ classDiagram
         +hitDie: HitDie
         +proficiencies: ClassProficiencies
         +features?: Record~string, number~
-        +resourcesAtLevel?(level, abilityModifiers?): ResourcePool[]
-        +resourcePoolFactory?(level, abilityModifiers?): ResourcePool[]
+        +resourcesAtLevel?(level, abilityModifiers?, subclassId?): ResourcePool[]
         +restRefreshPolicy?: RestRefreshPolicyEntry[]
         +capabilitiesForLevel?(level): ClassCapability[]
+        +subclasses?: SubclassDefinition[]
     }
     class Registry {
         +CLASS_DEFINITIONS: Record
@@ -121,14 +123,15 @@ Three reaction categories, each with its own input type, detection function, and
 
 All detection functions are **pure** — they take `(input, profiles[])` and scan all registered defs, returning an array of `Detected*Reaction` results with `reactionType` + `context` data. Class-gating is done inside each def's `detect()` method (often via resource flags like `hasShieldPrepared` rather than class name checks).
 
-**Current class usage**: Wizard (4: Shield attack, Silvery Barbs attack, Absorb Elements damage, Counterspell spell), Warlock (damage: Hellish Rebuke), Monk (attack: Deflect Attacks), Fighter (attack: Protection, Interception), Rogue (attack: Uncanny Dodge).
+**Current reaction users**: Wizard (Shield, Counterspell, Absorb Elements, plus a declared Silvery Barbs detector that still needs prepared-flag wiring), Warlock (Hellish Rebuke), Bard (Cutting Words), Monk (Deflect Attacks), Fighter (Protection and Interception ally-scan reactions), and Rogue (Uncanny Dodge).
 
 ## Resource Lifecycle
 
-### resourcesAtLevel vs resourcePoolFactory
-Both return `ResourcePool[]` for a given `(level, abilityModifiers?)`:
-- **`resourcesAtLevel`** — consumed by `buildCombatResources()` during combat initialization. This is the primary path.
-- **`resourcePoolFactory`** — consumed during character creation/leveling for sheet-level pool setup. Often identical to `resourcesAtLevel`.
+### `resourcesAtLevel` as the single declaration path
+Use `resourcesAtLevel` as the only class-owned resource declaration hook.
+- Combat initialization calls `buildCombatResources()` in `domain/entities/classes/combat-resource-builder.ts`.
+- Non-combat default pool setup reuses the same class declarations through `defaultResourcePoolsForClass()` in `domain/rules/class-resources.ts`.
+- There is no separate live `resourcePoolFactory` contract in the current code.
 
 The `abilityModifiers` param is a `Record<string, number>` of modifier values (not raw scores). `buildCombatResources()` computes these from `sheet.abilityScores` via `Math.floor((score - 10) / 2)`. Example: Monk's Wholeness of Body uses `abilityModifiers.wisdom`.
 
@@ -150,10 +153,10 @@ Examples: Monk ki → `refreshOn: "both"`, Barbarian rage → `refreshOn: "long"
 Single entry point for initializing all combat resource pools when a character enters combat. Called from `handleInitiativeRoll()` in the roll state machine.
 
 Steps:
-1. Looks up `CharacterClassDefinition` → calls `resourcesAtLevel(level, abilityModifiers)` for class-specific pools
+1. Looks up `CharacterClassDefinition` → calls `resourcesAtLevel(level, abilityModifiers, subclassId)` for class-specific pools
 2. Merges any existing sheet-level resource pools (homebrew)
 3. Adds spell slot pools from `sheet.spellSlots`
-4. Detects prepared spell flags (`hasShieldPrepared`, `hasCounterspellPrepared`, `hasAbsorbElementsPrepared`, `hasHellishRebukePrepared`)
+4. Computes runtime flags such as prepared-spell flags, `hasCuttingWords`, `warCasterEnabled`, `sentinelEnabled`, `hasProtectionStyle`, `hasInterceptionStyle`, `hasShieldEquipped`, and `hasWeaponEquipped`
 
 Returns `CombatResourcesResult` with `resourcePools[]` + prepared-spell boolean flags. The flags drive reaction detection eligibility (reaction defs check these flags, not class identity).
 
@@ -225,7 +228,7 @@ Guard against double-activation: check `getActiveEffects(resources).some(e => e.
 
 | Type | File | Purpose |
 |------|------|---------|
-| `CharacterClassDefinition` | `class-definition.ts` | Base class metadata (hit die, proficiencies, capabilities, **features map**, resource factories, rest policy) |
+| `CharacterClassDefinition` | `class-definition.ts` | Base class metadata (hit die, proficiencies, capabilities, **features map**, `resourcesAtLevel`, optional subclasses, rest policy) |
 | `features` map | Each class file | `Record<string, number>` — feature id → minimum class level for boolean gates |
 | `feature-keys.ts` | `feature-keys.ts` | String constants for all standard feature keys (type safety without closed unions) |
 | `classHasFeature()` | `registry.ts` | Single-class boolean feature check (normalizes classId to lowercase) |
@@ -235,7 +238,7 @@ Guard against double-activation: check `getActiveEffects(resources).some(e => e.
 | `ClassCombatTextProfile` | `combat-text-profile.ts` | Per-class regex→action + enhancement + 3 reaction subtypes |
 | `AbilityExecutor` interface | `ability-executor.ts` | `canExecute()` + `execute()` for all ability executors |
 | `AbilityRegistry` | `ability-registry.ts` | Central executor registry — queried by abilityId |
-| `getAllCombatTextProfiles()` | `registry.ts` | Collects all registered class profiles |
+| `getAllCombatTextProfiles()` | `registry.ts` | Collects all registered class profiles and appends subclass combat text profiles |
 | `buildCombatResources()` | `combat-resource-builder.ts` | Single resource init point for combat entry |
 | `executor-helpers.ts` | `executors/executor-helpers.ts` | Shared validation guards (`requireActor`, `requireSheet`, etc.) |
 

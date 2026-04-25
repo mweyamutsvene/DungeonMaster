@@ -6,27 +6,34 @@ applyTo: "packages/game-server/src/application/services/entities/**,packages/gam
 # EntityManagement Flow
 
 ## Purpose
-Entity lifecycle management — CRUD for characters, monsters, NPCs, game sessions, and items/equipment. Handles creature hydration (enriching raw DB records with computed fields), repository abstractions, the event system (SSE publishing), Unit of Work transactions, and the bridge between persistence and domain models.
+EntityManagement owns the persistence-facing application contracts for sessions, characters, spell lookup, item lookup, inventory mutations, repository interfaces, shared record types, and creature entity models. Character lifecycle is service-led through `CharacterService`; session lifecycle is service-led through `GameSessionService`; spell and item lookup are read-oriented services. Monster and NPC lifecycle is part of the flow's persistence surface, but today it is mostly exercised through repository interfaces and session routes rather than dedicated application services. Hydration depends on these record and entity shapes, but the hydration logic itself lives in adjacent CreatureHydration helpers.
 
 ## Architecture
 
 ```mermaid
 classDiagram
     class CharacterService {
-        +createCharacter()
+        +addCharacter()
         +getCharacter()
-        +updateResources()
+        +updateCharacter()
         +beginRest() / takeSessionRest()
         enrichSheet: attacks + armor
     }
     class GameSessionService {
         +createSession()
         +getSession()
-        +fireEvent()
+        +deleteSession()
     }
     class SpellLookupService {
         +getSpellDefinition()
-        +getAvailableSpells()
+    }
+    class ItemLookupService {
+        +lookupItem()
+        +lookupEquipment()
+    }
+    class InventoryService {
+        +transferItem()
+        +applyLongRestUpdates()
     }
     class IEventRepository {
         <<interface>>
@@ -45,50 +52,30 @@ classDiagram
         +run(fn) : transactional
         publishes deferred SSE after commit
     }
-    class WeaponCatalog {
-        +lookupWeapon()
-        +getAllWeapons()
-        +enrichSheetAttacks()
-    }
-    class ArmorCatalog {
-        +lookupArmor()
-        +deriveACFromArmor()
-        +enrichSheetArmor()
-    }
-    class MagicItemDefinition {
-        modifiers, onHitEffects
-        grantedSpells, charges
-        potionEffects
-    }
     class Creature {
         +getAC() equipment-aware
         +armorTraining penalties
     }
 
     CharacterService --> IEventRepository
-    CharacterService --> WeaponCatalog : enrichSheetAttacks
-    CharacterService --> ArmorCatalog : enrichSheetArmor
+    CharacterService --> ItemLookupService
     PublishingEventRepository ..|> IEventRepository : decorator
     DeferredPublishingEventRepository ..|> IEventRepository : decorator
     PrismaUnitOfWork --> DeferredPublishingEventRepository : creates in txn
-    Creature --> ArmorCatalog : AC formula
-    MagicItemDefinition --> WeaponCatalog : baseWeapon ref
+    InventoryService --> ItemLookupService
 ```
 
 ## Key Contracts
 
-| Type | File | Purpose |
-|------|------|---------|
-| `CharacterService` | `services/entities/character-service.ts` | Character CRUD, rest mechanics, sheet enrichment |
-| `GameSessionService` | `services/entities/game-session-service.ts` | Session lifecycle, event firing |
-| `SpellLookupService` | `services/entities/spell-lookup-service.ts` | Spell definition lookup |
-| `Character` | `domain/entities/creatures/character.ts` | Player character data model |
-| `Monster` | `domain/entities/creatures/monster.ts` | Monster stat block data model |
-| `NPC` | `domain/entities/creatures/npc.ts` | NPC data model |
-| `Creature` | `domain/entities/creatures/creature.ts` | Base class: AC computation, armor training |
-| Repository interfaces | `application/repositories/*` | Persistence ports |
-| `memory-repos.ts` | `infrastructure/testing/memory-repos.ts` | In-memory repo impls for tests |
-| Record types | `application/types.ts` | Foundation DB record types |
+Key contracts in this flow:
+
+- `CharacterService` (`services/entities/character-service.ts`): add/list/get/update/delete characters, enrich sheets before persistence, and run rest flows.
+- `GameSessionService` (`services/entities/game-session-service.ts`): create/get/delete/list sessions.
+- `SpellLookupService` (`services/entities/spell-lookup-service.ts`): read-only spell lookup, canonical catalog first and repository fallback second.
+- `ItemLookupService` (`services/entities/item-lookup-service.ts`): unified equipment lookup across stored magic items and static weapon/armor catalogs.
+- `InventoryService` (`services/entities/inventory-service.ts`): transactional inventory transfer, item creation, expiry sweep, and long-rest inventory updates.
+- `Character`, `Monster`, `NPC`, and `Creature` (`domain/entities/creatures/*`): runtime domain models whose shapes must stay compatible with hydration.
+- Repository interfaces (`application/repositories/*`), record types (`application/types.ts`), Prisma adapters (`infrastructure/db/*`), and memory adapters (`infrastructure/testing/memory-repos.ts`): the persistence contract surface for this flow.
 
 ## Record Types (`application/types.ts`)
 Foundation types shared across repositories, services, and hydration:
@@ -103,7 +90,11 @@ Foundation types shared across repositories, services, and hydration:
 
 All JSON fields use `JsonValue` (aliased to `unknown`) — callers must cast and validate.
 
+`application/types.ts` is part of the flow contract. In particular, `SessionCharacterRecord` carries `sheetVersion`, `faction`, and `aiControlled`, and `ItemDefinitionRecord` belongs to the shared persistence model alongside session, creature, combat, event, and spell records.
+
 ## Items & Equipment (`domain/entities/items/`)
+
+EntityManagement should document item behavior only at the service boundary: `ItemLookupService` and `InventoryService` live in this flow, while static item catalogs and inventory domain helpers are documented in `inventory-system.instructions.md`. Keep this doc focused on application contracts and persistence boundaries rather than repeating catalog contents.
 
 ### Catalog Pattern
 Static catalogs are the **single source of truth** for canon equipment stats. Never duplicate stats inline.
@@ -136,15 +127,7 @@ Three implementations of `IEventRepository`, composed via decoration:
 2. **`PublishingEventRepository`** (decorator) — wraps inner repo; publishes SSE via `sseBroker` on every `append()`. Used for standalone (non-transactional) writes.
 3. **`DeferredPublishingEventRepository`** (decorator) — wraps inner repo; buffers SSE events into a `DeferredEvent[]` array. Events are published **after** the Unit of Work transaction commits. Prevents SSE push from inside a DB transaction.
 
-### Event Payload Types (26 types in `event-repository.ts`)
-**Session/Entity**: `SessionCreated`, `CharacterAdded`, `RestStarted`, `RestCompleted`
-**Combat lifecycle**: `CombatStarted`, `CombatEnded`, `TurnAdvanced`, `DeathSave`
-**Combat actions**: `AttackResolved`, `DamageApplied`, `ActionResolved`, `OpportunityAttack`, `Move`, `HealingApplied`, `NarrativeText`
-**Concentration**: `ConcentrationMaintained`, `ConcentrationBroken`
-**Reactions**: `ReactionPrompt`, `ReactionResolved`, `Counterspell`, `ShieldCast`, `DeflectAttacks`, `DeflectAttacksRedirect`, `AbsorbElements`, `HellishRebuke`
-**AI**: `AiDecision`
-
-`GameEventInput` is a discriminated union of all event types. When adding a new event: define payload interface, add union member, update all `switch` exhaustiveness checks.
+Treat `GameEventInput` in `application/repositories/event-repository.ts` as the source of truth for event types and payloads. Do not document a fixed event count here. This flow is responsible for keeping repository payload contracts, Prisma persistence, SSE publishing decorators, and memory-test implementations aligned when event shapes change.
 
 ## Unit of Work (`PrismaUnitOfWork`)
 Transactional boundary for multi-repository operations:
@@ -154,7 +137,7 @@ PrismaUnitOfWork.run(async (repos: RepositoryBundle) => { ... })
 - Creates a **Prisma transaction** (`$transaction`) — all repos share the txn client.
 - Event repo is wrapped in `DeferredPublishingEventRepository` — SSE events buffer.
 - After `$transaction` commits, `publishDeferredEvents(deferred)` pushes all buffered events via SSE.
-- `RepositoryBundle` contains all 7 repo interfaces: sessions, characters, monsters, npcs, combat, events, spells.
+- The current bundle includes sessions, characters, monsters, NPCs, combat, events, spells, item definitions, and pending actions.
 - Use UoW when an operation must atomically update multiple entities (e.g., rest mechanics modifying all characters + firing events).
 
 ## Sheet Enrichment Pipeline

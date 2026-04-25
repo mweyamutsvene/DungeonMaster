@@ -6,7 +6,7 @@ applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packa
 # CombatOrchestration Flow
 
 ## Purpose
-Combat orchestration layer — three thin facade services delegating to focused handler modules. Manages the pending action state machine, two-phase dice flow, text-to-action parsing, reaction resolution, and programmatic action execution.
+Combat orchestration covers the thin facades and routing/state modules that turn player or AI intent into deterministic combat execution. In this flow, `TabletopCombatService` owns text-to-action parsing, pending tabletop roll state, and move-completion handoff; `ActionService` owns programmatic action execution; `CombatService` owns combat lifecycle and turn advancement; `TacticalViewService` builds tactical snapshots and query context. Reaction handler internals live in `reaction-system.instructions.md`.
 
 ## Architecture
 
@@ -40,17 +40,16 @@ classDiagram
     class WeaponMasteryResolver { +resolve() }
 
     class ActionService {
-        +executeAction()
+        +attack()
+        +move()
+        +castSpell()
     }
     class AttackActionHandler { +execute() }
     class GrappleActionHandler { +execute() }
     class SkillActionHandler { +execute() }
 
     class TwoPhaseActionService {
-        +initiateMove()
         +completeMove()
-        +initiateAttack()
-        +completeAttack()
     }
     class MoveReactionHandler { +initiate()+complete() }
     class AttackReactionHandler { +initiate()+complete() }
@@ -62,7 +61,7 @@ classDiagram
 
     TabletopCombatService --> ActionDispatcher : parseCombatAction
     TabletopCombatService --> RollStateMachine : processRollResult
-    TabletopCombatService --> TwoPhaseActionService : completeMove
+    TabletopCombatService --> TwoPhaseActionService : completeMove handoff
 
     ActionDispatcher --> MovementHandlers
     ActionDispatcher --> AttackHandlers
@@ -86,13 +85,13 @@ classDiagram
     TwoPhaseActionService --> SpellReactionHandler
 ```
 
-## Three Facade Services
+## Key Services
 
-| Facade | File | Purpose | Delegates To |
-|--------|------|---------|-------------|
-| **TabletopCombatService** | `tabletop-combat-service.ts` | Text-based dice flow (4 public methods) | `tabletop/` modules |
-| **ActionService** | `action-service.ts` | Programmatic action execution | `action-handlers/` |
-| **TwoPhaseActionService** | `two-phase-action-service.ts` | Reaction resolution (OA, Shield, Counterspell) | `two-phase/` |
+- `TabletopCombatService` (`tabletop-combat-service.ts`): thin facade for text-based/manual-roll combat. Public methods: `initiateAction()`, `processRollResult()`, `parseCombatAction()`, `completeMove()`.
+- `ActionService` (`action-service.ts`): programmatic combat actions through explicit methods such as `attack()`, `move()`, `dodge()`, `dash()`, `disengage()`, `hide()`, `search()`, `help()`, `castSpell()`, `shove()`, `grapple()`, and `escapeGrapple()`.
+- `CombatService` (`combat-service.ts`): combat lifecycle, turn advancement, effect processing, and AI turn trigger.
+- `TacticalViewService` (`tactical-view-service.ts`): tactical snapshot and combat-query context builder.
+- Cross-flow dependency: `TwoPhaseActionService` is used by `TabletopCombatService.completeMove()`, but its internals are documented in `reaction-system.instructions.md`.
 
 ## Module Decomposition
 
@@ -157,15 +156,15 @@ classDiagram
 
 ## ActionDispatcher Parser Chain
 
-`ActionDispatcher.dispatch()` uses a **registry-based parser chain** — an ordered array of 21 `ActionParserEntry<T>` objects. The dispatcher iterates in priority order; the first parser whose `tryParse()` returns non-null wins.
+`ActionDispatcher.dispatch()` uses a registry-based parser chain. It iterates in priority order and returns the first non-null parse match.
 
 ### Adding a new action type
-1. Add a `tryParseXxxText()` function in `combat-text-parser.ts` (pure, no deps)
-2. Add an entry to `buildParserChain()` in `action-dispatcher.ts` at the correct priority position
-3. Implement the handler in the appropriate handler class (movement → `MovementHandlers`, combat → `AttackHandlers`, etc.)
+1. Add or extend a pure parser in `combat-text-parser.ts`.
+2. Register it in `buildParserChain()` at the right priority relative to broader matches.
+3. Route execution to the owning handler class (`MovementHandlers`, `AttackHandlers`, `ClassAbilityHandlers`, `InteractionHandlers`, `SocialHandlers`, `GrappleHandlers`, or `SpellActionHandler`).
+4. If the new action creates or chains a pending tabletop roll, update pending-action types and transition rules as needed.
 
-### Parser chain order (priority)
-1. move → 2. moveToward → 3. jump → 4. simpleAction → 5. classAction → 6. hide → 7. search → 8. offhand → 9. help → 10. shove → 11. escapeGrapple → 12. grapple → 13. castSpell → 14. pickup → 15. drop → 16. drawWeapon → 17. sheatheWeapon → 18. useItem → 19. legendaryAction → 20. endTurn → 21. attack
+Current chain includes compound move+attack, direct movement, jump, simple actions, quickened-spell metamagic, profile-driven class actions, stealth/search/help/grapple actions, spell casting, item interactions (pickup, drop, draw, sheathe, give, administer, use), legendary actions, end turn, and broad attack parsing.
 
 ## Handler Ownership Rules
 
@@ -216,31 +215,22 @@ Dispatch order: `find(h => h.canHandle(spell))` — first match wins. The shared
 - `processZoneTurnTriggers()` — applies zone damage/conditions to creatures in zone at turn start/end
 - `cleanupExpiredZones()` — decrements zone round counters at round boundary, removes expired zones from map
 
-## Damage Reaction Detection
+## Reaction Boundary
 
-`AttackReactionHandler.completeAttackReaction()` handles **two** reaction timing windows:
-
-1. **Pre-damage reactions** (existing): Shield, Deflect Attacks — detected via `detectAttackReactions()` from `ClassCombatTextProfile.attackReactions`. Fires before the attack roll resolves. Target can raise AC or reduce damage.
-
-2. **Post-damage reactions** (newer): Absorb Elements, Hellish Rebuke — detected via `detectDamageReactions()` after attack completion confirms a hit with `damageApplied > 0`. Only triggers for:
-   - **Character** targets (not monsters/NPCs)
-   - Target still alive (`hpCurrent > 0`)
-   - Target still has reaction available
-   - Attack dealt typed damage (`damageSpec.damageType` present)
-
-The `DamageReactionInitiator` interface (exported from `attack-reaction-handler.ts`) allows TwoPhaseActionService to create a new pending action for the damage reaction, keeping it in the same two-phase flow. The result includes `damageReaction?: { pendingActionId, reactionType }` alongside the existing `hit`/`shieldUsed`/`redirect` fields.
+Reaction timing details, attack-reaction handlers, and damage-reaction chaining are owned by `reaction-system.instructions.md`. In CombatOrchestration, the important contract is that tabletop move completion can hand off into `TwoPhaseActionService` when movement triggers a reaction flow.
 
 ## Tactical View Service (`tactical-view-service.ts`)
 
-Three public methods:
+Two public methods:
 
 | Method | Purpose |
 |--------|---------|
 | `getTacticalView()` | Full combat state snapshot — combatant positions, HP, conditions, action economy, resource pools, distances, ground items |
-| `buildCombatQueryContext()` | Enriched context for LLM combat queries — includes OA prediction, actor capabilities, class features, attack options |
-| `predictOpportunityAttacks()` (private) | Parses destination from query text, computes `crossesThroughReach()` for each enemy, returns `oaRisks[]` with reach/reaction availability |
+| `buildCombatQueryContext()` | Enriched context for LLM combat queries — includes OA prediction, actor capabilities, class features, and attack options |
 
-Action economy reported per combatant: `actionAvailable`, `bonusActionAvailable`, `reactionAvailable`, `movementRemainingFeet`, `attacksUsed`, `attacksAllowed`.
+`predictOpportunityAttacks()` is a private helper used by `buildCombatQueryContext()`.
+
+Per-combatant tactical action economy currently includes `actionAvailable`, `bonusActionAvailable`, `reactionAvailable`, and `movementRemainingFeet`. Attack-count data (`attacksUsed`, `attacksAllowed`) is exposed in query-context actor resources, not in every combatant snapshot.
 
 Note: Path preview (`POST .../path-preview`) is handled directly in the route layer (`session-tactical.ts`) using A* pathfinding — it does not go through TacticalViewService.
 

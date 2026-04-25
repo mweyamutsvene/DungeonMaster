@@ -1,17 +1,19 @@
-# ClassAbilities — Architectural Constraints
+# ClassAbilities — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
 `domain/entities/classes/`, `domain/abilities/`, `application/services/combat/abilities/executors/`
 
-## Three Patterns (all must be followed)
+## Three Required Patterns
+1. `ClassCombatTextProfile`: regex/action + enhancements + reactions in domain class files. Collected by `registry.ts`.
+2. `AbilityRegistry`: executors in `executors/<class>/`. Main app register in `buildApp`. Some tests build small registry by hand too.
+3. Feature maps: use `features` + `feature-keys.ts` + `classHasFeature(...)`.
 
-**Pattern 1 — ClassCombatTextProfile**: Domain class files declare regex→action mappings, attack enhancements, and attack reactions. Collected by `getAllCombatTextProfiles()` in `registry.ts`. Services consume via generic interface — never hardcode class-specific detection in application code.
-
-**Pattern 2 — AbilityRegistry**: Executors implementing `AbilityExecutor` interface live in `executors/<class>/`. Registered in `app.ts` (BOTH main AND test). Bonus actions route through `handleBonusAbility()` (consumes bonus action economy). Free abilities route through `handleClassAbility()`.
-
-**Pattern 3 — Feature Maps**: Boolean eligibility gates use `CharacterClassDefinition.features` (Record<string, number>) with constants from `feature-keys.ts`. Check via `classHasFeature(classId, feature, level)` which normalizes classId to lowercase. **NEVER add boolean has*() methods to ClassFeatureResolver** — it is for computed values only (attacks per action, unarmed stats).
+Subclass can bring own feature map and own combat text profile. Registry grab class stuff and subclass stuff both.
 
 ## Laws
-1. **Domain-first** — all class-specific detection, eligibility, and text matching MUST live in domain class files, NOT in application services.
-2. **Subclass-gated features** — features map provides the level gate (necessary condition), executor's `canExecute()` guards the subclass (sufficient condition). Both are required.
-3. **New executor registration** — must be added to BOTH the main app registry AND test registry in `app.ts`.
+1. Domain-first always. No class-specific detection logic in app layer.
+2. Subclass feature gating needs both level gate and subclass check.
+3. Combat-start pools and flags live in `combat-resource-builder.ts`. If reaction need prep flag, style flag, or gear flag, wire builder or reaction sleep forever.
+4. Do not add boolean `has*()` methods to `ClassFeatureResolver`.

@@ -6,22 +6,22 @@ applyTo: "packages/game-server/src/domain/rules/combat-map*.ts,packages/game-ser
 # CombatMap Flow
 
 ## Purpose
-Spatial combat subsystem: grid geometry, A* pathfinding, line-of-sight, cover calculations, zone persistence, terrain effects, area-of-effect templates, and battlefield ASCII rendering. The highest-complexity domain subsystem with 35+ exports spread across the sub-modules.
+Spatial combat subsystem: grid geometry, pathfinding, line-of-sight, cover calculations, zone persistence, terrain effects, area-of-effect templates, and text-grid battlefield rendering. The combat-map barrel is a thin re-export layer over the real sub-modules and currently exposes roughly fifty public symbols.
 
 ## File Responsibility Matrix
 
 | File | ~Lines | Responsibility |
 |------|--------|----------------|
-| `domain/rules/combat-map.ts` | ~25 | Re-export barrel: re-exports from all sub-modules (35+ total exports) |
+| `domain/rules/combat-map.ts` | ~25 | Re-export barrel: re-exports from all sub-modules (roughly 50 public exports) |
 | `domain/rules/combat-map-types.ts` | ~105 | Shared type definitions: `CombatMap`, `MapCell`, `TerrainType`, `CoverLevel`, `ObscuredLevel` |
 | `domain/rules/combat-map-core.ts` | ~275 | Core map ops: cell access, neighbor calculation, grid creation |
-| `domain/rules/combat-map-zones.ts` | ~50 | Zone CRUD: creation, persistence, damage application on entry/turn start |
+| `domain/rules/combat-map-zones.ts` | ~50 | Zone map accessors only: `getMapZones`, `addZone`, `removeZone`, `updateZone`, `setMapZones` |
 | `domain/rules/combat-map-sight.ts` | ~280 | Line-of-sight, cover calculations (half/three-quarters/full), `getObscuredLevelAt()`, `getObscurationAttackModifiers()` |
 | `domain/rules/combat-map-items.ts` | ~55 | Ground item placement and pickup on the map |
-| `domain/rules/pathfinding.ts` | ~645 | A* pathfinding + Dijkstra reachability with terrain awareness |
+| `domain/rules/pathfinding.ts` | ~645 | A* routes plus Dijkstra reachability helpers such as `getReachableCells()`, `findAdjacentPosition()`, and `findRetreatPosition()` |
 | `domain/rules/area-of-effect.ts` | ~170 | AoE template computation: cone, sphere, line, cube, cylinder |
-| `domain/rules/battlefield-renderer.ts` | ~250 | ASCII battlefield visualization for debug + CLI |
-| `application/services/combat/helpers/pit-terrain-resolver.ts` | ~100 | Pit fall detection and DEX save resolution |
+| `domain/rules/battlefield-renderer.ts` | ~250 | Text-grid battlefield visualization for debug, CLI, and AI context |
+| `application/services/combat/helpers/pit-terrain-resolver.ts` | ~100 | Pit fall detection, DEX save resolution, and Slow Fall-aware fall damage handling |
 
 ## Key Types/Interfaces
 
@@ -35,11 +35,14 @@ Spatial combat subsystem: grid geometry, A* pathfinding, line-of-sight, cover ca
 - `AreaOfEffect` — shape definition in `area-of-effect.ts` (cone, sphere, cube, line, cylinder); NOT named `AoETemplate`
 - `AreaShape` — `'cone' | 'sphere' | 'cube' | 'line' | 'cylinder'`
 
+Zone trigger semantics such as `on_enter`, `on_start_turn`, and `per_5ft_moved` are defined in `domain/entities/combat/zones.ts` and enforced in combat services, not in `combat-map-zones.ts`.
+
 ## Known Gotchas
 
-- **Grid is 5ft squares** — all positions must be multiples of 5. Distance uses D&D grid math (diagonal = 5ft in standard mode, not Euclidean).
+- **Stored map cells use a 5-foot grid** — many helpers snap incoming positions to the grid, but not every caller must pre-snap coordinates. Area-of-effect geometry also accepts raw foot coordinates and applies a 2.5-foot half-grid tolerance at boundaries.
 - **combat-map.ts is a ~25-line barrel** — it only re-exports from 5 sub-modules. The bulk of the logic lives in the sub-modules. When looking for an export, check the sub-modules, not the barrel.
-- **A* pathfinding** must respect difficult terrain (double cost), occupied cells, walls, and creature size. Don't bypass these constraints. `pathfinding.ts` is large (~645 lines).
+- **Pathfinding is more than A*** — it applies alternating 5/10 diagonal cost, difficult terrain and water multipliers, occupied-cell blocking, anti-corner-cutting checks, Large+ footprints, optional hazard avoidance, and optional zone penalties. Use the reachability helpers when you need true movement-budget answers.
 - **Zone damage applies BOTH on entry AND at start of turn** — not just one. Missing either is a bug.
-- **Pit terrain** triggers DEX saving throws — but only hydrate creature stats when a pit cell is actually entered (guard with `isPitEntry` first to avoid validation errors on non-pit moves).
+- **Renderer output is text-grid, not guaranteed ASCII** — default mappings are mostly ASCII-style, but terrain output may include Unicode glyphs such as the water symbol.
+- **Pit terrain** triggers DEX saving throws — but only hydrate creature stats when a pit cell is actually entered (guard with `isPitEntry` first to avoid validation errors on non-pit moves). A successful save can still add `Prone`, and monk Slow Fall can reduce fall damage.
 - **`CombatZone` not `Zone`** — the type for persistent area effects is `CombatZone` (from `domain/entities/combat/zones.ts`), not `Zone`. Similarly, AoE templates are `AreaOfEffect`, not `AoETemplate`.

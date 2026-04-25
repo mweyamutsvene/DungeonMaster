@@ -1,10 +1,15 @@
-# EntityManagement — Architectural Constraints
+# EntityManagement — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
-`services/entities/*`, `domain/entities/creatures/*`, `application/repositories/*`, `infrastructure/db/*`
+`services/entities/*`, `domain/entities/creatures/*`, `application/repositories/*`, `application/types.ts`, `infrastructure/db/*`, `infrastructure/testing/memory-repos.ts`.
 
 ## Laws
-1. **Repository pattern** — all persistence through interfaces in `application/repositories/`. Prisma for prod, in-memory for tests.
-2. **Repo interface changes** require updating BOTH Prisma implementations in `infrastructure/db/` AND in-memory repos in `infrastructure/testing/memory-repos.ts`.
-3. **Hydration helpers** enrich raw DB entities with computed fields. Entity shape changes ripple through hydration.
-4. **Session events** fire on entity changes — event payloads must match SSE subscriber expectations.
+1. All persistence goes through `application/repositories/` interfaces.
+2. Interface change means update both Prisma and in-memory repos.
+3. Hydration depends on entity shape; shape changes ripple.
+4. Session events must fire with payloads SSE clients expect.
+5. Character and session use services. Monster and NPC often go route -> repo -> UoW. No fake service story.
+6. Item lookup and inventory live here as app services. Static item catalogs live in InventorySystem docs.
+7. If record shape changes, fix `application/types.ts`, Prisma repos, and memory repos together.

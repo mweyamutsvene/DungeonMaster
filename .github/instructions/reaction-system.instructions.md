@@ -6,21 +6,38 @@ applyTo: "packages/game-server/src/application/services/combat/two-phase/**,pack
 # ReactionSystem Flow
 
 ## Purpose
-Manages the two-phase reaction resolution pipeline: server detects a reaction trigger, pauses combat to offer the reaction to the player/AI, then resumes based on the response. Handles opportunity attacks, Shield, Deflect Attacks, Counterspell, and post-damage reactions.
+Manages the two-phase reaction pipeline: source code detects a reaction trigger, stores a repository-backed pending action, prompts the reacting player or AI, then resumes the interrupted move, attack, spell, or post-damage flow after responses are in. Current reaction coverage includes opportunity attacks, War Caster spell opportunity attacks, Shield, Deflect Attacks, Counterspell, Absorb Elements, Hellish Rebuke, Protection, Interception, Uncanny Dodge, Sentinel reaction attacks, and readied-action triggers.
+
+```mermaid
+sequenceDiagram
+	participant Caller as Tabletop/AI caller
+	participant TPS as TwoPhaseActionService
+	participant Repo as PendingActionRepository
+	participant Encounter as Encounter pendingAction
+	participant Route as reactions.ts
+
+	Caller->>TPS: initiateMove/Attack/Spell/Damage
+	TPS->>Repo: create pending reaction record(s)
+	Caller->>Encounter: mirror reaction_pending when pause needed
+	Route->>Repo: record reaction response
+	Route->>TPS: auto-complete ready flow
+	Route->>Encounter: clear or advance encounter pending state
+	Route->>Caller: resume interrupted flow / AI turn
+```
 
 ## File Responsibility Matrix
 
 | File | ~Lines | Responsibility |
 |------|--------|----------------|
 | `combat/two-phase-action-service.ts` | ~420 | Facade: delegates to 4 handler modules |
-| `combat/two-phase/move-reaction-handler.ts` | ~200 | OA initiation on movement leaving threatened squares |
+| `combat/two-phase/move-reaction-handler.ts` | ~200 | Move-trigger reactions: opportunity attacks, War Caster spell OAs, and readied-action move triggers |
 | `combat/two-phase/attack-reaction-handler.ts` | ~180 | Shield (+5 AC retroactive), Deflect Attacks |
-| `combat/two-phase/spell-reaction-handler.ts` | ~150 | Counterspell (slot + ability check for higher levels) |
+| `combat/two-phase/spell-reaction-handler.ts` | ~150 | Counterspell: reacting caster spends a slot, then the target caster makes a Constitution save against the counterspeller's spell save DC |
 | `combat/two-phase/damage-reaction-handler.ts` | ~120 | Post-damage reaction opportunities |
 | `domain/entities/combat/pending-action.ts` | ~100 | PendingAction union type for state machine |
 | `combat/helpers/oa-detection.ts` | ~80 | `detectOpportunityAttacks()` — centralized OA eligibility |
-| `combat/tabletop/pending-action-state-machine.ts` | ~150 | Valid state transitions for pending actions |
-| `infrastructure/api/routes/reactions.ts` | ~100 | POST respond / GET pending reaction routes |
+| `combat/tabletop/pending-action-state-machine.ts` | ~150 | Adjacent tabletop roll-flow state machine; not the primary reaction lifecycle authority |
+| `infrastructure/api/routes/reactions.ts` | ~100 | Record responses, query one or all pending reactions, auto-complete ready flows, mirror encounter `reaction_pending`, and resume AI turns |
 
 ## Key Types/Interfaces
 
@@ -29,7 +46,7 @@ Manages the two-phase reaction resolution pipeline: server detects a reaction tr
 - `ReactionType` — `"opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection"`
 - `PendingAction` — core interface with `id`, `encounterId`, `actor`, `type`, `data`, `reactionOpportunities`, `resolvedReactions`, `expiresAt`
 - `DetectOpportunityAttacksInput` — single input object passed to `detectOpportunityAttacks(input: DetectOpportunityAttacksInput)`; NOT positional args
-- `PendingActionStateMachine` — validates state transitions (e.g., `reaction_pending` → `reaction_resolved`)
+- `PendingActionRepository` / `PendingActionStatus` — the reaction flow's lifecycle authority. Status is repository-derived, not validated by the tabletop roll state machine.
 
 ### Dual Pending Action Systems (CO-L7)
 There are TWO parallel pending action systems that do NOT conflict:
@@ -43,5 +60,6 @@ The only synchronization point: when encounter `pendingAction = "reaction_pendin
 - **Reactions consume one per round** — resets at the start of the creature's OWN turn, not at round start. A creature that uses Shield on someone else's turn cannot take an OA until their next turn begins.
 - **OA uses reach, not range** — a creature with 5ft reach threatens adjacent squares only. A creature with 10ft reach (e.g., with a polearm) threatens a wider area.
 - **Shield is retroactive** — it applies +5 AC to the TRIGGERING attack (possibly turning a hit into a miss) and persists until the start of the caster's next turn.
-- **The two-phase flow pauses combat state** — the encounter's `pendingAction` field is set, and all other actions are blocked until the reaction is resolved or declined.
+- **The two-phase flow pauses combat through orchestration layers** — callers mirror repository-backed reaction prompts into encounter `pendingAction = reaction_pending` when needed. Do not assume the handler itself mutates encounter pending state.
 - **OA detection is centralized in `oa-detection.ts`** — both ActionService.move (programmatic) and MoveReactionHandler.initiate (two-phase) reuse it. Never duplicate OA eligibility logic inline.
+- **Move reactions are broader than leave-reach weapon OAs** — the current flow also supports War Caster spell OAs and `readied_action` move triggers, so move-trigger logic should stay centralized in the helper plus the move handler.

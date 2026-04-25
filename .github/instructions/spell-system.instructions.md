@@ -1,36 +1,34 @@
 ---
-description: "Architecture and conventions for the SpellSystem flow: SpellActionHandler strategy-pattern facade, 5 delivery handlers (attack-roll, healing, save-based, zone, buff/debuff), spell-slot-manager, concentration lifecycle, saving throw resolution. NOTE: Spell entity definitions/catalog → spell-catalog.instructions.md."
+description: "Architecture and conventions for the SpellSystem flow: SpellActionHandler delivery orchestration, tabletop and AI spell resolution, spell-slot-manager, concentration lifecycle, and saving throw resolution. NOTE: Spell entity definitions/catalog → spell-catalog.instructions.md."
 applyTo: "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/rolls/saving-throw-resolver.ts,packages/game-server/src/application/services/combat/tabletop/spell-delivery/**,packages/game-server/src/domain/rules/concentration.ts,packages/game-server/src/application/services/entities/spell-lookup-service.ts,packages/game-server/src/application/services/combat/helpers/spell-slot-manager.ts,packages/game-server/src/application/services/combat/helpers/concentration-helper.ts"
 ---
 
 # SpellSystem Flow
 
 ## Purpose
-Spell casting pipeline — from text parsing through slot spending, concentration management, and mechanical delivery to state changes. Strategy-pattern facade with 5 delivery handlers + inline simple fallback.
+Spell casting pipeline for mechanical resolution after parsing has already identified a cast intent. Covers spell lookup, slot spending, concentration transitions, component and range validation, Counterspell pause points, delivery routing, saving-throw resolution, and post-cast side effects. Tabletop and AI share spell preparation helpers, but mechanical delivery is split between `SpellActionHandler` and `AiSpellDelivery`.
 
 ## Architecture
 
-SpellActionHandler (~450 lines) is a thin facade that:
-1. Looks up the spell in `sheet.preparedSpells[]` via `findPreparedSpellInSheet()`
-2. Spends slots + manages concentration via `prepareSpellCast()` (shared with AI path)
-3. Dispatches to the first `SpellDeliveryHandler` where `canHandle(spell)` returns true
-4. Falls through to inline simple delivery (Magic Missile, unknown spells) if no handler matches
+`SpellActionHandler` is the tabletop spell orchestrator. It resolves the spell definition, validates upcasting, enforces current cast restrictions (components, range, bonus-action spell limits), opens Counterspell reaction windows, spends slots and swaps concentration through `prepareSpellCast()`, dispatches to the first matching delivery handler, then runs any `onCastSideEffects` after a successful completion.
 
 ```mermaid
 flowchart TD
-    SAH[SpellActionHandler ~450 lines<br/>facade: slot spend + dispatch]
+    SAH[SpellActionHandler ~450 lines<br/>tabletop cast orchestrator]
     SSM[spell-slot-manager.ts ~350 lines<br/>findPreparedSpellInSheet + prepareSpellCast + resolveSpell]
     CH[concentration-helper.ts ~170 lines<br/>breakConcentration + cleanup + computeConSaveModifier]
 
     SAH -->|"slot + concentration"| SSM
     SSM -->|"break old concentration"| CH
 
+    SAH -->|"first match"| DISP[DispelMagicDeliveryHandler<br/>Dispel Magic]
     SAH -->|"canHandle dispatch"| ATK[SpellAttackDeliveryHandler ~79 lines<br/>Fire Bolt, Guiding Bolt, Inflict Wounds]
     SAH --> HEAL[HealingSpellDeliveryHandler ~146 lines<br/>Cure Wounds, Healing Word]
     SAH --> SAVE[SaveSpellDeliveryHandler ~218 lines<br/>Burning Hands, Hold Person, Thunderwave]
     SAH --> ZONE[ZoneSpellDeliveryHandler ~159 lines<br/>Spirit Guardians, Spike Growth, Web]
     SAH --> BUFF[BuffDebuffSpellDeliveryHandler ~150 lines<br/>Bless, Shield of Faith, Faerie Fire]
     SAH -->|"fallback"| SIMPLE[Inline simple delivery<br/>Magic Missile, unknown spells]
+    SAH -->|"Counterspell pause"| ROUTE[TwoPhaseActionService]
 
     ATK -->|"sets ATTACK pending"| STR[SavingThrowResolver ~650 lines]
     SAVE -->|"resolves save"| STR
@@ -49,12 +47,13 @@ SpellActionHandler iterates `deliveryHandlers[]` in priority order. First `canHa
 
 | Priority | Handler | `canHandle()` gate | PreparedSpellDefinition field |
 |----------|---------|-------------------|------------------------------|
-| 1 | `SpellAttackDeliveryHandler` | `!!spell.attackType` | `attackType: 'ranged_spell' \| 'melee_spell'` |
-| 2 | `HealingSpellDeliveryHandler` | `!!spell.healing && diceRoller` | `healing: SpellDice` |
-| 3 | `SaveSpellDeliveryHandler` | `!!spell.saveAbility && diceRoller` | `saveAbility: string` |
-| 4 | `ZoneSpellDeliveryHandler` | `!!spell.zone` | `zone: SpellZoneDeclaration` |
-| 5 | `BuffDebuffSpellDeliveryHandler` | `!!spell.effects?.length` | `effects: SpellEffectDeclaration[]` |
-| — | Inline simple (facade) | fallback | none of the above |
+| 1 | `DispelMagicDeliveryHandler` | named special-case route | spell identity |
+| 2 | `SpellAttackDeliveryHandler` | `!!spell.attackType` | `attackType: 'ranged_spell' \| 'melee_spell'` |
+| 3 | `HealingSpellDeliveryHandler` | `!!spell.healing && diceRoller` | `healing: SpellDice` |
+| 4 | `SaveSpellDeliveryHandler` | `!!spell.saveAbility && diceRoller` | `saveAbility: string` |
+| 5 | `ZoneSpellDeliveryHandler` | `!!spell.zone` | `zone: SpellZoneDeclaration` |
+| 6 | `BuffDebuffSpellDeliveryHandler` | `!!spell.effects?.length` | `effects: SpellEffectDeclaration[]` |
+| — | Auto-hit/simple fallback | fallback | none of the above |
 
 **Implication**: A spell with BOTH `attackType` and `saveAbility` routes to attack-roll (priority 1 wins). Order matters.
 
@@ -62,7 +61,7 @@ SpellActionHandler iterates `deliveryHandlers[]` in priority order. First `canHa
 
 | Type/Function | File | Purpose |
 |---------------|------|---------|
-| `SpellActionHandler` | `tabletop/spell-action-handler.ts` (~450 lines) | Thin facade: slot spend + strategy dispatch |
+| `SpellActionHandler` | `tabletop/spell-action-handler.ts` (~450 lines) | Tabletop spell orchestrator: validation, Counterspell pause, slot spend, and delivery routing |
 | `SpellDeliveryHandler` | `tabletop/spell-delivery/spell-delivery-handler.ts` | Strategy interface: `canHandle(spell)` + `handle(ctx)` |
 | `SpellCastingContext` | same file | All data for a cast — resolved AFTER slot spending |
 | `SpellDeliveryDeps` | same file | Shared deps injected into every handler |
@@ -79,12 +78,15 @@ SpellActionHandler iterates `deliveryHandlers[]` in priority order. First `canHa
 | `SavingThrowResolver` | `tabletop/rolls/saving-throw-resolver.ts` (~650 lines) | Per-target save: proficiency, effect bonuses, cover, advantage/disadvantage |
 | `SpellLookupService` | `services/entities/spell-lookup-service.ts` | Static spell definition lookup (wraps `ISpellRepository`) |
 
+Important modern `PreparedSpellDefinition` fields used by the current pipeline include `area`, `range`, `ignoresCover`, `damageDiceSidesOnDamaged`, `onHitEffects`, `pushOnFailFeet`, `turnEndSave`, `multiAttack`, `autoHit`, `dartCount`, and `onCastSideEffects`.
+
 ## Cross-Flow Notes
 
 - **SavingThrowResolver** is shared with ClassAbilities flow (Stunning Strike, Open Hand Technique). Changes affect both flows.
-- **spell-slot-manager.ts** is shared with the AI path (`ai-action-executor.ts executeCastSpell()`). The AI path calls `prepareSpellCast()` for resource bookkeeping but does NOT use delivery handlers (no interactive dice rolls).
+- **spell-slot-manager.ts** is shared with the AI path. `CastSpellHandler` calls `prepareSpellCast()` and then applies mechanics through `AiSpellDelivery`; AI does not use the interactive tabletop pending-roll flow.
 - **concentration-helper.ts** is shared with `RollStateMachine` (tabletop) and `ActionService` (programmatic). Three consumers of `breakConcentration()`.
 - **PreparedSpellDefinition** is the contract between entity management (character sheet population) and the spell pipeline. Changes here affect both flows.
+- **Concentration is intentionally split** — `domain/rules/concentration.ts` holds pure rules such as DC calculation and break conditions, while `helpers/concentration-helper.ts` performs encounter-wide cleanup, active-effect removal, condition cleanup, and map-zone removal.
 
 ## How to Add a New Delivery Mode
 
@@ -108,3 +110,4 @@ SpellActionHandler iterates `deliveryHandlers[]` in priority order. First `canHa
 7. **Buff/debuff target resolution** uses `appliesTo` field: `'self' | 'target' | 'allies' | 'enemies'`. Faction is determined by `combatantType`.
 8. **Attack delivery** returns `requiresPlayerInput: true` (sets ATTACK pending action for dice roll). All other handlers resolve immediately.
 9. **Context fetched AFTER slot spend** — `SpellCastingContext.encounter/combatants/actorCombatant` reflect post-deduction state.
+10. **AI spell delivery is mechanical now** — do not describe AI as bookkeeping-only; the delivery path is split, not missing.
