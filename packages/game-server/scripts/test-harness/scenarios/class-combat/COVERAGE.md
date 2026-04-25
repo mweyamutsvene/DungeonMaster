@@ -13,7 +13,7 @@
 | Barbarian | 5 / 5 | 3 / 3 | Complete |
 | Cleric | 9 / 10 | 4 / 4 | Complete (Bane fixed — GAP-BANE resolved Phase 0.3) |
 | Paladin | 6 / 6 | 3 / 3 | Complete |
-| Warlock | 4 / 5 | 2 / 3 | Complete (WL1 blocked by GAP-6) |
+| Warlock | 5 / 5 | 3 / 3 | Complete |
 
 ### Cross-Class Regression Scenarios
 
@@ -164,16 +164,15 @@
 ## Warlock (Fiend Pact, L5)
 
 Current execution status:
-- WL1 (`class-combat/warlock/hex-and-blast`) is implemented but currently failing on expected Hex bonus damage application to Eldritch Blast beams.
-- Latest run: FAILED at step 12 (`Expected monster "Shadow Construct" HP <= 184, got 186`).
-- Concentration sets correctly (`Cast hex affecting 1 target(s). [concentration]`), but damage log shows base beam damage only.
+- WL1 (`class-combat/warlock/hex-and-blast`) is passing.
+- Hex bonus damage application now works with Eldritch Blast beams in class-combat flow.
 
 | Ability / Feature | Type | Scenario | How Tested | Synergies | Status |
 |-------------------|------|----------|------------|-----------|--------|
-| Eldritch Blast (2 beams) | Cantrip | WL1, WL2: hellish-rebuke-defense, WL3: hold-and-control | 2 beams at L5, each attack roll. Multi-attack pattern confirmed in WL2/WL3 | Hex (bonus damage per beam — blocked by GAP-6) | - [x] |
+| Eldritch Blast (2 beams) | Cantrip | WL1, WL2: hellish-rebuke-defense, WL3: hold-and-control | 2 beams at L5, each attack roll. Multi-attack pattern confirmed in WL2/WL3 | Hex (bonus damage per beam) | - [x] |
 | Hold Person | Spell (L2) | WL3: hold-and-control | Warlock Pact Magic uses spell's natural slot level (L2) not Pact L3; concentration + Paralyzed via forced WIS save fail | EB against paralyzed (blocked by GAP-9) | - [x] |
-| Hex | Spell (L1, concentration) | WL1: hex-and-blast | Bonus action, +1d6 necrotic per hit. Assert damage bonus + conc | EB (2 beams = 2× Hex bonus), transfer on kill | - [ ] |
-| Hex Transfer | Mechanic | WL1: hex-and-blast | Move Hex to new target when original dies (free). Assert target switch | Multi-target fights, Hex persistence | - [ ] |
+| Hex | Spell (L1, concentration) | WL1: hex-and-blast | Bonus action, +1d6 necrotic per hit. Assert damage bonus + conc | EB (2 beams = 2× Hex bonus), transfer on kill | - [x] |
+| Hex Transfer | Mechanic | WL1: hex-and-blast | Move Hex to new target when original dies (free). Assert target switch | Multi-target fights, Hex persistence | - [x] |
 | Hellish Rebuke | Reaction (L1 slot) | WL2: hellish-rebuke-defense | R1–R2: queue dice forces hit, waitForReaction + reactionRespond; assert pactMagic 2→1→0. R3: verify NO reaction fires when pactMagic=0 (waitForTurn goes straight through). | Pact Slot economy (competes with Hex) | - [x] |
 | Pact Slot Economy | Resource (2 L3 slots) | WL2: hellish-rebuke-defense | pactMagic pool tracked via characterResource assertions across 3 rounds; cantrip fallback confirmed (EB always free). | All slot spells compete for 2 slots | - [x] |
 
@@ -296,7 +295,7 @@ Scenario fails at step 12 because target HP remains too high (`Expected <= 184, 
 3. Ensure target-bound Hex effect survives across beam chaining and is matched by `targetCombatantId` (if set).
 4. Re-run WL1 and update Warlock coverage statuses once fixed.
 
-**Status**: OPEN blocker for WL1.
+**Status**: RESOLVED.
 
 ### GAP-7: Improved Critical (Champion 19-20) Not Wired in Tabletop Flow
 

@@ -1,0 +1,102 @@
+{
+  "name": "Wizard Cantrip Scaling Tier L1: Fire Bolt uses 1d10",
+  "description": "Level 1 baseline cantrip tier. Fire Bolt should use 1d10 damage (no scaling yet).",
+  "setup": {
+    "character": {
+      "name": "Novice Evoker",
+      "className": "Wizard",
+      "level": 1,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 12,
+          "intelligence": 16, "wisdom": 10, "charisma": 10
+        },
+        "maxHp": 8,
+        "currentHp": 8,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 13,
+        "spellAttackBonus": 5,
+        "spellSlots": { "1": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Ogre",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 5, "wisdom": 7, "charisma": 7
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I cast Fire Bolt" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "19" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Training Ogre" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 13" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "comment": "L1 tier baseline: use a 1d10-valid damage total.",
+      "type": "rollResult",
+      "input": { "text": "I rolled 9" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Ogre", "exact": 31 }
+      }
+    }
+  ]
+}

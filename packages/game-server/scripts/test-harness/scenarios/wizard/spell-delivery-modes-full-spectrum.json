@@ -1,0 +1,166 @@
+{
+  "name": "Wizard Spell Delivery Modes: attack + save + heal + buff + zone + auto-hit",
+  "description": "Deterministic coverage for all SpellActionHandler delivery paths in one encounter: Fire Bolt (attack roll), Burning Hands (save spell), Cure Wounds (healing), Bless (buff), Spirit Guardians (zone), and Magic Missile (auto-hit fallback).",
+  "setup": {
+    "character": {
+      "name": "Arcane Tester",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 14,
+          "intelligence": 18, "wisdom": 14, "charisma": 10
+        },
+        "maxHp": 32,
+        "currentHp": 20,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Fire Bolt", "level": 0 },
+          { "name": "Burning Hands", "level": 1 },
+          { "name": "Cure Wounds", "level": 1 },
+          { "name": "Bless", "level": 1 },
+          { "name": "Spirit Guardians", "level": 3 },
+          { "name": "Magic Missile", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 10,
+            "intelligence": 10, "wisdom": 8, "charisma": 8
+          },
+          "maxHp": 60,
+          "hp": 60,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "Arcane test begins" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Attack delivery: Fire Bolt requires attack roll.",
+      "type": "action",
+      "input": { "text": "cast Fire Bolt at Goblin Dummy" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 9" },
+      "expect": { "actionComplete": true }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "Save delivery: Burning Hands auto-resolves saves and damage.",
+      "type": "queueDiceRolls",
+      "input": { "values": [10, 3, 4, 5], "label": "Burning Hands save + 3d6" }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Burning Hands at Goblin Dummy" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "Healing delivery: Cure Wounds on self.",
+      "type": "action",
+      "input": { "text": "cast Cure Wounds on Arcane Tester" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "Buff/debuff delivery: Bless sets concentration.",
+      "type": "action",
+      "input": { "text": "cast Bless on Arcane Tester" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterConcentration": "Bless" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "Zone delivery: Spirit Guardians replaces concentration with a zone spell.",
+      "type": "action",
+      "input": { "text": "cast Spirit Guardians" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterConcentration": "Spirit Guardians" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "comment": "Fallback auto-hit delivery: Magic Missile resolves without attack roll.",
+      "type": "action",
+      "input": { "text": "cast Magic Missile at Goblin Dummy" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 0, "max": 4 } }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    }
+  ]
+}

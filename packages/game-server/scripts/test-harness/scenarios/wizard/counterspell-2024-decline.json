@@ -1,0 +1,123 @@
+{
+  "name": "Counterspell 2024: decline reaction leaves spell uncountered",
+  "description": "Additional deterministic Counterspell 2024 coverage path: reaction window appears but counterspeller declines. Verifies only the caster spends slot 3 and the potential counterspeller keeps their slot.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Wizard Caster",
+        "className": "Wizard",
+        "level": 5,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 32,
+          "currentHp": 32,
+          "armorClass": 12,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Fireball", "level": 3 }
+          ],
+          "attacks": [
+            { "name": "Quarterstaff", "kind": "melee", "attackBonus": 1, "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 }, "damageType": "bludgeoning" }
+          ]
+        }
+      },
+      {
+        "name": "Wizard Watcher",
+        "className": "Wizard",
+        "level": 5,
+        "position": { "x": 15, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 14, "constitution": 14,
+            "intelligence": 18, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 32,
+          "currentHp": 32,
+          "armorClass": 12,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 15,
+          "spellAttackBonus": 7,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Counterspell", "level": 3 }
+          ],
+          "attacks": [
+            { "name": "Quarterstaff", "kind": "melee", "attackBonus": 1, "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 }, "damageType": "bludgeoning" }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Target Dummy",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 10, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "challengeRating": 0,
+          "attacks": [
+            { "name": "Slam", "kind": "melee", "attackBonus": 0, "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 }, "damageType": "bludgeoning" }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "actor": "Wizard Caster",
+      "input": { "text": "Start casting duel" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Wizard Caster",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Wizard Caster",
+      "timeout": 15000
+    },
+    {
+      "type": "action",
+      "actor": "Wizard Caster",
+      "input": { "text": "cast Fireball at Target Dummy" }
+    },
+    {
+      "type": "waitForReaction",
+      "input": { "reactionType": "counterspell" },
+      "timeout": 15000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "decline" }
+    },
+    {
+      "type": "assertState",
+      "actor": "Wizard Caster",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 1, "max": 2 } }
+    },
+    {
+      "type": "assertState",
+      "actor": "Wizard Watcher",
+      "expect": { "characterResource": { "poolName": "spellSlot_3", "current": 2, "max": 2 } }
+    }
+  ]
+}
