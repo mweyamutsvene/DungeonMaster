@@ -1,6 +1,6 @@
 # Plan: Surprise + Alert Mechanics Hardening
 ## Round: 1
-## Status: IN_REVIEW
+## Status: COMPLETE
 ## Affected Flows: CombatRules, CombatOrchestration, Testing
 
 ## Objective
@@ -40,7 +40,7 @@ Close the remaining Surprise + Alert fidelity gaps with test-first development. 
 - Surprise computation can drift between DM override and stealth-derived paths. Mitigation: keep DM override precedence explicit.
 
 ## Test Plan
-- [ ] Unit tests for initiative swap eligibility filtering (willing vs unconscious/incapacitated).
+- [x] Unit tests for initiative swap eligibility filtering (willing vs unconscious/incapacitated).
 - [x] E2E red scenario for surprise + Alert swap invalid target (`core/surprise-alert-willing-swap-red.json`).
 - [x] E2E follow-up (green) for valid swap target after implementation.
 
