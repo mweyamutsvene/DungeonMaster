@@ -35,19 +35,44 @@ updated: 2026-04-24
 
 # 1. Executive Summary
 
-**Engine state: ~80% L1-5 ready** (revised up from initial 70% after verification pass).
+**Engine state: ~90% L1-5 ready** (revised up from 80% after multiple implementation rounds + extensive false-positive verification).
 
-Architecture is sound across every flow. The real blockers are narrower than the initial audits suggested:
+Architecture is sound across every flow. After three rounds of implementation + verification, the real blocker list shrinks dramatically:
 
-1. **d20 roll-interrupt hook missing** — Bardic Inspiration effect is created but never consumed by roll resolvers. Makes BI (and future Lucky/Portent) cosmetic. Architectural.
-2. **Counterspell 2014-rules bug** — counterspeller rolls d20 + ability check DC 10+spell-level. 2024 RAW: target caster makes Con save vs counterspeller's spell save DC. Wrong mechanic entirely.
-3. **AI spell delivery doesn't resolve effects** — AI spellcasters cosmetic in headless/mock combat. Blocks AI-vs-AI, mock combat E2E.
-4. **Exhaustion + fall damage missing** (CombatRules): no exhaustion track (2024 -2/level), no fall-damage rule.
-5. **Divine Spark, Sear Undead, Wild Shape (stat-block), Slow Fall, Innate Sorcery, Magical Cunning, Arcane Recovery executor, Ritual Adept, Tactical Mind, Tactical Shift, Steady Aim, Cunning Strike executor** — missing executors or pure-function-only class features.
-6. **Dispel Magic + material component enforcement** missing in SpellSystem.
-7. **Background field + species trait auto-apply at create** missing in EntityManagement.
-8. **Monster catalog gaps** — missing Knight, Orc, Kobold, Wolf, Dire Wolf, Giant Spider, Ogre (living), Gnoll, Ghoul, Wight, Owlbear, Brown Bear.
-9. **E2E scenarios are 75% single-turn** — redundancy high, multi-turn robustness low.
+### Genuine remaining gaps (architectural)
+
+1. **d20 roll-interrupt hook** — Bardic Inspiration effect is created but never consumed by roll resolvers. Blocks BI consumption, Lucky feat, Cutting Words, Tactical Mind reroll, Diviner Portent. Plan in [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md). Estimated 2-3 days.
+2. **Subclass L3 features** for 12 base subclasses — typed framework exists; mechanical implementations missing for ~7. Plan in [plan-subclass-framework.md](plan-subclass-framework.md).
+3. **Wild Shape stat-block swap** — current implementation is temp-HP overlay, not real form swap. Plan in [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md).
+4. **Background field + Origin Feat / ASI pipeline** — Character.background field absent. Plan in [plan-background-pipeline.md](plan-background-pipeline.md).
+5. **E2E scenarios are 75% single-turn** — redundancy high; consolidation in progress.
+
+### Resolved this session (audit findings that turned out to be FALSE POSITIVES)
+
+The original audits over-flagged these as missing — verification + implementation passes revealed they're already wired:
+
+- ~~**AI spell delivery resolution**~~ → Fully implemented in `ai-spell-delivery.ts` (740 LOC handling spell attacks, healing, save-based, buff/debuff, zones, cantrip scaling, upcasting, AoE optimal targeting). Wired through `cast-spell-handler.ts:163`.
+- ~~**Cunning Strike executor (Rogue L5)**~~ → Fully wired: `parseCunningStrikeOption` in rogue.ts, SA-die deduction in `roll-state-machine.ts:971`, save+condition resolution in `damage-resolver.ts:893`. Poison/trip/withdraw all working. Disarm/Daze options remain genuinely missing (different subsystems).
+- ~~**Sear Undead (Cleric L5)**~~ → Implemented as Destroy Undead CR threshold in `class-ability-handlers.ts:546-557`.
+- ~~**Monster catalog 12-monster gap**~~ → All 12 (Knight, Orc, Kobold, Wolf, Dire Wolf, Giant Spider, Ogre, Gnoll, Ghoul, Wight, Owlbear, Brown Bear) present in markdown source and imported.
+
+### Resolved this session (actual implementation work)
+
+- **Counterspell 2014→2024 port** — target Con save vs counterspeller's save DC.
+- **saveProficiencies on CombatantCombatStats** — wired through Counterspell + concentration saves.
+- **Exhaustion 2024 port** — 1-10 levels, -2/level, death at 10. Reconciled `conditions.ts` from 2014 hybrid. Orphan `domain/rules/exhaustion.ts` deleted.
+- **Dispel Magic delivery handler** — auto-dispels spells ≤slot level; rolls ability check for higher.
+- **Material component enforcement** — structured `StructuredMaterialComponent` schema + parser + enforcement at cast time for consumed costed components (Revivify 300gp diamond, Continual Flame ruby dust, etc.).
+- **Slow Fall (Monk L4+)** — extends `resolvePitEntry` with class-aware reduction; auto-applies, consumes reaction.
+- **7 missing class features** in commit `2f0cbf2`: Steady Aim, Innate Sorcery, Sorcerous Restoration, Tactical Shift, Ritual Adept, Divine Spark, Magical Cunning.
+
+### Genuine remaining mid-scope items
+
+- **Tactical Mind** (Fighter L2) — blocked on d20 roll-interrupt hook.
+- **Cunning Strike Disarm + Daze** options — need drop-weapon-to-ground (Disarm) and custom-effect (Daze) subsystems. Functional Cunning Strike (3 of 5 options) already works.
+- **Divine Order** (Cleric L1 Protector/Thaumaturge) and **Primal Order** (Druid L1) — completely absent.
+- **Lightning Bolt + Sleet Storm** (L3 catalog).
+- **Exhaustion reduction on long rest** — once auto-death rule lands, also need LR reducing exhaustion by 1.
 
 ## What's actually working (verified in post-audit pass)
 
