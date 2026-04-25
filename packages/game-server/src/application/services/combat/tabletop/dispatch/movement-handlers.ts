@@ -118,6 +118,8 @@ export class MovementHandlers {
       if (currentPos && terrainMap && isPitEntry(terrainMap, currentPos, destination)) {
         const actorStats = await this.deps.combatants.getCombatStats(actorRef);
         const pitSeed = hashStringToInt32(`${sessionId}:${encounterId}:${actorState.id}:${currentPos.x}:${currentPos.y}:${destination.x}:${destination.y}:pit`);
+        const monkLevel = (actorStats.className ?? "").toLowerCase() === "monk" ? actorStats.level : 0;
+        const hasReaction = !((actorState.resources as Record<string, unknown> | undefined)?.reactionUsed);
         const pitResult = resolvePitEntry(
           terrainMap,
           currentPos,
@@ -126,6 +128,7 @@ export class MovementHandlers {
           actorState.hpCurrent,
           actorState.conditions,
           new SeededDiceRoller(pitSeed),
+          { monkLevel, hasReaction },
         );
 
         if (pitResult.triggered) {
@@ -133,6 +136,9 @@ export class MovementHandlers {
           updatedHpCurrent = pitResult.hpAfter;
           if (pitResult.movementEnds) {
             newMovementRemaining = 0;
+          }
+          if ((pitResult.slowFallReduction ?? 0) > 0) {
+            (resources as Record<string, unknown>).reactionUsed = true;
           }
         }
       }
@@ -399,6 +405,8 @@ export class MovementHandlers {
       if (map && isPitEntry(map, actorPos, finalDestination)) {
         const actorStats = await this.deps.combatants.getCombatStats(actorRefForMove);
         const pitSeed = hashStringToInt32(`${sessionId}:${encounterId}:${freshActor.id}:${actorPos.x}:${actorPos.y}:${finalDestination.x}:${finalDestination.y}:pit`);
+        const monkLevelMv = (actorStats.className ?? "").toLowerCase() === "monk" ? actorStats.level : 0;
+        const hasReactionMv = !((freshActor.resources as Record<string, unknown> | undefined)?.reactionUsed);
         const pitResult = resolvePitEntry(
           map,
           actorPos,
@@ -407,6 +415,7 @@ export class MovementHandlers {
           freshActor.hpCurrent,
           freshActor.conditions,
           new SeededDiceRoller(pitSeed),
+          { monkLevel: monkLevelMv, hasReaction: hasReactionMv },
         );
 
         if (pitResult.triggered) {
@@ -414,6 +423,9 @@ export class MovementHandlers {
           updatedHpCurrent = pitResult.hpAfter;
           if (pitResult.movementEnds) {
             newRemaining = 0;
+          }
+          if ((pitResult.slowFallReduction ?? 0) > 0) {
+            (res as Record<string, unknown>).reactionUsed = true;
           }
         }
       }

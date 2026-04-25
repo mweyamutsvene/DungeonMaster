@@ -1,0 +1,68 @@
+{
+  "name": "Monk: Slow Fall reduces pit damage by 5 × level",
+  "description": "D&D 5e 2024: Slow Fall (Monk L4+) is a reaction; reduces fall damage by 5 × Monk level. A L5 Monk falling into a 30ft pit and failing the DEX save would normally take 3d6 damage. Slow Fall reduces by 25 (5 × 5), so the Monk takes 0 damage (clamped at floor).\n\nThis scenario walks a L5 Monk into a pit cell and asserts they take very little or no damage. Reaction is consumed.",
+  "setup": {
+    "character": {
+      "name": "Brother Lin",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 14, "dexterity": 16, "constitution": 14,
+          "intelligence": 10, "wisdom": 16, "charisma": 8
+        },
+        "maxHp": 38, "currentHp": 38, "armorClass": 16, "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          { "name": "Unarmed Strike", "kind": "melee", "attackBonus": 6, "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 }, "damageType": "bludgeoning" }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Distant Dummy",
+        "position": { "x": 40, "y": 10 },
+        "statBlock": {
+          "abilityScores": { "strength": 10, "dexterity": 10, "constitution": 10, "intelligence": 1, "wisdom": 1, "charisma": 1 },
+          "maxHp": 100, "hp": 100, "armorClass": 10, "speed": 0,
+          "challengeRating": 0,
+          "attacks": [{ "name": "Slam", "kind": "melee", "attackBonus": 0, "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 }, "damageType": "bludgeoning" }]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I leap toward the ledge" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Place a 30ft-deep pit at (15, 10).",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 15, "y": 10, "terrain": "pit", "terrainDepth": 30 }
+        ]
+      }
+    },
+    {
+      "comment": "Walk into the pit. Pit-terrain-resolver computes fall damage; Slow Fall (L5 Monk = 25 ft reduction) auto-applies, clamping max damage. Even on a worst-case 3d6=18 roll, damage is reduced to 0.",
+      "type": "action",
+      "input": { "text": "move to (15, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Slow Fall keeps the monk at full HP (or near-full). Range allows for a saved-from-edge result (no fall damage at all) or a reduced fall result. Either way, much higher HP floor than a non-monk.",
+      "type": "assertState",
+      "expect": { "characterHp": { "min": 30, "max": 38 } }
+    }
+  ]
+}

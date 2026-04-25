@@ -17,6 +17,10 @@ export interface PitEntryResolution {
   triggered: boolean;
   saved: boolean;
   damageApplied: number;
+  /** Raw fall damage before Slow Fall / other reductions. Useful for narration. */
+  damageBeforeReduction?: number;
+  /** How much damage was reduced by Slow Fall (Monk L4+). 0 if not applicable. */
+  slowFallReduction?: number;
   hpAfter: number;
   updatedConditions: ActiveCondition[];
   movementEnds: boolean;
@@ -24,6 +28,20 @@ export interface PitEntryResolution {
   saveRoll?: number;
   saveTotal?: number;
   depthFeet?: number;
+}
+
+/**
+ * Optional class-aware fall-damage modifier inputs.
+ * D&D 5e 2024:
+ *  - Slow Fall (Monk L4+): reaction; reduces fall damage by 5 × Monk level.
+ *    Implemented as auto-apply (skipping reaction prompt) since there's no
+ *    reasonable case for declining it. Consumes the actor's reaction.
+ */
+export interface FallDamageContext {
+  /** Monk levels, if any. 0 if non-monk or below L4. */
+  monkLevel?: number;
+  /** Whether the actor has a reaction available this round. */
+  hasReaction?: boolean;
 }
 
 export function resolvePitEntry(
@@ -34,6 +52,7 @@ export function resolvePitEntry(
   hpCurrent: number,
   rawConditions: unknown,
   diceRoller: DiceRoller,
+  fallContext?: FallDamageContext,
 ): PitEntryResolution {
   const conditions = normalizeConditions(rawConditions);
 
@@ -94,13 +113,28 @@ export function resolvePitEntry(
   }
 
   const depthFeet = getPitDepthOf(map, to);
-  const damageApplied = computePitFallDamage(depthFeet, diceRoller);
+  const rawFallDamage = computePitFallDamage(depthFeet, diceRoller);
+
+  // Slow Fall (Monk L4+, 2024): reduces fall damage by 5 × Monk level. Auto-applied
+  // when the actor has reaction available; consumes the reaction (caller must spend it).
+  let slowFallReduction = 0;
+  if (
+    fallContext?.monkLevel
+    && fallContext.monkLevel >= 4
+    && fallContext.hasReaction !== false
+  ) {
+    slowFallReduction = 5 * fallContext.monkLevel;
+  }
+
+  const damageApplied = Math.max(0, rawFallDamage - slowFallReduction);
   const hpAfter = Math.max(0, hpCurrent - damageApplied);
 
   return {
     triggered: true,
     saved: false,
     damageApplied,
+    damageBeforeReduction: rawFallDamage,
+    slowFallReduction,
     hpAfter,
     updatedConditions: conditions,
     movementEnds: true,

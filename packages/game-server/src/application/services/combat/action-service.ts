@@ -586,6 +586,11 @@ export class ActionService {
       const pitSeed =
         (input.seed as number | undefined) ??
         hashStringToInt32(`${sessionId}:${encounter.id}:${actor.id}:${currentPos.x}:${currentPos.y}:${input.destination.x}:${input.destination.y}:pit`);
+      // Slow Fall (Monk L4+): compute monk level + reaction availability for fall context.
+      const actorClassName = (actorStats.className ?? "").toLowerCase();
+      const actorMonkLevel = actorClassName === "monk" ? actorStats.level : 0;
+      const actorReactionAvailable = !((actorAfterOa.resources as Record<string, unknown> | undefined)?.reactionUsed);
+
       const pitResult = resolvePitEntry(
         combatMap,
         currentPos,
@@ -594,9 +599,12 @@ export class ActionService {
         actorAfterOa.hpCurrent,
         actorAfterOa.conditions,
         new SeededDiceRoller(pitSeed),
+        { monkLevel: actorMonkLevel, hasReaction: actorReactionAvailable },
       );
 
       if (pitResult.triggered) {
+        // If Slow Fall fired, mark the reaction as used.
+        const slowFallFired = (pitResult.slowFallReduction ?? 0) > 0;
         await this.combat.updateCombatantState(actor.id, {
           hpCurrent: pitResult.hpAfter,
           conditions: pitResult.updatedConditions as unknown as JsonValue,
@@ -604,6 +612,7 @@ export class ActionService {
             ...updatedResources,
             movementRemaining: pitResult.movementEnds ? 0 : updatedResources.movementRemaining,
             movementSpent: pitResult.movementEnds ? true : updatedResources.movementSpent,
+            ...(slowFallFired ? { reactionUsed: true } : {}),
           } as JsonValue,
         });
 

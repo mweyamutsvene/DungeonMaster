@@ -204,6 +204,9 @@ export class GrappleActionHandler {
       };
 
       const updatedTargetResources = setPosition(targetState.resources, pushedTo);
+      // Slow Fall (Monk L4+): if the SHOVED target is a Monk, they get the reduction.
+      const targetMonkLevel = (targetStats.className ?? "").toLowerCase() === "monk" ? targetStats.level : 0;
+      const targetHasReaction = !((targetState.resources as Record<string, unknown> | undefined)?.reactionUsed);
       const pitResult = resolvePitEntry(
         encounter.mapData as CombatMap | undefined,
         targetPos,
@@ -212,13 +215,16 @@ export class GrappleActionHandler {
         targetState.hpCurrent,
         targetState.conditions,
         new SeededDiceRoller(hashStringToInt32(`${sessionId}:${encounter.id}:${targetState.id}:${targetPos.x}:${targetPos.y}:${pushedTo.x}:${pushedTo.y}:pit`)),
+        { monkLevel: targetMonkLevel, hasReaction: targetHasReaction },
       );
 
+      const slowFallTriggered = (pitResult.slowFallReduction ?? 0) > 0;
       const forcedMovementResources = pitResult.triggered
         ? {
             ...(updatedTargetResources as Record<string, unknown>),
             movementRemaining: 0,
             movementSpent: true,
+            ...(slowFallTriggered ? { reactionUsed: true } : {}),
           }
         : updatedTargetResources;
 
