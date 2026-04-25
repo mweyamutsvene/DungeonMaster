@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-reaction-system
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -98,3 +98,10 @@ Audit of the two-phase reaction flow for D&D 5e 2024, L1-5 coverage. Sources rea
 6. Add Deflect Attacks + Hellish Rebuke
 7. Add fall-damage trigger + Slow Fall
 8. Add PAM enter-reach OA + Sentinel Disengage-override
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, and Interception are implemented.
+- R2 correction: Cutting Words/Sentinel are partial (architecture surface still incomplete).
+- Remaining concern: generalized roll-interrupt architecture and Polearm Master enter-reach OA.

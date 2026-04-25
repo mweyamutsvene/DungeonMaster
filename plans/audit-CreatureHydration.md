@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-explore-creature-hydration
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -108,3 +108,10 @@ Hydration pipeline: DB records (`SessionCharacterRecord`, `SessionMonsterRecord`
 2. Wild shape reverse hydration.
 3. Spell effect detection (Mage Armor).
 4. Unified skill/attack logic (remove duplication).
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: tabletop path uses magic weapon bonuses; report should treat as partial parity, not absent.
+- R2 correction: spell DC/attack bonus runtime computation exists via SpellSystem pathways.
+- Remaining concern: Mage Armor base override and Wild Shape full transformed-stat hydration parity.

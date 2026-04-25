@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-explore-spell-system
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -68,3 +68,10 @@ SpellSystem flow: casting pipeline, delivery modes, zone effects, concentration 
 **Critical gaps:** (1) **Dispel Magic missing entirely**, (2) **material component enforcement absent**, (3) **auto-AoE targeting broken** (requires manual naming), (4) **War Caster feat broken**.
 
 **Recommend before L5 push:** Dispel Magic + handler, War Caster integration, auto-AoE targeting, handler decomposition by type tag.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: Dispel Magic is implemented and scenario-covered.
+- R2 correction: material components are partial (validation exists; decrement writeback remains).
+- Remaining concern: War Caster concentration advantage integration and broader AoE quality hardening.

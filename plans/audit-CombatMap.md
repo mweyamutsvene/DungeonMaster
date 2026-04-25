@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-combat-map
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -115,3 +115,10 @@ Files audited:
 8. Per-zone trigger policy.
 9. Delete or wire `TerrainType` enum.
 10. Line of effect enforcement at AoE origin + spell target.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: creature-as-cover half-cover behavior, diagonal corner clipping checks, and zone trigger modes are implemented.
+- R2 correction: size/footprint pathing support exists (needs deeper large-creature E2E depth).
+- Remaining concern: flying mode, LOS-blocking zones, and hidden/invisible map state.

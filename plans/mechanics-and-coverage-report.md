@@ -5,12 +5,12 @@ feature: mechanics-and-coverage-l1-5
 author: claude-orchestrator
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # D&D 5e 2024 Engine — Mechanics & E2E Coverage Consolidated Report (L1-5)
 
-> **Purpose:** single source of truth for what mechanics our engine supports, what needs rework, what's missing for L1-5 play, and how well our 260 E2E scenarios cover them.
+> **Purpose:** single source of truth for what mechanics our engine supports, what needs rework, what's missing for L1-5 play, and how well our 270 E2E scenarios cover them.
 >
 > **Method:** 13 per-flow audits in `plans/audit-{Flow}.md` + E2E audit in `plans/audit-E2E-Scenarios.md`. This document synthesizes across them. Every row links back to the source audit.
 
@@ -110,7 +110,7 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Damage types + resistance/immunity/vulnerability | SUPPORTED | STRONG | damage.ts |
 | Temp HP absorption | SUPPORTED | MODERATE | hit-points.ts |
 | Conditions (13/15): blinded, charmed, deafened, frightened, grappled, incapacitated, paralyzed, poisoned, prone, restrained, stunned, unconscious, invisible + petrified | SUPPORTED | MODERATE | conditions.ts |
-| **Exhaustion (2024: 10 levels, -2/level)** | **MISSING P0** | NONE | Completely absent |
+| Exhaustion (2024: 10 levels, -2/level) | SUPPORTED | MODERATE | Implemented and E2E-covered (`core/exhaustion-accumulation.json`). |
 | Saving throws (adv/disadv, proficiency) | SUPPORTED | STRONG | saving-throw.ts |
 | Ability checks + 18-skill proficiency + expertise | SUPPORTED | STRONG | ability-check.ts |
 | Death saves (3/3, nat 1/20, damage at 0) | SUPPORTED | STRONG | death-saves.ts |
@@ -120,14 +120,14 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Concentration (gain/damage save/break/replace/end) | SUPPORTED | STRONG | concentration.ts |
 | Movement (walk/climb/swim/fly, difficult terrain 2×) | SUPPORTED | STRONG | movement.ts |
 | Grapple + shove (2024 unarmed option) | SUPPORTED | MODERATE | grapple-shove.ts |
-| **Grapple escape action** | **MISSING P1** | NONE | Initial grapple exists; escape not wired |
+| Grapple escape action | SUPPORTED | MODERATE | Escape action path is implemented and exercised in E2E. |
 | Cover (half +2, 3/4 +5, total untargetable) | SUPPORTED | MODERATE | combat-map.ts |
-| Cover + Dex save bonus from AoE | REWORK | WEAK | AC works; Dex save consumption unverified |
+| Cover + Dex save bonus from AoE | SUPPORTED | MODERATE | Dex-save cover branch is implemented and scenario-covered; AC-side assertions remain thinner. |
 | Dodge / Disengage / Dash | SUPPORTED | MODERATE | actions.ts |
 | Help / Search / Ready / Use Object | SUPPORTED | MODERATE | actions.ts |
 | Hide action | REWORK | WEAK | Likely stub; needs Stealth vs passive Perception + Invisible application |
 | Two-weapon fighting (light + bonus off-hand) | REWORK | MODERATE | Wiring incomplete; 2024 mod-only-if-negative rule |
-| **Fall damage (1d6/10ft, max 20d6, prone)** | **MISSING P0** | NONE | |
+| Fall damage (1d6/10ft, max 20d6, prone) | PARTIAL | MODERATE | Implemented for pit-entry flow; universal off-ledge pipeline remains open. |
 | Unarmed strikes (2024 STR+prof, 1+STR damage) | SUPPORTED | MODERATE | |
 | Critical hit damage dice-vs-flat separation (2024) | REWORK | WEAK | Currently doubles all dice |
 | **Forced movement (Thunderwave push, bull rush distance + OA/fall interaction)** | **MISSING P1** | NONE | |
@@ -142,25 +142,25 @@ Aside from those, the deterministic rules engine is a competent implementation o
 
 | Class | L1 | L2 | L3 (subclass) | L4 | L5 |
 |---|---|---|---|---|---|
-| **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack (PARTIAL — "attackers have adv vs you" tracking UNVERIFIED), Danger Sense (MISSING) | Primal Path MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement MISSING |
-| **Bard** | Spellcasting (cross-flow), Bardic Inspiration (PARTIAL — consumption hook UNVERIFIED) | Expertise (cross-flow), Jack of All Trades MISSING | Bard College MISSING (Cutting Words needs reaction hook) | ASI | Font of Inspiration UNVERIFIED, BI d8 upgrade PARTIAL |
-| **Cleric** | Spellcasting, Divine Order UNVERIFIED | Channel Divinity UNVERIFIED (Turn Undead, Divine Spark) | Divine Domain MISSING | ASI | Sear Undead UNVERIFIED |
-| **Druid** | Spellcasting, Primal Order UNVERIFIED | **Wild Shape MISSING** (stat-block swap), Wild Companion depends on Wild Shape | Primal Circle MISSING | ASI | no universal |
-| **Fighter** | Fighting Style PARTIAL, Second Wind UNVERIFIED/PARTIAL, Weapon Mastery 3 (cross-flow) | Action Surge PARTIAL, **Tactical Mind MISSING** (2024) | Martial Archetype MISSING (Champion crit range, BM maneuvers) | ASI | Extra Attack, **Tactical Shift MISSING** (2024) |
-| **Monk (outlier)** | Martial Arts SUP, Unarmored Def | Ki/Focus pool SUP, Flurry/Patient/Step SUP, Unarmored Movement | Deflect Attacks SUP (reaction), Monastic Tradition MISSING | ASI, Slow Fall MISSING | Extra Attack, **Stunning Strike UNVERIFIED/PARTIAL** |
-| **Paladin** | Spellcasting, **Lay on Hands UNVERIFIED/MISSING**, Weapon Mastery 2 | Fighting Style, **Divine Smite (2024 spell) UNVERIFIED/PARTIAL**, Channel Divinity UNVERIFIED | Sacred Oath MISSING (oath spells + CD) | ASI, Divine Health | Extra Attack, Faithful Steed cross-flow |
-| **Ranger** | Spellcasting, Favored Enemy (Hunter's Mark tie) UNVERIFIED | Fighting Style, Deft Explorer (non-combat) | Archetype MISSING, Roving | ASI | Extra Attack |
-| **Rogue** | Expertise, **Sneak Attack PARTIAL** (needs attack-hit hook + advantage detection), Weapon Mastery 2 | Cunning Action UNVERIFIED, **Steady Aim UNVERIFIED/MISSING** (2024 base) | Archetype MISSING (Assassinate auto-crit) | ASI | **Uncanny Dodge MISSING** (reaction), **Cunning Strike MISSING** (2024 dice-spend) |
-| **Sorcerer** | Spellcasting, **Innate Sorcery MISSING** (2024), **L1 Subclass MISSING** (Draconic Resilience etc.) | Font of Magic PARTIAL (points + conversion) | **Metamagic MISSING** (Quickened, Twinned minimum) | ASI | Sorcerous Restoration UNVERIFIED |
-| **Warlock (weakest-covered class)** | Pact Magic (SR slots — cross-flow), **Eldritch Invocations MISSING** (Agonizing Blast+), **L1 Subclass MISSING** | Magical Cunning MISSING | Pact Boon MISSING | ASI | 3rd-lvl Pact slots |
-| **Wizard** | Spellcasting, Ritual Adept (2024), **Arcane Recovery UNVERIFIED** | Scholar (2024) | Arcane Tradition MISSING (Sculpt Spells, Portent) | ASI | no universal |
+| **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack, Danger Sense (SUP) | Primal Path mechanical features MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement SUP |
+| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; consumption still blocked on roll-interrupt) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words still partial) | ASI | Font of Inspiration + BI d8 SUP |
+| **Cleric** | Spellcasting, Divine Order MISSING | Channel Divinity (Turn Undead + Divine Spark) SUP | Divine Domain MISSING | ASI | Sear/Destroy Undead SUP |
+| **Druid** | Spellcasting, Primal Order MISSING | Wild Shape PARTIAL (temp HP + metadata; full swap/hydration pending) | Primal Circle MISSING | ASI | no universal |
+| **Fighter** | Fighting Style, Second Wind SUP, Weapon Mastery 3 (cross-flow) | Action Surge SUP, Tactical Mind MISSING | Martial Archetype MISSING | ASI | Extra Attack, Tactical Shift PARTIAL |
+| **Monk** | Martial Arts SUP, Unarmored Def | Ki/Focus pool SUP, Flurry/Patient/Step SUP, Unarmored Movement | Deflect Attacks SUP (reaction), Monastic Tradition MISSING | ASI, Slow Fall SUP | Extra Attack, Stunning Strike PARTIAL (inline) |
+| **Paladin** | Spellcasting, Lay on Hands SUP, Weapon Mastery 2 | Fighting Style, Divine Smite PARTIAL (inline), Channel Divinity PARTIAL | Sacred Oath MISSING | ASI, Divine Health | Extra Attack, Faithful Steed cross-flow |
+| **Ranger** | Spellcasting, Favored Enemy / Hunter's Mark tie PARTIAL | Fighting Style, Deft Explorer (non-combat) | Archetype MISSING, Roving | ASI | Extra Attack |
+| **Rogue** | Expertise, Sneak Attack SUP, Weapon Mastery 2 | Cunning Action SUP, Steady Aim SUP | Archetype MISSING | ASI | Uncanny Dodge SUP, Cunning Strike PARTIAL (poison/trip/withdraw) |
+| **Sorcerer** | Spellcasting, Innate Sorcery SUP, L1 subclass defs PARTIAL | Font of Magic SUP | Metamagic SUP (Quickened/Twinned baseline) | ASI | Sorcerous Restoration SUP |
+| **Warlock** | Pact Magic SUP, Agonizing Blast invocation SUP, L1 subclass defs PARTIAL | Magical Cunning SUP | Pact Boon MISSING | ASI | 3rd-lvl Pact slots |
+| **Wizard** | Spellcasting, Ritual Adept SUP, Arcane Recovery via rest flow SUP | Scholar (2024) | Arcane Tradition MISSING | ASI | no universal |
 
 ### Structural gaps (class-wide)
 
 | Issue | Status | Notes |
 |---|---|---|
-| **Subclass framework** | **MISSING P0** | No subclass registry. Sorc/Warlock lose L1 identity; others lose L3. |
-| Resource pool coverage | PARTIAL | `class-resources.ts` imports 10 of 12 classes |
+| Subclass framework | PARTIAL | Framework exists; remaining gap is mechanical breadth across subclasses. |
+| Resource pool coverage | SUPPORTED | Registry-backed class lookup is in place; scenario depth is the remaining concern. |
 | Attack enhancement stacking order | REWORK | Reckless + Sneak + Smite + Stunning Strike composition |
 | Attack reaction dedup | REWORK | Shield, Deflect, Uncanny Dodge, Protection, Cutting Words compete |
 | Bonus action routing | REWORK | Verify all bonus-action features consume economy |
@@ -180,14 +180,14 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Cantrip scaling (1/2/3/4× at L1/5/11/17) | SUPPORTED | WEAK | Scaling present, tests thin |
 | Counterspell (2024 rules) | SUPPORTED | MODERATE | Verify Con-save-by-target implementation |
 | Verbal component enforcement | SUPPORTED | WEAK | `cannotSpeak` blocks |
-| **Dispel Magic (L3)** | **MISSING P0** | NONE | Completely absent — blocks L3+ wizard/cleric/druid/bard |
-| **Material component enforcement** | **MISSING P0** | NONE | Declared in catalog, zero inventory checks (Revivify 300gp diamond) |
-| **Auto-AoE target resolution** | **MISSING P0** | NONE | Burning Hands / Thunderwave / Fireball require manual target names |
+| Dispel Magic (L3) | SUPPORTED | WEAK | Implemented and E2E-covered (`wizard/dispel-magic-concentration-break.json`). |
+| Material component enforcement | PARTIAL | WEAK | Consumed costed components are parsed and validated before cast; decrement writeback remains open. |
+| Auto-AoE target resolution | PARTIAL | WEAK | Delivery path supports area targeting; evaluator/path quality and broad scenario depth remain open. |
 | **War Caster feat concentration advantage** | **MISSING P1** | NONE | `concentrationSaveRollMode` hardcoded false |
 | Somatic component free-hand validation | MISSING P1 | NONE | |
 | Spiritual Weapon multi-round bonus action | MISSING P1 | NONE | L2 cleric staple |
 | Mirror Image duplicate AC override | MISSING P1 | WEAK | Not wired into hit-resolution |
-| Haste speed_multiplier | MISSING P1 | WEAK | |
+| Haste speed_multiplier | SUPPORTED | WEAK | Speed multiplier path is implemented; broader haste action-model depth remains limited. |
 | Slot refund on counterspell failure | MISSING P1 | NONE | Both outcomes consume slot |
 | Spell prep/known distinction | MISSING P2 | NONE | No cleric/druid re-prep vs sorcerer-known |
 | Ritual casting integration depth | MISSING P2 | WEAK | |
@@ -199,14 +199,15 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Level | Present | Missing for L1-5 |
 |---|---|---|
 | Cantrip | 9/17 (53%) | Guidance, Spare the Dying, Resistance, Light, Mage Hand, Shillelagh, Minor Illusion, Shocking Grasp |
-| L1 | 34/42 (81%) | Fog Cloud, Ice Knife, Color Spray, Sanctuary, Find Familiar (ritual) |
+| L1 | 36/42 (86%) | Fog Cloud, Ice Knife, Color Spray, Sanctuary, Find Familiar (ritual) |
 | L2 | 19/29 (66%) | Magic Weapon, Prayer of Healing, Blur, Silence |
 | L3 | 12/23 (52%) | **Lightning Bolt (CRITICAL for sorc/wiz)**, Sleet Storm, Bestow Curse, Water Walk |
 | L4-5 | 12/18 (67%) | Mass Cure Wounds (L5), Teleportation Circle (L5) |
 
 ### Catalog-level bugs
 
-- **Cantrip scaling untested** — Fire Bolt, Eldritch Blast, Vicious Mockery have scaling comments but no L5/11/17 assertions.
+- **Cantrip scaling covered** — unit + E2E validation exists (`wizard/cantrip-scaling.json`).
+- **Scenario metadata drift** — `druid/party-support` text still says Call Lightning is missing, but it exists in L3 catalog.
 - **Spiritual Weapon TODO** — multi-round bonus action loop not implemented.
 - **Mirror Image incomplete** — duplicate AC not in hit-resolution.
 - **Haste incomplete** — `speed_multiplier` not resolved.
@@ -217,17 +218,17 @@ Aside from those, the deterministic rules engine is a competent implementation o
 |---|---|---|
 | Encounter lifecycle (start/end) | SUPPORTED | |
 | Turn boundary 6-phase processing | SUPPORTED | end-of-turn effects → advance → incoming → start → events → death-save auto-roll |
-| Intent parsing (CombatTextParser, 20+ parsers) | PARTIAL | Regex-based, brittle; no LLM fallback |
+| Intent parsing (CombatTextParser + parser chain + LLM fallback) | PARTIAL | Regex-first parser chain with LLM fallback is implemented; still brittle for broad natural-language variance |
 | Action dispatch (7 handler modules) | SUPPORTED | attack, movement, grapple, spell, interaction, social, class abilities |
 | Roll state machine | SUPPORTED | INITIATIVE → ATTACK → DAMAGE → DEATH_SAVE / SAVING_THROW |
 | Victory/defeat detection (faction-based) | SUPPORTED | |
-| Compound intents | PARTIAL | Only "move (X,Y) and attack" supported; no move-toward-attack, attack-then-move, three-part |
-| Surprise round | MISSING P1 | Surprised creatures don't skip/disadv |
-| Flee mechanics | MISSING P2 | `hasFled()` flag exists but nothing sets it |
-| Reaction spells hookup | PARTIAL | OAs partial; Counterspell/Feather Fall/Absorb Elements missing |
-| Concentration auto-break on new cast | REWORK | Spells while concentrating don't auto-break |
+| Compound intents | PARTIAL | "move (X,Y) and attack" is implemented and scenario-covered; other compound permutations remain missing |
+| Surprise handling (2024 initiative disadvantage model) | SUPPORTED | Surprise is implemented as initiative disadvantage; no legacy skip-turn surprise-round model |
+| Flee mechanics | PARTIAL | Encounter can end with reason=flee and victory policy honors fled flag; per-combatant flee action lifecycle remains incomplete |
+| Reaction spells hookup | PARTIAL | Counterspell and damage reactions (including Absorb Elements/Hellish Rebuke) are implemented; Feather Fall remains missing |
+| Concentration auto-break on new concentration cast | SUPPORTED | Shared spell preparation path breaks existing concentration before applying a new concentration spell |
 | Save-to-end mid-turn | MISSING P1 | Effects don't trigger saves when damage taken on another's turn |
-| Action economy collision (Monk Flurry + Offhand bonus) | REWORK | No arbitration |
+| Bonus-action arbitration (Monk Flurry + offhand) | PARTIAL | Shared bonus-action guard exists; retain PARTIAL pending broader edge-case coverage |
 
 ## 2.6 ActionEconomy  ([audit](audit-ActionEconomy.md))
 
@@ -242,12 +243,12 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Bonus action spell restrictions (2024: action-slot + bonus-slot same turn) | SUPPORTED | Both flags tracked |
 | Ready action persistence | SUPPORTED | Cleared at start of next turn |
 | Class resource pools (rage, ki, sorcery, BI, CD) | SUPPORTED | |
-| **Disengage/Dash enforcement** | **MISSING P0** | `markDisengaged()` exists but never called; movement handlers don't check disengage before OA |
-| **Lair action trigger at initiative 20** | **MISSING P0** | Parsed but not fired |
-| Reaction mid-round lifecycle | REWORK | No `reactionSpentThisRound` vs `reactionAvailableThisTurn` distinction |
+| Disengage/Dash enforcement | SUPPORTED | Action handlers set disengaged/dashed and OA logic respects disengage suppression; E2E-covered. |
+| Lair action trigger at initiative 20 | SUPPORTED | Trigger path is implemented and validated by `core/lair-actions`. |
+| Reaction mid-round lifecycle | PARTIAL | Reset-at-own-turn model is RAW-compatible; separate round-vs-turn accounting flags are still not explicit. |
 | Monk Flurry of Blows economy guards | REWORK | Doesn't check `bonusActionSpellCastThisTurn` |
-| Multiattack vs Extra Attack monsters | REWORK | AI multiattack doesn't populate pool at encounter start |
-| OA once per trigger (2024) | REWORK | Doesn't prevent multiple OAs per trigger |
+| Multiattack vs Extra Attack monsters | SUPPORTED | AI seeds attacksAllowedThisTurn from attacks-per-action logic; corroborated by fighter extra-attack/action-surge flows. |
+| OA once per trigger (2024) | PARTIAL | Reaction gating prevents repeat OA by same observer, but same-trigger edge-case coverage should be expanded. |
 | Difficult terrain cost audit per turn | MISSING P1 | No total-vs-pool validation |
 | Ritual + action spell same turn | MISSING P1 | No validator |
 | AC recalc timing (Unarmored Defense stat change) | MISSING P1 | |
@@ -260,21 +261,21 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Two-phase pending-action pipeline | SUPPORTED | Clean facade, state machine enforces transitions |
 | OA detection (leaves reach, Disengage suppresses) | SUPPORTED | `oa-detection.ts` |
 | Shield spell (attack reaction, +5 AC persistence) | SUPPORTED | Verify persistence until start of caster's next turn |
-| Counterspell (spell reaction) | PARTIAL | Verify 2024 Con-save-by-target (not 2014 check) |
+| Counterspell (spell reaction) | SUPPORTED | 2024 Con-save-by-target path is implemented and scenario-covered. |
 | Damage reactions (post-damage hook) | SUPPORTED | |
-| **Absorb Elements (L1 spell)** | **MISSING P0** | Needs damage-reaction-handler wiring |
-| **Hellish Rebuke (L1 spell)** | **MISSING P0** | Needs damager reference on damage event |
-| **Deflect Attacks (Monk L1 2024, melee+ranged)** | **MISSING P0** | Attack-reaction wiring |
-| **Slow Fall (Monk L4)** | **MISSING P1** | Needs NEW trigger kind (fall damage not currently pending-action) |
-| **Protection fighting style (2024 reaction)** | **MISSING P1** | Needs ally-targeting reaction kind |
-| **Interception fighting style (2024 reaction)** | **MISSING P1** | Needs damage-to-ally reaction kind |
-| **Cutting Words (Bard Lore L3 reaction)** | **MISSING P1** | **Needs roll-interrupt reaction kind — architectural gap** |
-| **Sentinel feat** | MISSING P2 | OA even on Disengage, trigger on ally-adjacent-attack |
+| Absorb Elements (L1 spell) | SUPPORTED | Damage-reaction path is implemented and scenario-covered. |
+| Hellish Rebuke (L1 spell) | SUPPORTED | Damage-reaction path with damager context is implemented and scenario-covered. |
+| Deflect Attacks (Monk L1 2024, melee+ranged) | SUPPORTED | Attack-reaction damage reduction/redirect path is implemented. |
+| Slow Fall (Monk L4) | SUPPORTED | Implemented in pit/fall resolution path (non-two-phase prompt). |
+| Protection fighting style (2024 reaction) | SUPPORTED | Ally-targeting reaction path is implemented and scenario-covered. |
+| Interception fighting style (2024 reaction) | SUPPORTED | Damage-to-ally reaction path is implemented and scenario-covered. |
+| Cutting Words (Bard Lore L3 reaction) | PARTIAL | Attack-roll path exists; generalized roll-interrupt architecture remains missing. |
+| Sentinel feat | PARTIAL | Implemented in key OA/ally-attack paths; full feat-surface architecture remains incomplete. |
 | **Polearm Master enter-reach OA** | MISSING P2 | `oa-detection.ts` only leaves-reach |
 | Forced movement / stand-from-prone / teleport OA exclusion | REWORK | Verify filters voluntary-only |
 | Reaction reset at own-turn-start (not round) | REWORK | Verify correct event |
 
-**Summary:** Architecture sound; content thin. Only 3 of ~12 canonical L1-5 reactions wired.
+**Summary:** Architecture sound; reaction coverage is materially broader (OA, Shield, Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, Interception, Sentinel). Remaining key gaps are Polearm Master enter-reach OA and generalized roll-interrupt architecture.
 
 ## 2.8 CombatMap  ([audit](audit-CombatMap.md))
 
@@ -284,7 +285,7 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | A* pathfinding with zone-aware weighting | SUPPORTED | `dangerousZoneWeight`, `zonePenalty`, `avoidZoneIds` |
 | Difficult terrain (2× cost) | SUPPORTED | |
 | Cover (none/half/three-quarters/full) | SUPPORTED | |
-| **Creature-as-cover bug** | **REWORK P0** | Returns three-quarters (+5); RAW says half (+2). Inflates every ranged attack's AC by +3. |
+| Creature-as-cover (intervening creature) | SUPPORTED | Intervening creatures grant half cover (+2); validated by tests and cover E2E. |
 | Zones (circle/square/line/cone, damage, duration, blocks flags) | SUPPORTED | |
 | AoE shapes (sphere/cube/cylinder/line/cone) | SUPPORTED | Cone angle approximation 53° |
 | Battlefield rendering (ASCII) | SUPPORTED | |
@@ -293,15 +294,16 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Pits (entry, DEX save, fall damage + prone) | SUPPORTED | |
 | **Flying / hovering movement mode** | **MISSING P0** | A* signature has no mode; ignore ground terrain/zones/pits |
 | **Zone LOS blocking enforcement** | **MISSING P0** | Flag exists; `hasLineOfSight` doesn't check it. Breaks fog cloud, darkness |
-| **Creature size / multi-tile footprint** | **MISSING P0** | Large treated as 1×1 |
+| Creature size / multi-tile footprint pathing | SUPPORTED | Pathfinding supports footprint expansion for larger creatures; add dedicated large-creature E2E depth. |
 | **Reach-aware adjacency helper** | **MISSING P0** | `isAdjacent` hardcoded 5ft; glaive at L1 breaks |
-| **Diagonal corner-clipping check** | **MISSING P0** | Can move diagonally through corner touching wall |
+| Diagonal corner-clipping check | SUPPORTED | A* and reachable-cells logic both block diagonal movement through blocked orthogonals. |
 | **Invisibility/hidden map state** | **MISSING P0** | No `isHidden`/`isInvisible` fields |
 | **Line of effect at AoE origin + spell target** | **MISSING P0** | Can fireball through walls currently |
-| Per-zone trigger policy | MISSING P1 | spike-growth-per-5ft vs moonbeam-on-entry one-size-fits-all |
+| Per-zone trigger policy | SUPPORTED | Trigger modes support on_enter, on_start_turn, on_end_turn, per_5ft_moved, passive. |
 | Crawling cost (1/1 extra, like difficult terrain) | MISSING P2 | |
 | TerrainType enum | REWORK | Vestigial — not wired into movement cost |
-| `blocksMovement` zone enforcement in A* | MISSING P1 | Flag exists, pathfinder ignores |
+| Zone hard-block movement semantics | PARTIAL | Pathfinder supports penalties/avoidance, but schema has no explicit hard-block movement flag. |
+| Obscuration support (light/heavy) | PARTIAL | Map cells carry obscuration and sight helpers expose obscuration attack modifiers; E2E depth is limited. |
 | 3D elevation | MISSING P1 | Blocks aerial combat at L5 |
 | Swim/climb speed integration | MISSING P2 | |
 | Occupancy rules (move through ally, incapacitated) | MISSING P2 | All-or-nothing currently |
@@ -317,15 +319,15 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | 14+ non-spell action types (attack, move, grapple, hide, dash, dodge, disengage, useObject, useFeature, help, castSpell) | SUPPORTED | |
 | Target scoring (HP%, AC, concentration bias +40, condition weights, distance penalty) | SUPPORTED | |
 | Positioning heuristics (cover-seek ranged, flank melee, damage-type aware) | SUPPORTED | |
-| Monster specifics (multiattack parsing, legendary action spread heuristic, lair) | PARTIAL | Multiattack parsing works; lair action trigger missing (cross-flow ActionEconomy) |
+| Monster specifics (multiattack parsing, legendary action spread heuristic, lair) | PARTIAL | Multiattack + legendary execution are validated. Lair trigger path exists, but lairActions-only stat blocks can still be skipped by trait parsing edge cases. |
 | Reaction decision (OA, Shield, Counterspell) | PARTIAL | OA good; Shield margin check rough; Counterspell value-blind |
 | Attack economy mid-turn re-check | REWORK | |
-| OA suppression proactive | MISSING P1 | Reactive only |
+| OA suppression proactive | PARTIAL | Deterministic AI includes low-HP disengage-before-retreat behavior; broader proactive threat suppression remains limited. |
 | Pack tactics | MISSING P1 | |
-| Multi-target spell clustering | MISSING P1 | |
-| Concentration priority bias (break vs hold) | MISSING P1 | |
-| Exhaustion/disease extraction | MISSING P2 | |
-| Focus-fire coordination across allies | MISSING P2 | |
+| Multi-target spell clustering | PARTIAL | AoE evaluation applies affected-target estimates and weighting; geometry/friendly-fire sophistication remains limited. |
+| Concentration priority bias (break vs hold) | PARTIAL | Target scoring applies concentration pressure; strategic break-vs-hold policy is still limited. |
+| Exhaustion/disease extraction | PARTIAL | Exhaustion penalties are consumed; disease/curse tactical extraction remains limited. |
+| Focus-fire coordination across allies | PARTIAL | LLM battle-plan focus exists; deterministic focus-lock remains limited. |
 
 ## 2.10 AISpellEvaluation  ([audit](audit-AISpellEvaluation.md))
 
@@ -338,16 +340,16 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Bonus-action spell path | SUPPORTED | Healing Word, Spiritual Weapon, Misty Step |
 | Concentration drop on new cast (naive) | REWORK | No value comparison; drops Bless for Hold Person |
 | AoE friendly-fire awareness | PARTIAL | Circle only; ignores elevation; flat ally weight |
-| **AI spell delivery resolution** | **MISSING P0** | `ai-spell-delivery.ts` records event but doesn't resolve damage/saves/conditions/concentration. AI spellcasters cosmetic in mock combat. |
-| **Upcast value computation** | **MISSING P0** | `computeSpellValue` doesn't compute value-per-slot |
+| AI spell delivery resolution | SUPPORTED | `ai-spell-delivery.ts` resolves attacks, saves, damage/healing, buffs/debuffs, zones, and KO side effects through cast handler integration. |
+| Upcast value computation | MISSING P1 | Delivery supports upcasting; evaluator value-per-slot modeling is still thin. |
 | Encounter-budget heuristic | MISSING P1 | |
-| Heal urgency tiers | REWORK | Binary threshold; missing 0-HP prioritization |
+| Heal urgency tiers | PARTIAL | 0-HP/death-save triage exists; non-dying thresholding remains coarse. |
 | Buff-target scoring | REWORK | Bless picks self + nearest 2; no output scoring |
-| AoE template geometry (line/cone/cube) | MISSING P1 | Treats all as circle |
+| AoE template geometry (line/cone/cube) | PARTIAL | Evaluator estimate is coarse; delivery resolves real area targeting. |
 | Condition follow-through (Hold Person → auto-crit melee) | MISSING P1 | |
-| Counterspell value check | MISSING P1 | Counters any spell regardless of value |
+| Counterspell value check | PARTIAL | Heuristic skips cantrips and conserves last slot; still lacks full value-tradeoff scoring. |
 | Shield reaction smarter trigger | REWORK | Ignores crit, multi-attack sequence |
-| Cantrip-as-default floor | REWORK | Capped too low; slots always preferred |
+| Cantrip-as-default floor | REWORK | Cantrip path exists; remaining gap is value calibration and slot-efficiency scoring. |
 
 ## 2.11 EntityManagement  ([audit](audit-EntityManagement.md))
 
@@ -357,24 +359,24 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Character CRUD + resource mutation | SUPPORTED | |
 | Character-sheet hydration (weapon/armor/spell) | SUPPORTED | |
 | Inspiration flag | SUPPORTED | Boolean grant only |
-| Exhaustion level 0-10 field | SUPPORTED | (CombatRules doesn't consume it) |
+| Exhaustion level 0-10 field | SUPPORTED | CombatRules consumes d20/speed penalties; long-rest reduction + death-trigger wiring remain open. |
 | Monster stat block + import | SUPPORTED | |
 | NPC lightweight entity | SUPPORTED | |
 | Session lifecycle + events | SUPPORTED | |
-| Repository ports (in-memory + Prisma) | PARTIAL | Memory repos drift from Prisma |
+| Repository ports (in-memory + Prisma) | SUPPORTED | No concrete drift reproduced in this pass; keep parity checks as regression guard. |
 | Spell Lookup Service | SUPPORTED | |
-| **Short rest operation** | **MISSING P0** | No `shortRest(characterId)`; blocks SR class features (Warlock slots, 2nd Wind, AS, Ki, BI L5+, BM dice, CD, Pact slots) |
-| **Long rest operation** | **MISSING P0** | No `longRest(characterId)`; blocks slot refill, exhaustion reduction, HP full, hit dice half, temp HP clear, concentration end |
-| **Hit dice tracking + spend** | **MISSING P0** | Likely not on entity |
-| **Level-up operation (L2→L5)** | **MISSING P0** | Can't advance programmatically |
+| Short rest operation | SUPPORTED | Implemented via `takeSessionRest("short")` and `/sessions/:id/rest`; validated by E2E. |
+| Long rest operation | PARTIAL | Implemented via `takeSessionRest("long")`; exhaustion reduction on long rest remains missing. |
+| Hit dice tracking + spend | SUPPORTED | `spendHitDice`/`recoverHitDice` paths are implemented and E2E-covered. |
+| Level-up operation (L2→L5) | PARTIAL | Domain `Character.levelUp()`/`levelUpWith()` exists; no dedicated EntityManagement service/API endpoint yet. |
 | **ASI/feat at L4** | **MISSING P0** | No application mechanism |
-| **Species trait application pipeline** | **MISSING P0** | Species is a string; no trait apply |
+| Species trait application pipeline | PARTIAL | Species traits are applied in hydration; create-time origin/background application remains incomplete. |
 | **Background pipeline (2024: skills/tool/language/Origin Feat/ASI/equipment)** | **MISSING P0** | |
 | Inspiration grant/spend API + event | MISSING P1 | |
 | Encounter-to-session rest linkage | MISSING P1 | Dungeon LR should flag/disallow |
 | Exhaustion 6 = death | MISSING P1 | Depends on CombatRules exhaustion |
 | Temp HP no-stack (2024 take-max) | MISSING P1 | |
-| Monster catalog breadth (CR 0-4) | UNVERIFIED | Audit needed |
+| Monster catalog breadth (CR 0-4) | PARTIAL | Most entries are present; Orc source/import parity remains open and should be re-validated. |
 | NPC template library | MISSING P2 | |
 | Multiclassing | MISSING P2 | Scalar `class` field; L1-5 can mono-class |
 
@@ -390,13 +392,13 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Monster / NPC hydration | SUPPORTED | |
 | Proficiency bonus (character level / monster CR+4) | PARTIAL | Monster is heuristic |
 | **AC with Mage Armor (13 + DEX)** | **MISSING P0** | Not detected; no `mageArmorActive` hydration |
-| **Magic item +X armor/weapon bonuses** | **MISSING P0** | Not parsed; not called in attack resolver |
+| Magic item +X armor/weapon bonuses | PARTIAL | Tabletop attack path applies +X weapon bonuses; AC/inventory parity across all combat paths still needs verification. |
 | **ASI boost merging into effective stats** | **MISSING P0** | `asiChoices` parsed but not applied to AC/attack/saves |
-| **Wild Shape reverse hydration** | **MISSING P0** | Beast form lost on reload mid-wild-shape |
+| Wild Shape reverse hydration | PARTIAL | Resource/tempHP/metadata persist; transformed combat stat profile rehydration remains incomplete. |
 | Species: natural armor | MISSING P1 | |
 | Species: breath weapons | MISSING P1 | Dragonborn |
-| Species: ability check bonuses | MISSING P1 | Gnome Cunning INT/WIS/CHA magic saves |
-| Spell save DC / attack bonus computation (not just sheet-read) | MISSING P1 | |
+| Species: ability check bonuses | MISSING P1 | Clarify scope: Gnome Cunning is save-advantage vs magic (separate from ability checks). |
+| Spell save DC / attack bonus computation (not just sheet-read) | PARTIAL | Runtime spell delivery computes DC/attack bonus with derived fallback; ownership is primarily SpellSystem. |
 | Skill check unification (duplicated logic) | REWORK | |
 | Feat traits beyond Alert/Defense/Dueling/GWF/Protection/TWF/Archery | PARTIAL | Lucky, Resilient, Grappler, Skilled, Interception are placeholders |
 | Condition immunities (Elf charmed, etc.) | MISSING P1 | |
@@ -412,14 +414,14 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | Shields | SUPPORTED | +2, Utilize mid-combat |
 | Equip/unequip + AC sync | SUPPORTED | |
 | Attunement (cap 3) | SUPPORTED | |
-| Potions of Healing (4 tiers) + 13 resistance potions + specialty | PARTIAL | Healing works; ActiveEffect potions not applied |
+| Potions of Healing (4 tiers) + 13 resistance potions + specialty | PARTIAL | Combat use-item applies healing, temp HP, and active potion effects; edge fidelity remains partial. |
 | Goodberry (24-hour decay) | SUPPORTED | |
-| Magic items (+X dynamic, wondrous, staves, on-hit effects) | PARTIAL | Definitions solid; bonuses not enforced in attack |
+| Magic items (+X dynamic, wondrous, staves, on-hit effects) | PARTIAL | Core definitions and tabletop attack/damage bonuses are enforced; broader item behavior parity remains partial. |
 | Charges (max, recharge, destroy-on-empty) | PARTIAL | Defined; no LR reset, no recharge roll |
-| Ground items (drop, pickup endpoint missing, no auto-loot) | PARTIAL | |
+| Ground items (drop, pickup, loot) | PARTIAL | Combat drop/pickup and monster loot-drop are implemented; dedicated REST pickup endpoint remains missing. |
 | Inventory API routes | SUPPORTED | |
-| **Potion ActiveEffect application (Speed, Resistance)** | **MISSING P0** | Routes only apply healing + tempHP |
-| **Magic bonus in attacks** | **MISSING P0** | `getWeaponMagicBonuses()` not called by resolver |
+| Potion ActiveEffect application (Speed, Resistance) | PARTIAL | Implemented in combat flow; residual edge-case fidelity remains. |
+| Magic bonus in attacks | SUPPORTED | `getWeaponMagicBonuses()` is applied by attack resolution in tabletop flow. |
 | **Charge recharge on LR + roll** | **MISSING P0** | |
 | Ground item pickup endpoint | MISSING P1 | |
 | Cursed items + Remove Curse | MISSING P1 | |
@@ -431,7 +433,9 @@ Aside from those, the deterministic rules engine is a competent implementation o
 
 # 3. E2E Coverage Snapshot  ([audit](audit-E2E-Scenarios.md))
 
-**260 scenarios / 24 folders / 21 unique mechanic tags.**
+**270 scenarios / 24 folders / 21 unique mechanic tags.**
+
+Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` scan of `scripts/test-harness/scenarios` only; `scripts/test-harness/scenarios-pending` is excluded from `--all`.
 
 ### Turn-depth
 
@@ -472,18 +476,18 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | concentration | 2 | MODERATE |
 | cover | 2 | MODERATE |
 | multi-PC coordination | 7-21 | WEAK |
-| counterspell | 1 | WEAK |
+| counterspell | 3+ | MODERATE |
 | legendary action | 2 | WEAK |
-| lair action | 0 | NONE |
-| surprise round (2024) | 0 | NONE |
+| lair action | 1+ | WEAK |
+| surprise round (2024) | 1+ | WEAK |
 | horde (6+ enemies) | 0 | NONE |
 | condition stacking (3+ simultaneous) | 1 | WEAK |
-| exhaustion | 0 | NONE (mechanic unimplemented) |
-| fall damage | 0 | NONE (mechanic unimplemented) |
-| rest mechanics | 0 | NONE (mechanic unimplemented) |
-| Dispel Magic | 0 | NONE (spell missing) |
-| War Caster | 0 | NONE |
-| material components | 0 | NONE |
+| exhaustion | 1+ | WEAK |
+| fall damage | 1+ | WEAK |
+| rest mechanics | 6+ | STRONG |
+| Dispel Magic | 1+ | WEAK |
+| War Caster | 1+ | WEAK |
+| material components | 1+ | WEAK |
 
 ### Deepest existing scenarios (candidates to extend)
 
@@ -506,19 +510,19 @@ Aside from those, the deterministic rules engine is a competent implementation o
 |---|---|---|---|
 | 1 | **d20 roll-interrupt architectural hook** | ReactionSystem | Unblocks Bardic Inspiration consumption, Lucky feat, Diviner Portent, future Silvery Barbs, Tactical Mind, Cutting Words. BI effect is created but never consumed — currently cosmetic. **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
 | 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
-| 3 | **AI spell delivery resolution** | AISpellEvaluation | `ai-spell-delivery.ts` records event but doesn't resolve damage/saves/conditions. Blocks AI-vs-AI and mock combat. **Plan: [plan-ai-spell-delivery.md](plan-ai-spell-delivery.md)** |
+| 3 | ~~**AI spell delivery resolution**~~ ✅ DONE | AISpellEvaluation | Delivery path is implemented and E2E-validated. |
 | 4 | ~~**Exhaustion mechanic (2024, 10-level, -2/level d20)**~~ ✅ DONE | CombatRules | Reconciled `conditions.ts` to 2024 RAW (was 2014-style 1-6/-level). `scenarios/core/exhaustion-accumulation.json` validates. Orphan `domain/rules/exhaustion.ts` deleted. Level 10 death helper available but auto-death trigger on application is future work. |
 | 5 | ~~**Fall damage (1d6/10ft, max 20d6, prone)**~~ ✅ DONE | CombatRules | Already implemented in `combat-map-core.ts` via `computeFallDamage` + `pit-terrain-resolver`. Audit was wrong. `scenarios/core/fall-damage-sequence.json` validates. Generic off-ledge fall damage (not through pits) is future work. |
 | 6 | ~~**Dispel Magic (L3 spell)**~~ ✅ DONE | SpellCatalog + SpellSystem | Catalog entry already present; new `DispelMagicDeliveryHandler` wired into delivery chain. Auto-dispels spells of level ≤ slot level; rolls ability check for higher-level spells. `scenarios/wizard/dispel-magic-concentration-break.json` validates. |
-| 7 | **Material component enforcement** | SpellSystem | Declared in catalog, zero inventory checks at cast time (Revivify 300gp). **Plan: [plan-material-components.md](plan-material-components.md)** |
+| 7 | **Material component enforcement** | SpellSystem | PARTIAL: consumed costed components are parsed/validated before cast; decrement writeback remains open. **Plan: [plan-material-components.md](plan-material-components.md)** |
 | 8 | **Background field + background pipeline** | EntityManagement | Field entirely missing from Character. 2024 Origin Feat, ASI, skill/tool/language grants. **Plan: [plan-background-pipeline.md](plan-background-pipeline.md)** |
 | 9 | **Species trait auto-apply on character create** | EntityManagement | Currently applied at hydration only — not written to sheet on create. (Pairs with background pipeline plan.) |
 | 9b | **Subclass L3 features for 12 classes** | ClassAbilities | Framework + typed definitions exist; ~7 base subclasses need mechanical implementations. **Plan: [plan-subclass-framework.md](plan-subclass-framework.md)** |
 | 9c | **Wild Shape stat-block swap** (Druid L2) | ClassAbilities + CreatureHydration | Current implementation is a temp-HP hack — beast stats aren't actually applied. **Plan: [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md)** |
-| 10 | **Missing class feature executors** (grouped) | ClassAbilities | ✅ **DONE (7)**: Steady Aim (Rogue L2), Innate Sorcery (Sorc L1), Sorcerous Restoration (Sorc L5, SR policy), Tactical Shift (Fighter L5, via Second Wind), Ritual Adept (Wizard L1, feature-flag), Divine Spark (Cleric L2 CD option), Magical Cunning (Warlock L2). **STILL OPEN**: Slow Fall (Monk L4) + Cunning Strike (Rogue L5) + Tactical Mind (Fighter L2) — see **[plan-cunning-strike-and-friends.md](plan-cunning-strike-and-friends.md)**. **FALSE POSITIVES**: Sear Undead (already implemented as Destroy Undead threshold), Arcane Recovery executor file (works via rest endpoint). |
+| 10 | **Missing class feature executors** (grouped) | ClassAbilities | DONE for Steady Aim, Innate Sorcery, Sorcerous Restoration, Tactical Shift, Ritual Adept, Divine Spark, Magical Cunning, Slow Fall, and Cunning Strike poison/trip/withdraw. **STILL OPEN**: Tactical Mind and Cunning Strike Disarm/Daze. |
 | 11 | **Stunning Strike / Divine Smite / Cunning Strike architectural consolidation** | ClassAbilities | Currently inline in `hit-rider-resolver.ts` as attack enhancements. Works but should be dedicated executors for consistency. |
 | 12 | **Patron subclass combat hooks** | ClassAbilities | `darkOnesBlessingTempHp()` pure function exists; no kill-trigger event bus to fire it. Same pattern for other subclass procs. |
-| 13 | ~~**Monster catalog gap fill**~~ ✅ FALSE POSITIVE | EntityManagement | Verified: all 12 allegedly-missing monsters (Knight, Orc, Kobold, Wolf, Dire Wolf, Giant Spider, Ogre, Gnoll, Ghoul, Wight, Owlbear, Brown Bear) are present in `RuleBookDocs/markdown/creature-stat-blocks.md` and imported by the parser. Audit verification was incomplete. |
+| 13 | Monster catalog source/import parity | EntityManagement | PARTIAL: most allegedly-missing entries are present, but Orc parity should remain open until source/import alignment is explicitly re-validated. |
 | 14 | **Divine Order (Cleric Protector/Thaumaturge)** | ClassAbilities | Completely absent — blocks Cleric L1 identity in 2024. |
 | 15 | **Primal Order (Druid Magician/Warden)** | ClassAbilities | Completely absent — blocks Druid L1 identity in 2024. |
 | 16 | **Exhaustion reduction on long rest** | EntityManagement | `takeSessionRest("long")` doesn't reduce exhaustion by 1. Needed once exhaustion is consumed. |
@@ -547,34 +551,33 @@ Aside from those, the deterministic rules engine is a competent implementation o
 | 19 | Grapple escape action | CombatRules |
 | 20 | Forced movement tracking + OA/fall interaction | CombatRules |
 | 21 | Critical damage dice-vs-flat (2024) | CombatRules |
-| 22 | Auto-AoE target resolution | SpellSystem |
+| 22 | Auto-AoE quality hardening | SpellSystem |
 | 23 | War Caster feat concentration advantage | SpellSystem |
-| 24 | Counterspell 2024 Con-save verification | ReactionSystem |
-| 25 | Absorb Elements (L1) | ReactionSystem |
-| 26 | Hellish Rebuke (L1) | ReactionSystem |
-| 27 | Deflect Attacks (Monk L1 2024) | ReactionSystem |
+| 24 | Counterspell value-aware AI reaction decision | ReactionSystem + AIBehavior |
+| 25 | Feather Fall / fall-damage pending choice | ReactionSystem |
+| 26 | Cunning Strike Disarm + Daze | ClassAbilities |
+| 27 | Tactical Mind after roll-interrupt | ClassAbilities |
 | 28 | Roll-interrupt reaction kind (Cutting Words + BI) | ReactionSystem (architectural) |
-| 29 | Ally-targeting reaction kind (Protection, Interception) | ReactionSystem (architectural) |
-| 30 | Lair action trigger at initiative 20 | ActionEconomy |
-| 31 | Disengage/Dash action flags wired | ActionEconomy |
-| 32 | Flying movement mode in A* | CombatMap |
-| 33 | Zone LOS blocking enforcement | CombatMap |
-| 34 | Creature size (multi-tile footprint) | CombatMap |
-| 35 | Reach-aware adjacency helper | CombatMap |
-| 36 | Diagonal corner-clipping | CombatMap |
-| 37 | Invisibility/hidden map state | CombatMap |
-| 38 | Line of effect at AoE + spell target | CombatMap |
-| 39 | ASI merging into effective ability scores | CreatureHydration |
-| 40 | Mage Armor AC detection | CreatureHydration |
-| 41 | Magic item bonuses in attack/AC | CreatureHydration + InventorySystem |
-| 42 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities |
-| 43 | Lightning Bolt, Sleet Storm, Bestow Curse (L3 catalog) | SpellCatalog |
-| 44 | Mage Hand, Shillelagh, Guidance, Spare the Dying cantrips | SpellCatalog |
-| 45 | Magic Weapon, Prayer of Healing, Blur (L2 catalog) | SpellCatalog |
-| 46 | Upcast value computation for AI | AISpellEvaluation |
-| 47 | Potion ActiveEffect application | InventorySystem |
-| 48 | Magic bonus called by attack resolver | InventorySystem + CombatRules |
-| 49 | Charge recharge on LR | InventorySystem + EntityManagement |
+| 29 | Future reaction feats (Sentinel, Polearm Master) | ReactionSystem |
+| 30 | OA once-per-trigger + reaction lifecycle cleanup | ActionEconomy |
+| 31 | Flying movement mode in A* | CombatMap |
+| 32 | Zone LOS blocking enforcement | CombatMap |
+| 33 | Creature size (multi-tile footprint) | CombatMap |
+| 34 | Reach-aware adjacency helper | CombatMap |
+| 35 | Diagonal corner-clipping | CombatMap |
+| 36 | Invisibility/hidden map state | CombatMap |
+| 37 | Line of effect at AoE + spell target | CombatMap |
+| 38 | ASI merging into effective ability scores | CreatureHydration |
+| 39 | Mage Armor AC detection | CreatureHydration |
+| 40 | Magic item bonus parity across all combat paths | CreatureHydration + InventorySystem |
+| 41 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities |
+| 42 | Lightning Bolt, Sleet Storm, Bestow Curse (L3 catalog) | SpellCatalog |
+| 43 | Mage Hand, Shillelagh, Guidance, Spare the Dying cantrips | SpellCatalog |
+| 44 | Magic Weapon, Prayer of Healing, Blur (L2 catalog) | SpellCatalog |
+| 45 | Upcast value computation for AI | AISpellEvaluation |
+| 46 | Potion subsystem edge-fidelity hardening | InventorySystem |
+| 47 | Magic weapon bonus regression coverage hardening | InventorySystem + CombatRules |
+| 48 | Charge recharge on LR | InventorySystem + EntityManagement |
 
 ### Tier 3: Polish for deeper L1-5 play
 
@@ -586,13 +589,13 @@ Everything tagged P2 in the per-flow audits.
 
 ## 5.1 Goals
 
-The current 260 scenarios were written when the engine couldn't drive monster turns or multi-PC parties. Now that it can, the target shape should be:
+The current 270 scenarios were written when the engine couldn't drive monster turns or multi-PC parties. Now that it can, the target shape should be:
 
 - **20-30 "rich" multi-turn scenarios** (5-12 turns each) that exercise 5-10 mechanics in one encounter.
 - **~80 "focused" scenarios** (1-3 turns) for regression-critical single mechanics (e.g., Shield spell AC applies retroactively).
 - **~30 "edge case" scenarios** for rare interactions (e.g., crit on paralyzed, Sleep on immune fey).
 
-Target total: **~140 scenarios** (down from 260), net 50%+ more mechanic coverage per scenario.
+Target total: **~140 scenarios** (down from 270), net 50%+ more mechanic coverage per scenario.
 
 ## 5.2 Proposed scenario set (new + consolidated)
 
@@ -627,12 +630,12 @@ Target total: **~140 scenarios** (down from 260), net 50%+ more mechanic coverag
 
 New scenarios to cover holes once underlying mechanics are implemented:
 
-- `exhaustion-accumulation.json` (once CombatRules exhaustion implemented)
-- `fall-damage-sequence.json` (once fall damage implemented)
-- `long-rest-slot-recovery.json` (once rest ops implemented)
-- `short-rest-warlock-pact.json` (once SR + pact slots work)
-- `dispel-magic-concentration-break.json` (once Dispel implemented)
-- `material-component-revivify.json` (once enforcement implemented)
+- `exhaustion-accumulation.json` (already active)
+- `fall-damage-sequence.json` (already active)
+- `long-rest-slot-recovery.json` (already active via rest suite)
+- `short-rest-warlock-pact.json` (already active as warlock short-rest scenario)
+- `dispel-magic-concentration-break.json` (already active)
+- `material-component-revivify.json` (already active)
 - `subclass-cleric-life-heal.json` (once subclass framework implemented)
 - `multi-pc-coordination-help.json` (4-PC cooperative encounter using Help, Dodge, Ready)
 
@@ -648,7 +651,7 @@ The unit-style `core/*` scenarios that test a genuinely independent mechanic (e.
   - `cover-unified.json` replaces `cover-ac-bonus.json` + `cover-dex-save-bonus.json`
   - `dash-movement.json` + `dash-extra-movement.json` removed (redundant)
 
-- **5 new multi-turn scenarios landed** (all passing):
+- **6 new multi-turn scenarios landed** (all passing):
   - `core/short-rest-between-fights.json` — `takeSessionRest(short)` + hit-dice spending + SR pool refresh
   - `core/long-rest-full-recovery.json` — `takeSessionRest(long)` full HP + all slots + LR pools
   - `core/condition-stacking.json` — 4 simultaneous conditions + disadvantage attack
@@ -656,24 +659,20 @@ The unit-style `core/*` scenarios that test a genuinely independent mechanic (e.
   - `class-combat/core/dungeon-crawl-short-rest.json` — 2-encounter sequence with SR between
   - `class-combat/fighter/martial-extra-attack-l5.json` — Fighter Action Surge + Extra Attack + Second Wind
 
-- **6 gap-filler scenarios** in `scenarios-pending/` (outside runner discovery):
-  - `exhaustion-accumulation.json` — needs CombatRules exhaustion consumption
-  - `fall-damage-sequence.json` — needs CombatRules fall damage
-  - `counterspell-2024-con-save.json` — needs 2024 Counterspell rules port
+- **2 gap-filler scenarios** remain in `scenarios-pending/` (outside runner discovery):
   - `d20-interrupt-bardic-inspiration.json` — needs roll-interrupt architectural hook
-  - `dispel-magic-concentration-break.json` — needs Dispel Magic spell + handler
-  - `horde-encounter.json` — needs SpellSystem auto-AoE target resolution
+  - `horde-encounter.json` — pending broader horde/AoE confidence before activation
 
 ### Dropped (not viable)
 - **Death save consolidation** — each outcome (stabilize / dead / nat-20 revive / nat-1 double-fail) needs a distinct character at 1 HP being KO'd. Consolidating via multi-PC runs into initiative/timing complexity; the 4 originals stay.
 
 ### Not yet written (future work)
 - **`boss-battle-legendary.json`** (9+ turns) — needs legendary monster stat block with legendary actions; stat blocks for CR 4-5 monsters missing per audit.
-- **`spell-duel.json`** — caster-vs-caster concentration chain. Can be written with current mechanics (Counterspell 2014-style works).
+- **`spell-duel.json`** — caster-vs-caster concentration chain. Can be written with current mechanics (Counterspell 2024 path works).
 - **`caster-resource-economy-extended.json`** — extend existing `class-combat/wizard/spell-slot-economy.json` to 15+ turns with concentration swapping.
 
 ### Full suite status
-**260 → 263 scenarios, 263/263 passing, 0 flaky** (the previously-flaky `core/party-vs-goblins` also now passes).
+**Current discovered inventory is 270 scenarios.** Re-run `pnpm -C packages/game-server test:e2e:combat:mock -- --all` for a fresh full-suite pass snapshot before asserting a universal pass count in this report.
 
 ---
 
@@ -713,12 +712,8 @@ After the initial 14 audits, a verification pass checked every UNVERIFIED item a
 - Reaction reset fires via `freshActionEconomy` at start of own turn (`combat.ts:185`).
 
 **Confirmed missing (audits correct):**
-- d20 roll-interrupt hook (no `interruptRoll`, `onD20Roll`, `rollInterrupt` pattern).
-- Counterspell 2024 rules — `spell-reaction-handler.ts:283-308` uses 2014 mechanic.
-- Background field on Character.
-- Inspiration grant/spend events (grantInspiration, spendInspiration).
-- Innate Sorcery executor, Sorcerous Restoration, Magical Cunning, Slow Fall, Divine Spark, Sear Undead, Divine Order, Primal Order, Tactical Mind, Tactical Shift, Steady Aim, Ritual Adept, Arcane Recovery executor file.
-- Monster catalog: Knight, Orc, Kobold, Wolf, Dire Wolf, Giant Spider, Ogre (living), Gnoll, Ghoul, Wight, Owlbear, Brown Bear.
+- d20 roll-interrupt hook, background pipeline, inspiration grant/spend events, Tactical Mind, Divine Order, Primal Order, Cunning Strike Disarm/Daze, Wild Shape hydration parity, long-rest exhaustion reduction.
+- Monster catalog source/import parity for Orc remains open for explicit re-validation.
 
 **Confirmed partial (architectural):**
 - Stunning Strike, Divine Smite, Cunning Strike — inline in `hit-rider-resolver.ts`, not dedicated executors.

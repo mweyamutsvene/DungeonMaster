@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-combat-rules
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -77,3 +77,10 @@ CombatRules flow for D&D 5e 2024 L1-5 playability. Files audited in `domain/rule
 ## Summary
 
 **CombatRules engine is ~80% of the way to L1-5 readiness.** Attack/damage/save/death/initiative/concentration/movement/cover/grapple are solid. **Must-fix before L1-5 play**: exhaustion (completely absent) and fall damage (absent). **Should-fix**: 2024 surprise, Alert feat, two-weapon fighting wiring, crit damage dice-vs-flat separation, Hide action depth.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: exhaustion, grapple escape, and pit-flow fall damage are implemented.
+- R2 correction: cover Dex-save bonus and concentration behaviors are implemented and scenario-backed.
+- Remaining concern: universal off-ledge fall pipeline and critical dice-vs-flat fidelity.

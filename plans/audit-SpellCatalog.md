@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-explore-spell-catalog
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # SpellCatalog L1–5 Audit
@@ -174,3 +174,10 @@ Booming Blade movement rider works. Divine Smite + smite-spells coexistence not 
 - Wire Spiritual Weapon multi-round loop
 - Enforce single-concentration invariant
 
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: cantrip scaling is tested (unit + E2E).
+- R2 correction: level-1 count is 36/42 (not 34/42).
+- Remaining concern: metadata drift in scenario descriptions vs current catalog contents.

@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-explore-inventory-system
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -134,3 +134,10 @@ Inventory flow: domain entity models (pure rules) + application services (transa
 ## Summary
 
 Core inventory entity model and catalogs solid. **Potion effects, charge recharge, ground-item pickup, and magic-bonus enforcement in combat are the critical gaps for L1-5 playability.** Encumbrance, ammo consumption, cursed-item mechanics out of scope.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: potion effects, magic weapon bonuses, and combat ground-item drop/pickup paths are implemented.
+- R2 correction: those rows should be treated as implemented/partial quality, not hard-missing.
+- Remaining concern: charge recharge on long rest and dedicated REST pickup endpoint.

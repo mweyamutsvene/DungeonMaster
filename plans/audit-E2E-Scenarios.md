@@ -5,7 +5,7 @@ feature: e2e-scenario-audit
 author: claude-explore-e2e
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Summary
@@ -167,3 +167,10 @@ Create 4 new long-form scenarios:
 Many of these tests were first built when the engine couldn't drive monster interactions or multi-player scenarios. The breadth was achieved by single-action unit-style E2E tests. Now that the engine supports monster AI turns and multi-PC parties, many single-action scenarios are redundant — they test the same mechanic that a multi-turn encounter would exercise naturally.
 
 **The target model:** a small number (20-30) of rich multi-turn scenarios that each exercise 5-10 mechanics in one encounter, rather than 260 scenarios that each test one mechanic in isolation. One mechanic breaking another is the cross-mechanic interaction bug this reorganization is meant to catch.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: active discovered scenario count is 270 (scenarios-pending excluded from --all).
+- R2 correction: several prior NONE rows are now covered (lair, counterspell depth, rest, exhaustion, fall, material components).
+- Remaining concern: recompute turn-depth table from one deterministic method to avoid contradictory percentages.

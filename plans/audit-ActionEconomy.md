@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-explore-action-economy
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -116,3 +116,10 @@ Turn-by-turn action economy for characters and monsters in combat (L1-5). Action
 4. Reaction mid-round lifecycle ambiguous.
 5. Difficult terrain cost not audited per action.
 6. Lair actions parsed but not triggered.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: Disengage/Dash enforcement is implemented.
+- R2 validated: lair action trigger is implemented and scenario-covered.
+- Remaining concern: OA once-per-trigger edge coverage should be expanded.

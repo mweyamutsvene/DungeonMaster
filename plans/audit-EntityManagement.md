@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-entity-management
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -159,3 +159,10 @@ Entity lifecycle for L1-5 play: character/monster/NPC definitions, session state
 **Top 2 structural risks:**
 - Subclass-as-string + proficiencies-as-arrays silently go out of sync with derived fields.
 - In-memory repo drift will keep biting E2E until contract test added.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: short/long rest operations and hit-dice spend/recovery are implemented and scenario-covered.
+- R2 correction: level-up exists at domain layer but is still partial from service/API perspective.
+- Remaining concern: background/origin pipeline and Orc source/import parity verification.

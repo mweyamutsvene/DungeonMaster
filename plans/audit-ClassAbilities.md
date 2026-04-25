@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-class-abilities
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -236,3 +236,10 @@ Species traits (Dragonborn Breath, Elf Perception/Fey Ancestry, Dwarf Resilience
 3. P1 fills
 4. Subclass L3 features
 5. P2 polish
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: multiple previously-missing class features are implemented (including Slow Fall baseline and Cunning Strike poison/trip/withdraw).
+- R2 correction: subclass framework exists; mechanical breadth remains the gap.
+- Remaining concern: Tactical Mind and Cunning Strike Disarm/Daze.

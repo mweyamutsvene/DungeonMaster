@@ -121,3 +121,10 @@ TwoPhaseActionService detects OAs; TabletopCombatService allows player opt-in. *
 
 ### 10. ActiveEffect Expiry Edge Cases
 expiresAt targeting (e.g., expires when Paladin's turn ends) rarely used. save-to-end effects (Hold Person) resolved at turn boundaries, but if creature takes damage on another'
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: parser-chain + LLM fallback model and concentration replacement path are present.
+- R2 correction: surprise is implemented as initiative disadvantage (2024 model), not legacy surprise-round skip.
+- Remaining concern: deeper compound-intent permutations and explicit flee lifecycle actions.

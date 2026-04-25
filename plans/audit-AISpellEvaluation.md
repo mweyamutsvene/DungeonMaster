@@ -5,7 +5,7 @@ feature: mechanics-audit-l1-5
 author: claude-sme-ai-spell-evaluation
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 ## Scope
@@ -86,3 +86,10 @@ Files audited:
 ---
 
 **Bottom line:** AI spell evaluation is functional at "picks a spell and spends a slot" but shallow. **Biggest blocker for L1-5 AI play is that AI spell delivery doesn't actually resolve effects** — AI spellcasters are cosmetic in headless/mock combat. After that: upcasting broken, AoE templates missing, slot economy absent, healing/buff targeting crude.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: AI spell delivery is implemented (not cosmetic/stub).
+- R2 correction: heal urgency and counterspell are partial quality gaps, not hard-missing.
+- Remaining concern: upcast value scoring and evaluator calibration depth.

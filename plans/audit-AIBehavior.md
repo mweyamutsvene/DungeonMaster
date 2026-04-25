@@ -138,3 +138,10 @@ AI decision-making for non-spell, non-reaction L1-5 combat actions: attack, move
 **Gaps:** Proactive OA, pack tactics, multi-target spells, exhaustion, hidden enemies, speed mods, legendary resistance, focus coordination, reaction budgeting.
 
 **Status:** 60-70% L1-5 complete. Core loop robust. Work: gap features + state sync.
+
+
+## R2 Refresh (2026-04-25)
+
+- R2 validated: core AI orchestration, legendary execution, and queued decisions are working.
+- R2 correction: lair support exists but coverage confidence is still partial for lair-only stat-block paths.
+- Remaining concern: stronger proactive focus-fire/coordination heuristics.
