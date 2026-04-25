@@ -1,0 +1,210 @@
+{
+  "name": "CombatRules Matrix: Temp HP absorption + Conditions + Exhaustion",
+  "description": "Deterministic matrix scenario that validates temporary HP absorption, explicit condition application assertions, and 2024 exhaustion attack penalty behavior.",
+  "setup": {
+    "character": {
+      "name": "Matrix Veteran",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Buff Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 10,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "inventory": [
+            {
+              "magicItemId": "potion-of-heroism",
+              "name": "Potion of Heroism",
+              "equipped": false,
+              "attuned": false,
+              "quantity": 1
+            }
+          ],
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "usePotion"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat so AI can use potion on its first turn.",
+      "input": { "text": "I engage the Buff Goblin" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Go first, then pass to let goblin drink heroism.",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint: goblin starts wounded with no temp HP yet.",
+      "expect": {
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 },
+        "monsterTempHp": { "name": "Buff Goblin", "exact": 0 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Allow AI to use Potion of Heroism (use object path)."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin potion turn and return to player."
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint: Heroism granted temp HP and did not heal regular HP.",
+      "expect": {
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 },
+        "monsterTempHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attack into temporary HP pool.",
+      "input": { "text": "attack Buff Goblin" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "comment": "18 + 6 = 24 vs AC 13, guaranteed hit.",
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "comment": "4 + 3 = 7 damage should be absorbed by temp HP first.",
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Temp HP absorbed damage: HP unchanged at 10, temp HP reduced to 3.",
+      "expect": {
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 },
+        "monsterTempHp": { "name": "Buff Goblin", "exact": 3 }
+      }
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply Poisoned to the goblin for supported-condition checkpointing.",
+      "input": {
+        "target": "monster:Buff Goblin",
+        "condition": "Poisoned",
+        "duration": "1 minute",
+        "source": "matrix-test"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Condition checkpoint: goblin has Poisoned.",
+      "expect": {
+        "monsterConditions": {
+          "name": "Buff Goblin",
+          "hasConditions": ["Poisoned"]
+        }
+      }
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply 3 levels of exhaustion to character (2024: -6 d20 Tests).",
+      "input": {
+        "target": "character",
+        "condition": "Exhaustion",
+        "duration": "until_removed",
+        "source": "exhaustion:3"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Condition checkpoint: character has Exhaustion.",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Exhaustion"]
+        }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Advance to next turn so we can test exhausted attack."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to player turn."
+    },
+    {
+      "type": "action",
+      "comment": "With exhaustion: d20 12 + 6 - 6 = 12 vs AC 13 should miss.",
+      "input": { "text": "attack Buff Goblin" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": { "hit": false, "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Final checkpoint: combat still active and goblin HP unchanged from miss.",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    }
+  ]
+}

@@ -1,0 +1,235 @@
+{
+  "name": "CombatRules Matrix: Utility Actions",
+  "description": "Deterministic matrix for Help, Search, Ready, Use Object, Dodge, Disengage, and Dash action-economy behavior.",
+  "setup": {
+    "character": {
+      "name": "Utility Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 30, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 14,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 20,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "skills": {
+          "perception": 5
+        },
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ],
+        "inventory": [
+          {
+            "magicItemId": "potion-of-healing",
+            "name": "Potion of Healing",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "npcs": [
+      {
+        "name": "Lyra the Ranger",
+        "position": { "x": 35, "y": 10 },
+        "faction": "party",
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 16,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 14,
+            "charisma": 10
+          },
+          "maxHp": 38,
+          "hp": 38,
+          "armorClass": 15,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Longbow",
+              "kind": "ranged",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Orc Trainer",
+        "position": { "x": 60, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 16,
+            "intelligence": 7,
+            "wisdom": 11,
+            "charisma": 10
+          },
+          "maxHp": 45,
+          "hp": 45,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Greataxe",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 12, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I prepare tactical options" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+
+    {
+      "type": "action",
+      "comment": "Round 1: Help action.",
+      "input": { "text": "help Lyra the Ranger" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint after Help.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 1, "max": 44 }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "type": "action",
+      "comment": "Round 2: Search action.",
+      "input": { "text": "search" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "comment": "Action economy check: cannot take another action after Search.",
+      "input": { "text": "attack Orc Trainer" },
+      "expect": { "error": true, "errorContains": "action" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "type": "action",
+      "comment": "Round 3: Ready action.",
+      "input": { "text": "ready an attack when the orc moves within range" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint after Ready turn cycle.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 1, "max": 44 }
+      }
+    },
+
+    {
+      "type": "action",
+      "comment": "Round 4: Use Object via potion drink.",
+      "input": { "text": "drink potion of healing" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Potion healed HP and was consumed.",
+      "expect": {
+        "characterHp": { "min": 24, "max": 30 },
+        "characterInventory": { "doesNotHave": ["Potion of Healing"] }
+      }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "type": "action",
+      "comment": "Round 5: Dodge action.",
+      "input": { "text": "dodge" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "type": "action",
+      "comment": "Round 6: Disengage then move.",
+      "input": { "text": "disengage" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "move to 40, 10" },
+      "expect": { "type": "MOVE_COMPLETE" }
+    },
+    { "type": "endTurn" },
+    { "type": "waitForTurn" },
+
+    {
+      "type": "action",
+      "comment": "Round 7: Dash action.",
+      "input": { "text": "dash" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "comment": "Action economy check: Dash spent action, so attack should be rejected.",
+      "input": { "text": "attack Orc Trainer" },
+      "expect": { "error": true, "errorContains": "action" }
+    },
+    {
+      "type": "assertState",
+      "comment": "Final checkpoint.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 1, "max": 44 }
+      }
+    }
+  ]
+}

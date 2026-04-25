@@ -1,0 +1,188 @@
+{
+  "name": "CombatRules Matrix: Grapple + Shove + Escape + Unarmed",
+  "description": "Deterministic control matrix validating unarmed strike flow, grapple and shove condition application, and AI escape grapple action path.",
+  "setup": {
+    "character": {
+      "name": "Control Fighter",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 20,
+          "dexterity": 12,
+          "constitution": 16,
+          "intelligence": 8,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Warhammer",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 8,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 5 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Control Goblin",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 10,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I move to control the goblin" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "comment": "High roll to go first.",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Baseline unarmed strike action path.",
+      "input": { "text": "attack Control Goblin with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "3" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint: unarmed strike completed and combat remains active.",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterHp": { "name": "Control Goblin", "min": 1, "max": 39 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Unarmed push can displace target; move back into melee reach before grapple.",
+      "input": { "text": "move to 20, 10" },
+      "expect": { "type": "MOVE_COMPLETE" }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Unarmed + extra attack consumed attacks this turn; start control chain on next turn."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to fighter turn for grapple/shove sequence."
+    },
+    {
+      "type": "action",
+      "input": { "text": "grapple Control Goblin" },
+      "comment": "Grapple via tabletop two-step flow.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 8 vs AC 10 should hit; goblin likely fails save vs high DC.",
+      "expect": { "hit": true, "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint: target is Grappled.",
+      "expect": {
+        "monsterConditions": {
+          "name": "Control Goblin",
+          "hasConditions": ["Grappled"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "input": { "text": "shove Control Goblin prone" },
+      "comment": "Shove prone while grappled to stack control conditions.",
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint: target has Grappled and Prone.",
+      "expect": {
+        "monsterConditions": {
+          "name": "Control Goblin",
+          "hasConditions": ["Grappled", "Prone"]
+        }
+      }
+    },
+    {
+      "type": "configureAi",
+      "comment": "Force monster to take escape grapple action on its turn.",
+      "input": {
+        "defaultBehavior": "escapeGrapple"
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Pass to AI escape turn."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Exercise escape grapple behavior deterministically."
+    },
+    {
+      "type": "assertState",
+      "comment": "Final checkpoint: scenario remains stable after escape action resolution.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterHp": { "min": 1, "max": 44 }
+      }
+    }
+  ]
+}
