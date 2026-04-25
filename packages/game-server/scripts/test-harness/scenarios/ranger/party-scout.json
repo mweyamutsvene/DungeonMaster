@@ -313,6 +313,16 @@
     },
 
     {
+      "comment": "Place temporary full cover directly between Finn and the patrol so Hide is unambiguously legal.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 13, "y": 10, "terrain": "cover-full" }
+        ]
+      }
+    },
+
+    {
       "comment": "R1 Finn: Hide (bonus action via Cunning Action). With Pass Without Trace aura, Stealth = DEX (+4) + prof (+2) + PWT (+10) = +16.",
       "type": "action",
       "actor": "Finn",
@@ -327,6 +337,15 @@
         "characterConditions": {
           "hasConditions": ["Hidden"]
         }
+      }
+    },
+    {
+      "comment": "Clear temporary blocker before Finn's shot so the attack line remains valid for the original test intent.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 13, "y": 10, "terrain": "normal" }
+        ]
       }
     },
     {

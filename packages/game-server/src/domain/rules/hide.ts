@@ -22,6 +22,8 @@ export interface HideAttempt {
   hasCoverOrObscurement: boolean;
   /** Can't hide if clearly visible */
   clearlyVisible: boolean;
+  /** Highest passive Perception among observers contesting this hide attempt */
+  observerPassivePerception?: number;
 }
 
 export interface HideResult {
@@ -61,6 +63,17 @@ export function attemptHide(
     abilityModifier: attempt.stealthModifier,
     mode: attempt.mode ?? "normal",
   });
+
+  if (
+    typeof attempt.observerPassivePerception === "number" &&
+    detectHidden(check.total, attempt.observerPassivePerception)
+  ) {
+    return {
+      success: false,
+      stealthRoll: check.total,
+      reason: "An observer notices you",
+    };
+  }
 
   return {
     success: true,

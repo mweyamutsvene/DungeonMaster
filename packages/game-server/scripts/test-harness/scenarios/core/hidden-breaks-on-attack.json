@@ -74,6 +74,15 @@
       "expect": { "combatStarted": true }
     },
     {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 25, "y": 10, "terrain": "cover-half" }
+        ]
+      },
+      "comment": "Provide real cover between rogue and guard so Hide is legal under 2024 visibility checks."
+    },
+    {
       "type": "action",
       "input": { "text": "hide" },
       "comment": "Cunning Action: Hide → Hidden condition",

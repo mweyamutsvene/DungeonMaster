@@ -207,7 +207,6 @@ export class SocialHandlers {
       encounterId,
       actor,
       isBonusAction: hasCunningAction,
-      hasCover: true,
     });
 
     const outcome = result.result.success

@@ -88,6 +88,15 @@
       "expect": { "combatStarted": true }
     },
     {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "cover-half" }
+        ]
+      },
+      "comment": "Add legitimate half cover between the rogue and goblin so the Hide bonus action is rules-valid."
+    },
+    {
       "comment": "Main action: shoot the Goblin. No advantage and no ally adjacent → no Sneak Attack. Just 1d6+4 damage.",
       "type": "action",
       "input": { "text": "shoot the Goblin with my shortbow" },

@@ -1,10 +1,12 @@
 import { nanoid } from "nanoid";
 
-import { attemptHide } from "../../../../domain/rules/hide.js";
+import { attemptHide, getPassivePerception } from "../../../../domain/rules/hide.js";
 import { attemptSearch } from "../../../../domain/rules/search-use-object.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
+import { getCoverLevel, hasLineOfSight, type CombatMap } from "../../../../domain/rules/combat-map.js";
 import {
   normalizeConditions,
+  hasCondition,
   addCondition,
   removeCondition,
   createCondition,
@@ -13,6 +15,7 @@ import {
 import {
   normalizeResources,
   spendAction,
+  getPosition,
 } from "../helpers/resource-utils.js";
 
 import { NotFoundError, ValidationError } from "../../../errors.js";
@@ -22,6 +25,7 @@ import type { IGameSessionRepository } from "../../../repositories/game-session-
 import type { CombatantStateRecord } from "../../../types.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { CombatantRef } from "../helpers/combatant-ref.js";
+import { combatantRefFromState } from "../helpers/combatant-ref.js";
 
 import {
   type HideActionInput,
@@ -72,7 +76,7 @@ export class SkillActionHandler {
       );
 
     const actorStats = await this.combatants.getCombatStats(input.actor);
-    
+
     // Get stealth modifier from skills if available, otherwise calculate from Dex + proficiency
     let stealthModifier: number;
     if (actorStats.skills?.stealth !== undefined) {
@@ -89,10 +93,67 @@ export class SkillActionHandler {
     // ActiveEffect bonuses on ability checks (e.g., Guidance +1d4 on Stealth)
     const actorCheckMods = abilityCheckEffectMods(actorState.resources, dice, 'dexterity');
 
+    const actorIsPC = input.actor.type === "Character" || input.actor.type === "NPC";
+    const actorPosition = getPosition(actorState.resources ?? {});
+    const map = encounter.mapData as CombatMap | undefined;
+
+    const opposingCombatants = combatants.filter((combatant) => {
+      if (combatant.id === actorState.id) return false;
+      if (combatant.hpCurrent <= 0) return false;
+      const otherIsPC = combatant.combatantType === "Character" || combatant.combatantType === "NPC";
+      return actorIsPC !== otherIsPC;
+    });
+
+    let observerPassivePerception: number | undefined;
+    let clearlyVisibleToAnyObserver = false;
+    let hasAnyObserverWithoutClearSight = false;
+
+    for (const observer of opposingCombatants) {
+      const observerRef = combatantRefFromState(observer);
+      if (!observerRef) continue;
+      const observerConditions = normalizeConditions(observer.conditions);
+      const observerIsBlinded = hasCondition(observerConditions, "Blinded");
+
+      const observerStats = await this.combatants.getCombatStats(observerRef);
+      const observerPassive = observerStats.passivePerception ?? getPassivePerception({
+        skills: observerStats.skills as Record<string, number> | undefined,
+        abilityScores: { wisdom: observerStats.abilityScores.wisdom },
+      });
+
+      if (observerPassivePerception === undefined || observerPassive > observerPassivePerception) {
+        observerPassivePerception = observerPassive;
+      }
+
+      let observerHasLineOfSight = true;
+      let observerHasCoverAgainstActor = false;
+      const observerPosition = getPosition(observer.resources ?? {});
+
+      if (observerIsBlinded) {
+        observerHasLineOfSight = false;
+      } else if (map && actorPosition && observerPosition) {
+        observerHasLineOfSight = hasLineOfSight(map, observerPosition, actorPosition).visible;
+        const coverLevel = getCoverLevel(map, observerPosition, actorPosition);
+        observerHasCoverAgainstActor = coverLevel !== "none";
+      }
+
+      const observerClearlySeesActor = observerHasLineOfSight && !observerHasCoverAgainstActor;
+      if (observerClearlySeesActor) {
+        clearlyVisibleToAnyObserver = true;
+      } else {
+        hasAnyObserverWithoutClearSight = true;
+      }
+    }
+
+    const hasCoverOrObscurement = opposingCombatants.length === 0
+      ? (input.hasCover ?? true)
+      : (hasAnyObserverWithoutClearSight || input.hasCover === true);
+    const clearlyVisible = input.hasCover === true ? false : clearlyVisibleToAnyObserver;
+
     const hideResult = attemptHide(dice, {
       stealthModifier: stealthModifier + actorCheckMods.bonus,
-      hasCoverOrObscurement: input.hasCover ?? true, // Assume cover for simplicity
-      clearlyVisible: false, // Assume not clearly visible
+      hasCoverOrObscurement,
+      clearlyVisible,
+      observerPassivePerception,
       mode: actorCheckMods.mode !== "normal" ? actorCheckMods.mode : undefined,
     });
 

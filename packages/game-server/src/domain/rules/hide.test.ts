@@ -51,6 +51,22 @@ describe("Hide Action", () => {
       expect(result.success).toBe(false);
       expect(result.reason).toBe("You need cover or obscurement to hide");
     });
+
+    it("should fail if passive perception detects the stealth roll", () => {
+      const dice = new FixedDiceRoller(9);
+      const attempt: HideAttempt = {
+        stealthModifier: 3,
+        hasCoverOrObscurement: true,
+        clearlyVisible: false,
+        observerPassivePerception: 12,
+      };
+
+      const result = attemptHide(dice, attempt);
+
+      expect(result.success).toBe(false);
+      expect(result.stealthRoll).toBe(12);
+      expect(result.reason).toBe("An observer notices you");
+    });
   });
 
   describe("detectHidden", () => {

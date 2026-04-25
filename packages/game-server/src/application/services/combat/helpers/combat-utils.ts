@@ -271,7 +271,7 @@ export type GrappleActionInput = SimpleActionBaseInput & {
 };
 
 export type HideActionInput = SimpleActionBaseInput & {
-  /** Whether actor has cover or obscurement from enemies (assume true for simplicity) */
+  /** Optional override for cover/obscurement when map visibility cannot be derived. */
   hasCover?: boolean;
   /** Whether to use as bonus action (e.g., Cunning Action) */
   isBonusAction?: boolean;

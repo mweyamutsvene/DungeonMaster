@@ -27,6 +27,8 @@ export type CombatantCombatStats = {
   name: string;
   armorClass: number;
   abilityScores: AbilityScoresData;
+  /** Passive Perception (10 + Perception modifier), or explicit stat-block value when available. */
+  passivePerception?: number;
   featIds?: readonly string[];
   equipment?: CombatantEquipment;
   /** Creature size (Tiny, Small, Medium, Large, Huge, Gargantuan). Defaults to Medium if not specified. */
@@ -221,6 +223,10 @@ export class CombatantResolver implements ICombatantResolver {
       const armorClass = readNumber(c.sheet, "armorClass") ?? readNumber(c.sheet, "ac");
       const abilityScores = extractAbilityScores(sheet.abilityScores);
       const featIds = sheet.featIds;
+      const skills = extractSkills(c.sheet);
+      const passivePerceptionFromSheet = readNumber(c.sheet, "passivePerception");
+      const passivePerception = passivePerceptionFromSheet ??
+        (typeof skills?.perception === "number" ? 10 + skills.perception : undefined);
 
       if (armorClass === null || !abilityScores) {
         throw new ValidationError("Character is missing required combat stats (armorClass, abilityScores)");
@@ -239,9 +245,10 @@ export class CombatantResolver implements ICombatantResolver {
         armorClass,
         abilityScores,
         featIds,
+        passivePerception,
         equipment: equip,
         size: extractSize(c.sheet),
-        skills: extractSkills(c.sheet),
+        skills,
         level,
         proficiencyBonus,
         hasTwoHandedWeapon: equip.hasTwoHanded,
@@ -259,6 +266,10 @@ export class CombatantResolver implements ICombatantResolver {
 
       const armorClass = readNumber(m.statBlock, "armorClass") ?? readNumber(m.statBlock, "ac");
       const abilityScores = extractAbilityScores(statBlock.abilityScores);
+      const skills = extractSkills(m.statBlock);
+      const passivePerceptionFromStatBlock = readNumber(m.statBlock, "passivePerception");
+      const passivePerception = passivePerceptionFromStatBlock ??
+        (typeof skills?.perception === "number" ? 10 + skills.perception : undefined);
       if (armorClass === null || !abilityScores) {
         throw new ValidationError("Monster is missing required combat stats (armorClass, abilityScores)");
       }
@@ -272,8 +283,9 @@ export class CombatantResolver implements ICombatantResolver {
         name: m.name,
         armorClass,
         abilityScores,
+        passivePerception,
         size: extractSize(m.statBlock),
-        skills: extractSkills(m.statBlock),
+        skills,
         level: monsterLevel,
         proficiencyBonus,
         damageDefenses: extractDefenses(m.statBlock),
@@ -288,6 +300,10 @@ export class CombatantResolver implements ICombatantResolver {
 
     const armorClass = readNumber(n.statBlock, "armorClass") ?? readNumber(n.statBlock, "ac");
     const abilityScores = extractAbilityScores(statBlock.abilityScores);
+    const skills = extractSkills(n.statBlock);
+    const passivePerceptionFromStatBlock = readNumber(n.statBlock, "passivePerception");
+    const passivePerception = passivePerceptionFromStatBlock ??
+      (typeof skills?.perception === "number" ? 10 + skills.perception : undefined);
     if (armorClass === null || !abilityScores) {
       throw new ValidationError("NPC is missing required combat stats (armorClass, abilityScores)");
     }
@@ -301,8 +317,9 @@ export class CombatantResolver implements ICombatantResolver {
       name: n.name,
       armorClass,
       abilityScores,
+      passivePerception,
       size: extractSize(n.statBlock),
-      skills: extractSkills(n.statBlock),
+      skills,
       level,
       proficiencyBonus,
       damageDefenses: extractDefenses(n.statBlock),

@@ -1,6 +1,6 @@
 {
   "name": "Goblin Nimble Escape: Hide as Bonus Action",
-  "description": "A Goblin uses Nimble Escape to Hide as a bonus action after attacking. Validates AI-driven bonus action execution, hide wiring, and Hidden condition application.",
+  "description": "A Goblin uses Nimble Escape to Hide as a bonus action after making a ranged attack from a position with real cover. Validates AI-driven bonus action execution, hide wiring, and Hidden condition application under the stricter hide rules.",
   "setup": {
     "character": {
       "name": "Thorin Ironfist",
@@ -29,6 +29,14 @@
             "attackBonus": 6,
             "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
             "damageType": "slashing"
+          },
+          {
+            "name": "Longbow",
+            "kind": "ranged",
+            "range": "150/600",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 2 },
+            "damageType": "piercing"
           }
         ]
       }
@@ -36,7 +44,7 @@
     "monsters": [
       {
         "name": "Goblin Scout",
-        "position": { "x": 15, "y": 10 },
+        "position": { "x": 25, "y": 10 },
         "statBlock": {
           "abilityScores": {
             "strength": 8,
@@ -55,11 +63,12 @@
           "skills": { "stealth": 6 },
           "attacks": [
             {
-              "name": "Scimitar",
-              "kind": "melee",
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
               "attackBonus": 4,
               "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
-              "damageType": "slashing"
+              "damageType": "piercing"
             }
           ],
           "bonusActions": [
@@ -95,13 +104,22 @@
       "comment": "Player rolls initiative — combat begins"
     },
     {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 20, "y": 10, "terrain": "cover-half" }
+        ]
+      },
+      "comment": "A half-cover tile between Thorin and the goblin gives the goblin a legitimate hide position for Nimble Escape."
+    },
+    {
       "type": "action",
-      "input": { "text": "I attack the Goblin Scout with my Longsword" },
+      "input": { "text": "I attack the Goblin Scout with my Longbow" },
       "expect": {
         "rollType": "attack",
         "requiresPlayerInput": true
       },
-      "comment": "Player attacks the goblin (5ft away)"
+      "comment": "Player attacks the goblin from range without disturbing the cover setup."
     },
     {
       "type": "rollResult",

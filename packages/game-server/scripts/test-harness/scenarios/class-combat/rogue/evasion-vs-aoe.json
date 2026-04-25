@@ -153,6 +153,16 @@
     },
 
     {
+      "comment": "Place a half-cover tile between Talia and the enemies so each Hide attempt is backed by real battlefield cover.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "cover-half" }
+        ]
+      }
+    },
+
+    {
       "comment": "=== ROUND 1: Cunning Action Hide → Sneak Attack (4d6) → Evasion success (0 damage) ===",
       "type": "action",
       "input": { "text": "cunning action hide" },
@@ -190,6 +200,15 @@
         "monsterHp": { "name": "Dark Arcanist", "exact": 60 }
       }
     },
+    {
+      "comment": "Clear the temporary cover before the monster phase so AC and DEX-save expectations stay unchanged.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "normal" }
+        ]
+      }
+    },
 
     {
       "comment": "=== R1 MONSTER PHASE: Seed Burning Hands — DEX save SUCCESS → Evasion: 0 damage ===\nQueue: DA casts Burning Hands at Talia. Other monster defaults to endTurn.\nqueueDiceRolls [4,4,4,20]: rollDie(6,3) consumes [4,4,4] = 12 fire damage, then d20() consumes [20] = 20+7=27 vs DC 13 → SUCCESS → Evasion: 0 damage (not half).",
@@ -223,6 +242,15 @@
 
     {
       "comment": "=== ROUND 2: Cunning Action Hide → Sneak Attack (4d6) → Uncanny Dodge reaction ===",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "cover-half" }
+        ]
+      }
+    },
+    {
+      "comment": "=== ROUND 2: Cunning Action Hide → Sneak Attack (4d6) → Uncanny Dodge reaction ===",
       "type": "action",
       "input": { "text": "cunning action hide" },
       "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
@@ -250,6 +278,15 @@
       "type": "assertState",
       "expect": {
         "monsterHp": { "name": "Dark Arcanist", "exact": 42 }
+      }
+    },
+    {
+      "comment": "Clear the temporary cover before the incoming Shortbow attack so the guaranteed-hit math remains valid.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "normal" }
+        ]
       }
     },
 
@@ -296,6 +333,15 @@
 
     {
       "comment": "=== ROUND 3: Cunning Action Hide → Sneak Attack (4d6) → Evasion FAIL (half damage) ===",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "cover-half" }
+        ]
+      }
+    },
+    {
+      "comment": "=== ROUND 3: Cunning Action Hide → Sneak Attack (4d6) → Evasion FAIL (half damage) ===",
       "type": "action",
       "input": { "text": "cunning action hide" },
       "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
@@ -323,6 +369,15 @@
       "type": "assertState",
       "expect": {
         "monsterHp": { "name": "Dark Arcanist", "exact": 22 }
+      }
+    },
+    {
+      "comment": "Clear the temporary cover before the second Burning Hands cast so the seeded failed-save path stays unchanged.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 10, "y": 10, "terrain": "normal" }
+        ]
       }
     },
 

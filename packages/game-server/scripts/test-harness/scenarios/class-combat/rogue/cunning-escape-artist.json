@@ -1,6 +1,6 @@
 {
   "name": "Rogue R2: Cunning Escape Artist — All 3 Cunning Actions + Uncanny Dodge",
-  "description": "Level 5 Thief Rogue Lyra fights a Bandit Captain (Multiattack, 2x Scimitar) and a Bandit across 4 rounds. Tests all three Cunning Action variants: Disengage (R1 bonus after attack), Hide leading to Sneak Attack via advantage (R2 bonus before attack), and Dash for repositioning (R3 bonus before Shortbow attack). Uncanny Dodge reaction is triggered in R2's monster turn using a queued guaranteed-hit dice roll. Verifies CA bonus-action economy, SA eligibility from Hidden advantage, and Uncanny Dodge halving damage.",
+  "description": "Level 5 Thief Rogue Lyra fights a Bandit Captain and a Bandit across 4 rounds. Tests all three Cunning Action variants: Disengage (R1 bonus before repositioning out of melee), Hide from legitimate cover leading to a ranged Sneak Attack via advantage (R2 bonus before attack), and Dash for repositioning (R3 bonus before Shortbow attack). Uncanny Dodge reaction is triggered in R2's monster turn using a queued guaranteed-hit ranged hit. Verifies CA bonus-action economy, SA eligibility from Hidden advantage, and Uncanny Dodge halving damage.",
   "setup": {
     "character": {
       "name": "Lyra",
@@ -51,7 +51,7 @@
     },
     "monsters": [
       {
-        "comment": "Bandit Captain with Multiattack (2 Scimitar attacks per turn). High DEX so likely acts before Bandit.",
+        "comment": "Bandit Captain with melee and ranged attacks.",
         "name": "Bandit Captain",
         "position": { "x": 10, "y": 10 },
         "statBlock": {
@@ -81,12 +81,20 @@
               "attackBonus": 5,
               "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
               "damageType": "slashing"
+            },
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "piercing"
             }
           ]
         }
       },
       {
-        "comment": "Bandit at (10,9): adjacent to Bandit Captain at (10,10). Low stat attacker for testing.",
+        "comment": "Bandit with melee and ranged attacks.",
         "name": "Bandit",
         "position": { "x": 10, "y": 9 },
         "statBlock": {
@@ -113,6 +121,14 @@
               "attackBonus": 3,
               "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
               "damageType": "slashing"
+            },
+            {
+              "name": "Shortbow",
+              "kind": "ranged",
+              "range": "80/320",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "piercing"
             }
           ]
         }
@@ -163,7 +179,13 @@
       "expect": { "actionComplete": true }
     },
     {
-      "comment": "Lyra took no damage this round (Disengage prevents OA; monsters haven't attacked yet).",
+      "comment": "Use the protected movement from Disengage to withdraw to a legal ranged position for the later Hide turn.",
+      "type": "action",
+      "input": { "text": "move to (35, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Lyra took no damage this round after using Disengage to leave melee safely.",
       "type": "assertState",
       "expect": {
         "characterHp": { "min": 100, "max": 100 },
@@ -172,13 +194,13 @@
     },
 
     {
-      "comment": "Queue R1 monster turns: Captain Multiattack (2 Scimitar attacks), Bandit 1 Scimitar.",
+      "comment": "Queue R1 monster turns: Captain fires two Shortbow shots, Bandit fires one Shortbow shot at range.",
       "type": "queueMonsterActions",
       "input": {
         "decisions": [
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": false },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true }
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": false },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true }
         ]
       }
     },
@@ -201,13 +223,22 @@
     },
 
     {
+      "comment": "Add half cover between Lyra and the bandits so the Hide attempt is backed by real battlefield cover.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 20, "y": 10, "terrain": "cover-half" }
+        ]
+      }
+    },
+    {
       "comment": "=== ROUND 2: Cunning Action: Hide (CA2) + Sneak Attack from advantage + Uncanny Dodge ===",
       "type": "action",
       "input": { "text": "cunning action hide" },
       "expect": { "actionComplete": true }
     },
     {
-      "comment": "Verify Lyra has the Hidden condition after Cunning Action: Hide. Stealth 10 vs passive perception 10.",
+      "comment": "Verify Lyra has the Hidden condition after Cunning Action: Hide from half cover.",
       "type": "assertState",
       "expect": {
         "characterConditions": { "hasConditions": ["Hidden"] }
@@ -215,9 +246,9 @@
     },
 
     {
-      "comment": "R2 main action: attack Bandit Captain with Rapier while hidden (advantage). SA eligible via advantage.",
+      "comment": "R2 main action: attack Bandit Captain with Shortbow while hidden (advantage). SA eligible via advantage.",
       "type": "action",
-      "input": { "text": "attack Bandit Captain with Rapier" },
+      "input": { "text": "attack Bandit Captain with Shortbow" },
       "expect": { "rollType": "attack", "requiresPlayerInput": true, "advantage": true }
     },
     {
@@ -227,34 +258,43 @@
       "expect": { "hit": true, "requiresPlayerInput": true }
     },
     {
-      "comment": "Damage roll: player submits combined weapon + Sneak Attack dice (1d8 + 3d6). Server adds +4.",
+      "comment": "Damage roll: player submits combined weapon + Sneak Attack dice (1d6 + 3d6). Server adds +4.",
       "type": "rollResult",
       "input": { "text": "14" },
       "expect": { "actionComplete": true }
     },
+    {
+      "comment": "Clear the temporary cover before the enemy ranged attacks so later hit math is unchanged.",
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 20, "y": 10, "terrain": "normal" }
+        ]
+      }
+    },
 
     {
-      "comment": "Queue a guaranteed-hit die roll (18) so the Captain's first Scimitar attack will hit Lyra and trigger Uncanny Dodge eligibility.",
+      "comment": "Queue a guaranteed-hit die roll (18) so the Captain's first Shortbow attack will hit Lyra and trigger Uncanny Dodge eligibility.",
       "type": "queueDiceRolls",
       "input": { "values": [18] }
     },
     {
-      "comment": "Queue R2 monster turns: Captain Multiattack (2 Scimitar) + Bandit Scimitar. First Captain roll uses queued 18 (18+5=23 vs AC 15 = hit).",
+      "comment": "Queue R2 monster turns: Captain fires two Shortbow shots and Bandit fires one Shortbow shot. First Captain roll uses queued 18 (18+5=23 vs AC 15 = hit).",
       "type": "queueMonsterActions",
       "input": {
         "decisions": [
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": false },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true }
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": false },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true }
         ]
       }
     },
     {
-      "comment": "End R2 — Captain's guaranteed hit triggers Uncanny Dodge prompt.",
+      "comment": "End R2 — Captain's guaranteed ranged hit triggers Uncanny Dodge prompt.",
       "type": "endTurn"
     },
     {
-      "comment": "Wait for the server to pause on Uncanny Dodge reaction (Captain's first Scimitar hits with the queued 18).",
+      "comment": "Wait for the server to pause on Uncanny Dodge reaction (Captain's first Shortbow shot hits with the queued 18).",
       "type": "waitForReaction",
       "input": { "reactionType": "uncanny_dodge" },
       "timeout": 15000
@@ -305,13 +345,13 @@
     },
 
     {
-      "comment": "Queue R3 monster turns: Captain Multiattack (if alive) + Bandit.",
+      "comment": "Queue R3 monster turns: Captain fires two Shortbow shots and Bandit fires one Shortbow shot.",
       "type": "queueMonsterActions",
       "input": {
         "decisions": [
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": false },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true },
-          { "action": "attack", "target": "Lyra", "attackName": "Scimitar", "endTurn": true }
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": false },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true },
+          { "action": "attack", "target": "Lyra", "attackName": "Shortbow", "endTurn": true }
         ]
       }
     },
