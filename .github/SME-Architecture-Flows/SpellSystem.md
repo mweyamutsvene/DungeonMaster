@@ -2,7 +2,7 @@
 
 > **Owner SME**: SpellSystem-SME
 > **Last updated**: 2026-04-12
-> **Scope**: Spell CASTING pipeline — text parse → spell lookup → slot validation → concentration management → strategy-pattern delivery (5 handlers) → effect application. Spell entity definitions live in SpellCatalog; this flow consumes them.
+> **Scope**: Spell CASTING pipeline — text parse -> spell lookup -> slot validation -> concentration management -> strategy-pattern delivery (6 handlers, including Dispel Magic) -> effect application. Spell entity definitions live in SpellCatalog; this flow consumes them.
 
 ## Overview
 

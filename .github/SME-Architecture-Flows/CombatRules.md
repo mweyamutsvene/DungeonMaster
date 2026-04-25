@@ -2,11 +2,11 @@
 
 > **Owner SME**: CombatRules-SME
 > **Last updated**: 2026-04-12
-> **Scope**: Pure D&D 5e 2024 rules engine — attack resolution, damage, conditions, death saves, grapple/shove, concentration, movement, spell mechanics, feats, weapon mastery, rest, initiative. All functions are pure (no Fastify/Prisma/LLM).
+> **Scope**: D&D 5e 2024 rules engine — attack resolution, damage, conditions, death saves, grapple/shove, concentration, movement, spell mechanics, feats, weapon mastery, rest, initiative. `domain/rules` is mostly pure helpers; `domain/combat` and `domain/effects` can hold domain state.
 
 ## Overview
 
-The CombatRules flow is the deterministic rules foundation of the entire game server. It lives exclusively in the **domain layer** (`domain/rules/`, `domain/combat/`, `domain/effects/`) and implements D&D 5e 2024 mechanics as pure functions: given inputs, they return outputs with no side effects, no repository reads, and no event emission. This separation guarantees that all game logic can be tested with deterministic dice rollers and in-memory stubs, while the application and infrastructure layers handle orchestration, persistence, and I/O.
+The CombatRules flow is the deterministic rules foundation of the entire game server. It lives exclusively in the **domain layer** (`domain/rules/`, `domain/combat/`, `domain/effects/`). Rules modules are primarily pure helpers; combat/effects modules may mutate domain state while staying free of repositories and infrastructure dependencies. This separation guarantees that core game logic remains deterministic and testable with dice stubs.
 
 ## UML Class Diagram
 

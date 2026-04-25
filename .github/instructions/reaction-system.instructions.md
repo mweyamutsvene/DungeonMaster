@@ -43,7 +43,7 @@ sequenceDiagram
 
 - `TwoPhaseActionService` — facade with paired initiate/complete methods: `initiateMove()` / `completeMove()`, `initiateAttack()` / `completeAttack()`, `initiateSpellCast()` / `completeSpellCast()`, `initiateDamageReaction()` / `completeDamageReaction()`
 - `PendingActionType` — `"move" | "spell_cast" | "attack" | "damage_reaction" | "lucky_reroll" | "ability_check"`
-- `ReactionType` — `"opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection"`
+- `ReactionType` — `"opportunity_attack" | "counterspell" | "shield" | "absorb_elements" | "hellish_rebuke" | "deflect_attacks" | "uncanny_dodge" | "readied_action" | "sentinel_attack" | "lucky_reroll" | "silvery_barbs" | "interception" | "protection" | "cutting_words"`
 - `PendingAction` — core interface with `id`, `encounterId`, `actor`, `type`, `data`, `reactionOpportunities`, `resolvedReactions`, `expiresAt`
 - `DetectOpportunityAttacksInput` — single input object passed to `detectOpportunityAttacks(input: DetectOpportunityAttacksInput)`; NOT positional args
 - `PendingActionRepository` / `PendingActionStatus` — the reaction flow's lifecycle authority. Status is repository-derived, not validated by the tabletop roll state machine.

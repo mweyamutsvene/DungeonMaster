@@ -1,33 +1,231 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "game-server: test (faction full transcript)",
-      "type": "shell",
-      "command": "pnpm",
-      "args": [
-        "-C",
-        "packages/game-server",
-        "exec",
-        "vitest",
-        "run",
-        "src/infrastructure/api/combat-flow-tabletop.integration.test.ts",
-        "--testNamePattern",
-        "faction test: full",
-        "--no-file-parallelism",
-        "--reporter=verbose",
-        "--no-color"
-      ],
-      "options": {
-        "env": {
-          "DM_TEST_TRANSCRIPT": "1",
-          "DM_DEBUG_LOGS": "0",
-          "DM_AI_DEBUG": "0",
-          "CI": "1"
-        }
-      },
-      "problemMatcher": [],
-      "group": "test"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "game-server: test (faction full transcript)",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"exec",
+				"vitest",
+				"run",
+				"src/infrastructure/api/combat-flow-tabletop.integration.test.ts",
+				"--testNamePattern",
+				"faction test: full",
+				"--no-file-parallelism",
+				"--reporter=verbose",
+				"--no-color"
+			],
+			"options": {
+				"env": {
+					"DM_TEST_TRANSCRIPT": "1",
+					"DM_DEBUG_LOGS": "0",
+					"DM_AI_DEBUG": "0",
+					"CI": "1"
+				}
+			},
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: counterspell-2024-con-save",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=wizard/counterspell-2024-con-save",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: dispel-magic-concentration-break",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=wizard/dispel-magic-concentration-break",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: revivify-material-component",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=cleric/revivify-material-component",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: concentration-damage-break",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=core/concentration-damage-break",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: spell-slots",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=wizard/spell-slots",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "spell-r2: counterspell-2024-proficient-save",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=wizard/counterspell-2024-proficient-save",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: queued-monster-actions",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=core/queued-monster-actions",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: lair-actions",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=core/lair-actions",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: lair-actions-verbose",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=core/lair-actions",
+				"--verbose",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: legendary-actions-verbose",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=core/legendary-actions",
+				"--verbose",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: rogue-cunning-escape-artist",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=class-combat/rogue/cunning-escape-artist",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: rogue-evasion-vs-aoe",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=class-combat/rogue/evasion-vs-aoe",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "ai-r2: rogue-evasion-vs-aoe-verbose",
+			"type": "shell",
+			"command": "pnpm",
+			"args": [
+				"-C",
+				"packages/game-server",
+				"test:e2e:combat:mock",
+				"--",
+				"--scenario=class-combat/rogue/evasion-vs-aoe",
+				"--verbose",
+				"--no-color"
+			],
+			"isBackground": false,
+			"group": "test"
+		}
+	]
 }

@@ -8,57 +8,45 @@ created: 2026-04-24
 updated: 2026-04-24
 ---
 
-# Plan: Smaller Class Feature Cleanup (Cunning Strike, Slow Fall, Tactical Mind)
+# Plan: Small Feature Cleanup (Cunning Strike, Slow Fall, Tactical Mind)
 
-Three smaller features that share the property of "needs an existing-system extension rather than a new system."
+## 1. Cunning Strike (Rogue L5)
 
-## 1. Cunning Strike (Rogue L5, 2024)
+After SA hit: forfeit SA dice for effect. Options: Disarm (1d), Poison (1d), Trip (1d, Large or smaller), Withdraw (1d, move 15ft no OA), Daze (2d, CON save or no Reaction + only Action/BA).
 
-**RAW**: When you deal Sneak Attack damage, you may forgo some Sneak Attack dice to inflict an additional effect:
-- **Disarm** (1 SA die): target makes DEX save vs DC = 8 + DEX mod + PB; on fail, drops one held item.
-- **Poison** (1 SA die): target makes CON save; on fail, Poisoned for 1 minute (save end of each turn).
-- **Trip** (1 SA die): target makes DEX save; on fail, Prone (only if creature is Large or smaller).
-- **Withdraw** (1 SA die): no save; you can move 15 ft without provoking opportunity attacks.
-- **Daze** (2 SA dice): CON save; on fail, can't take a Reaction and only Action OR Bonus Action on next turn.
+**Exists**: `parseCunningStrikeOption`, `CunningStrikeOption`, `rogueCunningStrikeSaveDC` in `rogue.ts`. No executor.
 
-**Current state**: `parseCunningStrikeOption`, `CunningStrikeOption`, `rogueCunningStrikeSaveDC` exist in `rogue.ts`. Damage-resolver tracks `cunningStrike` flag. No executor or post-hit prompt.
+**Steps**: parse option from player text at L5+ SA hit → store on pending damage → after damage, call `applyCunningStrikeEffect(targetId, option, savePipeline)` → reduce SA dice before damage.
 
-**Plan**:
-1. After a Sneak-Attack-eligible hit at L5+, check if player text mentioned a Cunning Strike option (e.g., "with cunning trip").
-2. If so, parseCunningStrikeOption and store on the pending damage roll.
-3. After damage applied, route to `applyCunningStrikeEffect(targetId, option, savePipeline)`.
-4. Reduce sneak attack dice by N before applying damage.
-
-**Touched**: `damage-resolver.ts`, new `cunning-strike-resolver.ts` helper, `rogue.ts` text profile for the keyword.
+**Files**: `damage-resolver.ts`, new `cunning-strike-resolver.ts`, `rogue.ts` text profile.
 
 **Scope**: ~0.5 day. ~150 LOC.
 
 ## 2. Slow Fall (Monk L4)
 
-**RAW**: When you fall, you can use your reaction to reduce fall damage by 5 × Monk level.
+On fall: reaction reduces fall damage by 5 × Monk level.
 
-**Current state**: Fall damage works via `pit-terrain-resolver.ts`. No reaction-trigger emits a "you are about to take fall damage" pending action. Slow Fall is unimplemented.
+**Exists**: `pit-terrain-resolver.ts` handles fall. No fall-damage reaction hook.
 
-**Plan**:
-1. Extend `damage-reaction-handler.ts` to emit a fall-damage-reaction PendingAction kind.
-2. In `pit-terrain-resolver.ts`, before applying fall damage, check if the falling creature is a Monk L4+ with reaction available; if so, create the pending action.
-3. Add `SlowFallExecutor` that consumes the reaction and reduces damage by 5 × level.
-4. Resolve damage with the modified amount.
+**Steps**:
+1. Extend `damage-reaction-handler.ts` to emit fall-damage-reaction `PendingAction`
+2. In `pit-terrain-resolver.ts`: before fall damage, check Monk L4+ with reaction available → create pending action
+3. `SlowFallExecutor` — consumes reaction, reduces damage by 5 × level
+4. Apply modified amount
 
-**Touched**: `pit-terrain-resolver.ts`, `domain/entities/combat/pending-action.ts` (add fall-damage trigger), `damage-reaction-handler.ts`, new `monk/slow-fall-executor.ts`.
+**Files**: `pit-terrain-resolver.ts`, `domain/entities/combat/pending-action.ts` (add fall-damage trigger), `damage-reaction-handler.ts`, new `monk/slow-fall-executor.ts`.
 
-**Scope**: ~1 day. ~250 LOC. Note: this also adds a generic fall-damage-reaction kind that future features can subscribe to (Feather Fall spell, Catfall, etc.).
+**Scope**: ~1 day. ~250 LOC. Also adds generic fall-damage-reaction for Feather Fall etc.
 
-## 3. Tactical Mind (Fighter L2 2024)
+## 3. Tactical Mind (Fighter L2)
 
-**RAW**: After you fail an ability check, you can spend one Second Wind use (without taking the Second Wind action's heal) to reroll the check. Take the higher result.
+After failed ability check: spend one Second Wind use (no heal) to reroll. Take higher.
 
-**Current state**: feature-key + features-map entry added. **Blocked on the d20 roll-interrupt hook** (see plan-d20-roll-interrupt.md).
+**Blocked on plan-d20-roll-interrupt.md.**
 
-**Plan**: Once d20 roll-interrupt lands, add a `TacticalMindOption` to the interrupt option list when the actor is Fighter L2+ with Second Wind uses remaining and the rolled d20 was an ability check that failed. Selecting it: reroll d20, take higher, decrement Second Wind pool.
+Once d20-interrupt lands: add `TacticalMindOption` to interrupt option list for Fighter L2+ with Second Wind remaining on failed ability check. Reroll d20, take higher, decrement pool.
 
-**Scope**: ~0.25 day **after** d20 interrupt lands. Pure layering on top of that infrastructure.
+**Scope**: ~0.25 day AFTER d20 interrupt lands.
 
-## Combined commit strategy
-
-Three small wins; ship as one PR after the d20 interrupt hook lands (Tactical Mind needs that). Cunning Strike and Slow Fall can ship before that — they're independent.
+## Ship strategy
+Cunning Strike + Slow Fall independent → ship before d20 interrupt. Tactical Mind after.

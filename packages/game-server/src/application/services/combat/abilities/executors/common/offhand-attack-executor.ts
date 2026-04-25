@@ -11,8 +11,16 @@
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
 import { resolveWeaponMastery } from "../../../../../../domain/rules/weapon-mastery.js";
-import { canMakeOffhandAttack } from "../../../../../../domain/combat/two-weapon-fighting.js";
+import { evaluateOffhandAttackEligibility } from "../../../../../../domain/combat/two-weapon-fighting.js";
 import { requireActor } from "../executor-helpers.js";
+
+function hasDualWielderFeat(sheet: Record<string, unknown>): boolean {
+  const rawFeatIds = [
+    ...((sheet.featIds as string[] | undefined) ?? []),
+    ...((sheet.feats as string[] | undefined) ?? []),
+  ];
+  return rawFeatIds.some((feat) => feat.toLowerCase().replace(/[^a-z0-9]+/g, "").includes("dualwielder"));
+}
 
 /**
  * Executor for off-hand attack (two-weapon fighting).
@@ -99,14 +107,37 @@ export class OffhandAttackExecutor implements AbilityExecutor {
     }
 
     // TWF validation: delegate to domain function
-    // The attack objects carry weapon properties on the (extended) weapon spec
     const mainWeaponProps = { properties: (mainHandWeapon as any)?.properties as string[] | undefined };
     const offWeaponProps = { properties: (offhandWeapon as any)?.properties as string[] | undefined };
-    if (!canMakeOffhandAttack(mainWeaponProps, offWeaponProps)) {
+    const eligibility = evaluateOffhandAttackEligibility({
+      mainWeapon: mainWeaponProps,
+      offhandWeapon: offWeaponProps,
+      hasDualWielderFeat: hasDualWielderFeat(sheet ?? {}),
+      hasTakenAttackActionThisTurn: true,
+    });
+    if (!eligibility.allowed) {
+      const errorByReason: Record<string, { summary: string; code: string }> = {
+        ATTACK_ACTION_REQUIRED: {
+          summary: "Must make a main-hand attack before using off-hand attack",
+          code: "ATTACK_ACTION_REQUIRED",
+        },
+        MISSING_WEAPON: {
+          summary: "Two-weapon fighting requires wielding two weapons",
+          code: "NO_WEAPON",
+        },
+        NOT_LIGHT: {
+          summary: "Two-weapon fighting requires both weapons to have the Light property",
+          code: "NOT_LIGHT",
+        },
+      };
+      const mapped = errorByReason[eligibility.reason] ?? {
+        summary: "Off-hand attack requirements not met",
+        code: "OFFHAND_NOT_ALLOWED",
+      };
       return {
         success: false,
-        summary: 'Two-weapon fighting requires both weapons to have the Light property',
-        error: 'NOT_LIGHT',
+        summary: mapped.summary,
+        error: mapped.code,
       };
     }
 

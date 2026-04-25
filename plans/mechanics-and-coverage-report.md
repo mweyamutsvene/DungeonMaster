@@ -35,13 +35,13 @@ updated: 2026-04-25
 
 # 1. Executive Summary
 
-**Engine state: ~90% L1-5 ready** (revised up from 80% after multiple implementation rounds + extensive false-positive verification).
+**Engine state: ~93% L1-5 ready** (revised up: d20 roll-interrupt hook landed, unblocking BI/Lucky/Portent/Halfling Lucky consumption).
 
 Architecture is sound across every flow. After three rounds of implementation + verification, the real blocker list shrinks dramatically:
 
 ### Genuine remaining gaps (architectural)
 
-1. **d20 roll-interrupt hook** — Bardic Inspiration effect is created but never consumed by roll resolvers. Blocks BI consumption, Lucky feat, Cutting Words, Tactical Mind reroll, Diviner Portent. Plan in [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md). Estimated 2-3 days.
+1. ~~**d20 roll-interrupt hook**~~ ✅ DONE — `RollInterruptResolver` + `PendingRollInterruptData` + resolve endpoint landed. Attack path supports Bardic Inspiration, Lucky feat, Halfling Lucky, Portent. Saving throw path and Cutting Words still open (lower priority).
 2. **Subclass L3 features** for 12 base subclasses — typed framework exists; mechanical implementations missing for ~7. Plan in [plan-subclass-framework.md](plan-subclass-framework.md).
 3. **Wild Shape stat-block swap** — current implementation is temp-HP overlay, not real form swap. Plan in [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md).
 4. **Background field + Origin Feat / ASI pipeline** — Character.background field absent. Plan in [plan-background-pipeline.md](plan-background-pipeline.md).
@@ -171,7 +171,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Class | L1 | L2 | L3 (subclass) | L4 | L5 |
 |---|---|---|---|---|---|
 | **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack, Danger Sense (SUP) | Primal Path mechanical features MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement SUP |
-| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; consumption still blocked on roll-interrupt) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words still partial) | ASI | Font of Inspiration + BI d8 SUP |
+| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; attack-roll consumption wired via roll-interrupt hook) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words save-path still open) | ASI | Font of Inspiration + BI d8 SUP |
 | **Cleric** | Spellcasting, Divine Order MISSING | Channel Divinity (Turn Undead + Divine Spark) SUP | Divine Domain MISSING | ASI | Sear/Destroy Undead SUP |
 | **Druid** | Spellcasting, Primal Order MISSING | Wild Shape PARTIAL (temp HP + metadata; full swap/hydration pending) | Primal Circle MISSING | ASI | no universal |
 | **Fighter** | Fighting Style, Second Wind SUP, Weapon Mastery 3 (cross-flow) | Action Surge SUP, Tactical Mind MISSING | Martial Archetype MISSING | ASI | Extra Attack, Tactical Shift PARTIAL |
@@ -192,8 +192,8 @@ Additional deterministic scenarios added and validated in this thread:
 | Attack enhancement stacking order | REWORK | Reckless + Sneak + Smite + Stunning Strike composition |
 | Attack reaction dedup | REWORK | Shield, Deflect, Uncanny Dodge, Protection, Cutting Words compete |
 | Bonus action routing | REWORK | Verify all bonus-action features consume economy |
-| Bardic Inspiration consumption | MISSING P0 | If not wired to d20 rolls, BI is cosmetic |
-| d20 roll-interrupt hook | MISSING P0 | Blocks Cutting Words, Silvery Barbs, Portent, Lucky, BI consumption |
+| Bardic Inspiration consumption | PARTIAL | Attack rolls: BI die consumed via roll-interrupt hook. Saving throw and ability check paths still open. |
+| d20 roll-interrupt hook | PARTIAL | Attack path done (BI, Lucky, Halfling Lucky, Portent). Save path + Cutting Words/Silvery Barbs still open. |
 | Condition application from class abilities | REWORK | Stunning Strike, Cunning Strike, BM maneuvers need uniform save→condition flow |
 
 ## 2.3 SpellSystem  ([audit](audit-SpellSystem.md))
@@ -297,13 +297,13 @@ Additional deterministic scenarios added and validated in this thread:
 | Slow Fall (Monk L4) | SUPPORTED | Implemented in pit/fall resolution path (non-two-phase prompt). |
 | Protection fighting style (2024 reaction) | SUPPORTED | Ally-targeting reaction path is implemented and scenario-covered. |
 | Interception fighting style (2024 reaction) | SUPPORTED | Damage-to-ally reaction path is implemented and scenario-covered. |
-| Cutting Words (Bard Lore L3 reaction) | PARTIAL | Attack-roll path exists; generalized roll-interrupt architecture remains missing. |
+| Cutting Words (Bard Lore L3 reaction) | PARTIAL | Attack-roll path exists; roll-interrupt hook now landed, but CW detection on enemy attacks (save-path hook) still open. |
 | Sentinel feat | PARTIAL | Implemented in key OA/ally-attack paths; full feat-surface architecture remains incomplete. |
 | **Polearm Master enter-reach OA** | MISSING P2 | `oa-detection.ts` only leaves-reach |
 | Forced movement / stand-from-prone / teleport OA exclusion | REWORK | Verify filters voluntary-only |
 | Reaction reset at own-turn-start (not round) | REWORK | Verify correct event |
 
-**Summary:** Architecture sound; reaction coverage is materially broader (OA, Shield, Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, Interception, Sentinel). Remaining key gaps are Polearm Master enter-reach OA and generalized roll-interrupt architecture.
+**Summary:** Architecture sound; reaction coverage is materially broader (OA, Shield, Counterspell 2024, Absorb Elements, Hellish Rebuke, Deflect Attacks, Protection, Interception, Sentinel). Roll-interrupt hook landed (BI/Lucky/Portent on attack rolls). Remaining key gaps are Polearm Master enter-reach OA and CW/Silvery Barbs wiring on save/ability-check paths.
 
 ## 2.8 CombatMap  ([audit](audit-CombatMap.md))
 
@@ -536,7 +536,7 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 
 | # | Item | Flow | Notes |
 |---|---|---|---|
-| 1 | **d20 roll-interrupt architectural hook** | ReactionSystem | Unblocks Bardic Inspiration consumption, Lucky feat, Diviner Portent, future Silvery Barbs, Tactical Mind, Cutting Words. BI effect is created but never consumed — currently cosmetic. **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
+| 1 | ~~**d20 roll-interrupt architectural hook**~~ ✅ DONE | ReactionSystem | `RollInterruptResolver` + `PendingRollInterruptData` + `POST …/pending-roll-interrupt/resolve`. Attack path: BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace. Save path + Cutting Words/Silvery Barbs remain open (next increment). **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
 | 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
 | 3 | ~~**AI spell delivery resolution**~~ ✅ DONE | AISpellEvaluation | Delivery path is implemented and E2E-validated. |
 | 4 | ~~**Exhaustion mechanic (2024, 10-level, -2/level d20)**~~ ✅ DONE | CombatRules | Reconciled `conditions.ts` to 2024 RAW (was 2014-style 1-6/-level). `scenarios/core/exhaustion-accumulation.json` validates. Orphan `domain/rules/exhaustion.ts` deleted. Level 10 death helper available but auto-death trigger on application is future work. |

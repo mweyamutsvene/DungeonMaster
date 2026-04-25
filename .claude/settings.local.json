@@ -22,7 +22,17 @@
       "Bash(pnpm -C packages/game-server test)",
       "Bash(pnpm -C packages/game-server test:e2e:combat:mock)",
       "Bash(pnpm -C packages/game-server test:e2e:combat:mock -- --all)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(h\\) for h in d.get\\(''''hooks'''',{}\\).get\\(''''Stop'''',[d.get\\(''''hooks'''',{}\\).get\\(''''stop'''',[]\\)]\\)]\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(h\\) for h in d.get\\(''''hooks'''',{}\\).get\\(''''Stop'''',d.get\\(''''hooks'''',{}\\).get\\(''''stop'''',[]\\)\\)]\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(Select-String \"TotalSeconds\")"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "dnd-rules-query"
+  ]
 }

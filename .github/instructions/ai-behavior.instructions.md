@@ -323,7 +323,7 @@ pnpm -C packages/game-server test:e2e:combat:mock
 2. **AI decisions are advisory** — the rules engine validates and may reject LLM suggestions
 3. **Battle plans are faction-scoped** — one plan per faction, re-planned when conditions change significantly
 4. **Context building is expensive** — keep tactical context minimal but sufficient for good decisions
-5. **Multiple backends** — Ollama (local), OpenAI, GitHub Models. Factory pattern via env vars. Always test with mock provider
+5. **Multiple backends** — Ollama (local), OpenAI, GitHub Models, Copilot. Factory pattern via env vars. Always test with mock provider
 6. **SpyLlmProvider** wraps real providers for snapshot testing — prompt format changes require `test:llm:e2e:snapshot-update`
 7. **Mock providers** in `infrastructure/llm/mocks/` — used by all deterministic tests, must return structurally valid responses
 8. **`moveAwayFrom` uses `getReachableCells` internally** — `MoveAwayFromHandler` calls `findRetreatPosition()` which runs a Dijkstra flood-fill to find cells truly reachable within the speed budget. Do NOT replace this with Euclidean distance — that would allow picking cells behind walls or only reachable via detours that exceed the budget.

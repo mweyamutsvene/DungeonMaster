@@ -16,7 +16,6 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 
 ## Scope
 - **Creature hydration**: `packages/game-server/src/application/services/combat/helpers/creature-hydration.ts`
-- **Combat hydration**: `packages/game-server/src/application/services/combat/helpers/combat-hydration.ts`
 - **Combat utils**: `packages/game-server/src/application/services/combat/helpers/combat-utils.ts`
 - **Combatant resolver**: `packages/game-server/src/application/services/combat/helpers/combatant-resolver.ts`
 - **Species**: `packages/game-server/src/domain/entities/creatures/species.ts`, `packages/game-server/src/domain/entities/creatures/species-registry.ts`
@@ -38,8 +37,8 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 - All sheet parsing is defensive — always provide fallback values
 - `buildCreatureAdapter` must define ALL Creature interface methods (getFeatIds, getClassId, getSubclass, getLevel)
 - Species traits are additive, never replacing base stats
-- AC follows D&D 5e 2024 formula hierarchy (natural > equipped > unarmored defense)
-- Three distinct hydration paths: character (sheet), monster (stat block), NPC (hybrid)
+- AC uses layered ownership: `Creature.getAC()` equipment-aware base + `Character.getAC()` class-rule overrides (for example unarmored defense)
+- Hydration paths: character (sheet), monster (stat block), NPC (stat-block-backed path)
 - Explicit `.js` extensions in all TypeScript imports (NodeNext ESM)
 
 ## Constraints

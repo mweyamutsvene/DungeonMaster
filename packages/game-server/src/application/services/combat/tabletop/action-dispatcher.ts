@@ -223,7 +223,19 @@ export class ActionDispatcher {
 
     // -- Offhand attack --
     if (command.kind === "offhand") {
-      return this.classAbilityHandlers.handleBonusAbility(sessionId, encounterId, actorId, "base:bonus:offhand-attack", text, characters, monsters, npcs, roster);
+      const skipBonusCost = await this.shouldSkipBonusCostForOffhand(encounterId, actorId, characters);
+      return this.classAbilityHandlers.handleBonusAbility(
+        sessionId,
+        encounterId,
+        actorId,
+        "base:bonus:offhand-attack",
+        text,
+        characters,
+        monsters,
+        npcs,
+        roster,
+        skipBonusCost,
+      );
     }
 
     // -- Escape grapple --
@@ -306,6 +318,31 @@ export class ActionDispatcher {
   // ----------------------------------------------------------------
   // Parser chain – ordered list of text parsers tried by dispatch()
   // ----------------------------------------------------------------
+
+  private async shouldSkipBonusCostForOffhand(
+    encounterId: string,
+    actorId: string,
+    characters: SessionCharacterRecord[],
+  ): Promise<boolean> {
+    const actorChar = characters.find((c) => c.id === actorId);
+    if (!actorChar) return false;
+
+    const sheet = (actorChar.sheet ?? {}) as any;
+    const className = actorChar.className ?? sheet?.className ?? "";
+    const attacks: Array<{ name: string }> = sheet?.attacks ?? [];
+    const offHand = attacks.length > 1 ? attacks[1] : undefined;
+    if (!offHand) return false;
+
+    const offhandMastery = resolveWeaponMastery(offHand.name, sheet, className);
+    if (offhandMastery !== "nick") return false;
+
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const actorCombatant = combatants.find(
+      (c: any) => c.combatantType === "Character" && c.characterId === actorId,
+    );
+    const nickRes = actorCombatant ? normalizeResources(actorCombatant.resources) : ({} as any);
+    return !nickRes.nickUsedThisTurn;
+  }
 
   private buildParserChain(): ActionParserEntry<any>[] {
     const profiles = getAllCombatTextProfiles();
@@ -478,38 +515,11 @@ export class ActionDispatcher {
         id: "offhand",
         tryParse: (text) => tryParseOffhandAttackText(text) ? true : null,
         handle: async (_parsed, ctx) => {
-          let skipBonusCost = false;
-          const actorChar = ctx.characters.find((c) => c.id === ctx.actorId);
-          if (actorChar) {
-            const sheet = (actorChar?.sheet ?? {}) as any;
-            const className = actorChar?.className ?? sheet?.className ?? "";
-            const attacks: Array<{ name: string; properties?: string[] }> = sheet?.attacks ?? [];
-
-            // TWF validation: both weapons must have the Light property (D&D 5e 2024)
-            const mainHand = attacks[0];
-            const offHand = attacks.length > 1 ? attacks[1] : undefined;
-            if (!offHand) {
-              throw new ValidationError("Two-weapon fighting requires wielding two weapons");
-            }
-            const mainIsLight = mainHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-            const offIsLight = offHand?.properties?.some((p: string) => p.toLowerCase() === "light") ?? false;
-            if (!mainIsLight || !offIsLight) {
-              throw new ValidationError("Two-weapon fighting requires both weapons to have the Light property");
-            }
-            if (offHand) {
-              const offhandMastery = resolveWeaponMastery(offHand.name, sheet, className);
-              if (offhandMastery === "nick") {
-                const combatants = await this.deps.combatRepo.listCombatants(ctx.encounterId);
-                const actorCombatant = combatants.find(
-                  (c: any) => c.combatantType === "Character" && c.characterId === ctx.actorId,
-                );
-                const nickRes = actorCombatant ? normalizeResources(actorCombatant.resources) : {} as any;
-                if (!nickRes.nickUsedThisTurn) {
-                  skipBonusCost = true;
-                }
-              }
-            }
-          }
+          const skipBonusCost = await this.shouldSkipBonusCostForOffhand(
+            ctx.encounterId,
+            ctx.actorId,
+            ctx.characters,
+          );
           return this.classAbilityHandlers.handleBonusAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, "base:bonus:offhand-attack", ctx.text, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster, skipBonusCost);
         },
       },

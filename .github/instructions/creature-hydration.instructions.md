@@ -17,10 +17,10 @@ Bridge persisted creature data into combat-facing domain objects and combat-stat
 | `combat/helpers/combatant-resolver.ts` | ~150 | Strict combat-stat resolution from persisted records; throws when required combat fields are missing |
 | `domain/entities/creatures/species.ts` | ~100 | Species trait definitions (darkvision, speed, resistances) |
 | `domain/entities/creatures/species-registry.ts` | ~80 | Species lookup by name |
-| `domain/entities/creatures/creature.ts` | ~120 | Base Creature interface/class |
+| `domain/entities/creatures/creature.ts` | ~120 | Base Creature abstract class |
 | `domain/entities/creatures/character.ts` | ~150 | Character entity (sheet-based, player controlled) |
 | `domain/entities/creatures/monster.ts` | ~100 | Monster entity (stat block, DM controlled) |
-| `domain/entities/creatures/npc.ts` | ~80 | NPC entity (hybrid, DM controlled) |
+| `domain/entities/creatures/npc.ts` | ~80 | NPC entity (stat-block-backed, DM controlled) |
 | `domain/entities/items/equipped-items.ts` | ~120 | Equipped armor, shield, and armor-training type definitions |
 | `domain/entities/items/armor-catalog.ts` | ~100 | Armor definitions with AC formulas |
 

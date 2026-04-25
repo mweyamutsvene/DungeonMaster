@@ -243,9 +243,79 @@ export interface ReactionResponse {
 /**
  * Status of a pending action.
  */
-export type PendingActionStatus = 
+export type PendingActionStatus =
   | "awaiting_reactions"  // Waiting for player reactions
   | "ready_to_complete"   // All reactions resolved, ready to execute
   | "completed"           // Action has been completed
   | "cancelled"           // Action was cancelled
   | "expired";            // Timed out waiting for reactions
+
+// ─────────────────── Roll Interrupt System ───────────────────
+//
+// Generalises the PendingLuckyRerollData pattern into a first-class
+// "d20 interrupt" hook.  After any d20 is rolled — but before hit/save
+// resolution — the engine checks whether the actor (or an ally) holds
+// an ability that can modify the result.  If options exist the turn is
+// paused, the interrupt state is stored on the encounter's pendingAction
+// slot, and the client resolves via POST …/pending-roll-interrupt/resolve.
+//
+// Unblocks: Bardic Inspiration, Lucky feat, Halfling Lucky, Diviner Portent,
+//           Cutting Words, Tactical Mind, Silvery Barbs.
+
+/**
+ * One available choice the actor can make during a roll interrupt pause.
+ */
+export type RollInterruptOption =
+  | { kind: "bardic-inspiration"; effectId: string; sides: number; sourceCombatantId: string }
+  | { kind: "lucky-feat"; pointsRemaining: number }
+  | { kind: "halfling-lucky" }
+  | { kind: "portent"; valueRolled: number; portentEffectId: string }
+  | { kind: "cutting-words"; effectId: string; sides: number; sourceCombatantId: string };
+
+/**
+ * Resume context stored with a roll_interrupt so the resolve handler can
+ * reconstruct and finalise the original roll without re-running all modifier
+ * calculations.
+ */
+export interface AttackRollResumeContext {
+  kind: "attack";
+  sessionId: string;
+  encounterId: string;
+  actorId: string;
+  /** Serialised AttackPendingAction (without interrupt-resolution fields). */
+  originalAttackAction: Record<string, unknown>;
+}
+
+export interface SaveRollResumeContext {
+  kind: "save";
+  sessionId: string;
+  encounterId: string;
+  actorId: string;
+  /** Serialised SavingThrowPendingAction. */
+  originalSaveAction: Record<string, unknown>;
+}
+
+export type RollInterruptResumeContext = AttackRollResumeContext | SaveRollResumeContext;
+
+/**
+ * Stored on the encounter's singleton pendingAction slot while waiting for
+ * the player/AI to resolve a roll interrupt.
+ *
+ * Type discriminator: `type === "roll_interrupt"` (not in TabletopPendingAction
+ * union — resolved via a dedicated endpoint, not via processRollResult).
+ */
+export interface PendingRollInterruptData {
+  type: "roll_interrupt";
+  sessionId: string;
+  actorEntityId: string;
+  rollKind: "attack" | "save" | "ability_check" | "damage" | "concentration";
+  /** Raw d20 value(s) that were rolled. */
+  rawRoll: number[];
+  /** Total modifier added to the d20 (ability mod + prof + effects). */
+  modifier: number;
+  /** rawRoll[0] + modifier — the total before any interrupt adjustment. */
+  totalBeforeInterrupt: number;
+  /** Options the actor may choose from. */
+  options: RollInterruptOption[];
+  resumeContext: RollInterruptResumeContext;
+}

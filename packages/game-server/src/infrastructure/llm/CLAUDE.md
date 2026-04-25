@@ -1,10 +1,12 @@
-# LLM Infrastructure — Architectural Constraints
+# LLM Infrastructure — Quick Constraints
+
+Speak caveman. Keep short.
 
 ## Scope
 `infrastructure/llm/*`
 
 ## Laws
-1. **LLM is always optional** — every adapter and consumer must handle missing provider gracefully.
-2. **Factory pattern** — env vars select the backend. Never hardcode a specific provider.
-3. **Mock-first testing** — default tests use mock providers. Real LLM only with `DM_RUN_LLM_TESTS=1`.
-4. **SpyLlmProvider** records prompts for snapshot testing. Prompt format changes require `test:llm:e2e:snapshot-update`.
+1. LLM optional always. Missing provider path must work.
+2. Provider chosen by env + factory. No hardcoded backend.
+3. Mock-first testing. Real LLM only when explicitly enabled.
+4. `SpyLlmProvider` snapshots prompts; prompt changes require snapshot update.

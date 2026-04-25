@@ -36,7 +36,7 @@ Spell definitions, catalog entries by level (cantrips through level 9), spell pr
 5. **Healing spells** need `healingDice` definition.
 6. **Zone spells** need `area` definition (shape, size, effect).
 7. **Multi-attack cantrips** (Eldritch Blast) scale via extra beams, NOT extra dice per beam — they skip `getCantripDamageDice()`.
-8. **Levels 4-9** are stubs that need expansion as the engine supports higher-level play.
+8. **Levels 6-9** are not yet implemented — grep `catalog/` for the current highest level before claiming what's missing.
 9. **Concentration** must be marked on spells that require it — affects the concentration lifecycle.
 
 ## Modes of Operation

@@ -14,12 +14,21 @@ import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { ValidationError } from "../../../../application/errors.js";
 import type { CombatantStateRecord, CombatEncounterRecord } from "../../../../application/types.js";
-import type { DamagePendingAction } from "../../../../application/services/combat/tabletop/tabletop-types.js";
+import type { DamagePendingAction, AttackPendingAction } from "../../../../application/services/combat/tabletop/tabletop-types.js";
 import { detectDamageReactions } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
-import { normalizeResources, readBoolean } from "../../../../application/services/combat/helpers/resource-utils.js";
+import {
+  normalizeResources,
+  readBoolean,
+  removeActiveEffectById,
+  spendResourceFromPool,
+} from "../../../../application/services/combat/helpers/resource-utils.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { combatantRefFromState } from "../../../../application/services/combat/helpers/combatant-ref.js";
+import type {
+  PendingRollInterruptData,
+  RollInterruptOption,
+} from "../../../../domain/entities/combat/pending-action.js";
 
 function findEncounterForTabletopRoll(encounters: CombatEncounterRecord[]): CombatEncounterRecord | null {
   return encounters.find((encounter) => encounter.status === "Pending" || encounter.status === "Active")
@@ -316,5 +325,162 @@ export function registerSessionTabletopRoutes(app: FastifyInstance, deps: Sessio
     const rollType = typeof req.body?.rollType === "string" ? req.body.rollType : undefined;
 
     return deps.tabletopCombat.completeMove(sessionId, pendingActionId, roll, rollType);
+  });
+
+  /**
+   * POST /sessions/:id/combat/:encounterId/pending-roll-interrupt/resolve
+   *
+   * Resolves a paused d20 roll interrupt (Bardic Inspiration, Lucky feat,
+   * Halfling Lucky, Portent, Cutting Words, etc.).
+   *
+   * Body:
+   *   actorId  — entity ID of the actor who rolled
+   *   choice   — "decline"
+   *            | { kind: "bardic-inspiration" }
+   *            | { kind: "lucky-feat" }
+   *            | { kind: "halfling-lucky" }
+   *            | { kind: "portent"; portentEffectId: string }
+   *
+   * The handler reads the `roll_interrupt` blob from the encounter's
+   * pendingAction slot, applies the choice, then calls processRollResult
+   * to continue with normal hit/miss logic via `interruptResolved = true`.
+   */
+  app.post<{
+    Params: { id: string; encounterId: string };
+    Body: {
+      actorId: string;
+      choice: "decline" | { kind: RollInterruptOption["kind"]; [k: string]: unknown };
+    };
+  }>("/sessions/:id/combat/:encounterId/pending-roll-interrupt/resolve", async (req) => {
+    const sessionId = req.params.id;
+    const { encounterId } = req.params;
+    const { actorId, choice } = req.body;
+
+    if (!actorId || typeof actorId !== "string") throw new ValidationError("actorId is required");
+    if (!choice) throw new ValidationError("choice is required");
+
+    // Read interrupt state
+    const rawPending = await deps.combatRepo.getPendingAction(encounterId);
+    if (!rawPending || (rawPending as Record<string, unknown>).type !== "roll_interrupt") {
+      throw new ValidationError("No roll interrupt pending for this encounter");
+    }
+    const interruptData = rawPending as unknown as PendingRollInterruptData;
+
+    if (interruptData.resumeContext.kind !== "attack") {
+      // Saving throw interrupt path — not yet implemented
+      throw new ValidationError("Save roll interrupts are not yet supported via this endpoint");
+    }
+
+    const ctx = interruptData.resumeContext;
+    const originalAction = ctx.originalAttackAction as unknown as AttackPendingAction;
+
+    // Build the modified action that re-enters handleAttackRoll with resolved state
+    let interruptForcedRoll: number | undefined;
+    let interruptBonusAdjustment: number | undefined;
+
+    if (choice === "decline") {
+      // Nothing changes — re-run with original roll
+    } else if (choice.kind === "bardic-inspiration") {
+      // Find which option was chosen (the one with the matching effectId if supplied)
+      const biOption = interruptData.options.find(
+        o => o.kind === "bardic-inspiration" && (!(choice as any).effectId || o.effectId === (choice as any).effectId),
+      ) as Extract<RollInterruptOption, { kind: "bardic-inspiration" }> | undefined;
+
+      if (!biOption) throw new ValidationError("Bardic Inspiration option not found in interrupt");
+      if (!deps.diceRoller) throw new ValidationError("DiceRoller not available — cannot roll BI die");
+
+      const biRoll = deps.diceRoller.rollDie(biOption.sides).total;
+      interruptBonusAdjustment = biRoll;
+
+      // Consume the Bardic Inspiration effect from the actor's combatant resources
+      const combatants = await deps.combatRepo.listCombatants(encounterId);
+      const actorCombatant = combatants.find(
+        c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+      );
+      if (actorCombatant) {
+        const updatedResources = removeActiveEffectById(
+          actorCombatant.resources ?? {},
+          biOption.effectId,
+        );
+        await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          resources: updatedResources as any,
+        });
+      }
+
+      console.log(`[roll-interrupt] Bardic Inspiration used: +${biRoll} (1d${biOption.sides})`);
+
+    } else if (choice.kind === "lucky-feat") {
+      if (!deps.diceRoller) throw new ValidationError("DiceRoller not available — cannot reroll");
+
+      const newRoll = deps.diceRoller.d20().total;
+      interruptForcedRoll = newRoll;
+
+      // Spend 1 luck point
+      const combatants = await deps.combatRepo.listCombatants(encounterId);
+      const actorCombatant = combatants.find(
+        c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+      );
+      if (actorCombatant) {
+        const res = normalizeResources(actorCombatant.resources);
+        const updated = spendResourceFromPool(res, "luckPoints", 1);
+        await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          resources: updated as any,
+        });
+      }
+
+      console.log(`[roll-interrupt] Lucky feat used: rerolled d20 → ${newRoll}`);
+
+    } else if (choice.kind === "halfling-lucky") {
+      if (!deps.diceRoller) throw new ValidationError("DiceRoller not available — cannot reroll");
+
+      const newRoll = deps.diceRoller.d20().total;
+      interruptForcedRoll = newRoll;
+      console.log(`[roll-interrupt] Halfling Lucky used: rerolled nat-1 → ${newRoll}`);
+
+    } else if (choice.kind === "portent") {
+      const portentOption = interruptData.options.find(
+        o => o.kind === "portent" && o.portentEffectId === (choice as any).portentEffectId,
+      ) as Extract<RollInterruptOption, { kind: "portent" }> | undefined;
+
+      if (!portentOption) throw new ValidationError("Portent option not found");
+      interruptForcedRoll = portentOption.valueRolled;
+
+      // Consume the portent effect
+      const combatants = await deps.combatRepo.listCombatants(encounterId);
+      const actorCombatant = combatants.find(
+        c => c.characterId === actorId || c.monsterId === actorId || c.npcId === actorId,
+      );
+      if (actorCombatant) {
+        const updatedResources = removeActiveEffectById(
+          actorCombatant.resources ?? {},
+          portentOption.portentEffectId,
+        );
+        await deps.combatRepo.updateCombatantState(actorCombatant.id, {
+          resources: updatedResources as any,
+        });
+      }
+      console.log(`[roll-interrupt] Portent used: replacing d20 with ${portentOption.valueRolled}`);
+
+    } else {
+      throw new ValidationError(`Unknown interrupt choice kind: ${(choice as any).kind}`);
+    }
+
+    // Reconstruct the attack pending action with interrupt-resolution flags and restore it
+    const resolvedAction: AttackPendingAction = {
+      ...originalAction,
+      interruptResolved: true,
+      ...(interruptBonusAdjustment !== undefined ? { interruptBonusAdjustment } : {}),
+      ...(interruptForcedRoll !== undefined ? { interruptForcedRoll } : {}),
+    };
+
+    await deps.combatRepo.clearPendingAction(encounterId);
+    await deps.combatRepo.setPendingAction(encounterId, resolvedAction);
+
+    // Re-submit the original d20 roll through processRollResult.
+    // handleAttackRoll will skip the interrupt check (interruptResolved=true)
+    // and apply the bonus/forced-roll overrides set above.
+    const originalD20 = interruptData.rawRoll[0] ?? 1;
+    const rollText = `rolled ${originalD20}`;
+    return deps.tabletopCombat.processRollResult(sessionId, rollText, actorId);
   });
 }

@@ -13,7 +13,7 @@ Always start by reading this file fully. Greet with: "As you wish Papi...."
 - Refactor tightly-coupled code on sight. No public-API constraint here.
 - Pick the best option even if it requires rewriting tests. Tests track the new code; if they break, that signals the new code is more accurate.
 - Always use D&D 5e **2024** rules unless explicitly told otherwise.
-- TODO comments → create a plan markdown file at `.github/prompts/<feature>.prompt.md`.
+- TODO comments -> create a plan markdown file in `plans/` (or `.github/prompts/` when using prompt workflows).
 - Flag unexpected behavior outside scope — document TODOs / open issues for D&D rule gaps.
 
 ---
@@ -83,7 +83,7 @@ Three thin facades delegate to focused handlers (full diagram in [SME-Architectu
 
 - **TabletopCombatService** → `ActionDispatcher` (6 handlers in `dispatch/`) + `RollStateMachine` (resolvers in `rolls/`)
 - **ActionService** → `AttackActionHandler`, `GrappleActionHandler`, `SkillActionHandler`
-- **TwoPhaseActionService** → `MoveReactionHandler`, `AttackReactionHandler`, `SpellReactionHandler`
+- **TwoPhaseActionService** → `MoveReactionHandler`, `AttackReactionHandler`, `SpellReactionHandler`, `DamageReactionHandler`
 
 `abilityRegistry` is REQUIRED in `TabletopCombatServiceDeps` — no optional guards.
 
@@ -92,7 +92,7 @@ Three thin facades delegate to focused handlers (full diagram in [SME-Architectu
 All class-specific detection, eligibility, and combat-text matching MUST live in `domain/entities/classes/<class>.ts`. Three patterns (full reference in [packages/game-server/src/domain/entities/classes/CLAUDE.md](../packages/game-server/src/domain/entities/classes/CLAUDE.md)):
 
 1. **ClassCombatTextProfile** — regex/enhancement/reaction declarations collected by `registry.ts`
-2. **AbilityRegistry** — executors in `application/services/combat/abilities/executors/<class>/`, registered in `app.ts` (BOTH main + test)
+2. **AbilityRegistry** — executors in `application/services/combat/abilities/executors/<class>/`, registered in `app.ts`; test app builders with separate registries should mirror required executors for their scenarios
 3. **Feature Maps** — `classHasFeature(classId, feature, level)`. NEVER add boolean `has*()` to `ClassFeatureResolver`
 
 ---

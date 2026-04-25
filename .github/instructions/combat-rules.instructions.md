@@ -1,6 +1,6 @@
 ---
 description: "Architecture and conventions for the CombatRules flow: movement, damage, grapple, conditions, death saves, attack resolution, initiative, concentration, weapon mastery, feats, rest, surprise, effects. NOTE: Grid/pathfinding/cover → combat-map.instructions.md; action economy flags → action-economy.instructions.md."
-applyTo: "packages/game-server/src/domain/rules/**,packages/game-server/src/domain/combat/**,packages/game-server/src/domain/effects/**"
+applyTo: "packages/game-server/src/domain/rules/**,packages/game-server/src/domain/combat/**,packages/game-server/src/domain/effects/**,packages/game-server/src/domain/entities/combat/effects.ts"
 ---
 
 # CombatRules Flow
@@ -51,8 +51,8 @@ Key lifecycle methods:
 
 | Export | Purpose |
 |--------|---------|
-| `WEAPON_MASTERY_MAP` | `Record<string, WeaponMasteryProperty>` — 34 standard weapons → mastery keyword |
-| `hasWeaponMasteryFeature(sheet)` | Class eligibility check (Fighter 3, Barbarian/Paladin/Ranger/Rogue 2 each) |
+| `WEAPON_MASTERY_MAP` | `Record<string, WeaponMasteryProperty>` — standard weapons mapped to mastery keyword |
+| `hasWeaponMasteryFeature(sheet)` | Current class eligibility gate used by mastery resolver (class-based rule in this codebase) |
 | `hasWeaponMastery(sheet, weaponName)` | Checks explicit `sheet.weaponMasteries[]`, falls back to class auto-grant |
 | `resolveWeaponMastery(weaponName, sheet, className?, explicitMastery?)` | Full pipeline: eligibility gate → explicit override → `WEAPON_MASTERY_MAP` lookup. Returns `undefined` if not eligible. |
 
@@ -141,7 +141,7 @@ Effects are declared as data (`ActiveEffect` with `EffectDuration`). Two cleanup
 
 ## Known Gotchas
 1. **combat-map.ts is a barrel** — the implementation spans 5 sub-modules (`-types`, `-core`, `-sight`, `-zones`, `-items`). Add new functionality to the appropriate sub-module, not the barrel.
-2. **class-resources.ts** imports all 10 class files to build resource pools — changes to class resource shapes propagate here
+2. **class-resources.ts** now delegates through the class registry — class resource shape changes still propagate, but the direct all-class import coupling is no longer the primary pattern.
 3. **Purity is scoped** — `domain/rules/` stays pure, but `domain/combat/` and `domain/effects/` can hold state or mutate creatures while still remaining domain-only.
 4. **D&D 5e 2024 rules** — not 2014. Verify against 2024 edition for any mechanic
 5. **Dependency direction**: keep imports inside the domain layer. Rules can read entities, and some entities already read shared rule helpers too. Do not pull app or infra into this flow, and do not create cycles.

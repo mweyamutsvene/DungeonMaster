@@ -24,7 +24,6 @@ import {
   setPosition,
   normalizeResources,
   getResourcePools,
-  hasResourceAvailable,
   getActiveEffects,
   canMakeAttack,
 } from "../helpers/resource-utils.js";
@@ -71,10 +70,9 @@ import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 
 import type {
-  PendingAction as TwoPhasePendingAction,
-  PendingLuckyRerollData,
-  ReactionOpportunity,
+  PendingRollInterruptData,
 } from "../../../../domain/entities/combat/pending-action.js";
+import { RollInterruptResolver } from "./rolls/roll-interrupt-resolver.js";
 import type {
   TabletopCombatServiceDeps,
   TabletopPendingAction,
@@ -165,6 +163,7 @@ export class RollStateMachine {
   private readonly weaponMasteryResolver: WeaponMasteryResolver;
   private readonly hitRiderResolver: HitRiderResolver;
   private readonly damageResolver: DamageResolver;
+  private readonly rollInterruptResolver: RollInterruptResolver;
   /** Exhaustive handler map — Record<PendingActionType, ...> enforces compile-time coverage. */
   private readonly rollHandlers: PendingActionHandlerMap;
 
@@ -180,6 +179,7 @@ export class RollStateMachine {
     this.weaponMasteryResolver = new WeaponMasteryResolver(deps, this.savingThrowResolver, debugLogsEnabled);
     this.hitRiderResolver = new HitRiderResolver(deps, this.savingThrowResolver, debugLogsEnabled);
     this.damageResolver = new DamageResolver(deps, eventEmitter, this.hitRiderResolver, this.weaponMasteryResolver, debugLogsEnabled);
+    this.rollInterruptResolver = new RollInterruptResolver(debugLogsEnabled);
 
     // Handler map — every key in PendingActionType must have an entry (exhaustiveness check).
     // Adding a new PendingActionType will cause a compile error here until wired in.
@@ -406,7 +406,11 @@ export class RollStateMachine {
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],
   ): Promise<AttackResult> {
-    const { effective: rollValue } = resolveD20Roll(command, action.rollMode);
+    let { effective: rollValue } = resolveD20Roll(command, action.rollMode);
+    // Lucky/Portent interrupt: use the override d20 from the resolved interrupt
+    if (action.interruptForcedRoll !== undefined) {
+      rollValue = action.interruptForcedRoll;
+    }
     const rollPrefix = `${rollValue}`;
 
     const targetId = action.targetId || action.target;
@@ -468,6 +472,14 @@ export class RollStateMachine {
       console.log(`[RollStateMachine] ActiveEffect attack bonus: +${attackBonusResult.flatBonus} flat, +${effectDiceBonus} dice (total bonus: ${attackBonus})`);
     }
 
+    // Bardic Inspiration / interrupt bonus from resolved interrupt
+    if (action.interruptBonusAdjustment) {
+      attackBonus += action.interruptBonusAdjustment;
+      if (this.debugLogsEnabled) {
+        console.log(`[RollStateMachine] Interrupt bonus adjustment: +${action.interruptBonusAdjustment} (total bonus: ${attackBonus})`);
+      }
+    }
+
     // AC bonus from effects on target (e.g., Shield of Faith +2 AC)
     const acBonusFromEffects = calculateFlatBonusFromEffects(targetEffects, 'armor_class');
     const effectAdjustedAC = targetAC + acBonusFromEffects;
@@ -509,6 +521,60 @@ export class RollStateMachine {
         if (dist === undefined || dist <= 5.0001) {
           isCritical = true;
         }
+      }
+    }
+
+    // ── Roll interrupt: pause before finalising hit/miss ──────────────────────
+    // Fires once per roll. If options exist (BI, Lucky, Portent, Halfling Lucky)
+    // we store the interrupt state on the encounter pendingAction slot and return
+    // early. The resolve endpoint re-enters with interruptResolved = true.
+    if (!action.interruptResolved) {
+      const interruptOptions = this.rollInterruptResolver.findAttackInterruptOptions(
+        attackerCombatant ?? undefined,
+        attackerSheet,
+        rollValue,
+      );
+      if (interruptOptions.length > 0) {
+        const interruptData: PendingRollInterruptData =
+          this.rollInterruptResolver.buildAttackInterruptData(
+            sessionId,
+            encounter.id,
+            actorId,
+            rollValue,
+            attackBonus,
+            total,
+            interruptOptions,
+            action,
+          );
+        await this.deps.combatRepo.clearPendingAction(encounter.id);
+        await this.deps.combatRepo.setPendingAction(encounter.id, interruptData as any);
+
+        const optionDescriptions = interruptOptions.map((o) => {
+          if (o.kind === "bardic-inspiration") return `Bardic Inspiration (+1d${o.sides})`;
+          if (o.kind === "lucky-feat") return `Lucky feat (${o.pointsRemaining} pts)`;
+          if (o.kind === "halfling-lucky") return "Halfling Lucky (reroll nat 1)";
+          if (o.kind === "portent") return `Portent (replace with ${o.valueRolled})`;
+          if (o.kind === "cutting-words") return `Cutting Words (-1d${o.sides})`;
+          return (o as { kind: string }).kind;
+        }).join(", ");
+
+        const currentOutcome = hit ? "Hit" : "Miss";
+        return {
+          rollType: "attack" as const,
+          rawRoll: rollValue,
+          modifier: attackBonus,
+          total,
+          targetAC: effectAdjustedAC,
+          hit: false,
+          requiresPlayerInput: true,
+          actionComplete: false,
+          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. ${currentOutcome}. Roll interrupt: ${optionDescriptions}. Use or decline?`,
+          rollInterrupt: {
+            options: interruptOptions,
+            totalBeforeInterrupt: total,
+            targetAC: effectAdjustedAC,
+          },
+        };
       }
     }
 
@@ -565,90 +631,6 @@ export class RollStateMachine {
     }
 
     if (!hit) {
-      const actorCombatantForLucky = findCombatantByEntityId(combatants, actorId);
-
-      // Lucky interactive decision: pause miss resolution and prompt spend/decline.
-      if (
-        !action.luckyPrompted
-        && attackerFeatMods.luckyEnabled
-        && actorCombatantForLucky
-        && actorCombatantForLucky.combatantType === "Character"
-        && hasResourceAvailable(actorCombatantForLucky.resources, "luckPoints", 1)
-      ) {
-        const pendingActionId = nanoid();
-        const opportunityId = nanoid();
-        const actorRef = { type: "Character" as const, characterId: actorId };
-        const opportunity: ReactionOpportunity = {
-          id: opportunityId,
-          combatantId: actorCombatantForLucky.id,
-          reactionType: "lucky_reroll",
-          canUse: true,
-          context: {
-            rollType: "attack",
-            originalRoll: rollValue,
-            originalTotal: total,
-            targetAC: effectAdjustedAC,
-          },
-        };
-        const luckyData: PendingLuckyRerollData = {
-          type: "lucky_reroll",
-          sessionId,
-          actorEntityId: actorId,
-          originalRoll: rollValue,
-          originalTotal: total,
-          attackBonus,
-          targetAC: effectAdjustedAC,
-          originalAttackAction: {
-            ...action,
-            luckyPrompted: true,
-            timestamp: new Date(),
-          } as Record<string, unknown>,
-        };
-        const luckyPendingAction: TwoPhasePendingAction = {
-          id: pendingActionId,
-          encounterId: encounter.id,
-          actor: actorRef,
-          type: "lucky_reroll",
-          data: luckyData,
-          reactionOpportunities: [opportunity],
-          resolvedReactions: [],
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 60000),
-        };
-
-        await this.deps.pendingActions.create(luckyPendingAction);
-        await this.deps.combatRepo.clearPendingAction(encounter.id);
-        await this.deps.combatRepo.setPendingAction(encounter.id, {
-          id: pendingActionId,
-          type: "reaction_pending",
-          pendingActionId,
-          reactionType: "lucky_reroll",
-          target: actorRef,
-        } as any);
-
-        return {
-          rollType: "attack",
-          rawRoll: rollValue,
-          modifier: attackBonus,
-          total,
-          targetAC: effectAdjustedAC,
-          hit: false,
-          targetHpRemaining: (target as any).statBlock?.hp ?? (target as any).sheet?.maxHp ?? 0,
-          requiresPlayerInput: true,
-          actionComplete: false,
-          message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. Miss! Spend 1 Luck Point to reroll?`,
-          pendingActionId,
-          luckyPrompt: {
-            pendingActionId,
-            reactionType: "lucky_reroll",
-            rollType: "attack",
-            originalRoll: rollValue,
-            originalTotal: total,
-            targetAC: effectAdjustedAC,
-          },
-        };
-      }
-
       // Handle miss for Flurry strike 1
       if (action.bonusAction === "flurry-of-blows" && action.flurryStrike === 1) {
         const pendingAction2: AttackPendingAction = {
@@ -744,7 +726,9 @@ export class RollStateMachine {
       }
 
       await this.deps.combatRepo.clearPendingAction(encounter.id);
-      await this.eventEmitter.markActionSpent(encounter.id, actorId);
+      if (action.bonusAction !== "offhand-attack") {
+        await this.eventEmitter.markActionSpent(encounter.id, actorId);
+      }
 
       // D&D 5e 2024: Loading property — mark that a Loading weapon was fired this turn
       if (action.weaponSpec?.properties?.some((p: string) => typeof p === "string" && p.toLowerCase() === "loading")) {

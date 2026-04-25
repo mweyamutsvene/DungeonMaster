@@ -152,7 +152,7 @@ journey
 | `application/services/combat/two-phase-action-service.ts` | ~240 | application | Thin facade with 8 public methods (initiate/complete × 4 categories); delegates to 4 handler instances |
 | `application/services/combat/two-phase/move-reaction-handler.ts` | ~670 | application | Movement reactions — OA detection via shared helper, Booming Blade triggers (`on_voluntary_move`), prone stand-up cost, grapple drag speed, pit entry saves, zone damage along path, A* path computation |
 | `application/services/combat/two-phase/attack-reaction-handler.ts` | ~750 | application | Attack reactions — Shield spell (+5 AC), Deflect Attacks (Monk damage reduction + Ki redirect), Sentinel feat (ally protection OA), readied action triggers, damage reaction detection (chains to DamageReactionHandler) |
-| `application/services/combat/two-phase/spell-reaction-handler.ts` | ~270 | application | Spell reactions — Counterspell detection and resolution; ability check (DC = 10 + spell level) if counterspell slot < target spell level; auto-counter if slot ≥ target level |
+| `application/services/combat/two-phase/spell-reaction-handler.ts` | ~270 | application | Spell reactions — Counterspell detection and resolution using 2024 model (target caster Constitution save vs counterspeller spell save DC) |
 | `application/services/combat/two-phase/damage-reaction-handler.ts` | ~300 | application | Damage reactions — Absorb Elements (heal back half damage, gain resistance), Hellish Rebuke (2d10 fire retaliation, DEX save for half) |
 | `domain/entities/combat/pending-action.ts` | ~236 | domain | `PendingAction` interface, 6 data variants (move/spell_cast/attack/damage_reaction/lucky_reroll/ability_check), `ReactionOpportunity`, `ReactionResponse`, `PendingActionStatus`, 13 `ReactionType` values |
 | `infrastructure/api/routes/reactions.ts` | ~495 | infrastructure | 3 endpoints: `POST /respond` (auto-completes when all reactions resolved), `GET /:pendingActionId`, `GET /` (list all pending); handles Lucky reroll prompts, War Caster spell-as-OA |
@@ -205,7 +205,7 @@ journey
 
 4. **Damage reactions chain from attack completion** — `AttackReactionHandler.complete()` detects damage reactions (Absorb Elements, Hellish Rebuke) after applying damage, then calls `damageReactionInitiator.initiateDamageReaction()` to create a _second_ PendingAction. This means a single attack can create two sequential pending actions: first for Shield, then for damage reaction.
 
-5. **Counterspell auto-succeeds if slot ≥ spell level** — When a Counterspell is cast at a slot level ≥ the target spell's level, no ability check is needed. Only when cast at a lower slot level does the counterspeller roll d20 + spellcasting mod + proficiency vs DC (10 + spell level). The first successful Counterspell stops checking remaining counterspells.
+5. **Counterspell uses 2024 save model** — reacting caster spends slot/reaction, then target caster makes a Constitution save vs counterspeller spell save DC. A failed save stops the spell.
 
 6. **War Caster spell-as-OA uses `oaType: "spell"` flag** — When a combatant has War Caster feat, their OA opportunity includes `oaType: "spell"` alongside `oaType: "weapon"`. The reaction route accepts `spellName` and `castAtLevel` params to resolve the spell-based OA.
 

@@ -21,6 +21,7 @@ import { inferActorRef } from "../combat-text-parser.js";
 import {
   getPosition,
   normalizeResources,
+  getAttacksUsedThisTurn,
   hasBonusActionAvailable,
   useBonusAction,
   spendResourceFromPool,
@@ -694,7 +695,11 @@ export class ClassAbilityHandlers {
     );
 
     const mockCombat: AbilityCombatContext = {
-      hasUsedAction: (_actorId: string, _actionType: string) => {
+      hasUsedAction: (_actorId: string, actionType: string) => {
+        const normalized = actionType.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        if (normalized === "attack") {
+          return getAttacksUsedThisTurn(actorCombatant.resources ?? {}) > 0;
+        }
         return true;
       },
       getRound: () => 0,

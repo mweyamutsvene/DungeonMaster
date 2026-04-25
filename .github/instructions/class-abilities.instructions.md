@@ -257,23 +257,24 @@ Guard against double-activation: check `getActiveEffects(resources).some(e => e.
 | **Bard** | Light | 1 action mapping (bardic-inspiration) | 1 (bardic-inspiration) | — | capabilitiesForLevel defined |
 | **Sorcerer** | Light | 2 action mappings (quickened-spell, twinned-spell) | 2 (quickened-spell, twinned-spell) | — | capabilitiesForLevel defined |
 | **Druid** | Light | 1 action mapping (wild-shape) | 1 (wild-shape) | — | capabilitiesForLevel defined |
-| **Ranger** | Skeleton | Empty profile (no mappings) | 0 | — | capabilitiesForLevel defined; class definition only |
+| **Ranger** | Light | 1 action mapping (move-hunters-mark) | 1 (move-hunters-mark) | — | capabilitiesForLevel defined |
 
 ## Registered Profiles
 All 12 classes registered: Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard.
 
 `getAllCombatTextProfiles()` also iterates subclass definitions and appends any `sub.combatTextProfile` — the OpenHand Monk subclass has one (containing the Open Hand Technique attack enhancement). This subclass expansion is in addition to the 12 base class profiles.
 
-## Registered Executors (22 total, registered in AbilityRegistry)
+## Registered Executors (current app wiring, registered in AbilityRegistry)
 - **barbarian** (4): rage, reckless-attack, brutal-strike, frenzy
 - **monk** (5): flurry-of-blows, patient-defense, step-of-the-wind, martial-arts, wholeness-of-body
 - **fighter** (3): action-surge, second-wind, indomitable
-- **rogue** (1): cunning-action
+- **rogue** (2): cunning-action, steady-aim
 - **paladin** (2): lay-on-hands, channel-divinity
-- **cleric** (1): turn-undead
+- **cleric** (2): turn-undead, divine-spark
 - **bard** (1): bardic-inspiration
-- **druid** (1): wild-shape
-- **sorcerer** (2): quickened-spell, twinned-spell
+- **druid** (2): wild-shape, revert-wild-shape
+- **ranger** (1): move-hunters-mark
+- **sorcerer** (5): quickened-spell, twinned-spell, flexible-casting, innate-sorcery, magical-cunning
 - **monster** (1): nimble-escape
 - **common** (1): offhand-attack
 
@@ -289,7 +290,7 @@ Class abilities reach beyond this flow in several places:
 - **rest.ts** — `refreshClassResourcePools()` reads each class definition's `restRefreshPolicy`.
 
 ## Known Gotchas
-1. **Domain-first principle** — class detection/eligibility/text matching MUST live in domain class files, NOT in application services
+1. **Domain-first principle** — class detection/eligibility/text matching belongs in domain class files. Existing app-layer checks may remain as compatibility bridges, but do not add new class-specific detection logic outside the domain profiles/maps.
 2. **Boolean gates use feature maps, NOT ClassFeatureResolver** — `classHasFeature(classId, FEATURE_KEY, level)` replaces all old `ClassFeatureResolver.has*()` / `is*()` methods. Never add new boolean checks to ClassFeatureResolver.
 3. **classHasFeature normalizes classId to lowercase** — callers pass mixed-case className values (e.g., "Barbarian", "MONK") and the function handles normalization
 4. **Subclass-gated features** (e.g., Open Hand Technique) — the features map provides the level gate (necessary), the executor guards the subclass (sufficient). Both are required.
@@ -297,7 +298,7 @@ Class abilities reach beyond this flow in several places:
 6. **Multi-class ready** — `hasFeature(classLevels, feature)` checks ANY class-level entry, supporting future multiclass characters
 7. **Bonus actions** route through `handleBonusAbility()` (consumes bonus action economy). **Free abilities** through `handleClassAbility()`.
 8. **Monk is the complexity outlier** — 200+ lines, 15+ exports, 5 executors + profile. All other classes are simpler.
-9. **class-resources.ts** intentionally imports all class files — narrow changes still ripple here
-10. **Registration in app.ts** — both main app AND test registry must register new executors
+9. **Resource declarations are centralized via class definitions** — `resourcesAtLevel` is consumed by `buildCombatResources()` and by default resource pool creation paths.
+10. **Registration in app.ts** — main app must register new executors, and any test app builder with its own registry must mirror those registrations.
 11. **Reaction defs check resource flags, not class identity** — Shield checks `hasShieldPrepared`, not `className === "wizard"`. Any class with the spell prepared can trigger the reaction.
-12. **Dual-mode executors** — only attack-producing executors need tabletop mode (Flurry, Martial Arts, Offhand Attack). Non-attack executors resolve immediately.
+12. **Dual-mode executors** — attack-producing executors generally need tabletop mode (Flurry, Martial Arts, Offhand Attack, Frenzy). Non-attack executors resolve immediately.

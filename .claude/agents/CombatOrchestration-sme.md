@@ -14,7 +14,7 @@ You are the subject matter expert for the **CombatOrchestration** flow. Your job
 
 ## Your Domain
 
-The combat orchestration layer: `TabletopCombatService` facade (~370 lines, 4 public methods), `ActionDispatcher` (~1200 lines, routes parsed actions to handlers), `RollStateMachine` (~1700 lines, all dice roll resolution), `CombatTextParser` (~1200 lines, 20+ pure parsing functions), and `tabletop-types.ts` (~400 lines, central type hub). This covers the pending action state machine, two-phase dice flow (initiate → roll → resolve), action parsing, movement/attack/ability routing, and initiative management.
+The combat orchestration layer: `TabletopCombatService` facade (4 public methods), `ActionDispatcher` (routes parsed actions via 6 handler classes in `dispatch/`), `RollStateMachine` (all dice roll resolution via resolvers in `rolls/`), `CombatTextParser` (pure parsing functions), and `tabletop-types.ts` (central type hub). This covers the pending action state machine, two-phase dice flow (initiate → roll → resolve), action parsing, movement/attack/ability routing, and initiative management. Read the actual files for current line counts and export lists.
 
 ## Key Contracts
 
@@ -29,8 +29,8 @@ The combat orchestration layer: `TabletopCombatService` facade (~370 lines, 4 pu
 
 ## Known Constraints
 
-1. **Facade is thin** (~370 lines) — it delegates everything to 7 sub-modules. Changes to the facade's 4 public method signatures ripple across all route handlers.
-2. **RollStateMachine is the largest module** (~1700 lines) — handles all dice resolution including Sneak Attack, Divine Smite, mastery effects, resource pool initialization.
+1. **Facade stays thin** — it delegates everything to sub-modules. Changes to the facade's 4 public method signatures ripple across all route handlers.
+2. **RollStateMachine is the largest module** — handles all dice resolution including Sneak Attack, Divine Smite, mastery effects, resource pool initialization. Grep for current resolver list in `rolls/`.
 3. **ActionDispatcher integrates text parsers AND class ability detection** — text parsing → `tryMatchClassAction()` → handler routing. Adding new action types requires both parser and dispatcher changes.
 4. **CombatTextParser functions are pure** — no `this.deps`, no side effects. They receive text and return parsed action objects or null.
 5. **Pending action state machine**: `initiate → (attack_pending | damage_pending | save_pending | death_save_pending) → resolved`. Invalid state transitions must be rejected.

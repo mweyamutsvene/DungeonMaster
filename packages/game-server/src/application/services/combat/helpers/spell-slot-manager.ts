@@ -2,23 +2,22 @@
  * SpellSlotManager — shared spell preparation helpers.
  *
  * Extracted from SpellActionHandler so both the tabletop path (SpellActionHandler)
- * and the AI path (AiActionExecutor) can consume the same resource-bookkeeping logic.
+ * and the AI path (CastSpellHandler) can consume the same resource-bookkeeping logic.
  *
  * ## What this module covers
  *   1. `findPreparedSpellInSheet` — pure lookup of a spell in a character's prepared spell list
- *   2. `prepareSpellCast`        — validate + spend slot, manage concentration, write to DB
+ *   2. `resolveSpell`             — catalog-first spell definition resolution with sheet overrides
+ *   3. `validateUpcast`           — pure cast-level validation
+ *   4. `prepareSpellCast`         — validate + spend slot, manage concentration, write to DB
  *
  * ## What this module does NOT cover
  *   - Spell effect delivery (damage, healing, saving throws, buff/debuff, zones)
- *   - That logic lives in `tabletop/spell-delivery/` and is tabletop-only because
- *     `SpellAttackDeliveryHandler` requires interactive player dice rolls
- *     (returns `requiresPlayerInput: true`, sets ATTACK pending action).
+ *   - Tabletop delivery lives in `tabletop/spell-delivery/`; AI delivery lives in
+ *     `ai/handlers/ai-spell-delivery.ts`.
  *
- * ## AI path divergence note
- *   The AI path calls `prepareSpellCast` for resource bookkeeping (slot/concentration)
- *   then calls `ActionService.castSpell()` as a cosmetic step.
- *   Actual spell mechanical effects (damage/healing/conditions) are NOT applied in the AI path.
- *   See `ai-action-executor.ts executeCastSpell()` for the TODO.
+ * ## AI path note
+ *   The AI path calls `prepareSpellCast` for shared slot/concentration bookkeeping,
+ *   then performs mechanical delivery through `AiSpellDelivery`.
  */
 
 import { ValidationError } from "../../../errors.js";

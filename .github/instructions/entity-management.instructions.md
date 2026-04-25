@@ -14,7 +14,7 @@ EntityManagement owns the persistence-facing application contracts for sessions,
 classDiagram
     class CharacterService {
         +addCharacter()
-        +getCharacter()
+        +getCharacterOrThrow()
         +updateCharacter()
         +beginRest() / takeSessionRest()
         enrichSheet: attacks + armor
@@ -94,7 +94,7 @@ All JSON fields use `JsonValue` (aliased to `unknown`) — callers must cast and
 
 ## Items & Equipment (`domain/entities/items/`)
 
-EntityManagement should document item behavior only at the service boundary: `ItemLookupService` and `InventoryService` live in this flow, while static item catalogs and inventory domain helpers are documented in `inventory-system.instructions.md`. Keep this doc focused on application contracts and persistence boundaries rather than repeating catalog contents.
+EntityManagement documents app-service wiring and persistence contracts that touch inventory, but inventory mechanics and item semantics are owned by InventorySystem flow (`inventory-system.instructions.md`) as source of truth.
 
 ### Catalog Pattern
 Static catalogs are the **single source of truth** for canon equipment stats. Never duplicate stats inline.
@@ -141,7 +141,7 @@ PrismaUnitOfWork.run(async (repos: RepositoryBundle) => { ... })
 - Use UoW when an operation must atomically update multiple entities (e.g., rest mechanics modifying all characters + firing events).
 
 ## Sheet Enrichment Pipeline
-`CharacterService.createCharacter()` enriches raw JSON sheets before persisting:
+`CharacterService.addCharacter()` enriches raw JSON sheets before persisting:
 ```
 enrichSheetArmor(enrichSheetAttacks(sheet))
 ```

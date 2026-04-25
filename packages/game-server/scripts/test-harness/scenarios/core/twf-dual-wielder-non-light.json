@@ -1,0 +1,111 @@
+{
+  "name": "TWF: Dual Wielder allows non-Light pair",
+  "description": "A fighter with Dual Wielder uses non-Light weapons for two-weapon fighting. Offhand should be allowed after the Attack action.",
+  "setup": {
+    "character": {
+      "name": "Dual Master",
+      "className": "Fighter",
+      "level": 1,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 18,
+        "currentHp": 18,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "featIds": ["feat_dual-wielder"],
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing",
+            "properties": ["versatile"]
+          },
+          {
+            "name": "Warhammer",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning",
+            "properties": ["versatile"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 60,
+          "hp": 60,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy with my longsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "comment": "With Dual Wielder, offhand should be legal even though both weapons are non-Light.",
+      "input": { "text": "offhand attack" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    }
+  ]
+}

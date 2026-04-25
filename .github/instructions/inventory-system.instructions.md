@@ -1,6 +1,6 @@
 ---
 description: "Architecture and conventions for the InventorySystem flow: item entity models, equip/unequip flow, ground items, potion usage, magic item bonuses, weapon/armor catalogs, inventory API."
-applyTo: "packages/game-server/src/infrastructure/api/routes/sessions/session-inventory.ts,packages/game-server/src/domain/entities/items/**,packages/game-server/src/application/services/entities/item-lookup-service.ts,packages/game-server/src/content/rulebook/equipment-parser.ts"
+applyTo: "packages/game-server/src/infrastructure/api/routes/sessions/session-inventory.ts,packages/game-server/src/domain/entities/items/**,packages/game-server/src/application/services/entities/item-lookup-service.ts,packages/game-server/src/application/services/entities/inventory-service.ts,packages/game-server/src/application/services/combat/item-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/dispatch/interaction-handlers.ts,packages/game-server/src/application/services/combat/tabletop/dispatch/attack-handlers.ts,packages/game-server/src/domain/rules/combat-map-items.ts,packages/game-server/src/content/rulebook/equipment-parser.ts"
 ---
 
 # InventorySystem Flow
@@ -15,7 +15,7 @@ Manages item lifecycle across all three DDD layers: static item definitions and 
 | `infrastructure/api/routes/sessions/session-inventory.ts` | ~400 | Session inventory REST endpoints for list/add/remove/equip, consumable use, charge spending, and character-to-character transfer |
 | `domain/entities/items/inventory.ts` | ~300 | Pure helpers over `CharacterItemInstance[]`: stacking, removal, consumable and charge use, attunement counts, expiry sweeps, magic weapon bonuses, and standalone weight/encumbrance utilities |
 | `domain/entities/items/equipped-items.ts` | ~34 | Shared item/equipment types only; AC recomputation happens elsewhere |
-| `domain/entities/items/ground-item.ts` | ~60 | Ground item: position on map, pickup/drop |
+| `domain/entities/items/ground-item.ts` | ~60 | Ground item data shape (position + item payload); pickup/drop behavior lives in combat handlers + combat-map item helpers |
 | `domain/entities/items/weapon-catalog.ts` | ~200 | Weapon definitions: all PHB weapons with properties |
 | `domain/entities/items/armor-catalog.ts` | ~100 | Armor definitions: all PHB armor with AC formulas |
 | `domain/entities/items/magic-item.ts` | ~80 | Magic item type: bonus, rarity, attunement |
@@ -43,3 +43,4 @@ Manages item lifecycle across all three DDD layers: static item definitions and 
 - **Item lookup is split by intent** — `lookupItem()` is magic-item-first lookup, while `lookupEquipment()` widens to magic items, then static weapon and armor catalogs. Don't flatten those paths mentally.
 - **Encumbrance helpers are utilities, not full runtime enforcement** — `inventory.ts` exposes 2024 carrying-capacity and encumbrance helpers, but routes and combat do not automatically enforce them today.
 - **Inventory lifecycle includes more than add/remove** — the current flow also handles temporary-item expiry (`longRestsRemaining`), atomic character-to-character transfer, and equipped magic-weapon bonus resolution from inventory data.
+- **Equip/unequip routes currently do not enforce proficiency gates** — equipment state changes and AC recomputation proceed without class proficiency validation in route handlers today.

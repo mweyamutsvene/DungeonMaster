@@ -8,7 +8,7 @@ Speak caveman. Keep short.
 ## Laws
 1. One handler per trigger type: move, attack, spell, damage.
 2. Handlers private to `TwoPhaseActionService`.
-3. Flow is `initiate* -> complete*` only; invalid transitions rejected.
+3. Flow is `initiate* -> complete*` only; keep transition/status validation explicit per handler and avoid bypass paths.
 4. OA logic lives only in `helpers/oa-detection.ts`.
 5. One reaction per creature per round; reset on own next turn start.
 6. Use current code truth: Shield give retro +5 AC. Counterspell here use target CON save vs counterspeller DC. Damage reactions happen after damage land.

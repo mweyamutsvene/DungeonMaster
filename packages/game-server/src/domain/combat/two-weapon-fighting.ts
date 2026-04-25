@@ -10,6 +10,86 @@ export interface WeaponProperties {
   properties?: readonly string[];
 }
 
+export type OffhandEligibilityReason =
+  | "OK"
+  | "MISSING_WEAPON"
+  | "ATTACK_ACTION_REQUIRED"
+  | "NOT_LIGHT";
+
+export interface OffhandAttackEligibilityInput {
+  mainWeapon: WeaponProperties | null | undefined;
+  offhandWeapon: WeaponProperties | null | undefined;
+  hasDualWielderFeat?: boolean;
+  hasTakenAttackActionThisTurn?: boolean;
+  hasNickMastery?: boolean;
+  nickUsedThisTurn?: boolean;
+  hasTwoWeaponFightingStyle?: boolean;
+}
+
+export interface OffhandAttackEligibility {
+  allowed: boolean;
+  reason: OffhandEligibilityReason;
+  requiresBonusAction: boolean;
+  usesNick: boolean;
+  offhandAddsAbilityModifier: boolean;
+}
+
+function hasProperty(weapon: WeaponProperties | null | undefined, property: string): boolean {
+  if (!weapon?.properties) return false;
+  const normalized = property.toLowerCase();
+  return weapon.properties.some((p) => p.toLowerCase() === normalized);
+}
+
+/**
+ * Evaluate deterministic off-hand eligibility and runtime policy.
+ */
+export function evaluateOffhandAttackEligibility(
+  input: OffhandAttackEligibilityInput,
+): OffhandAttackEligibility {
+  const hasTakenAttackActionThisTurn = input.hasTakenAttackActionThisTurn ?? true;
+  if (!hasTakenAttackActionThisTurn) {
+    return {
+      allowed: false,
+      reason: "ATTACK_ACTION_REQUIRED",
+      requiresBonusAction: true,
+      usesNick: false,
+      offhandAddsAbilityModifier: false,
+    };
+  }
+
+  if (!input.mainWeapon || !input.offhandWeapon) {
+    return {
+      allowed: false,
+      reason: "MISSING_WEAPON",
+      requiresBonusAction: true,
+      usesNick: false,
+      offhandAddsAbilityModifier: false,
+    };
+  }
+
+  const hasDualWielderFeat = input.hasDualWielderFeat ?? false;
+  const mainIsLight = hasProperty(input.mainWeapon, "light");
+  const offhandIsLight = hasProperty(input.offhandWeapon, "light");
+  if (!hasDualWielderFeat && (!mainIsLight || !offhandIsLight)) {
+    return {
+      allowed: false,
+      reason: "NOT_LIGHT",
+      requiresBonusAction: true,
+      usesNick: false,
+      offhandAddsAbilityModifier: false,
+    };
+  }
+
+  const usesNick = (input.hasNickMastery ?? false) && !(input.nickUsedThisTurn ?? false);
+  return {
+    allowed: true,
+    reason: "OK",
+    requiresBonusAction: !usesNick,
+    usesNick,
+    offhandAddsAbilityModifier: input.hasTwoWeaponFightingStyle ?? false,
+  };
+}
+
 /**
  * Check if a creature can make an off-hand attack with the given weapons.
  *
@@ -21,17 +101,12 @@ export function canMakeOffhandAttack(
   offhandWeapon: WeaponProperties | null | undefined,
   hasDualWielderFeat: boolean = false,
 ): boolean {
-  if (!mainWeapon || !offhandWeapon) return false;
-  if (hasDualWielderFeat) return true;
-
-  const mainIsLight = mainWeapon.properties?.some(
-    p => p.toLowerCase() === "light",
-  ) ?? false;
-  const offIsLight = offhandWeapon.properties?.some(
-    p => p.toLowerCase() === "light",
-  ) ?? false;
-
-  return mainIsLight && offIsLight;
+  return evaluateOffhandAttackEligibility({
+    mainWeapon,
+    offhandWeapon,
+    hasDualWielderFeat,
+    hasTakenAttackActionThisTurn: true,
+  }).allowed;
 }
 
 /**

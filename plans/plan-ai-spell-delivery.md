@@ -10,82 +10,44 @@ updated: 2026-04-24
 
 # Plan: AI Spell Delivery Resolution
 
-## Why this matters
+**Problem**: `ai-spell-delivery.ts` records `spell-cast` + spends slot but resolves nothing. AI spellcasters do zero damage. Biggest L1-5 blocker.
 
-Currently `application/services/combat/ai/handlers/ai-spell-delivery.ts` records a `spell-cast` event and consumes a slot, but **does not actually resolve damage, saves, conditions, or concentration on targets**. Effect: AI spellcasters are cosmetic in mock combat and AI-vs-AI scenarios. PCs vs AI works because the player rolls dice, but AI casting at a player target produces no damage.
+**Root cause**: player path uses `SpellActionHandler` → delivery handlers. AI path is stub.
 
-This is the biggest single blocker for L1-5 AI enemies (mages, evil clerics, drow priestesses).
+## Fix: share existing delivery handlers (Option A)
 
-## Current state
+Make `SpellActionHandler.handle()` callable from AI. Already mostly generic — just need to handle `sheet=null` (monster uses `statBlock`).
 
-- `cast-spell-handler.ts` emits the event + spends slot
-- `ai-spell-delivery.ts` is a stub
-- Player-driven path goes through `SpellActionHandler` → delivery handlers (`SpellAttackDeliveryHandler`, `SaveSpellDeliveryHandler`, `HealingSpellDeliveryHandler`, `ZoneSpellDeliveryHandler`, `BuffDebuffSpellDeliveryHandler`, `DispelMagicDeliveryHandler`) which DO resolve effects.
+### Steps
 
-## Proposed design
+1. Create `application/services/combat/helpers/spell-stats-helper.ts` with `getCasterSpellStats(actor, sheet?, statBlock?) → { spellSaveDC, spellAttackBonus, spellcastingMod, profBonus }`.
+2. Each delivery handler that directly reads `sheet` → use helper instead: `HealingSpellDeliveryHandler`, `SpellAttackDeliveryHandler`, `SaveSpellDeliveryHandler`, `ZoneSpellDeliveryHandler`, `DispelMagicDeliveryHandler`.
+3. Verify `SpellActionHandler.handle()` accepts `actor: CombatantRef` (not just character).
+4. Replace `ai-spell-delivery.ts` stub with call to `SpellActionHandler.handle()`.
+5. Verify monster slot spend via `Combat.spendSlot(actorRef, level)`.
+6. Verify `ai-reaction-handler.ts` covers monster-as-caster Counterspell/Shield.
 
-Make `SpellActionHandler` invokable from the AI path. Two options:
-
-### Option A (recommended) — share the existing delivery handlers
-
-Refactor `SpellActionHandler.handle()` to be callable without the `actor` being a Character. The delivery handlers already accept a `SpellCastingContext` with a `CombatantRef` actor that can be Monster or NPC. The blockers:
-
-1. `sheet: CharacterSheet | null` field on context — handlers must tolerate `null` and read from monster `statBlock` instead. Already the case for several handlers (Spell Attack, Save) but verify all paths.
-2. `roster: LlmRoster` is character-roster-shaped — extend to include monster roster entries for target resolution (already partial).
-3. Slot-spend currently pulls from `Character` — extend to allow Monster slots (some monsters have spell slots in their stat block).
-
-### Option B — duplicate handlers in AI path
-
-Create AI-specific versions of each handler. Worse: drift between PC and AI behavior.
-
-## Implementation order (Option A)
-
-1. Audit each delivery handler for character-only assumptions:
-   - `BuffDebuffSpellDeliveryHandler.handle` — already mostly generic
-   - `HealingSpellDeliveryHandler` — uses `getSpellcastingModifier(sheet)` which assumes Character; extend to read from monster stat block via a shared helper
-   - `SpellAttackDeliveryHandler` — uses sheet for spell attack bonus; same fix
-   - `SaveSpellDeliveryHandler` — uses sheet for save DC; same fix
-   - `ZoneSpellDeliveryHandler` — uses sheet for caster; same fix
-   - `DispelMagicDeliveryHandler` — uses sheet for mod + PB; same fix
-
-2. Create a `getCasterSpellStats(actor, sheet?, statBlock?) -> { spellSaveDC, spellAttackBonus, spellcastingMod, profBonus }` helper that handles both paths.
-
-3. Refactor `SpellActionHandler.handle()` to accept an `actor: CombatantRef` (instead of just character flow). The existing param shape is already mostly there — verify non-character callers can drive it.
-
-4. In `ai-spell-delivery.ts`, replace the stub with a call to `SpellActionHandler.handle()` with the AI's chosen spell + target.
-
-5. Slot spending — for monsters, `Combat.spendSlot(actorRef, level)` reads from monster resources. Already partially supported; verify.
-
-6. Reaction prompts — when AI casts a spell that triggers Counterspell, the existing two-phase flow already handles this on either side. Verify monster-as-caster works.
-
-## Touched files
+### Files
 
 | File | Change |
 |---|---|
-| `application/services/combat/ai/handlers/ai-spell-delivery.ts` | Stub → call `SpellActionHandler.handle()` |
-| `application/services/combat/tabletop/spell-action-handler.ts` | Verify non-character actor support; add fallback for sheet=null |
-| `application/services/combat/helpers/spell-stats-helper.ts` (NEW) | `getCasterSpellStats` |
-| Each spell-delivery/*.ts handler | Replace direct `sheet` reads with `getCasterSpellStats` |
-| `domain/rules/spell-casting.ts` | Add `computeSpellSaveDCFromStatBlock(statBlock)` if missing |
+| `ai/handlers/ai-spell-delivery.ts` | Stub → call `SpellActionHandler.handle()` |
+| `tabletop/spell-action-handler.ts` | Verify non-character actor; sheet=null fallback |
+| `helpers/spell-stats-helper.ts` (NEW) | `getCasterSpellStats` |
+| `spell-delivery/*.ts` | Replace direct sheet reads with helper |
+| `domain/rules/spell-casting.ts` | Add `computeSpellSaveDCFromStatBlock` if missing |
 
-## Test strategy
-
-- New E2E: `scenarios/class-combat/core/ai-mage-vs-party.json` — Dark Mage casts Fireball at party, party takes damage, party casts Counterspell to break it (already-validated reaction system).
-- Move `scenarios-pending/horde-encounter.json` into active suite once AI casting works (it currently exposes the auto-AoE bug, but that's a separate fix).
-- Unit: `spell-action-handler.ts` test cases with monster actor.
+## Tests
+- E2E: `scenarios/class-combat/core/ai-mage-vs-party.json` — mage casts Fireball, party takes damage, party Counterspells
+- Unit: `spell-action-handler.ts` with monster actor
 
 ## Risks
+- AI has no UI for pending actions mid-cast → `ai-reaction-handler.ts` must auto-resolve; verify covers monster caster
+- Legacy monster stat blocks may lack `spellSaveDC` → fallback to compute from stats
+- `breakConcentration` already takes `CombatantStateRecord`; verify monster path
 
-- Mid-cast pending actions for AI: AI doesn't have a UI to respond to pending actions. The existing spell-reaction handlers must auto-resolve for AI casters or AI must always-decline reaction opportunities. Today the AI reaction handler does this (`ai-reaction-handler.ts`); verify it covers Counterspell/Shield/Hellish Rebuke from monster casters too.
-- Monster spell save DC: monster stat blocks have `spellSaveDC` directly in modern format but legacy entries may not. Fall back to compute from stat block fields.
-- Concentration on monsters: `breakConcentration` already takes a CombatantStateRecord; verify monster path.
-
-## Estimated scope
-
-~1–2 days. ~6–8 files touched. ~300 LOC added (mostly the spell-stats helper + handler audits).
+## Scope
+~1–2 days. 6–8 files. ~300 LOC.
 
 ## Unblocks
-
-- All AI-vs-PC encounters with monster spellcasters (Mage, Archmage, Cult Fanatic, Priest, etc.)
-- AI-vs-AI mock combat for E2E development
-- Validated AI behavior against Counterspell, Shield, Absorb Elements when AI casts
+AI-vs-PC with monster spellcasters (Mage, Archmage, Cult Fanatic, Priest, Drow Priestess), AI-vs-AI mock combat, AI Counterspell/Shield validation.

@@ -1,6 +1,6 @@
 ---
 description: "Architecture and conventions for the SpellSystem flow: SpellActionHandler delivery orchestration, tabletop and AI spell resolution, spell-slot-manager, concentration lifecycle, and saving throw resolution. NOTE: Spell entity definitions/catalog → spell-catalog.instructions.md."
-applyTo: "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/rolls/saving-throw-resolver.ts,packages/game-server/src/application/services/combat/tabletop/spell-delivery/**,packages/game-server/src/domain/rules/concentration.ts,packages/game-server/src/application/services/entities/spell-lookup-service.ts,packages/game-server/src/application/services/combat/helpers/spell-slot-manager.ts,packages/game-server/src/application/services/combat/helpers/concentration-helper.ts"
+applyTo: "packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts,packages/game-server/src/application/services/combat/tabletop/spell-cast-side-effect-processor.ts,packages/game-server/src/application/services/combat/tabletop/rolls/saving-throw-resolver.ts,packages/game-server/src/application/services/combat/tabletop/spell-delivery/**,packages/game-server/src/application/services/combat/ai/handlers/cast-spell-handler.ts,packages/game-server/src/application/services/combat/ai/handlers/ai-spell-delivery.ts,packages/game-server/src/domain/rules/concentration.ts,packages/game-server/src/application/services/entities/spell-lookup-service.ts,packages/game-server/src/application/services/combat/helpers/spell-slot-manager.ts,packages/game-server/src/application/services/combat/helpers/concentration-helper.ts"
 ---
 
 # SpellSystem Flow
@@ -84,6 +84,7 @@ Important modern `PreparedSpellDefinition` fields used by the current pipeline i
 
 - **SavingThrowResolver** is shared with ClassAbilities flow (Stunning Strike, Open Hand Technique). Changes affect both flows.
 - **spell-slot-manager.ts** is shared with the AI path. `CastSpellHandler` calls `prepareSpellCast()` and then applies mechanics through `AiSpellDelivery`; AI does not use the interactive tabletop pending-roll flow.
+- **Catalog level breadth belongs to SpellCatalog**. Current spell data is levels 0-5; adding/expanding level content is a SpellCatalog concern, while this flow owns delivery wiring and spell-cast mechanics.
 - **concentration-helper.ts** is shared with `RollStateMachine` (tabletop) and `ActionService` (programmatic). Three consumers of `breakConcentration()`.
 - **PreparedSpellDefinition** is the contract between entity management (character sheet population) and the spell pipeline. Changes here affect both flows.
 - **Concentration is intentionally split** — `domain/rules/concentration.ts` holds pure rules such as DC calculation and break conditions, while `helpers/concentration-helper.ts` performs encounter-wide cleanup, active-effect removal, condition cleanup, and map-zone removal.
@@ -101,9 +102,9 @@ Important modern `PreparedSpellDefinition` fields used by the current pipeline i
 
 ## Known Gotchas
 
-1. **Concentration DC**: `max(10, floor(damage / 2))` — auto-fail if unconscious (2024 rules)
+1. **Concentration DC**: `max(10, floor(damage / 2))` from pure concentration rules. Unconscious/KO break behavior is handled by combat-state/condition pathways around the check.
 2. **Handler priority order** — a spell matching multiple gates routes to the FIRST handler in array order. Test edge cases with spells having multiple delivery-relevant fields.
-3. **Zone spells** create persistent `CombatZone` on the map — damage applies on entry AND at start of turn. Zone cleanup happens via `breakConcentration()` for concentration zones.
+3. **Zone spells** create persistent `CombatZone` on the map. Triggered effects are applied by configured zone trigger types (for example on-enter and movement/start-of-turn paths depending on spell setup). Zone cleanup happens via `breakConcentration()` for concentration zones.
 4. **Healing at 0 HP** triggers revival flow — HealingSpellDeliveryHandler removes Unconscious + resets death saves BEFORE applying healing.
 5. **Spell slots** validated in `prepareSpellCast()` (throws `ValidationError`). Slot spending happens BEFORE delivery handler dispatch.
 6. **Save-based spells** apply damage defenses (resistance/immunity/vulnerability), cover bonus on DEX saves, and half-damage-on-save logic. Full cover causes early return with no damage.

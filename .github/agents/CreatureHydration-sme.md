@@ -20,7 +20,7 @@ creature-hydration.ts (~400 lines, critical bridge layer), combat-utils.ts (buil
 
 | Contract | Location | Purpose |
 |----------|----------|---------|
-| `creature-hydration.ts` | `application/services/combat/helpers/creature-hydration.ts` | `hydrateCreature()`, `parseCharacterSheet()` — persistence → combat model |
+| `creature-hydration.ts` | `application/services/combat/helpers/creature-hydration.ts` | `hydrateCharacter()`, `hydrateMonster()`, `hydrateNPC()` — persistence → combat model |
 | `buildCreatureAdapter` | `application/services/combat/helpers/combat-utils.ts` | Builds Creature-compatible adapter for monsters/NPCs in combat |
 | `CombatantCombatStats` + `ICombatantResolver` | `application/services/combat/helpers/combatant-resolver.ts` | Combat stat resolution for all creature types |
 | `species.ts` + `species-registry.ts` | `domain/entities/creatures/species.ts`, `species-registry.ts` | Racial trait definitions and lookup |
@@ -32,9 +32,9 @@ creature-hydration.ts (~400 lines, critical bridge layer), combat-utils.ts (buil
 1. **Hydration must handle missing/partial data gracefully** — many fallback paths exist because Character.sheet is schemaless JSON.
 2. **`buildCreatureAdapter` must always define `getFeatIds`/`getClassId`/`getSubclass`/`getLevel`** even for monsters/NPCs — `resolveAttack()` calls these unconditionally on the attacker Creature.
 3. **Species traits are additive** — they add to base stats, never replace them.
-4. **Armor class computation follows D&D 5e 2024 formula hierarchy**: natural armor > equipped armor > unarmored defense.
+4. **Armor class computation is layered** — base `Creature.getAC()` applies equipment-aware formulas; `Character.getAC()` can override with class-based unarmored-defense rules.
 5. **Character.sheet is schemaless JSON** — all parsing is defensive with explicit fallbacks.
-6. **Combat stat resolution** must work for characters (sheet-based), monsters (stat block), and NPCs (hybrid) — three distinct hydration paths.
+6. **Combat stat resolution** must work for characters (sheet-based), monsters (stat block), and NPCs (stat-block-backed path) — all hydration paths must remain compatible.
 
 ## Modes of Operation
 

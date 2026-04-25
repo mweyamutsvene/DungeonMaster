@@ -17,7 +17,7 @@ Speak caveman. Keep short.
 - `abilities/`: registry + class executors.
 
 Main facades:
-`tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts`.
+`tabletop-combat-service.ts`, `action-service.ts`, `two-phase-action-service.ts`, `combat-service.ts`, `tactical-view-service.ts`.
 
 ## Laws
 1. `tabletop`, `action`, `two-phase` facades stay thin. `combat-service` own turn life. `tactical-view-service` build view/query data.

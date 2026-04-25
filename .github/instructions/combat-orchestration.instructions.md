@@ -6,7 +6,7 @@ applyTo: "packages/game-server/src/application/services/combat/tabletop/**,packa
 # CombatOrchestration Flow
 
 ## Purpose
-Combat orchestration covers the thin facades and routing/state modules that turn player or AI intent into deterministic combat execution. In this flow, `TabletopCombatService` owns text-to-action parsing, pending tabletop roll state, and move-completion handoff; `ActionService` owns programmatic action execution; `CombatService` owns combat lifecycle and turn advancement; `TacticalViewService` builds tactical snapshots and query context. Reaction handler internals live in `reaction-system.instructions.md`.
+Combat orchestration covers the thin facades and routing/state modules that turn player or AI intent into deterministic combat execution. In this flow, `TabletopCombatService` owns text-to-action parsing, pending tabletop roll state, and reaction-boundary handoffs from tabletop actions; `ActionService` owns programmatic action execution; `CombatService` owns combat lifecycle and turn advancement; `TacticalViewService` builds tactical snapshots and query context. Reaction handler internals live in `reaction-system.instructions.md`.
 
 ## Architecture
 
@@ -89,8 +89,9 @@ classDiagram
 
 - `TabletopCombatService` (`tabletop-combat-service.ts`): thin facade for text-based/manual-roll combat. Public methods: `initiateAction()`, `processRollResult()`, `parseCombatAction()`, `completeMove()`.
 - `ActionService` (`action-service.ts`): programmatic combat actions through explicit methods such as `attack()`, `move()`, `dodge()`, `dash()`, `disengage()`, `hide()`, `search()`, `help()`, `castSpell()`, `shove()`, `grapple()`, and `escapeGrapple()`.
-- `CombatService` (`combat-service.ts`): combat lifecycle, turn advancement, effect processing, and AI turn trigger.
+- `CombatService` (`combat-service.ts`): combat lifecycle, turn advancement, and effect processing.
 - `TacticalViewService` (`tactical-view-service.ts`): tactical snapshot and combat-query context builder.
+- AI turn processing can be triggered from tabletop orchestration entrypoints (for example post-action/tabletop roll transitions), not only from combat lifecycle progression.
 - Cross-flow dependency: `TwoPhaseActionService` is used by `TabletopCombatService.completeMove()`, but its internals are documented in `reaction-system.instructions.md`.
 
 ## Module Decomposition
@@ -110,6 +111,7 @@ classDiagram
 | `tabletop/rolls/initiative-handler.ts` | Initiative roll, resource init, Alert feat | ~600 | RollStateMachine |
 | `tabletop/rolls/hit-rider-resolver.ts` | Post-damage enhancement effects | ~148 | RollStateMachine |
 | `tabletop/rolls/weapon-mastery-resolver.ts` | Weapon mastery effect resolution | ~308 | RollStateMachine |
+| `tabletop/rolls/roll-interrupt-resolver.ts` | Roll interruption windows (Lucky/Portent/Cutting Words style flow) | ~500 | RollStateMachine |
 | `tabletop/combat-text-parser.ts` | 20+ pure text parsing functions | ~616 | Multiple |
 | `tabletop/rolls/saving-throw-resolver.ts` | Save-based effect resolution | ~500 | Multiple |
 | `tabletop/rolls/damage-resolver.ts` | Damage roll resolution + Extra Attack auto-chaining | ~650 | RollStateMachine |
@@ -136,8 +138,8 @@ classDiagram
 | `two-phase-action-service.ts` | Reaction resolution facade | ~225 | — |
 | `two-phase/move-reaction-handler.ts` | Move reactions + opportunity attacks | ~600 | TwoPhaseActionService |
 | `two-phase/attack-reaction-handler.ts` | Attack reactions (Shield, Deflect Attacks, Protection, Interception) | ~840 | TwoPhaseActionService |
-| `two-phase/spell-reaction-handler.ts` | Spell reactions (Counterspell, Silvery Barbs) | ~380 | TwoPhaseActionService |
-| `two-phase/damage-reaction-handler.ts` | Damage reactions (Absorb Elements, Hellish Rebuke, Uncanny Dodge) | ~297 | TwoPhaseActionService |
+| `two-phase/spell-reaction-handler.ts` | Spell reactions (Counterspell 2024 flow and spell-cast reaction checks) | ~380 | TwoPhaseActionService |
+| `two-phase/damage-reaction-handler.ts` | Damage reactions (Absorb Elements, Hellish Rebuke, and post-damage reaction opportunities) | ~297 | TwoPhaseActionService |
 | **Combat lifecycle** | | | |
 | `combat-service.ts` | Turn advancement, combat lifecycle, zone/effect processing | ~1083 | — |
 | `tactical-view-service.ts` | Tactical view assembly, OA prediction, query context | ~547 | — |
@@ -258,7 +260,7 @@ These are **not** private to any single facade — imported by tabletop, action-
 2. **RollStateMachine is ~1556 lines** — handles initiative, attack, damage, death save, concentration rolls, Sneak Attack, Divine Smite, mastery effects, resource pool init
 3. **New action types**: add a parser entry to `buildParserChain()` in `action-dispatcher.ts` + a pure `tryParseXxxText()` in `combat-text-parser.ts`
 4. **CombatTextParser functions are pure** — no `this.deps`, no side effects, testable in isolation
-5. **Pending action state machine**: `initiate → (attack_pending | damage_pending | save_pending | death_save_pending) → resolved` — invalid transitions must be rejected
-6. **Two-phase flow**: move phase → action phase → bonus phase → end turn — action economy tracked per phase
+5. **Pending action state machine**: tabletop pending states include more than attack/damage/save/death-save (for example initiative-swap and chained save states). Keep transitions in sync with `pending-action-state-machine.ts` and the `PendingActionType` union.
+6. **Two-phase boundary is multi-entry**: tabletop orchestration can enter reaction flow from movement, spell casting, and other reaction-eligible actions, not only move completion.
 7. **`abilityRegistry` is required** in deps — no optional guards, no null checks
 8. **Parser chain order matters** — priority position in `buildParserChain()` determines which parser wins for ambiguous text

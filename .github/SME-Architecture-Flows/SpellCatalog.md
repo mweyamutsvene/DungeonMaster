@@ -6,7 +6,7 @@
 
 ## Overview
 
-The SpellCatalog flow is the **pure data foundation** for all spell-related systems. It lives exclusively in `domain/entities/spells/` and defines the `PreparedSpellDefinition` type (the universal spell contract consumed by the SpellSystem, AISpellEvaluation, and CombatOrchestration flows), 62 canonical spell catalog entries across levels 0–5, spell progression tables for all caster types (full/half/pact/none), and utility functions for cantrip scaling and multi-attack computation. This is a data-only layer — no orchestration, no persistence, no side effects.
+The SpellCatalog flow is the **pure data foundation** for all spell-related systems. It lives exclusively in `domain/entities/spells/` and defines the `PreparedSpellDefinition` type (the universal spell contract consumed by the SpellSystem, AISpellEvaluation, and CombatOrchestration flows), canonical spell catalog entries across levels 0-5 (currently 88 total), spell progression tables for all caster types (full/half/pact/none), and utility functions for cantrip scaling and multi-attack computation. This is a data-only layer — no orchestration, no persistence, no side effects.
 
 ## UML Class Diagram
 
@@ -127,7 +127,7 @@ classDiagram
 
 ```mermaid
 flowchart LR
-    A["Catalog Files\n(cantrips.ts, level-1..5.ts)"] --> B["ALL_SPELLS\n62 CanonicalSpell entries"]
+    A["Catalog Files\n(cantrips.ts, level-1..5.ts)"] --> B["ALL_SPELLS\n88 CanonicalSpell entries"]
     B --> C["SPELL_BY_NAME\nMap lowercase→spell"]
     C --> D["getCanonicalSpell(name)\nCase-insensitive lookup"]
     C --> E["listSpellsByLevel(level)\nFilter by spell level"]

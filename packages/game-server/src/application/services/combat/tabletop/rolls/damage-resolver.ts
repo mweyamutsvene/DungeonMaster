@@ -714,7 +714,9 @@ export class DamageResolver {
       }
     }
 
-    await this.eventEmitter.markActionSpent(encounter.id, actorId);
+    if (action.bonusAction !== "offhand-attack") {
+      await this.eventEmitter.markActionSpent(encounter.id, actorId);
+    }
 
     // D&D 5e 2024: Loading property — mark that a Loading weapon was fired this turn
     if (action.weaponSpec?.properties?.some((p: string) => typeof p === "string" && p.toLowerCase() === "loading")) {

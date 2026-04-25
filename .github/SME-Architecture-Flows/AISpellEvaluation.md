@@ -6,7 +6,7 @@
 
 ## Overview
 
-The AISpellEvaluation flow governs **how the AI decides which spell to cast, on whom, and at what level**. It sits in the **application layer** (`application/services/combat/ai/`) and implements a priority-ranked scoring system: healing (if allies hurt) → debuffs → buffs (early rounds) → damage cantrips → leveled damage spells. The flow is constrained by a critical limitation: AI spell delivery (`AiSpellDelivery`) provides basic effect application but does NOT resolve full spell mechanics (saves with stat validation, durable conditions with re-saves, concentration conflicts). Full spell resolution only works through the player-facing tabletop dice flow.
+The AISpellEvaluation flow governs **how the AI decides which spell to cast, on whom, and at what level**. It sits in the **application layer** (`application/services/combat/ai/`) and implements a priority-ranked scoring system: healing (if allies hurt) -> debuffs -> buffs (early rounds) -> damage cantrips -> leveled damage spells. AI casting uses shared slot/concentration preparation and then mechanical delivery through `AiSpellDelivery`.
 
 ## UML Class Diagram
 
@@ -186,13 +186,13 @@ journey
 
 ## Known Gotchas & Edge Cases
 
-1. **AI spells do NOT resolve full mechanics** — `AiSpellDelivery` applies damage/healing and basic conditions but does NOT: resolve durable conditions with turn-end re-saves, validate concentration conflicts properly, handle complex spell-triggered skill checks, or support spell chaining. The tabletop dice flow is required for full resolution. Test scenarios use `applyCondition` action to manually patch conditions when testing condition-dependent behavior.
+1. **AI spells resolve core mechanics through `AiSpellDelivery`** — attack, healing, save-based, buff/debuff, and zone paths are implemented. Keep parity checks focused on evaluator quality and edge-case depth rather than assuming a cosmetic-only path.
 
 2. **Spell slot is spent BEFORE Counterspell resolution** — In `CastSpellHandler.execute()`, `prepareSpellCast()` is called before the player responds to the Counterspell prompt. If the spell is counterspelled, the slot is still consumed. This matches D&D rules but means failed spell casts always cost a slot.
 
 3. **BA-spell coordination follows D&D 5e 2024 rules strictly** — If `pickBonusAction()` returns a spell token (starts with `"castSpell:"`), `pickSpell()` is called with `cantripsOnly: true`, restricting the main action to cantrips only. Without this check, AI could cast two leveled spells per turn.
 
-4. **Concentration conflict is checked but not fully validated** — `pickSpell()` filters to non-concentration spells if the caster already has `concentrationSpell` active. However, `AiSpellDelivery` doesn't validate this — if a concentration spell somehow gets through, it's applied without dropping the existing one. The concentration drop logic lives in the tabletop flow.
+4. **Concentration replacement is shared** — slot/concentration preparation uses shared helpers before delivery. Validate concentration value decisions in evaluator scoring, not concentration state mutation ownership.
 
 5. **`getDamageTypeMultiplier()` returns 0 for immune, skipping the spell entirely** — When scoring spells, immune targets yield 0 score, effectively removing the spell from consideration. If ALL enemies are immune to a damage type, that spell is never picked. However, resistance + vulnerability cancel to multiplier 1.0.
 

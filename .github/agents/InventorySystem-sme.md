@@ -22,7 +22,7 @@ Inventory route handlers, item entity models (inventory, equipped items, ground 
 |----------|----------|---------|
 | `session-inventory.ts` | `infrastructure/api/routes/sessions/session-inventory.ts` | GET/POST/DELETE/PATCH inventory routes |
 | `inventory.ts` | `domain/entities/items/inventory.ts` | Inventory entity, weight/encumbrance |
-| `equipped-items.ts` | `domain/entities/items/equipped-items.ts` | EquippedItems, AC computation formulas |
+| `equipped-items.ts` | `domain/entities/items/equipped-items.ts` | Equipped item type contracts; AC recomputation happens in armor helpers |
 | `ground-item.ts` | `domain/entities/items/ground-item.ts` | Ground item placement, pickup, drop |
 | `weapon-catalog.ts` | `domain/entities/items/weapon-catalog.ts` | Weapon definitions + properties |
 | `armor-catalog.ts` | `domain/entities/items/armor-catalog.ts` | Armor definitions, AC formulas |
@@ -32,7 +32,7 @@ Inventory route handlers, item entity models (inventory, equipped items, ground 
 
 ## Known Constraints
 
-1. **Equipping items must validate proficiency** — a wizard can't effectively use heavy armor without proficiency.
+1. **Equipping items should enforce proficiency for full rules fidelity** — track current route behavior vs desired 2024 behavior when reviewing plans.
 2. **Weapon properties affect combat mechanics**: finesse (DEX or STR), heavy (Small creatures disadvantage), light (dual-wielding), two-handed, versatile (one or two-handed damage), thrown (ranged attack with melee weapon), reach (10ft melee range).
 3. **Magic item bonuses are additive** — +1 weapon adds to both attack and damage rolls.
 4. **Ground items persist on the combat map** — dropped items remain at the position they were dropped.

@@ -14,26 +14,29 @@ You are the subject matter expert for the **SpellSystem** flow. Your job is to r
 
 ## Your Domain
 
-The spell casting pipeline: `SpellActionHandler` (~850 lines, 4 delivery modes), spell entity definitions in `domain/entities/spells/`, and concentration state machine in `domain/rules/concentration.ts`. This covers simple spells (Magic Missile, Bless), attack-roll spells (Fire Bolt), save-based spells (Burning Hands, Hold Person), healing spells (Cure Wounds), zone effects, concentration management, and spell slot tracking.
+The spell casting pipeline: `SpellActionHandler` (5 delivery modes wired through `spell-delivery/`), spell entity definitions in `domain/entities/spells/`, and concentration state machine in `domain/rules/concentration.ts`. This covers simple spells (Magic Missile, Bless), attack-roll spells (Fire Bolt), save-based spells (Burning Hands, Hold Person), healing spells (Cure Wounds), zone effects, concentration management, and spell slot tracking.
 
 ## Key Contracts
 
 | Contract | Location | Purpose |
 |----------|----------|---------|
-| `SpellActionHandler` | `application/services/combat/tabletop/spell-action-handler.ts` | 4-mode spell delivery: simple, attack roll, save-based, healing |
-| `Spell` entity | `domain/entities/spells/spell.ts` | Spell data model (level 0-9, school, ritual flag) |
+| `SpellActionHandler` | `application/services/combat/tabletop/spell-action-handler.ts` | Routes cast intent to the 5 effect-keyed delivery handlers |
+| `PreparedSpellDefinition` | `domain/entities/spells/prepared-spell-definition.ts` | Spell data model (level 0-9, school, components, `SpellEffectDeclaration[]`) |
+| Delivery handlers | `application/services/combat/tabletop/spell-delivery/` | `BuffDebuffSpellDeliveryHandler`, `HealingSpellDeliveryHandler`, `SpellAttackDeliveryHandler`, `SaveSpellDeliveryHandler`, `ZoneSpellDeliveryHandler` |
 | `ConcentrationState` | `domain/rules/concentration.ts` | State machine: `createConcentrationState()`, `startConcentration()`, `endConcentration()`, `concentrationCheckOnDamage()` |
-| `SavingThrowResolver` | `application/services/combat/tabletop/saving-throw-resolver.ts` | Auto-resolves save-based spell effects per target |
+| `SavingThrowResolver` | `application/services/combat/tabletop/rolls/saving-throw-resolver.ts` | Auto-resolves save-based spell effects per target |
+| `SpellSlotManager` | `application/services/combat/helpers/spell-slot-manager.ts` | Slot expenditure after validation |
 | `SpellLookupService` | `application/services/entities/spell-lookup-service.ts` | Spell definition lookup and availability checking |
 
 ## Known Constraints
 
 1. **Concentration DC formula**: `max(10, floor(damage / 2))` — auto-fail on unconscious (D&D 5e 2024).
-2. **SpellActionHandler is the largest handler** (~850 lines) — changes affect 4 independent delivery paths, test all paths when modifying shared logic.
+2. **SpellActionHandler is the top-level orchestrator** — changes ripple across all 5 delivery paths; test every effect type when modifying shared logic.
 3. **Zone spells** create persistent area effects — ensure zone damage applies on entry and at start of turn.
 4. **Healing at 0 HP** triggers revival flow — revive before applying healing.
 5. **Spell slots** are tracked per rest cycle — slot validation must happen before casting.
 6. **Effect application is per-target** — multi-target spells iterate targets with individual save outcomes.
+7. **One effect type per handler** — new `SpellEffectDeclaration.type` values require a new delivery handler; do not stuff branches into an existing one.
 
 ## Modes of Operation
 

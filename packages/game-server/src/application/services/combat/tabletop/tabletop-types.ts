@@ -114,6 +114,23 @@ export interface AttackPendingAction {
    * after damage resolves (poison/trip=save; withdraw=free half-speed, no-OA move).
    */
   cunningStrike?: "poison" | "trip" | "withdraw";
+
+  // ── Roll-interrupt resume fields ──────────────────────────────────────────
+  // Set by the resolve endpoint so handleAttackRoll can skip the interrupt check
+  // and apply the player's choice without duplicating hit/miss logic.
+
+  /** True when a roll interrupt was already resolved — suppresses further interrupt checks. */
+  interruptResolved?: boolean;
+  /**
+   * Additive bonus to attack total from interrupt resolution.
+   * Example: Bardic Inspiration die rolled a 4 → interruptBonusAdjustment = 4.
+   */
+  interruptBonusAdjustment?: number;
+  /**
+   * Override the d20 value used for hit/miss determination.
+   * Set when Lucky feat rerolls or Portent replaces the d20.
+   */
+  interruptForcedRoll?: number;
 }
 
 export interface DamagePendingAction {
@@ -344,6 +361,15 @@ export interface AttackResult {
     resourceCost?: { pool: string; amount: number };
     choiceOptions?: readonly string[];
   }>;
+  /**
+   * Present when the attack roll is paused for a roll interrupt.
+   * Client should present the options and call the resolve endpoint.
+   */
+  rollInterrupt?: {
+    options: import("../../../../domain/entities/combat/pending-action.js").RollInterruptOption[];
+    totalBeforeInterrupt: number;
+    targetAC: number;
+  };
 }
 
 /**

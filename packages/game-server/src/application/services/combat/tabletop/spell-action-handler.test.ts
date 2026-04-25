@@ -7,6 +7,7 @@ import type { LlmRoster } from "../../../../application/commands/game-command.js
 import { FixedDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { ValidationError } from "../../../errors.js";
 import { AbilityRegistry } from "../abilities/ability-registry.js";
+import type { SessionCharacterRecord } from "../../../types.js";
 
 const SESSION_ID = "session-1";
 const ENCOUNTER_ID = "enc-1";
@@ -19,7 +20,7 @@ const roster: LlmRoster = {
   npcs: [],
 };
 
-const characters = [
+const characters: SessionCharacterRecord[] = [
   {
     id: ACTOR_ID,
     sheet: {
@@ -55,6 +56,7 @@ const characters = [
           },
         },
         { name: "Magic Missile", level: 1, damageDice: "3d4+3", damageType: "force", concentration: false },
+        { name: "Hypnotic Pattern", level: 3 },
         {
           name: "Healing Word",
           level: 1,
@@ -68,7 +70,7 @@ const characters = [
       spellcastingAbility: "intelligence",
       abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 16, wisdom: 10, charisma: 10 },
     },
-  },
+  } as unknown as SessionCharacterRecord,
 ];
 
 describe("SpellActionHandler", () => {
@@ -414,7 +416,7 @@ describe("SpellActionHandler", () => {
      * Characters fixture with Burning Hands as a 15ft cone AoE.
      * No positional data on combatants → exercises the no-position fallback path.
      */
-    const aoeCharacters = [
+    const aoeCharacters: SessionCharacterRecord[] = [
       {
         id: ACTOR_ID,
         sheet: {
@@ -434,7 +436,7 @@ describe("SpellActionHandler", () => {
           spellcastingAbility: "intelligence",
           abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 16, wisdom: 10, charisma: 10 },
         },
-      },
+      } as unknown as SessionCharacterRecord,
     ];
 
     // Additional monster IDs for multi-target tests
@@ -877,10 +879,54 @@ describe("SpellActionHandler", () => {
     });
   });
 
+  describe("verbal component enforcement", () => {
+    it("blocks verbal spells when caster cannot speak from conditions", async () => {
+      await combatRepo.updateCombatantState("comb-wizard", {
+        conditions: ["Stunned"],
+      });
+
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Fire Bolt", targetName: "Goblin" },
+          characters,
+          roster,
+        ),
+      ).rejects.toThrow("verbal component required");
+    });
+
+    it("allows non-verbal spells even when caster cannot speak", async () => {
+      await combatRepo.updateCombatantState("comb-wizard", {
+        conditions: ["Stunned"],
+      });
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Hypnotic Pattern", targetName: "Goblin" },
+        characters,
+        roster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+      expect(result.actionComplete).toBe(true);
+
+      const combatants = await combatRepo.listCombatants(ENCOUNTER_ID);
+      const caster = combatants.find((c) => c.characterId === ACTOR_ID)!;
+      const res = caster.resources as Record<string, unknown>;
+      const pools = res.resourcePools as Array<{ name: string; current: number; max: number }>;
+      const slot3 = pools.find((p) => p.name === "spellSlot_3")!;
+      expect(slot3.current).toBe(1);
+    });
+  });
+
   describe("AoE healing (Mass Cure Wounds)", () => {
     const ALLY_ID = "fighter-1";
 
-    const massCureCharacters = [
+    const massCureCharacters: SessionCharacterRecord[] = [
       {
         id: ACTOR_ID,
         sheet: {
@@ -903,7 +949,7 @@ describe("SpellActionHandler", () => {
           spellcastingAbility: "wisdom",
           abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 10, wisdom: 16, charisma: 10 },
         },
-      },
+      } as unknown as SessionCharacterRecord,
     ];
 
     const massCureRoster: LlmRoster = {

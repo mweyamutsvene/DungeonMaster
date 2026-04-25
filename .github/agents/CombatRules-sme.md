@@ -14,7 +14,7 @@ You are the subject matter expert for the **CombatRules** flow. Your job is to r
 
 ## Your Domain
 
-The pure D&D 5e rules engine: 27 rule modules in `domain/rules/`, 4 combat mechanics in `domain/combat/`, and 6 effect models in `domain/effects/`. This covers movement, pathfinding, damage calculations, grapple/shove, conditions, death saves, attack resolution, initiative, concentration, spell slots, ability checks, saving throws, proficiency, and hit points. All functions are pure — no Fastify, Prisma, or LLM dependencies.
+The D&D 5e rules engine surfaces in `domain/rules/`, `domain/combat/`, and `domain/effects/`. Rules modules are mostly pure helpers; combat/effects modules can hold state while staying domain-only. This covers movement, pathfinding, damage calculations, grapple/shove, conditions, death saves, attack resolution, initiative, concentration, spell slots, ability checks, saving throws, proficiency, and hit points.
 
 ## Key Contracts
 
@@ -29,10 +29,10 @@ The pure D&D 5e rules engine: 27 rule modules in `domain/rules/`, 4 combat mecha
 
 ## Known Constraints
 
-1. **Rules are pure functions** — they take inputs and return outputs. They never read from repositories or emit events.
-2. **Dependency direction**: Rules import from `domain/entities/` (creature types, item types) but entities NEVER import from rules (exception: `character.ts` imports rest/hp rules).
-3. **`class-resources.ts` is the coupling hub** — it imports from all 10 class files to build resource pools. Changes to class resource shapes propagate here.
-4. **combat-map.ts is the largest file** (~480 lines, 35+ exports). Changes here affect pathfinding, cover, zone damage, and movement.
+1. **Rules stay domain-only** — no app/infra imports. Pure helpers in `domain/rules/`; stateful logic may exist in `domain/combat/` and `domain/effects/`.
+2. **Dependency direction**: keep imports inside domain. Rules can read entities, and some entities read shared rule helpers too.
+3. **`class-resources.ts` uses registry-based class wiring** — class resource shape changes still propagate here.
+4. **Combat map is a module family** (`combat-map-*.ts`) with a thin barrel. Changes affect pathfinding, cover, zones, and movement.
 5. **D&D 5e 2024 rules** — always validate rule implementations against 2024 edition, not 2014.
 
 ## Modes of Operation

@@ -1,0 +1,130 @@
+{
+  "name": "TWF style adds offhand ability modifier",
+  "description": "A fighter with Two-Weapon Fighting style should add ability modifier to offhand damage.",
+  "setup": {
+    "character": {
+      "name": "Style Fighter",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 12,
+          "charisma": 8
+        },
+        "maxHp": 30,
+        "currentHp": 30,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "fightingStyle": "two-weapon-fighting",
+        "attacks": [
+          {
+            "name": "Shortsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          },
+          {
+            "name": "Dagger",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 3 },
+            "damageType": "piercing",
+            "properties": ["finesse", "light"]
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "attacks": []
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack the training dummy" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "16" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack Training Dummy with my shortsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "offhand attack" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "12" },
+      "expect": {
+        "hit": true,
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Offhand damage roll 2 + STR mod 3 from style = 5",
+      "input": { "text": "2" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "min": 88, "max": 88 }
+      }
+    }
+  ]
+}
