@@ -1,6 +1,6 @@
 {
-  "name": "Grapple Escape: Player grapples monster, monster escapes",
-  "description": "Player grapples a monster via the tabletop dice flow (Unarmed Strike attack roll vs AC, then server auto-resolves STR/DEX save vs DC). On the monster's turn the AI attempts to escape the grapple (programmatic, unchanged). The monster has low STR so escape should fail.",
+  "name": "Grapple Escape: deterministic monster fail + player success/fail branches",
+  "description": "Covers grapple escape branches in one deterministic flow: monster fails to escape, player succeeds escaping a weak grappler, then player fails escaping an overwhelming grappler. Includes an action-economy checkpoint after failed escape.",
   "setup": {
     "character": {
       "name": "Strong Fighter",
@@ -9,7 +9,7 @@
       "position": { "x": 10, "y": 10 },
       "sheet": {
         "abilityScores": {
-          "strength": 20,
+          "strength": 32,
           "dexterity": 10,
           "constitution": 14,
           "intelligence": 10,
@@ -63,10 +63,40 @@
             }
           ]
         }
+      },
+      {
+        "name": "Titan Brute",
+        "position": { "x": 30, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 54,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 6,
+            "wisdom": 8,
+            "charisma": 6
+          },
+          "maxHp": 80,
+          "hp": 80,
+          "armorClass": 12,
+          "speed": 30,
+          "size": "Large",
+          "challengeRating": 5,
+          "experienceValue": 1800,
+          "attacks": [
+            {
+              "name": "Club",
+              "kind": "melee",
+              "attackBonus": 10,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 8 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
       }
     ],
     "aiConfig": {
-      "defaultBehavior": "escapeGrapple"
+      "defaultBehavior": "endTurn"
     }
   },
   "actions": [
@@ -89,7 +119,7 @@
     {
       "type": "action",
       "input": { "text": "grapple Weak Goblin" },
-      "comment": "Tabletop dice flow: Unarmed Strike STR +5, prof +2 = +7 vs AC 10. Contest DC 15.",
+      "comment": "Tabletop dice flow: Unarmed Strike STR +11, prof +2 = +13 vs AC 10. Contest DC 21.",
       "expect": {
         "rollType": "attack",
         "requiresPlayerInput": true
@@ -98,7 +128,7 @@
     {
       "type": "rollResult",
       "input": { "text": "15" },
-      "comment": "15 + 7 = 22 vs AC 10 → HIT. Server auto-resolves save: target DEX +2 vs DC 15 → fail. Grappled!",
+      "comment": "15 + 13 = 28 vs AC 10 -> HIT. Server auto-resolves save: target DEX +2 vs DC 21 -> fail. Grappled!",
       "expect": {
         "hit": true,
         "actionComplete": true
@@ -115,6 +145,16 @@
       }
     },
     {
+      "type": "queueMonsterActions",
+      "comment": "Force weak goblin to attempt escape; Titan Brute simply ends turn.",
+      "input": {
+        "decisions": [
+          { "action": "escapeGrapple", "endTurn": true },
+          { "action": "endTurn", "endTurn": true }
+        ]
+      }
+    },
+    {
       "type": "endTurn"
     },
     {
@@ -123,8 +163,35 @@
     },
     {
       "type": "assertState",
-      "comment": "After failed escape attempt, Goblin should still be Grappled",
+      "comment": "Failure branch 1: after failed monster escape attempt, goblin remains grappled.",
       "expect": {
+        "combatStatus": "Active",
+        "characterPosition": { "x": 10, "y": 10 },
+        "monsterConditions": {
+          "name": "Weak Goblin",
+          "hasConditions": ["Grappled"]
+        }
+      }
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply Grappled to the character from weak grappler (low DC branch).",
+      "input": {
+        "target": "character",
+        "condition": "Grappled",
+        "duration": "1 minute",
+        "sourceMonster": "Weak Goblin"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint before escape attempt: character is grappled and combat is active.",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Grappled"]
+        },
+        "characterPosition": { "x": 10, "y": 10 },
+        "combatStatus": "Active",
         "monsterConditions": {
           "name": "Weak Goblin",
           "hasConditions": ["Grappled"]
@@ -133,32 +200,95 @@
     },
     {
       "type": "action",
+      "comment": "Success branch: escape weak grappler (DC is very low).",
+      "input": { "text": "escape grapple" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "After successful escape, character should no longer be grappled.",
+      "expect": {
+        "characterConditions": {
+          "doesNotHaveConditions": ["Grappled"]
+        },
+        "characterPosition": { "x": 10, "y": 10 },
+        "combatStatus": "Active"
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Advance to next round so a fresh action is available for the failure branch."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait through monster turns and return to player turn."
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply Grappled from overwhelming grappler (very high DC branch).",
+      "input": {
+        "target": "character",
+        "condition": "Grappled",
+        "duration": "1 minute",
+        "sourceMonster": "Titan Brute"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Checkpoint before hard escape attempt: grappled by Titan Brute and still active combat.",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Grappled"]
+        },
+        "characterPosition": { "x": 10, "y": 10 },
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Titan Brute",
+          "doesNotHaveConditions": ["Grappled"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Failure branch 2: attempt to escape Titan Brute grapple; should fail and remain grappled.",
+      "input": { "text": "escape grapple" },
+      "expect": {
+        "actionComplete": true,
+        "type": "SIMPLE_ACTION_COMPLETE"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Post-failure: character remains grappled and in place.",
+      "expect": {
+        "characterConditions": {
+          "hasConditions": ["Grappled"]
+        },
+        "characterPosition": { "x": 10, "y": 10 },
+        "combatStatus": "Active"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Economy checkpoint: after spending action on escape, a second action in same turn should be rejected.",
       "input": { "text": "attack Weak Goblin" },
-      "comment": "Player attacks while goblin is still grappled",
       "expect": {
-        "rollType": "attack",
-        "requiresPlayerInput": true
+        "error": true
       }
     },
     {
-      "type": "rollResult",
-      "input": { "text": "15" },
-      "comment": "15 + 7 = 22 vs AC 10 — hit",
+      "type": "assertState",
+      "comment": "Final checkpoint: combat remains active after branch and economy validation.",
       "expect": {
-        "hit": true,
-        "requiresPlayerInput": true
+        "combatStatus": "Active",
+        "characterPosition": { "x": 10, "y": 10 },
+        "characterConditions": {
+          "hasConditions": ["Grappled"]
+        }
       }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "5" },
-      "comment": "5 + 5 = 10 damage",
-      "expect": {
-        "actionComplete": true
-      }
-    },
-    {
-      "type": "endTurn"
     }
   ]
 }

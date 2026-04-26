@@ -1,6 +1,6 @@
 {
-  "name": "Dodge Action: Active, Expiry, and Interaction Timing",
-  "description": "A Fighter verifies Dodge timing from attack resolution: a dodging target imposes disadvantage on incoming attacks until the start of its next turn, then disadvantage expires.",
+  "name": "RED: Dodge Incoming Attack Timing (Disadvantage Until Next Turn)",
+  "description": "Expected RED until incoming attacks correctly respect Dodge duration. RAW 2024: Dodge should impose disadvantage on attacks against you until the start of your next turn.",
   "setup": {
     "character": {
       "name": "Shield Guardian",
@@ -62,65 +62,36 @@
     },
     {
       "type": "queueMonsterActions",
-      "comment": "Round 1: Goblin takes Dodge. Player's next attack should be disadvantaged.",
+      "comment": "Monster attacks during the same round that Dodge is active.",
       "input": {
         "decisions": [
-          { "action": "dodge", "endTurn": true }
+          { "action": "attack", "target": "Shield Guardian", "attackName": "Scimitar", "endTurn": true }
         ]
       }
     },
     {
-      "type": "endTurn",
-      "comment": "Pass turn so Goblin applies Dodge before player's next attack."
-    },
-    { "type": "waitForTurn" },
-    {
-      "comment": "Interaction check: attacking a dodging target returns an attack roll with disadvantage.",
-      "type": "action",
-      "input": { "text": "I attack the Goblin with my longsword" },
-      "expect": { "rollType": "attack", "requiresPlayerInput": true, "disadvantage": true }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "18" },
-      "expect": { "hit": true, "requiresPlayerInput": true }
-    },
-    {
-      "type": "rollResult",
-      "input": { "text": "6" }
-    },
-    {
-      "type": "assertState",
-      "comment": "After attacking a dodging target, combat remains active and fighter position/HP are unchanged.",
-      "expect": {
-        "combatStatus": "Active",
-        "characterHp": { "min": 44, "max": 44 },
-        "characterPosition": { "x": 10, "y": 10 }
+      "type": "queueDiceRolls",
+      "comment": "Deterministic disadvantaged pair: high + low should resolve to a miss against AC 18.",
+      "input": {
+        "values": [18, 2],
+        "label": "red-dodge-incoming-disadvantage"
       }
     },
     {
-      "type": "endTurn",
-      "comment": "Advance one full goblin turn so its Dodge expires at the start of its turn."
-    },
-    { "type": "waitForTurn" },
-    {
       "type": "action",
-      "comment": "Expiry check: after goblin's next turn starts, Dodge should no longer impose disadvantage.",
-      "input": { "text": "I attack the Goblin with my longsword" },
-      "expect": { "rollType": "attack", "requiresPlayerInput": true, "disadvantage": false }
+      "comment": "Dodge should protect from this incoming attack until next turn starts.",
+      "input": { "text": "dodge" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
     },
     {
-      "type": "rollResult",
-      "input": { "text": "18" },
-      "expect": { "hit": true, "requiresPlayerInput": true }
+      "type": "endTurn"
     },
     {
-      "type": "rollResult",
-      "input": { "text": "6" }
+      "type": "waitForTurn"
     },
     {
       "type": "assertState",
-      "comment": "Final checkpoint for timing assertions.",
+      "comment": "RED expectation: no damage should be taken from the disadvantaged incoming attack while Dodge is active.",
       "expect": {
         "combatStatus": "Active",
         "characterHp": { "min": 44, "max": 44 },

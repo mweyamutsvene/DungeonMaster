@@ -1,0 +1,116 @@
+{
+  "name": "RED: Alert should ignore initiative disadvantage from party surprise",
+  "description": "Expected RED (current behavior gap): with surprise='party', an Alert feat holder should not roll initiative with disadvantage. Engine currently still returns disadvantage=true for the Alert actor under full party surprise.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Vanguard",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 5, "y": 5 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 44,
+          "currentHp": 44,
+          "armorClass": 17,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "featIds": ["feat_alert"],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Ally",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 10,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 38,
+          "currentHp": 38,
+          "armorClass": 16,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Raider",
+        "position": { "x": 10, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 8,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 27,
+          "hp": 27,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "setSurprise",
+      "comment": "Full party surprise. RED expectation: Alert should still clear initiative disadvantage for Vanguard.",
+      "input": { "surprise": "party" }
+    },
+    {
+      "type": "initiate",
+      "actor": "Vanguard",
+      "comment": "Expected failure reason: response currently returns disadvantage=true even with feat_alert.",
+      "input": { "text": "roll initiative" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true, "disadvantage": false }
+    }
+  ]
+}

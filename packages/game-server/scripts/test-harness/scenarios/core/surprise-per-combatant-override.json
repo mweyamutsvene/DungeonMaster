@@ -1,6 +1,6 @@
 {
-  "name": "Surprise: Mixed visibility prevents auto-surprise from Hidden",
-  "description": "A Hidden Fighter starts combat with a visible party ally present. Even though the Fighter's stealth beats enemy passive Perception, one visible enemy-side threat exists from the monster's perspective, so auto-surprise does not apply.",
+  "name": "Surprise: Per-combatant override applies initiative disadvantage to one PC",
+  "description": "DM explicitly overrides surprise for one combatant using { surprised: [...] }. Shadow is marked surprised while ally Torchbearer is not, so the initiator receives initiative disadvantage.",
   "setup": {
     "character": {
       "name": "Shadow",
@@ -21,8 +21,6 @@
         "armorClass": 18,
         "speed": 30,
         "proficiencyBonus": 3,
-        "conditions": [{ "condition": "Hidden", "duration": "until_removed" }],
-        "resources": { "stealthRoll": 18 },
         "attacks": [
           {
             "name": "Longsword",
@@ -33,9 +31,6 @@
             "damageType": "slashing",
             "properties": ["Versatile (1d10)"]
           }
-        ],
-        "features": [
-          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" }
         ]
       }
     },
@@ -107,60 +102,48 @@
   },
   "actions": [
     {
+      "type": "setSurprise",
+      "comment": "Per-combatant override: only Shadow is surprised. This branch validates explicit DM override independent of Hidden auto-compute.",
+      "input": { "surprise": { "surprised": ["Shadow"] } }
+    },
+    {
       "type": "initiate",
-      "comment": "No setSurprise override. Auto-compute sees one hidden enemy (Shadow) but also one visible enemy (Torchbearer), so surprise should NOT apply.",
+      "comment": "Because Shadow is specifically in the surprised list, initiative should request disadvantage.",
       "input": { "text": "I attack the goblin guard" },
       "expect": {
         "rollType": "initiative",
         "requiresPlayerInput": true,
         "advantage": false,
-        "disadvantage": false
+        "disadvantage": true
       }
     },
     {
       "type": "rollResult",
-      "comment": "Roll initiative normally (no surprise disadvantage on the initiator)",
-      "input": { "text": "I rolled a 18" },
+      "comment": "Submit initiative roll after disadvantage prompt.",
+      "input": { "text": "I rolled a 12" },
       "expect": { "rollType": "initiative", "combatStarted": true }
     },
     {
       "type": "action",
-      "comment": "Attack the surprised goblin",
+      "comment": "Proceed with normal attack flow after initiative.",
       "input": { "text": "I attack the goblin guard with my longsword" },
       "expect": { "rollType": "attack" }
     },
     {
       "type": "rollResult",
-      "comment": "Roll attack (hits AC 15)",
+      "comment": "Attack roll vs AC 15.",
       "input": { "text": "I rolled a 16" },
       "expect": { "hit": true, "rollType": "damage" }
     },
     {
       "type": "rollResult",
-      "comment": "Roll damage",
+      "comment": "Damage roll.",
       "input": { "text": "I rolled a 6" },
       "expect": { "actionComplete": true }
     },
     {
       "type": "assertState",
-      "comment": "Checkpoint after opening attack: combat remains active and HP state is deterministic.",
-      "expect": {
-        "combatStatus": "Active",
-        "characterHp": { "min": 44, "max": 44 },
-        "monsterHp": { "name": "Goblin Guard", "min": 1, "max": 29 }
-      }
-    },
-    {
-      "type": "endTurn",
-      "comment": "Pass turn to let AI cycle and return with deterministic no-action behavior"
-    },
-    {
-      "type": "waitForTurn",
-      "comment": "Wait until Shadow's next turn"
-    },
-    {
-      "type": "assertState",
-      "comment": "Round checkpoint after enemy turns: AI endTurn keeps HP unchanged; combat still active.",
+      "comment": "Checkpoint: override branch completed, HP and combat status remain deterministic.",
       "expect": {
         "combatStatus": "Active",
         "characterHp": { "min": 44, "max": 44 },

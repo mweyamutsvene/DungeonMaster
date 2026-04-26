@@ -6,9 +6,9 @@ When the underlying mechanic lands, move the corresponding scenario into `../sce
 
 ## Index
 
-| File | Target mechanic | Blocked by |
-|---|---|---|
-| `d20-interrupt-bardic-inspiration.json` | Bardic Inspiration: ally adds BI die to failed d20 roll | ClassAbilities — effect is created but no roll-interrupt hook consumes it |
+No root-level pending scenarios are currently active here.
+
+Implemented scenarios should be promoted into `../scenarios/` and removed from this directory once they pass.
 
 ## Convention
 

@@ -21,6 +21,15 @@
         "armorClass": 18,
         "speed": 30,
         "proficiencyBonus": 3,
+        "inventory": [
+          {
+            "magicItemId": "potion-of-heroism",
+            "name": "Potion of Heroism",
+            "equipped": false,
+            "attuned": false,
+            "quantity": 2
+          }
+        ],
         "attacks": [
           {
             "name": "Longsword",
@@ -203,6 +212,115 @@
       "comment": "Final checkpoint: combat still active and goblin HP unchanged from miss.",
       "expect": {
         "combatStatus": "Active",
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Character starts this phase with no temporary HP.",
+      "expect": {
+        "characterTempHp": { "exact": 0 },
+        "characterHp": { "exact": 44 },
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Advance to a fresh player turn before testing potion-based temp HP replacement flow."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to Matrix Veteran turn for deterministic temp HP test sequence."
+    },
+    {
+      "type": "action",
+      "comment": "Drink first Potion of Heroism to gain 10 temp HP.",
+      "input": { "text": "drink Potion of Heroism" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "First potion sets temp HP to 10 and does not change regular HP.",
+      "expect": {
+        "characterTempHp": { "exact": 10 },
+        "characterHp": { "exact": 44 },
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Script one goblin attack on Matrix Veteran for deterministic first depletion hit.",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Matrix Veteran", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Queued goblin hit 1 with disadvantage-safe attack dice: d20s 19/18 still hit AC 18, then d6 4 => 6 slashing damage.",
+      "input": { "values": [19, 18, 4], "label": "temp-hp depletion hit 1" }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Pass turn so scripted goblin attack resolves."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to player after first scripted goblin hit."
+    },
+    {
+      "type": "assertState",
+      "comment": "After hit 1: temp HP absorbs all 6 damage (10 -> 4), HP remains 44.",
+      "expect": {
+        "characterTempHp": { "exact": 4 },
+        "characterHp": { "exact": 44 },
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Script second goblin attack for overflow into regular HP after temp HP depletion.",
+      "input": {
+        "decisions": [
+          { "action": "attack", "target": "Matrix Veteran", "attackName": "Scimitar", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Queued goblin hit 2 with disadvantage-safe attack dice: d20s 19/18 still hit AC 18, then d6 4 => 6 slashing damage.",
+      "input": { "values": [19, 18, 4], "label": "temp-hp depletion hit 2" }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Pass turn so second scripted goblin attack resolves."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to player after second scripted goblin hit."
+    },
+    {
+      "type": "assertState",
+      "comment": "After hit 2: remaining temp HP 4 is consumed and overflow 2 reduces HP (44 -> 42).",
+      "expect": {
+        "characterTempHp": { "exact": 0 },
+        "characterHp": { "exact": 42 },
+        "monsterHp": { "name": "Buff Goblin", "exact": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Drink second Potion of Heroism: higher temp HP value should replace current 0.",
+      "input": { "text": "drink Potion of Heroism" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Replacement checkpoint: higher incoming temp HP (10) replaces lower current temp HP (0).",
+      "expect": {
+        "characterTempHp": { "exact": 10 },
+        "characterHp": { "exact": 42 },
         "monsterHp": { "name": "Buff Goblin", "exact": 10 }
       }
     }

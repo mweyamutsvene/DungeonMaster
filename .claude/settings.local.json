@@ -28,7 +28,14 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(h\\) for h in d.get\\(''''hooks'''',{}\\).get\\(''''Stop'''',[d.get\\(''''hooks'''',{}\\).get\\(''''stop'''',[]\\)]\\)]\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(h\\) for h in d.get\\(''''hooks'''',{}\\).get\\(''''Stop'''',d.get\\(''''hooks'''',{}\\).get\\(''''stop'''',[]\\)\\)]\")",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(Select-String \"TotalSeconds\")"
+      "Bash(Select-String \"TotalSeconds\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(cp C:/Users/tommy/Development/DungeonMaster/plans/plan-material-components.md C:/Users/tommy/Development/DungeonMaster/plans/archive/2026-04-25-plan-material-components.md)",
+      "Bash(cp C:/Users/tommy/Development/DungeonMaster/plans/plan-cunning-strike-and-friends.md C:/Users/tommy/Development/DungeonMaster/plans/archive/2026-04-25-plan-cunning-strike-and-friends.md)",
+      "Bash(rm C:/Users/tommy/Development/DungeonMaster/plans/plan-material-components.md)",
+      "Bash(rm C:/Users/tommy/Development/DungeonMaster/plans/plan-cunning-strike-and-friends.md)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('name',''\\), '-', d.get\\('description',''\\)[:120]\\)\")",
+      "Bash(python *)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -1,6 +1,6 @@
 {
   "name": "Alert Feat: Initiative Swap (D&D 5e 2024)",
-  "description": "A Fighter with the Alert feat rolls initiative in a multi-PC party. After initiative is rolled, the server offers an initiative swap with a willing ally. The Scout swaps initiative with the Tank, changing the turn order. Tests: Alert feat swap offer, swap execution, updated turn order.",
+  "description": "A Fighter with Alert starts combat while the party is surprised. Alert prevents initiative disadvantage for Scout, while allies still roll at disadvantage. Scout receives an initiative swap offer, invalid swap targets are rejected deterministically, and a valid swap updates turn order.",
   "setup": {
     "characters": [
       {
@@ -47,6 +47,29 @@
             }
           ]
         }
+      },
+      {
+        "name": "Fallen Ally",
+        "className": "Wizard",
+        "level": 5,
+        "position": { "x": 4, "y": 5 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 8, "dexterity": 10, "constitution": 12,
+            "intelligence": 16, "wisdom": 12, "charisma": 10
+          },
+          "maxHp": 30, "currentHp": 30, "armorClass": 12, "speed": 30,
+          "proficiencyBonus": 3,
+          "conditions": ["Unconscious"],
+          "attacks": [
+            {
+              "name": "Quarterstaff", "kind": "melee", "range": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
       }
     ],
     "monsters": [
@@ -70,50 +93,73 @@
         }
       }
     ],
-    "aiConfig": { "strategy": "aggressive" }
+    "aiConfig": { "defaultBehavior": "endTurn" }
   },
   "actions": [
+    {
+      "type": "setSurprise",
+      "comment": "Mixed surprise state: Tank and Fallen Ally are surprised, Scout is not. This validates no-surprise behavior for the Alert holder in a mixed party.",
+      "input": { "surprise": { "surprised": ["Tank", "Fallen Ally"] } }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic auto-initiative rolls: Tank disadvantage (13,2 -> 2), Fallen Ally disadvantage (11,3 -> 3), Orc normal (17).",
+      "input": { "values": [13, 2, 11, 3, 17], "label": "initiative auto-rolls" }
+    },
     {
       "type": "initiate",
       "actor": "Scout",
       "input": { "text": "roll initiative" },
-      "comment": "Scout (with Alert feat) initiates combat.",
-      "expect": { "rollType": "initiative" }
+      "comment": "Scout (Alert) initiates while party is surprised; Scout should NOT roll initiative with disadvantage.",
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true, "disadvantage": false }
     },
     {
       "type": "rollResult",
       "actor": "Scout",
       "input": { "text": "15" },
-      "comment": "Scout rolls 15 (15 + 3 DEX + 3 PB Alert = 21). Tank auto-rolls. Server should offer swap since Scout has Alert.",
+      "comment": "Scout rolls 15 (15 + 3 DEX + 3 PB Alert = 21). Swap offer should appear.",
       "expect": { "combatStarted": true, "initiativeSwapOffer": true }
     },
     {
       "type": "rollResult",
       "actor": "Scout",
+      "input": { "text": "swap with Orc Warrior" },
+      "comment": "Invalid swap target: enemy is not an eligible ally target.",
+      "expect": { "error": true, "errorContains": "No eligible swap target named" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Scout",
+      "input": { "text": "swap with Fallen Ally" },
+      "comment": "Invalid swap target: unconscious ally is not willing/eligible.",
+      "expect": { "error": true, "errorContains": "No eligible swap target named" }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Scout",
       "input": { "text": "swap with Tank" },
-      "comment": "Scout swaps initiative with Tank. Turn order should change.",
-      "expect": { "combatStarted": true }
+      "comment": "Valid swap with Tank succeeds; Tank takes current turn due swapped top initiative.",
+      "expect": { "combatStarted": true, "currentTurnActor": "Tank" }
     },
     {
-      "type": "action",
+      "type": "assertState",
       "actor": "Scout",
-      "input": { "text": "attack orc warrior with shortbow" },
-      "comment": "Scout attacks the orc.",
-      "expect": { "rollType": "attack" }
+      "comment": "Scout should not have surprised condition and combat should be active.",
+      "expect": {
+        "characterConditions": { "doesNotHaveConditions": ["Surprised"] },
+        "combatStatus": "Active"
+      }
     },
     {
-      "type": "rollResult",
-      "actor": "Scout",
-      "input": { "text": "15" },
-      "comment": "Roll attack (hits AC 13).",
-      "expect": { "hit": true, "rollType": "damage" }
+      "type": "endTurn",
+      "actor": "Tank",
+      "comment": "After swapped Tank turn ends, the next combatant should be Orc Warrior based on deterministic initiative order.",
+      "expect": { "nextCombatant": "Orc Warrior" }
     },
     {
-      "type": "rollResult",
-      "actor": "Scout",
-      "input": { "text": "5" },
-      "comment": "Roll damage.",
-      "expect": { "actionComplete": true }
+      "type": "assertState",
+      "comment": "Combat remains active after the swapped first turn ends.",
+      "expect": { "combatStatus": "Active" }
     }
   ]
 }

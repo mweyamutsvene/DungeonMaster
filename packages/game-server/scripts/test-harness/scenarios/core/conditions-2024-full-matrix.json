@@ -1,0 +1,285 @@
+{
+  "name": "Conditions 2024 Full Matrix: Deafened + Charmed + Petrified + Invisible",
+  "description": "Deterministic condition matrix for under-asserted 2024 branches. Covers direct application assertions for Deafened, Charmed, Petrified, and Invisible, plus Petrified/Invisible attack-roll advantage branches while combat remains active.",
+  "setup": {
+    "character": {
+      "name": "Matrix Sentinel",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 48,
+        "currentHp": 48,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Arcane Thrall",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 8,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 36,
+          "hp": 36,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Spear",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Stonebound Raider",
+        "position": { "x": 11, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 10,
+            "constitution": 12,
+            "intelligence": 8,
+            "wisdom": 9,
+            "charisma": 8
+          },
+          "maxHp": 42,
+          "hp": 42,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat for deterministic condition matrix checkpoints.",
+      "input": { "text": "I draw my blade and challenge them." },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "High initiative keeps player-first cadence for deterministic turn timing.",
+      "input": { "text": "19" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Baseline checkpoint: combat active and no matrix conditions present yet.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterConditions": {
+          "doesNotHaveConditions": ["Deafened", "Invisible"]
+        },
+        "monsterConditions": {
+          "name": "Arcane Thrall",
+          "doesNotHaveConditions": ["Charmed", "Petrified"]
+        }
+      }
+    },
+
+    {
+      "type": "applyCondition",
+      "comment": "Apply Deafened to character and validate immediate branch state.",
+      "input": {
+        "target": "character",
+        "condition": "Deafened",
+        "duration": "1 minute"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Deafened applies immediately and combat remains active.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterConditions": {
+          "hasConditions": ["Deafened"]
+        }
+      }
+    },
+
+    {
+      "type": "applyCondition",
+      "comment": "Apply Charmed to Arcane Thrall and validate immediate monster branch state.",
+      "input": {
+        "target": "monster:Arcane Thrall",
+        "condition": "Charmed",
+        "duration": "1 minute"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Charmed applies immediately to monster while combat remains active.",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Arcane Thrall",
+          "hasConditions": ["Charmed"]
+        }
+      }
+    },
+
+    {
+      "type": "applyCondition",
+      "comment": "Apply Petrified to Stonebound Raider to exercise condition branch assertions.",
+      "input": {
+        "target": "monster:Stonebound Raider",
+        "condition": "Petrified",
+        "duration": "1 minute"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Petrified present before attack branch check.",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Stonebound Raider",
+          "hasConditions": ["Petrified"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attack Petrified target; attacker should receive advantage on attack roll against petrified creature.",
+      "input": { "text": "attack Stonebound Raider with longsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "comment": "14 + 6 = 20 vs AC 12 to ensure deterministic hit path.",
+      "input": { "text": "14" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Deal deterministic weapon damage and complete action.",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Petrified remains applied after attack resolution.",
+      "expect": {
+        "combatStatus": "Active",
+        "monsterConditions": {
+          "name": "Stonebound Raider",
+          "hasConditions": ["Petrified"]
+        }
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "End turn after petrified-branch attack to reset action economy before invisible-branch attack."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to player turn after deterministic monster end-turn behavior."
+    },
+
+    {
+      "type": "applyCondition",
+      "comment": "Apply Invisible to character and validate immediate branch state.",
+      "input": {
+        "target": "character",
+        "condition": "Invisible",
+        "duration": "1 minute"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Invisible applies immediately while combat is still active.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterConditions": {
+          "hasConditions": ["Invisible"]
+        }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Attack while Invisible; attacker should receive advantage on attack roll.",
+      "input": { "text": "attack Arcane Thrall with longsword" },
+      "expect": {
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "comment": "15 + 6 = 21 vs AC 12 for deterministic hit path.",
+      "input": { "text": "15" },
+      "expect": { "hit": true, "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Resolve damage and keep combat active for final timing assertion.",
+      "input": { "text": "4" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Final matrix checkpoint: all four under-asserted branches are currently present in active combat.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterConditions": {
+          "hasConditions": ["Deafened", "Invisible"]
+        },
+        "monsterConditions": {
+          "name": "Arcane Thrall",
+          "hasConditions": ["Charmed"]
+        }
+      }
+    }
+  ]
+}

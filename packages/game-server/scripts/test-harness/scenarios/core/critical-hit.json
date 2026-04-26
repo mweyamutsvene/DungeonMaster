@@ -76,6 +76,7 @@
     {
       "type": "rollResult",
       "input": { "text": "I rolled 12" },
+      "comment": "Critical damage checkpoint: 2d8 rolled as 12 + flat 4 once = 16 total; dummy should be 84 HP if flat bonus is not doubled.",
       "expect": { "actionComplete": false }
     },
 
@@ -87,6 +88,14 @@
         "hit": false,
         "isCritical": false,
         "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Row 18 coverage: crit with dice+flat rider proves only dice doubled; flat modifier not doubled.",
+      "expect": {
+        "monsterHp": { "name": "Training Dummy", "exact": 84 },
+        "combatStatus": "Active"
       }
     }
   ]

@@ -1,0 +1,98 @@
+{
+  "name": "RED: Exhaustion Level 10 Terminal State (2024)",
+  "description": "Expected RED until level-10 exhaustion lethal handling is wired into combat-state resolution. 2024 RAW: reaching exhaustion level 10 should kill the character. This scenario asserts terminal state immediately after applying exhaustion:10.",
+  "setup": {
+    "character": {
+      "name": "Spent Sentinel",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Passive Dummy",
+        "position": { "x": 12, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 10,
+            "intelligence": 1,
+            "wisdom": 1,
+            "charisma": 1
+          },
+          "maxHp": 100,
+          "hp": 100,
+          "armorClass": 10,
+          "speed": 0,
+          "challengeRating": 0,
+          "attacks": [
+            {
+              "name": "Bump",
+              "kind": "melee",
+              "attackBonus": 0,
+              "damage": { "diceCount": 1, "diceSides": 1, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat so terminal state can be asserted in encounter context.",
+      "input": { "text": "I engage the passive dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply level 10 exhaustion directly (2024 lethal threshold).",
+      "input": {
+        "target": "character",
+        "condition": "Exhaustion",
+        "duration": "until_removed",
+        "source": "exhaustion:10"
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "RED expectation: level 10 exhaustion should produce a terminal character state and completed combat.",
+      "expect": {
+        "characterHp": { "max": 0 },
+        "combatStatus": "Complete"
+      }
+    }
+  ]
+}

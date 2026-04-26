@@ -159,6 +159,86 @@
       "actor": "Elara the Wise",
       "expect": { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } },
       "comment": "L1 slot consumed by Burning Hands."
+    },
+    {
+      "type": "endTurn",
+      "actor": "Elara the Wise",
+      "comment": "Advance to Archer for explicit three-quarters cover branch."
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer",
+      "timeout": 15000,
+      "comment": "Archer turn with target still alive after prior half-cover spell branch."
+    },
+    {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 15, "y": 10, "terrain": "cover-three-quarters" }
+        ]
+      },
+      "comment": "Upgrade interposed terrain to three-quarters cover (+5 AC/+5 Dex saves)."
+    },
+    {
+      "type": "action",
+      "actor": "Archer",
+      "input": { "text": "shoot Goblin Sentry with longbow" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true },
+      "comment": "Explicit three-quarters branch: target should still be targetable."
+    },
+    {
+      "type": "rollResult",
+      "actor": "Archer",
+      "input": { "text": "10" },
+      "expect": { "hit": false },
+      "comment": "Attack total 17 misses AC 18 (13 base +5 from three-quarters cover)."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Sentry", "min": 14, "max": 20 } },
+      "comment": "Miss confirms no additional damage in three-quarters cover branch."
+    },
+    {
+      "type": "endTurn",
+      "actor": "Archer",
+      "comment": "Cycle turns to get Archer again for total-cover untargetable check."
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Elara the Wise",
+      "timeout": 15000,
+      "comment": "Skip Elara turn quickly so Archer can attempt another ranged attack."
+    },
+    {
+      "type": "endTurn",
+      "actor": "Elara the Wise"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer",
+      "timeout": 15000
+    },
+    {
+      "type": "setTerrain",
+      "input": {
+        "terrainZones": [
+          { "x": 15, "y": 10, "terrain": "cover-full" }
+        ]
+      },
+      "comment": "Replace interposed terrain with total cover."
+    },
+    {
+      "type": "action",
+      "actor": "Archer",
+      "input": { "text": "shoot Goblin Sentry with longbow" },
+      "expect": { "error": true, "errorContains": "full cover and cannot be targeted" },
+      "comment": "Explicit total-cover branch: target is untargetable for direct attack."
+    },
+    {
+      "type": "assertState",
+      "expect": { "monsterHp": { "name": "Goblin Sentry", "min": 14, "max": 20 } },
+      "comment": "Failed targeting under total cover does not change monster HP."
     }
   ]
 }

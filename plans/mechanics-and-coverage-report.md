@@ -202,7 +202,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Spell slot economy (track/consume/ritual flag) | SUPPORTED | STRONG | |
 | Delivery modes (attack, save, heal, buff, zone, auto-hit MM) | SUPPORTED | STRONG | Comprehensive deterministic E2E in `wizard/spell-delivery-modes-full-spectrum.json`. |
 | Spell attack rolls vs saves (DC = 8+prof+mod) | SUPPORTED | STRONG | |
-| Concentration lifecycle | SUPPORTED | STRONG | |
+| Concentration lifecycle | SUPPORTED | STRONG | Lifecycle + damage-break + incapacitated cleanup (`concentration-incapacitated-cleanup.json`) + unconscious/0-HP cleanup (`concentration-unconscious-cleanup.json`) all covered. |
 | Upcasting (dice + flat scaling) | SUPPORTED | STRONG | Cantrips reject + upcast validations in unit tests (`spell-action-handler.test.ts`) and expanded E2E set. |
 | Cantrip scaling (1/2/3/4× at L1/5/11/17) | SUPPORTED | STRONG | Tiered E2E matrix now covers L1/L11/L17 plus existing L5 scenario. |
 | Counterspell (2024 rules) | SUPPORTED | STRONG | Existing Con-save branches + decline-path E2E (`wizard/counterspell-2024-decline.json`). |
@@ -211,6 +211,7 @@ Additional deterministic scenarios added and validated in this thread:
 | Material component enforcement | SUPPORTED | MODERATE | All costed components require inventory presence; consumed components removed at cast time. `findItemMatchingComponent` + `consumeMaterialComponent` on InventoryService. 21 unit tests. |
 | Auto-AoE target resolution | PARTIAL | WEAK | Delivery path supports area targeting; evaluator/path quality and broad scenario depth remain open. |
 | **War Caster feat concentration advantage** | **MISSING P1** | NONE | `concentrationSaveRollMode` hardcoded false |
+| War Caster feat spell-as-OA | SUPPORTED | WEAK | Spell substituted for melee OA wired; 1 scenario (`feat/war-caster-spell-oa.json`). |
 | Somatic component free-hand validation | MISSING P1 | NONE | |
 | Spiritual Weapon multi-round bonus action | MISSING P1 | NONE | L2 cleric staple |
 | Mirror Image duplicate AC override | MISSING P1 | WEAK | Not wired into hit-resolution |
@@ -460,7 +461,7 @@ Additional deterministic scenarios added and validated in this thread:
 
 # 3. E2E Coverage Snapshot  ([audit](audit-E2E-Scenarios.md))
 
-**286 scenarios / 24 folders / 21 unique mechanic tags.**
+**299 scenarios / 24 folders / 21 unique mechanic tags.**
 
 Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` scan of `scripts/test-harness/scenarios` only; `scripts/test-harness/scenarios-pending` is excluded from `--all`.
 
@@ -692,9 +693,9 @@ The unit-style `core/*` scenarios that test a genuinely independent mechanic (e.
   - `class-combat/core/dungeon-crawl-short-rest.json` — 2-encounter sequence with SR between
   - `class-combat/fighter/martial-extra-attack-l5.json` — Fighter Action Surge + Extra Attack + Second Wind
 
-- **2 gap-filler scenarios** remain in `scenarios-pending/` (outside runner discovery):
-  - `d20-interrupt-bardic-inspiration.json` — needs roll-interrupt architectural hook
+- **1 gap-filler scenario** remains in `scenarios-pending/` (outside runner discovery):
   - `horde-encounter.json` — pending broader horde/AoE confidence before activation
+  - ~~`d20-interrupt-bardic-inspiration.json`~~ ✅ promoted → `class-combat/bard/bardic-inspiration-roll-interrupt.json`
 
 ### Dropped (not viable)
 - **Death save consolidation** — each outcome (stabilize / dead / nat-20 revive / nat-1 double-fail) needs a distinct character at 1 HP being KO'd. Consolidating via multi-PC runs into initiative/timing complexity; the 4 originals stay.
@@ -705,7 +706,7 @@ The unit-style `core/*` scenarios that test a genuinely independent mechanic (e.
 - **`caster-resource-economy-extended.json`** — extend existing `class-combat/wizard/spell-slot-economy.json` to 15+ turns with concentration swapping.
 
 ### Full suite status
-**Current discovered inventory is 286 scenarios.** Latest full run (`pnpm -C packages/game-server test:e2e:combat:mock -- --all --no-color`, 2026-04-25) reports **285 passed, 1 failed**. Remaining failure is `feat/lucky-reroll`.
+**Current discovered inventory is 299 scenarios** (+13 since last full run). Latest known full run (`pnpm -C packages/game-server test:e2e:combat:mock -- --all --no-color`, 2026-04-25) reported **285 passed, 1 failed** against 286 scenarios. `feat/lucky-reroll` was the remaining failure; run against 299 needed to confirm current state.
 
 ---
 

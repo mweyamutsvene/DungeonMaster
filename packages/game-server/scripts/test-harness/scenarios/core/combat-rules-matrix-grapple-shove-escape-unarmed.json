@@ -82,26 +82,29 @@
     },
     {
       "type": "action",
-      "comment": "Baseline unarmed strike action path.",
+      "comment": "Non-monk baseline unarmed strike path: attack uses STR+prof (not monk DEX scaling).",
       "input": { "text": "attack Control Goblin with Unarmed Strike" },
       "expect": { "rollType": "attack", "requiresPlayerInput": true }
     },
     {
       "type": "rollResult",
-      "input": { "text": "15" },
-      "expect": { "hit": true, "requiresPlayerInput": true }
+      "input": { "text": "2" },
+      "comment": "2 + 8 (STR 5 + prof 3) = 10 vs AC 10 should hit; monk-like DEX path would miss.",
+      "expect": { "rollType": "damage", "hit": true, "requiresPlayerInput": true }
     },
     {
       "type": "rollResult",
-      "input": { "text": "3" },
+      "input": { "text": "1" },
+      "comment": "Deterministic non-monk unarmed baseline damage path: 1 + STR mod (5) = 6.",
       "expect": { "actionComplete": true }
     },
     {
       "type": "assertState",
-      "comment": "Checkpoint: unarmed strike completed and combat remains active.",
+      "comment": "Checkpoint: baseline non-monk unarmed formula applied and combat remains active.",
       "expect": {
         "combatStatus": "Active",
-        "monsterHp": { "name": "Control Goblin", "min": 1, "max": 39 }
+        "monsterHp": { "name": "Control Goblin", "exact": 34 },
+        "characterHp": { "min": 44, "max": 44 }
       }
     },
     {

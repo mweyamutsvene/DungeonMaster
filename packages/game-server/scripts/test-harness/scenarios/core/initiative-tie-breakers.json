@@ -1,0 +1,204 @@
+{
+  "name": "Initiative: Tie Breakers + Alert Swap Interaction",
+  "description": "Deterministically verifies initiative tie ordering using explicit modifier differences, then verifies Alert swap changes first-round sequencing.",
+  "setup": {
+    "characters": [
+      {
+        "name": "Vanguard",
+        "className": "Fighter",
+        "level": 5,
+        "position": { "x": 5, "y": 5 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 44,
+          "currentHp": 44,
+          "armorClass": 17,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "featIds": ["feat_alert"],
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Quickfoot",
+        "className": "Rogue",
+        "level": 5,
+        "position": { "x": 4, "y": 6 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 18,
+            "constitution": 12,
+            "intelligence": 12,
+            "wisdom": 12,
+            "charisma": 10
+          },
+          "maxHp": 34,
+          "currentHp": 34,
+          "armorClass": 15,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Rapier",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 7,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 4 },
+              "damageType": "piercing"
+            }
+          ]
+        }
+      },
+      {
+        "name": "Anchor",
+        "className": "Cleric",
+        "level": 5,
+        "position": { "x": 4, "y": 5 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 10,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 16,
+            "charisma": 10
+          },
+          "maxHp": 40,
+          "currentHp": 40,
+          "armorClass": 17,
+          "speed": 30,
+          "proficiencyBonus": 3,
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "name": "Bandit Bruiser",
+        "position": { "x": 12, "y": 5 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 14,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 8,
+            "wisdom": 10,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 13,
+          "speed": 30,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic auto-initiative rolls for non-acting combatants: Quickfoot=15, Anchor=8, Bandit Bruiser=12.",
+      "input": { "values": [15, 8, 12], "label": "initiative auto-rolls" }
+    },
+    {
+      "type": "initiate",
+      "actor": "Vanguard",
+      "comment": "Start combat and request Vanguard initiative roll.",
+      "input": { "text": "roll initiative" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Vanguard",
+      "comment": "Vanguard rolls 14 (14 + DEX 2 + Alert PB 3 = 19); Quickfoot is also 19 (15 + 4), creating a deterministic tie with higher DEX for Quickfoot.",
+      "input": { "text": "14" },
+      "expect": { "combatStarted": true, "initiativeSwapOffer": true }
+    },
+    {
+      "type": "rollResult",
+      "actor": "Vanguard",
+      "comment": "Swap Vanguard initiative with Anchor to alter first-round sequencing.",
+      "input": { "text": "swap with Anchor" },
+      "expect": { "combatStarted": true, "currentTurnActor": "Quickfoot" }
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat is active immediately after initiative and swap resolution.",
+      "expect": { "combatStatus": "Active" }
+    },
+    {
+      "type": "action",
+      "actor": "Quickfoot",
+      "comment": "Quickfoot acts first on the tie, proving higher initiative modifier wins deterministic tie ordering.",
+      "input": { "text": "dodge" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Quickfoot",
+      "comment": "End Quickfoot turn; the swapped Anchor initiative should now come next.",
+      "expect": { "nextCombatant": "Anchor" }
+    },
+    {
+      "type": "action",
+      "actor": "Anchor",
+      "comment": "Anchor acts immediately after Quickfoot due to the Alert swap interaction.",
+      "input": { "text": "dodge" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Anchor",
+      "comment": "End Anchor turn and let AI consume its turn.",
+      "expect": { "nextCombatant": "Bandit Bruiser" }
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Vanguard",
+      "comment": "Wait until turn cycles through Bandit Bruiser and returns to Vanguard."
+    },
+    {
+      "type": "assertState",
+      "comment": "Combat remains active after one full deterministic initiative cycle.",
+      "expect": { "combatStatus": "Active" }
+    }
+  ]
+}
