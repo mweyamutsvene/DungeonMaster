@@ -2141,6 +2141,99 @@ describe("game-server api", () => {
     await app.close();
   });
 
+  it("POST /sessions/:id/combat/action rejects unprepared leveled spell for wizard", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const casterRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/characters`,
+      payload: {
+        name: "Prep Locked Mage",
+        level: 5,
+        className: "wizard",
+        sheet: {
+          armorClass: 15,
+          abilityScores: {
+            strength: 8,
+            dexterity: 14,
+            constitution: 12,
+            intelligence: 16,
+            wisdom: 12,
+            charisma: 10,
+          },
+          preparedSpells: [{ name: "Magic Missile", level: 1 }],
+        },
+      },
+    });
+    const casterId = (casterRes.json() as any).id as string;
+
+    const mon = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/monsters`,
+      payload: {
+        name: "Bandit",
+        statBlock: { hp: 11, armorClass: 12 },
+      },
+    });
+    const monsterId = (mon.json() as any).id as string;
+
+    const encounter = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/start`,
+      payload: {
+        combatants: [
+          {
+            combatantType: "Character",
+            characterId: casterId,
+            initiative: 20,
+            hpCurrent: 24,
+            hpMax: 24,
+            resources: {
+              position: { x: 0, y: 0 },
+              speed: 30,
+              resourcePools: [{ name: "spellSlot_2", current: 2, max: 2 }],
+            },
+          },
+          {
+            combatantType: "Monster",
+            monsterId,
+            initiative: 10,
+            hpCurrent: 11,
+            hpMax: 11,
+            resources: {
+              position: { x: 10, y: 0 },
+              speed: 30,
+            },
+          },
+        ],
+      },
+    });
+    const encounterId = (encounter.json() as any).id as string;
+
+    const castRes = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/combat/action`,
+      payload: {
+        text: "cast hold person at Bandit",
+        actorId: casterId,
+        encounterId,
+      },
+    });
+
+    expect(castRes.statusCode).toBe(400);
+    const body = castRes.json() as any;
+    expect(String(body.message ?? "")).toContain("not prepared");
+
+    await app.close();
+  });
+
   it("POST /sessions/:id/combat/query returns LLM answer with distance context", async () => {
     const intentParser: IIntentParser = {
       async parseIntent() {

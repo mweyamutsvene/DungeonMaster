@@ -5,11 +5,18 @@
  */
 
 import type { AiActionHandler, AiActionHandlerContext, AiActionHandlerDeps, AiHandlerResult } from "../ai-action-handler.js";
+import { ValidationError } from "../../../../errors.js";
 import { spendAction } from "../../helpers/resource-utils.js";
 import { resolveSpell, prepareSpellCast } from "../../helpers/spell-slot-manager.js";
 import type { CombatantRef } from "../../helpers/combatant-ref.js";
 import { AiSpellDelivery } from "./ai-spell-delivery.js";
 import { getNpcMechanicsSource } from "../../helpers/class-backed-actor.js";
+import { getSpellCasterType, isSpellAvailable } from "../../../../../domain/rules/spell-preparation.js";
+
+function readSpellList(source: Record<string, unknown>, key: string): Array<string | { name: string }> {
+  const value = source[key];
+  return Array.isArray(value) ? value as Array<string | { name: string }> : [];
+}
 
 export class CastSpellHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -53,15 +60,19 @@ export class CastSpellHandler implements AiActionHandler {
     // ── Look up caster entity data + spell definition ──
     let casterSource: Record<string, unknown> = {};
     let isConcentration = false;
+    let casterClassId: string | null = null;
+    let resolvedSpellLevel = spellLevel;
 
     if (isCharacterCaster && characters) {
       try {
         const characterRecord = await characters.getById(aiCombatant.characterId!);
         if (characterRecord) {
           casterSource = (characterRecord.sheet as Record<string, unknown>) ?? {};
+          casterClassId = characterRecord.className?.toLowerCase() ?? null;
           const spellDef = resolveSpell(spellName, characterRecord.sheet);
           if (spellDef) {
             isConcentration = spellDef.concentration ?? false;
+            resolvedSpellLevel = spellDef.level;
           }
         }
       } catch { /* Non-fatal */ }
@@ -71,7 +82,10 @@ export class CastSpellHandler implements AiActionHandler {
         if (monsterRecord) {
           casterSource = (monsterRecord.statBlock as Record<string, unknown>) ?? {};
           const spellDef = resolveSpell(spellName, casterSource);
-          if (spellDef) isConcentration = spellDef.concentration ?? false;
+          if (spellDef) {
+            isConcentration = spellDef.concentration ?? false;
+            resolvedSpellLevel = spellDef.level;
+          }
         }
       } catch { /* Non-fatal */ }
     } else if (aiCombatant.combatantType === "NPC" && aiCombatant.npcId && deps.npcs) {
@@ -79,10 +93,35 @@ export class CastSpellHandler implements AiActionHandler {
         const npcRecord = await deps.npcs.getById(aiCombatant.npcId);
         if (npcRecord) {
           casterSource = getNpcMechanicsSource(npcRecord);
+          casterClassId = npcRecord.className?.toLowerCase() ?? null;
           const spellDef = resolveSpell(spellName, casterSource);
-          if (spellDef) isConcentration = spellDef.concentration ?? false;
+          if (spellDef) {
+            isConcentration = spellDef.concentration ?? false;
+            resolvedSpellLevel = spellDef.level;
+          }
         }
       } catch { /* Non-fatal */ }
+    }
+
+    const classIdFromSheet =
+      typeof casterSource.classId === "string" && casterSource.classId.trim().length > 0
+        ? casterSource.classId.trim().toLowerCase()
+        : typeof casterSource.className === "string" && casterSource.className.trim().length > 0
+          ? casterSource.className.trim().toLowerCase()
+          : null;
+    const effectiveClassId = casterClassId ?? classIdFromSheet;
+    const casterType = effectiveClassId ? getSpellCasterType(effectiveClassId) : "none";
+
+    if (casterType !== "none" && resolvedSpellLevel > 0) {
+      const preparedSpells = readSpellList(casterSource, "preparedSpells");
+      const knownSpells = readSpellList(casterSource, "knownSpells");
+      const spells = readSpellList(casterSource, "spells");
+      const effectivePrepared = preparedSpells.length > 0 ? preparedSpells : spells;
+      const effectiveKnown = knownSpells.length > 0 ? knownSpells : spells;
+
+      if (!isSpellAvailable(spellName, effectivePrepared, effectiveKnown)) {
+        throw new ValidationError(`${spellName} is not prepared. Prepare spells during a Long Rest.`);
+      }
     }
 
     // ── Counterspell reaction detection (two-phase) ──

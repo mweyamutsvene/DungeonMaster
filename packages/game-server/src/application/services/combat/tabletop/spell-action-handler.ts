@@ -26,6 +26,7 @@ import { normalizeResources, getPosition, patchResources } from "../helpers/reso
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
 import { getEntityIdFromRef } from "../helpers/combatant-ref.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
+import { getSpellCasterType, isSpellAvailable } from "../../../../domain/rules/spell-preparation.js";
 import { inferActorRef, findCombatantByName } from "./combat-text-parser.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
@@ -130,6 +131,12 @@ export class SpellActionHandler {
     return { encounter, combatants, actorCombatant };
   }
 
+  private readSpellList(sheet: CharacterSheet | null, key: "preparedSpells" | "knownSpells") {
+    if (!sheet) return undefined;
+    const raw = (sheet as Record<string, unknown>)[key];
+    return Array.isArray(raw) ? raw as Array<string | { name: string }> : undefined;
+  }
+
   /**
    * Handle Cast Spell action with spell slot management and mechanical resolution.
    */
@@ -159,6 +166,22 @@ export class SpellActionHandler {
     const isConcentration = spellMatch?.concentration ?? false;
     const isBonusAction = spellMatch?.isBonusAction ?? castInfo.isBonusActionFromText ?? false;
     const isCantrip = spellLevel === 0;
+
+    const classIdRaw = (sheet as Record<string, unknown> | null)?.classId;
+    const classId =
+      (typeof classIdRaw === "string" && classIdRaw.trim().length > 0
+        ? classIdRaw.trim().toLowerCase()
+        : character?.className?.toLowerCase()) ?? "";
+    const casterType = classId.length > 0 ? getSpellCasterType(classId) : "none";
+    if (!isCantrip && casterType !== "none") {
+      const preparedSpells = this.readSpellList(sheet, "preparedSpells");
+      const knownSpells = this.readSpellList(sheet, "knownSpells");
+      const spellName = spellMatch?.name ?? castInfo.spellName;
+
+      if (!isSpellAvailable(spellName, preparedSpells, knownSpells)) {
+        throw new ValidationError(`${spellName} is not prepared. Prepare spells during a Long Rest.`);
+      }
+    }
 
     // Determine effective cast level (for upcasting)
     const castAtLevel = castInfo.castAtLevel;

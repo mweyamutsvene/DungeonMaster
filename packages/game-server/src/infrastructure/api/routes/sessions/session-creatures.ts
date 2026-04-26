@@ -99,6 +99,9 @@ function buildNpcCreateInput(body: SessionNpcBody, generatedId: string) {
     className.trim(),
   );
 
+  // Class-backed spellcasters should provide `preparedSpells` and/or `spells` on `sheet`.
+  // Cast-time preparation enforcement checks those lists for leveled spells.
+
   return {
     id: generatedId,
     name: name.trim(),

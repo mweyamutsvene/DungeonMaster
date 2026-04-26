@@ -9,6 +9,7 @@
  */
 
 export type SpellCasterType = "prepared" | "known" | "none";
+type SpellListEntry = string | { name: string };
 
 interface SpellCasterInfo {
   type: SpellCasterType;
@@ -51,20 +52,48 @@ export function getMaxPreparedSpells(classId: string, classLevel: number, abilit
  */
 export function isSpellAvailable(
   spellId: string,
-  preparedSpells: readonly string[] | undefined,
-  knownSpells: readonly string[] | undefined,
+  preparedSpells: readonly SpellListEntry[] | undefined,
+  knownSpells: readonly SpellListEntry[] | undefined,
 ): boolean {
+  const target = spellId.trim().toLowerCase();
+  const preparedNames = normalizeSpellNames(preparedSpells);
+  const knownNames = normalizeSpellNames(knownSpells);
+
   // Backward compatibility: if no lists are set, allow any spell
-  if ((!preparedSpells || preparedSpells.length === 0) && (!knownSpells || knownSpells.length === 0)) {
+  if (preparedNames.length === 0 && knownNames.length === 0) {
     return true;
   }
 
-  if (preparedSpells && preparedSpells.length > 0 && preparedSpells.includes(spellId)) {
+  if (preparedNames.includes(target)) {
     return true;
   }
-  if (knownSpells && knownSpells.length > 0 && knownSpells.includes(spellId)) {
+  if (knownNames.includes(target)) {
     return true;
   }
 
   return false;
+}
+
+function normalizeSpellNames(spells: readonly SpellListEntry[] | undefined): string[] {
+  if (!spells || spells.length === 0) return [];
+
+  const names: string[] = [];
+  for (const entry of spells) {
+    if (typeof entry === "string") {
+      const normalized = entry.trim().toLowerCase();
+      if (normalized.length > 0) names.push(normalized);
+      continue;
+    }
+    if (
+      entry &&
+      typeof entry === "object" &&
+      "name" in entry &&
+      typeof entry.name === "string"
+    ) {
+      const normalized = entry.name.trim().toLowerCase();
+      if (normalized.length > 0) names.push(normalized);
+    }
+  }
+
+  return names;
 }

@@ -81,5 +81,24 @@ describe("Spell Preparation", () => {
       expect(isSpellAvailable("hex", prepared, known)).toBe(true);
       expect(isSpellAvailable("shield", prepared, known)).toBe(false);
     });
+
+    it("supports object arrays with name fields (case-insensitive)", () => {
+      const prepared = [{ name: "Magic Missile", level: 1 }];
+      const known = [{ name: "Shield", level: 1 }];
+
+      expect(isSpellAvailable("magic missile", prepared, undefined)).toBe(true);
+      expect(isSpellAvailable("SHIELD", undefined, known)).toBe(true);
+      expect(isSpellAvailable("burning hands", prepared, known)).toBe(false);
+    });
+
+    it("ignores malformed list entries", () => {
+      const prepared = [
+        { name: "   " },
+        "Bless",
+      ];
+
+      expect(isSpellAvailable("bless", prepared, undefined)).toBe(true);
+      expect(isSpellAvailable("fireball", prepared, undefined)).toBe(false);
+    });
   });
 });

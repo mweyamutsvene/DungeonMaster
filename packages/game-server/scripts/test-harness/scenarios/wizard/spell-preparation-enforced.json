@@ -1,0 +1,88 @@
+{
+  "name": "Wizard Spell Preparation: unprepared leveled spell is rejected",
+  "description": "D&D 5e 2024 preparation enforcement. Wizard has only Magic Missile prepared and attempts to cast Hold Person. The cast must be rejected with a preparation error and no spell slot spent.",
+  "setup": {
+    "character": {
+      "name": "Prepared Arcanist",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 30,
+        "currentHp": 30,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 15,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "preparedSpells": [
+          { "name": "Magic Missile", "level": 1 },
+          { "name": "Fire Bolt", "level": 0 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bandit",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 11,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.125,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 3,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 1 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I test my prepared spell list" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "input": { "text": "cast Hold Person at Bandit" },
+      "expect": { "error": true, "errorContains": "not prepared" }
+    },
+    {
+      "type": "assertState",
+      "expect": { "characterResource": { "poolName": "spellSlot_2", "current": 3, "max": 3 } },
+      "comment": "Level-2 slot must remain unchanged after preparation validation failure."
+    }
+  ]
+}

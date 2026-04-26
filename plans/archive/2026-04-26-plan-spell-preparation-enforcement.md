@@ -3,7 +3,7 @@ type: plan
 flow: SpellSystem
 feature: spell-preparation-enforcement
 author: DMDeveloper
-status: DRAFT
+status: COMPLETE
 round: 1
 created: 2026-04-26
 updated: 2026-04-26
@@ -30,8 +30,8 @@ in `spell-preparation.ts` — it just isn't wired into the cast-time path.
 ### SpellSystem
 
 #### File: `packages/game-server/src/application/services/combat/tabletop/spell-action-handler.ts`
-- [ ] Import `getSpellCasterType` and `isSpellAvailable` from `domain/rules/spell-preparation.ts`
-- [ ] After `resolveSpell()` and cantrip check, add a preparation guard:
+- [x] Import `getSpellCasterType` and `isSpellAvailable` from `domain/rules/spell-preparation.ts`
+- [x] After `resolveSpell()` and cantrip check, add a preparation guard:
   - Determine `classId` from `sheet.classId ?? character.className?.toLowerCase()`
   - Call `getSpellCasterType(classId)` — skip guard for `"none"`
   - For cantrips (`spellLevel === 0`) skip the check
@@ -39,42 +39,42 @@ in `spell-preparation.ts` — it just isn't wired into the cast-time path.
   - Normalize: extract spell names (handles both `string[]` and `{ name: string }[]` shapes)
   - Call `isSpellAvailable(spellName, preparedNames, knownNames)` — throw `ValidationError` if false
   - Error message: `"${spellName} is not prepared. Prepare spells during a Long Rest."`
-- [ ] Backward-compat: `isSpellAvailable` already returns `true` when both lists are empty/undefined — no change needed for legacy characters
+- [x] Backward-compat: `isSpellAvailable` already returns `true` when both lists are empty/undefined — no change needed for legacy characters
 
 #### File: `packages/game-server/src/domain/rules/spell-preparation.ts`
-- [ ] Update `isSpellAvailable` to accept both `string[]` and `{ name: string }[]` for
+- [x] Update `isSpellAvailable` to accept both `string[]` and `{ name: string }[]` for
   `preparedSpells` and `knownSpells`, doing case-insensitive name matching (currently only
   handles `string[]`). This unifies the two sheet shapes.
 
 #### File: `packages/game-server/src/application/services/combat/ai/handlers/cast-spell-handler.ts`
-- [ ] The AI path resolves the actor's sheet via `getNpcMechanicsSource`. Add the same preparation
+- [x] The AI path resolves the actor's sheet via `getNpcMechanicsSource`. Add the same preparation
   guard here so AI-controlled NPCs (class-backed) are also enforced. The AI spell evaluator
   already only picks from `sheet.spells`, so this is a safety net, not a logic change.
 
 ### EntityManagement
 
 #### File: `packages/game-server/src/infrastructure/api/routes/sessions/session-creatures.ts`
-- [ ] On NPC creation, if `className` is provided, document (comment) that `sheet.preparedSpells`
+- [x] On NPC creation, if `className` is provided, document (comment) that `sheet.preparedSpells`
   or `sheet.spells` must be populated for spell enforcement to work. No code change needed —
   enforcement is permissive when list is empty.
 
 ---
 
 ## Cross-Flow Risk Checklist
-- [ ] Do changes in one flow break assumptions in another?
+- [x] Do changes in one flow break assumptions in another?
   - The backward-compat clause (`isSpellAvailable` returns `true` when list is empty) protects
     all existing E2E scenarios that don't define `preparedSpells`/`knownSpells`.
-- [ ] Does the pending action state machine still have valid transitions?
+- [x] Does the pending action state machine still have valid transitions?
   - Enforcement throws `ValidationError` before any state mutation, so state is untouched.
-- [ ] Is action economy preserved?
+- [x] Is action economy preserved?
   - Validation is a read-only guard; no economy changes.
-- [ ] Do both player AND AI paths handle the change?
+- [x] Do both player AND AI paths handle the change?
   - Yes: tabletop handler + AI cast handler both get the guard.
-- [ ] Are repo interfaces + memory-repos updated if entity shapes change?
+- [x] Are repo interfaces + memory-repos updated if entity shapes change?
   - No entity shape change. `preparedSpells` already exists on sheet JSON.
-- [ ] Is `app.ts` registration updated if adding executors?
+- [x] Is `app.ts` registration updated if adding executors?
   - No new executors.
-- [ ] Are D&D 5e 2024 rules correct (not 2014)?
+- [x] Are D&D 5e 2024 rules correct (not 2014)?
   - Yes: 2024 rules — prepared/known spell lists enforced, cantrips always available.
 
 ## Risks
@@ -94,21 +94,27 @@ in `spell-preparation.ts` — it just isn't wired into the cast-time path.
   Recommended: for class-backed NPCs, treat `sheet.spells` names as the prepared list.
 
 ## Open Questions
-- [ ] For class-backed NPC wizard (like Elara), should `sheet.spells` entries satisfy the
+- [x] For class-backed NPC wizard (like Elara), should `sheet.spells` entries satisfy the
   preparation check, or must `sheet.preparedSpells` also be populated?
-  *Recommendation*: treat `sheet.spells` as the NPC's "known/prepared" list — avoids requiring
-  scenario authors to duplicate the same spell names in two arrays.
-- [ ] Should the error be surfaced differently for AI casters (log warning + skip vs. hard throw)?
+  *Resolution*: implemented fallback so class-backed NPCs can satisfy enforcement via `sheet.spells`
+  when `preparedSpells`/`knownSpells` are absent.
+- [x] Should the error be surfaced differently for AI casters (log warning + skip vs. hard throw)?
+  *Resolution*: hard validation error is used to match player enforcement semantics.
 
 ## Test Plan
 <!-- Each item below requires actual test code to be written. -->
-- [ ] Unit: `spell-preparation.ts` — `isSpellAvailable` handles `{ name, level }[]` object arrays (case-insensitive)
-- [ ] Unit: `spell-action-handler.test.ts` — casting unprepared leveled spell throws ValidationError for Wizard
-- [ ] Unit: `spell-action-handler.test.ts` — casting cantrip always succeeds regardless of prepared list
-- [ ] Unit: `spell-action-handler.test.ts` — casting prepared spell succeeds
-- [ ] Unit: `spell-action-handler.test.ts` — legacy sheet (no preparedSpells) passes enforcement (backward compat)
-- [ ] Unit: `spell-action-handler.test.ts` — non-caster class (Fighter) not subject to enforcement
-- [ ] E2E: `scripts/test-harness/scenarios/wizard/spell-preparation-enforced.json` — Wizard attempts to cast unprepared spell, gets validation error
+- [x] Unit: `spell-preparation.ts` — `isSpellAvailable` handles `{ name, level }[]` object arrays (case-insensitive)
+- [x] Unit: `spell-action-handler.test.ts` — casting unprepared leveled spell throws ValidationError for Wizard
+- [x] Unit: `spell-action-handler.test.ts` — casting cantrip always succeeds regardless of prepared list
+- [x] Unit: `spell-action-handler.test.ts` — casting prepared spell succeeds
+- [x] Unit: `spell-action-handler.test.ts` — legacy sheet (no preparedSpells) passes enforcement (backward compat)
+- [x] Unit: `spell-action-handler.test.ts` — non-caster class (Fighter) not subject to enforcement
+- [x] E2E: `scripts/test-harness/scenarios/wizard/spell-preparation-enforced.json` — Wizard attempts to cast unprepared spell, gets validation error
+- [x] Integration: `src/infrastructure/api/app.test.ts` — combat action endpoint rejects unprepared leveled spell with HTTP 400
 
 ## SME Approval (Complex only)
 - [ ] SpellSystem-SME
+
+## Completion Notes
+- Full validation gates are green: typecheck, full unit/integration tests, full E2E `--all`.
+- Plan executed directly via DMDeveloper workflow on user request.

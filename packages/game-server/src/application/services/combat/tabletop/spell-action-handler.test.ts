@@ -24,6 +24,7 @@ const roster: LlmRoster = {
 const characters: SessionCharacterRecord[] = [
   {
     id: ACTOR_ID,
+    className: "wizard",
     sheet: {
       preparedSpells: [
         { name: "Fire Bolt", level: 0, attackType: "ranged_spell", damageDice: "1d10", damageType: "fire" },
@@ -322,6 +323,132 @@ describe("SpellActionHandler", () => {
 
     expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
     expect(deps.actions.castSpell).toHaveBeenCalled();
+  });
+
+  describe("spell preparation enforcement", () => {
+    it("throws ValidationError when wizard casts an unprepared leveled spell", async () => {
+      const restrictedWizard: SessionCharacterRecord[] = [
+        {
+          ...(characters[0] as SessionCharacterRecord),
+          className: "wizard",
+          sheet: {
+            ...(characters[0]?.sheet as Record<string, unknown>),
+            preparedSpells: [{ name: "Magic Missile", level: 1 }],
+            knownSpells: [],
+          },
+        },
+      ];
+
+      await expect(
+        handler.handleCastSpell(
+          SESSION_ID,
+          ENCOUNTER_ID,
+          ACTOR_ID,
+          { spellName: "Burning Hands", targetName: "Goblin" },
+          restrictedWizard,
+          roster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("allows cantrips even when not listed in prepared spells", async () => {
+      const noCantripListed: SessionCharacterRecord[] = [
+        {
+          ...(characters[0] as SessionCharacterRecord),
+          className: "wizard",
+          sheet: {
+            ...(characters[0]?.sheet as Record<string, unknown>),
+            preparedSpells: [{ name: "Magic Missile", level: 1 }],
+          },
+        },
+      ];
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Fire Bolt", targetName: "Goblin" },
+        noCantripListed,
+        roster,
+      );
+
+      expect(result.type).toBe("REQUEST_ROLL");
+    });
+
+    it("allows prepared leveled spells", async () => {
+      const preparedWizard: SessionCharacterRecord[] = [
+        {
+          ...(characters[0] as SessionCharacterRecord),
+          className: "wizard",
+          sheet: {
+            ...(characters[0]?.sheet as Record<string, unknown>),
+            preparedSpells: [{ name: "Burning Hands", level: 1 }],
+          },
+        },
+      ];
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Burning Hands", targetName: "Goblin" },
+        preparedWizard,
+        roster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+    });
+
+    it("keeps backward compatibility for legacy sheets with no prepared lists", async () => {
+      const legacyWizard: SessionCharacterRecord[] = [
+        {
+          ...(characters[0] as SessionCharacterRecord),
+          className: "wizard",
+          sheet: {
+            spellAttackBonus: 5,
+            spellSaveDC: 13,
+            spellcastingAbility: "intelligence",
+            abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 16, wisdom: 10, charisma: 10 },
+          },
+        },
+      ];
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Magic Missile", targetName: "Goblin" },
+        legacyWizard,
+        roster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+    });
+
+    it("does not enforce prepared/known lists for non-casters", async () => {
+      const fighterCaster: SessionCharacterRecord[] = [
+        {
+          ...(characters[0] as SessionCharacterRecord),
+          className: "fighter",
+          sheet: {
+            ...(characters[0]?.sheet as Record<string, unknown>),
+            preparedSpells: [],
+            knownSpells: [],
+          },
+        },
+      ];
+
+      const result = await handler.handleCastSpell(
+        SESSION_ID,
+        ENCOUNTER_ID,
+        ACTOR_ID,
+        { spellName: "Burning Hands", targetName: "Goblin" },
+        fighterCaster,
+        roster,
+      );
+
+      expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
+    });
   });
 
   // ─────────────────────── upcasting (castAtLevel) ────────────────────────
