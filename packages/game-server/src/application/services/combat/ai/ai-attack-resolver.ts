@@ -19,6 +19,7 @@ import type { DiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { nanoid } from "nanoid";
 import { normalizeResources, getActiveEffects, readBoolean, useAttack, getPosition } from "../helpers/resource-utils.js";
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
+import { breakConcentration, getConcentrationSpellName } from "../helpers/concentration-helper.js";
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../helpers/temp-hp.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -490,6 +491,14 @@ export class AiAttackResolver {
           (msg) => aiLog(`[KO] ${msg}`),
         );
 
+        // D&D 5e 2024: Unconscious/0 HP ends concentration immediately.
+        if (hpAfter === 0) {
+          const spellName = getConcentrationSpellName(targetCombatant.resources);
+          if (spellName) {
+            await breakConcentration(targetCombatant, encounterId, combat, (msg) => aiLog(`[KO] ${msg}`));
+          }
+        }
+
         if (hpBefore === 0 && targetCombatant.combatantType === "Character") {
           await applyDamageWhileUnconscious(
             targetCombatant,
@@ -537,6 +546,12 @@ export class AiAttackResolver {
               combat,
               (msg) => aiLog(`[KO] ${msg}`),
             );
+            if (atkHpAfter === 0) {
+              const spellName = getConcentrationSpellName(aiCombatant.resources);
+              if (spellName) {
+                await breakConcentration(aiCombatant, encounterId, combat, (msg) => aiLog(`[KO] ${msg}`));
+              }
+            }
             aiLog(`Retaliatory damage: ${totalRetaliatoryDamage} to AI attacker (HP: ${atkHpBefore} → ${atkHpAfter})`);
           }
         }

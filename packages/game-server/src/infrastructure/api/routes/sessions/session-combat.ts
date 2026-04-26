@@ -17,7 +17,10 @@ import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { setTerrainAt, addGroundItem, type CombatMap, type TerrainType } from "../../../../domain/rules/combat-map.js";
 import type { GroundItem } from "../../../../domain/entities/items/ground-item.js";
+import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { isConcentrationBreakingCondition } from "../../../../domain/rules/concentration.js";
 import { ValidationError } from "../../../../application/errors.js";
+import { breakConcentration, getConcentrationSpellName } from "../../../../application/services/combat/helpers/concentration-helper.js";
 import type { JsonValue } from "../../../../application/types.js";
 import { nanoid } from "nanoid";
 
@@ -402,6 +405,24 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
     }
 
     const updated = await deps.combatRepo.updateCombatantState(combatantId, patch as any);
+
+    // D&D 5e 2024: concentration ends on Incapacitated (and implied conditions)
+    // and when HP drops to 0 (dying/dead). DM overrides must enforce the same rules.
+    const hasConcentration = !!getConcentrationSpellName(updated.resources);
+    if (hasConcentration) {
+      const hasBreakingCondition = normalizeConditions(updated.conditions).some((c) =>
+        isConcentrationBreakingCondition(c.condition),
+      );
+      const droppedToZeroHp = typeof updated.hpCurrent === "number" && updated.hpCurrent <= 0;
+      if (hasBreakingCondition || droppedToZeroHp) {
+        const broken = await breakConcentration(updated, encounterId, deps.combatRepo);
+        if (broken) {
+          const refreshed = (await deps.combatRepo.listCombatants(encounterId)).find((c) => c.id === combatantId);
+          if (refreshed) return refreshed;
+        }
+      }
+    }
+
     return updated;
   });
 }

@@ -46,6 +46,7 @@ import { normalizeConditions } from "../../../../domain/entities/combat/conditio
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
+import { breakConcentration, getConcentrationSpellName } from "../helpers/concentration-helper.js";
 
 /**
  * LLM-driven tactical decision-making for AI-controlled combatants.
@@ -1152,6 +1153,15 @@ export class AiTurnOrchestrator {
       this.combat,
       (msg) => this.aiLog(`[LegendaryAction KO] ${msg}`),
     );
+
+    if (newHp === 0) {
+      const spellName = getConcentrationSpellName(target.resources);
+      if (spellName) {
+        await breakConcentration(target, encounterId, this.combat, (msg) =>
+          this.aiLog(`[LegendaryAction KO] ${msg}`),
+        );
+      }
+    }
 
     this.aiLog(`[LegendaryAction] Damage: ${totalDamage} ${dmgType ?? ""} → target HP ${hpBefore} → ${newHp}`);
 

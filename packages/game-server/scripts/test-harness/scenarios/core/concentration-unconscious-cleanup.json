@@ -1,0 +1,157 @@
+{
+  "name": "Concentration cleanup on Unconscious caster (Hold Person)",
+  "description": "Wizard casts Hold Person on a humanoid target, then is reduced to 0 HP (Unconscious) by a deterministic monster hit on the following round. 2024 behavior: concentration ends and linked Hold Person ActiveEffect source is removed.",
+  "setup": {
+    "character": {
+      "name": "Elara",
+      "className": "Wizard",
+      "level": 3,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8, "dexterity": 14, "constitution": 10,
+          "intelligence": 18, "wisdom": 12, "charisma": 10
+        },
+        "maxHp": 8, "currentHp": 8, "armorClass": 12, "speed": 30,
+        "proficiencyBonus": 2,
+        "saveProficiencies": [],
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 6,
+        "spellSlots": { "1": 4, "2": 2 },
+        "preparedSpells": [
+          { "name": "Hold Person", "level": 2 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff", "kind": "melee", "range": "melee",
+            "attackBonus": 0,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Bandit Enforcer",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 19, "dexterity": 8, "constitution": 16,
+            "intelligence": 10, "wisdom": 10, "charisma": 10
+          },
+          "maxHp": 200, "hp": 200, "armorClass": 11, "speed": 30,
+          "challengeRating": 2, "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub", "kind": "melee", "attackBonus": 8,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat.",
+      "input": { "text": "I prepare for battle" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Elara goes first.",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Establish concentration and linked effect on target.",
+      "input": { "text": "cast Hold Person on Bandit Enforcer" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "action": "CastSpell" }
+    },
+    {
+      "type": "assertState",
+      "comment": "Baseline: concentration and Hold Person source present before KO.",
+      "expect": {
+        "characterConcentration": "Hold Person",
+        "monsterConcentration": { "name": "Bandit Enforcer", "spell": null },
+        "monsterActiveEffects": {
+          "name": "Bandit Enforcer",
+          "hasSources": ["Hold Person"]
+        }
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force hit + high damage so Elara reaches 0 HP.",
+      "input": { "values": [19, 12] }
+    },
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          {
+            "action": "attack",
+            "target": "Elara",
+            "attackName": "Greatclub",
+            "endTurn": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Second-round forced hit + damage to ensure KO after Hold Person save-to-end resolves.",
+      "input": { "values": [19, 12] }
+    },
+    {
+      "type": "queueMonsterActions",
+      "input": {
+        "decisions": [
+          {
+            "action": "attack",
+            "target": "Elara",
+            "attackName": "Greatclub",
+            "endTurn": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Pass Elara's turn so Bandit Enforcer can act on round 2."
+    },
+    {
+      "type": "waitForTurn",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "After Unconscious (0 HP), concentration is cleared and linked Hold Person source is removed.",
+      "expect": {
+        "characterHp": { "exact": 0 },
+        "characterConcentration": null,
+        "monsterConcentration": { "name": "Bandit Enforcer", "spell": null },
+        "monsterActiveEffects": {
+          "name": "Bandit Enforcer",
+          "doesNotHaveSources": ["Hold Person"]
+        }
+      }
+    }
+  ]
+}
