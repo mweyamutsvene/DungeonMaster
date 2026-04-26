@@ -228,6 +228,25 @@ export class AiTurnOrchestrator {
   }
 
   /**
+   * Encourage post-spell tactical follow-up by taking one more decision pass
+   * when movement or bonus action is still available.
+   */
+  private shouldReevaluateAfterAction(
+    decision: AiDecision,
+    resultOk: boolean,
+    resources: unknown,
+  ): boolean {
+    if (!resultOk) return false;
+    if (decision.action !== "castSpell") return false;
+    if (decision.endTurn === false) return false;
+
+    const normalized = normalizeResources(resources);
+    const movementAvailable = normalized.movementSpent !== true;
+    const bonusAvailable = normalized.bonusActionUsed !== true;
+    return movementAvailable || bonusAvailable;
+  }
+
+  /**
    * Check if current turn belongs to an AI-controlled combatant and auto-process if needed
    * Returns true if an AI turn was processed
    */
@@ -647,6 +666,16 @@ export class AiTurnOrchestrator {
         } else {
           this.aiLog(`[AiTurnOrchestrator] Bonus action already spent by handler, skipping orchestrator-level execution`);
         }
+      }
+
+      // Strategic follow-up: after a successful spell, re-evaluate once more so the AI can
+      // react to the fresh board state (for example, reposition or spend a bonus action)
+      // instead of auto-ending on the initial cast decision.
+      if (this.shouldReevaluateAfterAction(decision, result.ok, currentAiCombatant.resources)) {
+        this.aiLog(
+          `[AiTurnOrchestrator] ${decision.action} resolved with available follow-up economy - requesting another decision pass`,
+        );
+        continue;
       }
 
       // Check if turn should end

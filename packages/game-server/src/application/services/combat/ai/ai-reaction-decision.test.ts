@@ -289,4 +289,55 @@ describe("AI Reaction Decision (aiDecideReaction)", () => {
       expect(result).toBe(true);
     });
   });
+
+  describe("post-spell follow-up policy", () => {
+    function shouldReevaluate(decision: Record<string, unknown>, ok: boolean, resources: Record<string, unknown>): boolean {
+      return (orchestrator as any).shouldReevaluateAfterAction(decision, ok, resources);
+    }
+
+    it("re-evaluates after successful castSpell when movement remains", () => {
+      const result = shouldReevaluate(
+        { action: "castSpell", endTurn: true },
+        true,
+        { movementSpent: false, bonusActionUsed: true },
+      );
+      expect(result).toBe(true);
+    });
+
+    it("re-evaluates after successful castSpell when bonus action remains", () => {
+      const result = shouldReevaluate(
+        { action: "castSpell", endTurn: true },
+        true,
+        { movementSpent: true, bonusActionUsed: false },
+      );
+      expect(result).toBe(true);
+    });
+
+    it("does not re-evaluate after castSpell when both movement and bonus are spent", () => {
+      const result = shouldReevaluate(
+        { action: "castSpell", endTurn: true },
+        true,
+        { movementSpent: true, bonusActionUsed: true },
+      );
+      expect(result).toBe(false);
+    });
+
+    it("does not re-evaluate for non-spell actions", () => {
+      const result = shouldReevaluate(
+        { action: "attack", endTurn: true },
+        true,
+        { movementSpent: false, bonusActionUsed: false },
+      );
+      expect(result).toBe(false);
+    });
+
+    it("does not re-evaluate if action failed", () => {
+      const result = shouldReevaluate(
+        { action: "castSpell", endTurn: true },
+        false,
+        { movementSpent: false, bonusActionUsed: false },
+      );
+      expect(result).toBe(false);
+    });
+  });
 });
