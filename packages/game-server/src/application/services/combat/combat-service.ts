@@ -631,7 +631,8 @@ export class CombatService {
 
     for (const record of combatantRecords) {
       const structuredConditions = normalizeConditions(record.conditions);
-      const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId);
+      const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId ?? undefined;
+      const { remaining, removed } = removeExpiredConditions(structuredConditions, "end_of_turn", outgoingEntityId, recordEntityId);
       if (removed.length > 0) {
         await this.combat.updateCombatantState(record.id, {
           conditions: remaining as JsonValue,
@@ -750,8 +751,8 @@ export class CombatService {
     const latestRecords = await this.combat.listCombatants(encounter.id);
     for (const record of latestRecords) {
       const structuredConditions = normalizeConditions(record.conditions);
-      const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId;
-      const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId);
+      const recordEntityId = record.characterId ?? record.monsterId ?? record.npcId ?? undefined;
+      const { remaining, removed } = removeExpiredConditions(structuredConditions, "start_of_turn", activeEntityId, recordEntityId);
       if (removed.length > 0) {
         await this.combat.updateCombatantState(record.id, {
           conditions: remaining as JsonValue,

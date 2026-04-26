@@ -18,6 +18,8 @@ import {
   createCondition,
   addCondition,
   hasCondition,
+  normalizeConditions,
+  removeExpiredConditions,
   type ActiveCondition,
 } from "./conditions.js";
 
@@ -610,6 +612,47 @@ describe("getConditionEffects", () => {
     it("adding other conditions does not auto-apply Prone", () => {
       const result = addCondition([], createCondition("Stunned", "until_removed"));
       expect(hasCondition(result, "Prone")).toBe(false);
+    });
+  });
+
+  describe("round-duration normalization and expiry", () => {
+    it("normalizes legacy 'round' duration into one rounds tick", () => {
+      const normalized = normalizeConditions([
+        { condition: "Deafened", duration: "round" },
+      ]);
+
+      expect(normalized).toHaveLength(1);
+      expect(normalized[0]?.duration).toBe("rounds");
+      expect(normalized[0]?.roundsRemaining).toBe(1);
+    });
+
+    it("expires one-round conditions at the owner's next turn start", () => {
+      const initial = normalizeConditions([
+        { condition: "Deafened", duration: "round" },
+      ]);
+
+      const afterOtherStart = removeExpiredConditions(initial, "start_of_turn", "monster-1", "character-1");
+      expect(afterOtherStart.removed).toEqual([]);
+      expect(afterOtherStart.remaining).toHaveLength(1);
+      expect(afterOtherStart.remaining[0]?.roundsRemaining).toBe(1);
+
+      const atOwnerStart = removeExpiredConditions(afterOtherStart.remaining, "start_of_turn", "character-1", "character-1");
+      expect(atOwnerStart.remaining).toHaveLength(0);
+      expect(atOwnerStart.removed).toEqual(["Deafened"]);
+    });
+
+    it("decrements multi-round conditions on owner turn start", () => {
+      const initial = normalizeConditions([
+        { condition: "Poisoned", duration: "rounds", roundsRemaining: 2 },
+      ]);
+
+      const firstTick = removeExpiredConditions(initial, "start_of_turn", "character-1", "character-1");
+      expect(firstTick.removed).toEqual([]);
+      expect(firstTick.remaining[0]?.roundsRemaining).toBe(1);
+
+      const secondTick = removeExpiredConditions(firstTick.remaining, "start_of_turn", "character-1", "character-1");
+      expect(secondTick.remaining).toHaveLength(0);
+      expect(secondTick.removed).toEqual(["Poisoned"]);
     });
   });
 });

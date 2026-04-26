@@ -70,6 +70,49 @@ export interface ActiveCondition {
   };
 }
 
+const CONDITION_DURATIONS: readonly ConditionDuration[] = [
+  "instant",
+  "until_end_of_turn",
+  "until_start_of_next_turn",
+  "until_end_of_next_turn",
+  "rounds",
+  "until_removed",
+  "permanent",
+];
+
+function isConditionDuration(value: unknown): value is ConditionDuration {
+  return typeof value === "string" && CONDITION_DURATIONS.includes(value as ConditionDuration);
+}
+
+function normalizeActiveConditionDuration(condition: ActiveCondition): ActiveCondition {
+  const rawDuration = (condition as { duration?: unknown }).duration;
+
+  if (rawDuration === "round") {
+    return {
+      ...condition,
+      duration: "rounds",
+      roundsRemaining: typeof condition.roundsRemaining === "number" ? condition.roundsRemaining : 1,
+    };
+  }
+
+  if (!isConditionDuration(rawDuration)) {
+    return {
+      ...condition,
+      duration: "until_removed",
+      roundsRemaining: undefined,
+    };
+  }
+
+  if (rawDuration === "rounds" && condition.roundsRemaining === undefined) {
+    return {
+      ...condition,
+      roundsRemaining: 1,
+    };
+  }
+
+  return condition;
+}
+
 /**
  * Condition effects on creature capabilities
  */
@@ -633,7 +676,7 @@ export function normalizeConditions(conditions: unknown): ActiveCondition[] {
   if (conditions.length === 0) return [];
 
   if (isActiveConditionArray(conditions)) {
-    return conditions;
+    return conditions.map((condition) => normalizeActiveConditionDuration(condition));
   }
 
   // Legacy string[] format
@@ -713,15 +756,17 @@ export function removeExpiredConditions(
   conditions: readonly ActiveCondition[],
   event: 'start_of_turn' | 'end_of_turn',
   combatantId: string,
+  ownerCombatantId?: string,
 ): { remaining: ActiveCondition[]; removed: Condition[] } {
   const remaining: ActiveCondition[] = [];
   const removed: Condition[] = [];
 
   for (const c of conditions) {
+    let nextCondition = normalizeActiveConditionDuration(c);
     let expired = false;
 
     // Check expiresAt-based expiry
-    if (c.expiresAt && c.expiresAt.event === event && c.expiresAt.combatantId === combatantId) {
+    if (nextCondition.expiresAt && nextCondition.expiresAt.event === event && nextCondition.expiresAt.combatantId === combatantId) {
       expired = true;
     }
 
@@ -730,23 +775,43 @@ export function removeExpiredConditions(
     // precedence over generic duration-based expiry. This prevents conditions like Stunned
     // (which should expire at start of the MONK's next turn) from being removed at the
     // start of ANY creature's turn.
-    if (!expired && !c.expiresAt) {
-      if (event === 'end_of_turn' && c.duration === 'until_end_of_turn') {
+    if (!expired && !nextCondition.expiresAt) {
+      if (event === 'end_of_turn' && nextCondition.duration === 'until_end_of_turn') {
         // Expires at end of the turn it was applied — combatantId should match the actor
         expired = true;
       }
-      if (event === 'start_of_turn' && c.duration === 'until_start_of_next_turn') {
+      if (event === 'start_of_turn' && nextCondition.duration === 'until_start_of_next_turn') {
         expired = true;
       }
-      if (event === 'end_of_turn' && c.duration === 'until_end_of_next_turn') {
+      if (event === 'end_of_turn' && nextCondition.duration === 'until_end_of_next_turn') {
         expired = true;
+      }
+
+      // Legacy/DM override support: round-based conditions tick at the affected
+      // creature's own turn start, so one round means "until your next turn".
+      if (
+        !expired &&
+        event === 'start_of_turn' &&
+        nextCondition.duration === 'rounds' &&
+        ownerCombatantId !== undefined &&
+        ownerCombatantId === combatantId
+      ) {
+        const nextRounds = (nextCondition.roundsRemaining ?? 1) - 1;
+        if (nextRounds <= 0) {
+          expired = true;
+        } else {
+          nextCondition = {
+            ...nextCondition,
+            roundsRemaining: nextRounds,
+          };
+        }
       }
     }
 
     if (expired) {
-      removed.push(c.condition);
+      removed.push(nextCondition.condition);
     } else {
-      remaining.push(c);
+      remaining.push(nextCondition);
     }
   }
 
