@@ -1,5 +1,13 @@
 # Scenario JSON Schema Reference
 
+This file describes the current runner-facing scenario shape.
+
+Important constraint:
+
+- `setup.sheet` for characters and `setup.monsters[].statBlock` for monsters are mostly pass-through objects.
+- The runner itself only strongly knows the top-level scenario shape and a few setup container keys.
+- For detailed sheet and stat-block structure, the most reliable reference is a nearby passing scenario in the same coverage area.
+
 ## Top-Level Structure
 
 ```typescript
@@ -13,70 +21,48 @@
 
 ## Setup: Character
 
+The runner accepts either:
+
+- `setup.character` for a single-PC scenario
+- `setup.characters` for a multi-PC scenario
+
+`character` is legacy but still supported.
+
 ```typescript
 {
   character: {
-    name: string;            // Display name — used in action text and assertions
-    className: string;       // "Fighter" | "Cleric" | "Monk" | "Rogue" | "Wizard" | "Barbarian" | "Paladin" | "Warlock"
-    level: number;           // Class level (affects Extra Attack, proficiency, features)
-    subclass?: string;       // e.g., "Life", "Champion", "Open Hand"
-    position?: { x: number; y: number }; // Grid position (default varies)
-    sheet: {
-      abilityScores: {
-        strength: number;
-        dexterity: number;
-        constitution: number;
-        intelligence: number;
-        wisdom: number;
-        charisma: number;
-      };
-      maxHp: number;
-      currentHp: number;
-      armorClass: number;
-      speed: number;           // Movement speed in feet (typically 30)
-      proficiencyBonus: number;
-
-      // Spellcasting (optional — required for casters)
-      spellcastingAbility?: string;  // "wisdom" | "intelligence" | "charisma"
-      spellSaveDC?: number;
-      spellAttackBonus?: number;
-      spellSlots?: Record<string, number>; // { "1": 4, "2": 3, "3": 2 }
-      preparedSpells?: Array<{
-        name: string;   // Must match spell catalog name exactly
-        level: number;  // 0 for cantrips
-      }>;
-
-      // Attacks (weapon-based)
-      attacks: Array<{
-        name: string;
-        kind: "melee" | "ranged";
-        range?: string;          // "melee" or "60/120" for ranged
-        attackBonus: number;
-        damage: {
-          diceCount: number;
-          diceSides: number;
-          modifier: number;
-        };
-        damageType: string;      // "slashing" | "bludgeoning" | "piercing" | "radiant" | etc.
-        properties?: string[];   // "light", "finesse", "two-handed", "thrown", "nick", etc.
-      }>;
-
-      // Class features (optional)
-      features?: Array<{
-        name: string;
-        description: string;
-      }>;
-
-      // Resource pools (optional — e.g., ki, channelDivinity, rage)
-      resourcePools?: Array<{
-        name: string;    // "ki", "channelDivinity", "rage", "actionSurge", "secondWind"
-        current: number;
-        max: number;
-      }>;
-    }
+    name: string;
+    className: string;
+    level: number;
+    subclass?: string;
+    position?: { x: number; y: number };
+    sheet?: Record<string, unknown>;
   }
 }
 ```
+
+Common `sheet` fields seen in live scenarios include:
+
+- `abilityScores`
+- `maxHp`
+- `currentHp`
+- `armorClass`
+- `speed`
+- `proficiencyBonus`
+- `attacks`
+- `spellcastingAbility`
+- `spellSaveDC`
+- `spellAttackBonus`
+- `spellSlots`
+- `preparedSpells`
+- `resourcePools`
+- `features`
+- `inventory`
+- `conditions`
+- `featIds`
+- `saveProficiencies`
+
+Use nearby scenarios to confirm the detailed shape needed for a given class or feature.
 
 ### Multi-PC Setup
 
@@ -98,43 +84,36 @@ Use `characters` (array) instead of `character` for multi-PC scenarios. Each ent
   monsters: Array<{
     name: string;
     position?: { x: number; y: number };
-    statBlock: {
-      type?: string;               // "undead", "beast", "humanoid", etc. (affects Turn Undead)
-      abilityScores: { ... };      // Same as character
-      maxHp: number;
-      hp: number;                  // NOTE: monsters use "hp", not "currentHp"
-      armorClass: number;
-      speed: number;
-      challengeRating: number;     // Affects XP and Destroy Undead threshold
-      experienceValue?: number;
-      savingThrows?: Record<string, number>; // e.g., { "wisdom": -1 }
-      damageVulnerabilities?: string[];      // e.g., ["radiant"]
-      damageResistances?: string[];
-      damageImmunities?: string[];
-      conditionImmunities?: string[];
-
-      attacks: Array<{
-        name: string;
-        kind: "melee" | "ranged";
-        attackBonus: number;
-        damage: {
-          diceCount: number;
-          diceSides: number;
-          modifier: number;
-        };
-        damageType: string;
-        range?: string;
-      }>;
-
-      // Optional
-      bonusActions?: Array<{ name: string; description: string }>;
-      multiattack?: string;  // Description like "Two claw attacks"
-    }
+    statBlock: Record<string, unknown>
   }>
 }
 ```
 
-> **KEY DIFFERENCE**: Monsters use `hp` field; characters use `currentHp` field.
+Important convention:
+
+- Monsters use `hp` inside `statBlock`.
+- Characters use `currentHp` inside `sheet`.
+
+Common monster `statBlock` fields seen in live scenarios include:
+
+- `type`
+- `abilityScores`
+- `maxHp`
+- `hp`
+- `armorClass`
+- `speed`
+- `challengeRating`
+- `experienceValue`
+- `savingThrows`
+- `damageVulnerabilities`
+- `damageResistances`
+- `damageImmunities`
+- `conditionImmunities`
+- `actions`
+- `bonusActions`
+- `attacks`
+
+If a monster takes multiple attacks or has named actions, include the relevant `actions` and `attacks` entries explicitly.
 
 ## Setup: AI Configuration
 
@@ -158,9 +137,9 @@ Use `characters` (array) instead of `character` for multi-PC scenarios. Each ent
   npcs?: Array<{
     name: string;
     position?: { x: number; y: number };
-    faction?: string;         // "party" or "enemy"
-    aiControlled?: boolean;   // true = AI takes turns for this NPC
-    statBlock: { ... };       // Same as monster statBlock
+    faction?: string;
+    aiControlled?: boolean;
+    statBlock: Record<string, unknown>;
   }>
 }
 ```
@@ -193,25 +172,26 @@ Use `characters` (array) instead of `character` for multi-PC scenarios. Each ent
 }
 ```
 
-## Spell Name Reference (Common)
+## Action-Level Setup Helpers
 
-Spell names must match the catalog exactly. Common spells by class:
+Some encounter state is not part of `setup` and must be expressed as actions:
 
-### Cleric
-- Cantrips: `Sacred Flame`, `Toll the Dead`, `Guidance`, `Light`
-- Level 1: `Guiding Bolt`, `Cure Wounds`, `Healing Word`, `Bless`, `Shield of Faith`, `Inflict Wounds`
-- Level 2: `Spiritual Weapon`, `Hold Person`, `Lesser Restoration`
-- Level 3: `Spirit Guardians`, `Revivify`, `Dispel Magic`
+- `setSurprise` before initiative
+- `setTerrain` after combat exists
+- `queueMonsterActions` for deterministic AI turns
+- `queueDiceRolls` for deterministic internal dice
 
-### Wizard
-- Cantrips: `Fire Bolt`, `Ray of Frost`, `Shocking Grasp`
-- Level 1: `Magic Missile`, `Shield`, `Burning Hands`, `Thunderwave`
-- Level 2: `Scorching Ray`, `Misty Step`, `Hold Person`
-- Level 3: `Fireball`, `Counterspell`, `Lightning Bolt`
+## Spell Names and Combat Text
 
-### Warlock
-- Cantrips: `Eldritch Blast`
-- Level 1: `Hex`, `Hellish Rebuke`
+Spell names and free-text action commands still need to line up with what the parser and catalog recognize. The safest authoring pattern is:
 
-### Paladin
-- Level 1: `Cure Wounds`, `Bless`, `Shield of Faith`, `Thunderous Smite`
+- copy spell names from a nearby passing scenario
+- keep casing and wording close to existing successful commands
+- only invent new phrasing when you have a concrete parser reason to do so
+
+## Practical Authoring Guidance
+
+- Start from the smallest passing scenario that already covers the same system.
+- Only add fields the scenario actually needs.
+- Prefer honest setup over doc-driven shortcuts. If the spell needs inventory, add inventory. If the feature needs a resource pool, add the pool.
+- When in doubt, use the live runner and a nearby passing scenario as the source of truth.

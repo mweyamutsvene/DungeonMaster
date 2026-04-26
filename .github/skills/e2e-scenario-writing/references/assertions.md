@@ -1,15 +1,24 @@
 # Assertions Reference
 
-All fields available in `assertState` actions. Multiple fields can be combined in a single assertion step.
+These are the fields currently accepted by `assertState` in `scenario-runner.ts`.
+
+Multiple fields can be combined in one assertion step.
+
+In multi-PC scenarios, set `actor` on the `assertState` action when you mean a character other than the default first character.
 
 ## Character Assertions
 
 ### `characterHp`
-Assert player character's current HP within a range.
+Assert player character current HP within a range.
 
 ```json
 { "characterHp": { "min": 30, "max": 42 } }
 ```
+
+Notes:
+
+- Supports `min` and `max`.
+- Does not support `exact` in the current runner.
 
 ### `characterResource`
 Assert a resource pool value. Pool names are exact strings.
@@ -18,17 +27,7 @@ Assert a resource pool value. Pool names are exact strings.
 { "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 } }
 ```
 
-Common pool names:
-| Pool | Description |
-|------|-------------|
-| `spellSlot_1` | Level 1 spell slots |
-| `spellSlot_2` | Level 2 spell slots |
-| `spellSlot_3` | Level 3 spell slots |
-| `ki` | Monk ki points |
-| `channelDivinity` | Cleric/Paladin channel divinity uses |
-| `rage` | Barbarian rage uses |
-| `actionSurge` | Fighter action surge uses |
-| `secondWind` | Fighter second wind uses |
+Common examples include `spellSlot_1`, `spellSlot_2`, `spellSlot_3`, `ki`, `channelDivinity`, `rage`, `actionSurge`, `secondWind`, and other scenario-specific pool names.
 
 ### `characterConcentration`
 Assert what spell the character is concentrating on, or `null` for no concentration.
@@ -44,11 +43,13 @@ Assert conditions on the player character.
 ```json
 {
   "characterConditions": {
-    "hasConditions": ["Blessed"],
+    "hasConditions": ["Prone"],
     "doesNotHaveConditions": ["Stunned", "Prone"]
   }
 }
 ```
+
+Condition matching is case-insensitive.
 
 ### `characterPosition`
 Assert the player character's grid position.
@@ -107,6 +108,8 @@ Assert a specific monster's HP by name.
 { "monsterHp": { "name": "Zombie", "max": 30 } }
 ```
 
+Supports `min`, `max`, and `exact`.
+
 ### `monsterPosition`
 Assert a monster's grid position.
 
@@ -127,8 +130,10 @@ Assert conditions on a specific monster.
 }
 ```
 
+Condition matching is case-insensitive.
+
 ### `monsterActiveEffects`
-Assert active effect sources on a monster.
+Assert active effect source strings on a monster.
 
 ```json
 {
@@ -139,6 +144,8 @@ Assert active effect sources on a monster.
   }
 }
 ```
+
+Matching is substring-based and case-insensitive.
 
 ### `monsterConcentration`
 Assert a monster's concentration state.
@@ -155,6 +162,8 @@ Assert temporary HP on a monster.
 { "monsterTempHp": { "name": "Goblin Boss", "exact": 10 } }
 ```
 
+Supports `min`, `max`, and `exact`.
+
 ## Combat State Assertions
 
 ### `combatStatus`
@@ -165,6 +174,13 @@ Assert the overall combat state.
 ```
 
 Values: `"Pending"` | `"Active"` | `"Complete"`
+
+### `monstersAlive`
+Assert the number of monsters with HP above 0.
+
+```json
+{ "monstersAlive": 2 }
+```
 
 ## Ground Item Assertions
 
@@ -182,6 +198,8 @@ Assert a specific item exists on the map.
 { "groundItemExists": { "name": "Longsword", "nearPosition": { "x": 10, "y": 10 } } }
 ```
 
+The current checker treats `nearPosition` as within 5 units by Euclidean distance.
+
 ### `groundItemsHas`
 Assert multiple ground items exist.
 
@@ -198,8 +216,8 @@ Assert an item does NOT exist on the ground.
 
 ## Tips
 
-- Use `min`/`max` ranges for HP when dice rolls make exact values unpredictable (e.g., after zone spell damage with random saves)
-- Use `exact` when values are deterministic (e.g., after a known damage amount)
-- Combine multiple assertions in one `assertState` step to validate multiple conditions simultaneously
-- Add assertions between major combat phases as checkpoints — they catch bugs earlier and make debugging easier
-- The `actor` field on `assertState` lets you check a specific character in multi-PC scenarios
+- Use `min` and `max` for player HP because `characterHp` does not support `exact`.
+- Use `exact` for fields that support it, such as `monsterHp`, `characterTempHp`, and `monsterTempHp`.
+- Combine multiple assertions in one step when they describe the same checkpoint.
+- Add checkpoint assertions after major turn boundaries so failures localize cleanly.
+- Use `actor` whenever a character assertion is meant for a non-default character.

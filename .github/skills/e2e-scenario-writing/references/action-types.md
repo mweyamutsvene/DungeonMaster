@@ -1,125 +1,128 @@
 # Action Types Reference
 
-All 20 action types available in the scenario runner, with examples.
+The current scenario runner supports 22 action types.
 
----
+These come from `packages/game-server/scripts/test-harness/scenario-runner.ts`. If this file and the runner disagree, trust the runner.
 
-## 1. `initiate` — Start Combat
+## Quick Matrix
 
-Sends a combat action text that triggers initiative. The server responds asking for an initiative roll.
+| Type | Purpose |
+|------|---------|
+| `initiate` | Start combat and request initiative |
+| `rollResult` | Submit a pending initiative, attack, damage, or other roll |
+| `action` | Perform a player combat action from free text |
+| `npcAction` | Perform an action as an allied NPC |
+| `applyCondition` | DM override to apply a condition directly |
+| `moveComplete` | Finish a pending move, including OA resolution |
+| `playerOaRoll` | Submit a player opportunity attack roll |
+| `waitForPlayerOa` | Wait for an AI move that prompts a player OA |
+| `waitForShieldReaction` | Wait for a Shield reaction prompt |
+| `waitForReaction` | Wait for another named reaction prompt |
+| `configureAi` | Change default or per-monster AI behavior |
+| `queueMonsterActions` | Queue deterministic monster decisions |
+| `reactionRespond` | Use or decline a pending reaction |
+| `rollInterruptResolve` | Resolve a pending d20 interrupt such as Lucky, Portent, or Bardic Inspiration |
+| `queueDiceRolls` | Queue deterministic server-side die results |
+| `assertState` | Read combat state and assert it |
+| `endTurn` | End the current character turn |
+| `waitForTurn` | Wait until a character's turn returns |
+| `query` | Test query-style LLM intent parsing |
+| `setTerrain` | Apply terrain zones to the combat map |
+| `setSurprise` | Set surprise state before initiative |
+| `rest` | Take a short or long rest |
+
+## Core Turn Flow Actions
+
+### `initiate`
+
+Starts combat using free-text input and expects an initiative request.
 
 ```json
 {
   "type": "initiate",
-  "actor": "Hero Name",
-  "input": { "text": "I attack the goblin" },
-  "expect": {
-    "rollType": "initiative",
-    "requiresPlayerInput": true,
-    "disadvantage": false,
-    "advantage": false
-  }
+  "actor": "Vanguard",
+  "input": { "text": "attack Raider with Longsword" },
+  "expect": { "rollType": "initiative", "requiresPlayerInput": true }
 }
 ```
 
-- `actor` — optional, defaults to first character
-- Any attack/spell text works as the trigger
+Supported expectation fields:
 
----
+- `rollType`
+- `requiresPlayerInput`
+- `disadvantage`
+- `advantage`
 
-## 2. `rollResult` — Submit a Dice Roll
+### `rollResult`
 
-Submits a roll result for the current pending roll (initiative, attack, damage, save).
+Submits the currently pending player roll.
 
 ```json
 {
   "type": "rollResult",
   "input": { "text": "I rolled 18" },
-  "expect": {
-    "rollType": "damage",
-    "hit": true,
-    "isCritical": false,
-    "combatStarted": true,
-    "actionComplete": false,
-    "requiresPlayerInput": true,
-    "combatEnded": false,
-    "deathSaveResult": "success",
-    "deathSaves": { "successes": 1, "failures": 0 },
-    "eligibleEnhancements": [{ "keyword": "stunningStrike" }],
-    "stunningStrike": { "saved": false, "conditionApplied": "Stunned" },
-    "openHandTechnique": { "saved": true }
-  }
+  "expect": { "hit": true, "requiresPlayerInput": true, "rollType": "damage" }
 }
 ```
 
-**Roll format**: `"18"`, `"I rolled 18"`, `"rolled a 15"` — natural language parsed.
+Roll text is natural-language tolerant. Examples: `"18"`, `"I rolled 18"`, `"rolled a 15"`.
 
-**After initiative**: `combatStarted: true` on success.
-**After attack**: `hit: true/false`, then `rollType: "damage"` if hit.
-**After damage**: `actionComplete: true` (unless Extra Attack chains).
+Supported expectation fields include:
 
----
+- `rollType`
+- `hit`
+- `isCritical`
+- `combatStarted`
+- `actionComplete`
+- `requiresPlayerInput`
+- `combatEnded`
+- `victoryStatus`
+- `deathSaveResult`
+- `deathSaves`
+- `uncannyMetabolism`
+- `openHandTechnique`
+- `stunningStrike`
+- `eligibleEnhancements`
+- `initiativeSwapOffer`
+- `currentTurnActor`
+- `error`
+- `errorContains`
 
-## 3. `action` — Player Combat Action
+### `action`
 
-The primary action type for player turns. Sends free-text combat commands.
+Performs a player turn action from free text.
 
 ```json
 {
   "type": "action",
-  "actor": "Hero Name",
-  "input": { "text": "cast Spirit Guardians" },
-  "comment": "Cast concentration spell",
-  "expect": {
-    "rollType": "attack",
-    "requiresPlayerInput": true,
-    "actionComplete": true,
-    "type": "SIMPLE_ACTION_COMPLETE",
-    "error": false,
-    "errorContains": "Cannot cast",
-    "advantage": true,
-    "disadvantage": false
-  }
+  "actor": "Arcane Tester",
+  "input": { "text": "cast Fire Bolt at Goblin Dummy" },
+  "expect": { "rollType": "attack", "requiresPlayerInput": true }
 }
 ```
 
-### Common action text patterns
+Typical text patterns:
 
-| Pattern | Example |
-|---------|---------|
-| Attack | `"I attack the Goblin with my Longsword"` |
-| Spell (attack roll) | `"cast Guiding Bolt at Skeleton Archer"` |
-| Spell (save-based) | `"cast Sacred Flame at Ghoul"` |
-| Spell (buff/heal) | `"cast Bless on Brother Aldric"` |
-| Spell (bonus action) | `"cast Healing Word on Brother Aldric"` |
-| Spell (concentration) | `"cast Spirit Guardians"` (no target needed for self-centered) |
-| Move | `"move to (35, 10)"` |
-| Class ability | `"action surge"`, `"second wind"`, `"flurry of blows"` |
-| Channel divinity | `"turn undead"` |
-| Dodge | `"dodge"` |
-| Dash | `"dash"` |
-| Disengage | `"disengage"` |
-| Help | `"help"` |
-| Hide | `"hide"` |
-| End turn | Use `endTurn` action type instead |
+- attacks
+- spells
+- movement
+- class features
+- utility actions such as `dodge`, `dash`, `disengage`, `help`, `hide`
 
-### Handling errors
+Supported expectation fields:
 
-To test that an action is correctly rejected:
-```json
-{
-  "type": "action",
-  "input": { "text": "cast Healing Word on Brother Aldric" },
-  "comment": "Should fail — two-spell rule: leveled action spell already cast",
-  "expect": { "error": true, "errorContains": "Cannot cast a leveled bonus action spell" }
-}
-```
+- `rollType`
+- `requiresPlayerInput`
+- `actionComplete`
+- `type`
+- `error`
+- `errorContains`
+- `advantage`
+- `disadvantage`
 
----
+### `npcAction`
 
-## 4. `npcAction` — NPC Combat Action
-
-Execute an action as a party-allied NPC.
+Executes a combat action as an allied NPC by index.
 
 ```json
 {
@@ -129,59 +132,35 @@ Execute an action as a party-allied NPC.
 }
 ```
 
----
+### `endTurn`
 
-## 5. `endTurn` — End Player's Turn
-
-Ends the current character's turn, advancing to the next combatant.
+Ends the acting character's turn.
 
 ```json
 {
   "type": "endTurn",
-  "actor": "Hero Name",
-  "expect": { "nextCombatant": "Goblin" }
+  "actor": "Vanguard",
+  "expect": { "nextCombatant": "Raider" }
 }
 ```
 
----
+### `waitForTurn`
 
-## 6. `waitForTurn` — Wait for Player's Next Turn
-
-Skips AI turns and waits until it's the player character's turn again.
+Waits through AI turns until the chosen character can act again.
 
 ```json
 {
   "type": "waitForTurn",
-  "actor": "Hero Name",
-  "comment": "Wait through monster rounds",
+  "actor": "Vanguard",
   "timeout": 10000
 }
 ```
 
-- Default timeout: 5000ms
-- Monster actions happen automatically between turns
-- Zone spell damage (Spirit Guardians) triggers during this wait
+## Determinism and AI Control
 
----
+### `configureAi`
 
-## 7. `assertState` — Check Game State
-
-Pure assertion — doesn't send any API call. See [assertions reference](./assertions.md).
-
-```json
-{
-  "type": "assertState",
-  "expect": {
-    "characterHp": { "min": 30, "max": 42 },
-    "monstersAlive": 2,
-    "combatStatus": "Active"
-  }
-}
-```
-
----
-
-## 8. `configureAi` — Change AI Behavior Mid-Scenario
+Changes mock AI behavior mid-scenario.
 
 ```json
 {
@@ -193,11 +172,22 @@ Pure assertion — doesn't send any API call. See [assertions reference](./asser
 }
 ```
 
----
+Current `AiBehavior` values are:
 
-## 9. `queueMonsterActions` — Script Exact Monster Actions
+- `attack`
+- `endTurn`
+- `flee`
+- `castSpell`
+- `approach`
+- `grapple`
+- `escapeGrapple`
+- `hide`
+- `usePotion`
+- `help`
 
-Queue specific decisions consumed in FIFO order. When queue is empty, falls back to default behavior.
+### `queueMonsterActions`
+
+Queues deterministic monster decisions. The queue is FIFO. When it empties, the mock AI falls back to configured behavior.
 
 ```json
 {
@@ -205,35 +195,68 @@ Queue specific decisions consumed in FIFO order. When queue is empty, falls back
   "input": {
     "decisions": [
       { "action": "attack", "target": "Hero Name", "attackName": "Scimitar", "endTurn": true },
-      { "action": "moveToward", "target": "Hero Name", "desiredRange": 5, "endTurn": false },
-      { "action": "castSpell", "spellName": "Hold Person", "target": "Hero Name", "endTurn": true }
+      { "action": "moveToward", "target": "Hero Name", "desiredRange": 5, "endTurn": false }
     ]
   }
 }
 ```
 
-### Available decision actions
-`attack`, `move`, `moveToward`, `moveAwayFrom`, `dash`, `dodge`, `disengage`, `help`, `hide`, `grapple`, `escapeGrapple`, `shove`, `search`, `useObject`, `castSpell`, `useFeature`, `endTurn`
+The runner accepts freeform decision objects with these common fields:
 
----
+- `action`
+- `target`
+- `attackName`
+- `destination`
+- `desiredRange`
+- `bonusAction`
+- `endTurn`
+- `spellName`
+- `spellLevel`
+- `featureId`
+- `seed`
 
-## 10. `moveComplete` — Complete a Pending Move
+In practice, common decision actions include:
 
-Used when a move triggers an opportunity attack and needs explicit completion.
+- `attack`
+- `move`
+- `moveToward`
+- `moveAwayFrom`
+- `dash`
+- `dodge`
+- `disengage`
+- `help`
+- `hide`
+- `grapple`
+- `escapeGrapple`
+- `shove`
+- `search`
+- `useObject`
+- `castSpell`
+- `useFeature`
+- `endTurn`
+
+### `queueDiceRolls`
+
+Queues raw die faces for the server's next internal dice rolls.
 
 ```json
 {
-  "type": "moveComplete",
-  "rolls": [18, 8],
-  "expect": { "success": true, "hit": true, "damageDealt": 8 }
+  "type": "queueDiceRolls",
+  "input": { "values": [15, 6, 6, 1], "label": "monster attack + damage + deflect" }
 }
 ```
 
----
+Use this for monster attack rolls, saving throws, internal damage dice, and similar server-side randomness.
 
-## 11. `playerOaRoll` — Submit Player Opportunity Attack Roll
+## Reaction and Interrupt Actions
 
-When an AI move triggers a player opportunity attack.
+### `waitForPlayerOa`
+
+Waits for an AI movement sequence that triggers a player opportunity attack.
+
+### `playerOaRoll`
+
+Submits the player OA attack and optional damage roll.
 
 ```json
 {
@@ -243,20 +266,187 @@ When an AI move triggers a player opportunity attack.
 }
 ```
 
----
+### `moveComplete`
 
-## 12. `waitForPlayerOa` — Wait for AI Move That Triggers Player OA
+Completes a pending move after reaction handling.
 
 ```json
 {
-  "type": "waitForPlayerOa",
-  "timeout": 5000
+  "type": "moveComplete",
+  "rolls": [18, 8],
+  "expect": { "success": true, "hit": true, "damageDealt": 8 }
 }
 ```
 
----
+### `waitForShieldReaction`
 
-## 13. `waitForShieldReaction` — Wait for Shield Reaction Prompt
+Waits for a Shield-specific reaction window.
+
+### `waitForReaction`
+
+Waits for a named generic reaction type.
+
+```json
+{
+  "type": "waitForReaction",
+  "input": { "reactionType": "deflect_attacks" },
+  "timeout": 10000
+}
+```
+
+### `reactionRespond`
+
+Uses or declines the currently pending reaction.
+
+```json
+{
+  "type": "reactionRespond",
+  "input": { "choice": "use" }
+}
+```
+
+For War Caster style reaction spells:
+
+```json
+{
+  "type": "reactionRespond",
+  "input": { "choice": "use", "spellName": "Fire Bolt", "castAtLevel": 0 }
+}
+```
+
+### `rollInterruptResolve`
+
+Resolves a pending d20 roll interrupt such as Bardic Inspiration, Lucky feat, Halfling Lucky, or Portent.
+
+```json
+{
+  "type": "rollInterruptResolve",
+  "actor": "Lyra",
+  "input": { "choice": "bardic-inspiration" },
+  "expect": { "requiresPlayerInput": false }
+}
+```
+
+Allowed `choice` values:
+
+- `decline`
+- `bardic-inspiration`
+- `lucky-feat`
+- `halfling-lucky`
+- `portent`
+
+## State Manipulation and Support Actions
+
+### `assertState`
+
+Reads combat state and asserts it. See [assertions reference](./assertions.md).
+
+### `applyCondition`
+
+Applies a condition directly through the DM override route.
+
+```json
+{
+  "type": "applyCondition",
+  "input": {
+    "target": "monster:Goblin",
+    "condition": "Frightened",
+    "duration": "1 minute",
+    "sourceMonster": "Dragon"
+  }
+}
+```
+
+Supported target forms:
+
+- `character`
+- `character:Name`
+- `monster:Name`
+- `monster:0`
+
+### `setTerrain`
+
+Applies terrain zones after an encounter exists.
+
+```json
+{
+  "type": "setTerrain",
+  "input": {
+    "terrainZones": [
+      { "x": 10, "y": 10, "terrain": "difficult" }
+    ]
+  }
+}
+```
+
+### `setSurprise`
+
+Sets surprise state before initiative.
+
+```json
+{
+  "type": "setSurprise",
+  "input": { "surprise": "party" }
+}
+```
+
+Supported values:
+
+- `enemies`
+- `party`
+- `{ "surprised": ["Name A", "Name B"] }`
+
+### `rest`
+
+Takes a short or long rest for session characters.
+
+```json
+{
+  "type": "rest",
+  "input": { "restType": "short", "hitDiceSpending": { "Brother Aldric": 1 } },
+  "expect": { "poolsRefreshed": ["ki"] }
+}
+```
+
+Supported expectation fields:
+
+- `poolsRefreshed`
+- `characterHp`
+- `characterHitDice`
+- `hpRecovered`
+
+### `query`
+
+Tests query-style LLM intent parsing.
+
+```json
+{
+  "type": "query",
+  "input": { "text": "How many spell slots do I have left?" },
+  "expect": { "isQuery": true, "subject": "spells" }
+}
+```
+
+Current query subjects include:
+
+- `hp`
+- `weapons`
+- `spells`
+- `features`
+- `party`
+- `stats`
+- `equipment`
+- `ac`
+- `actions`
+- `tactical`
+- `environment`
+
+## Authoring Notes
+
+- Use `actor` on character-specific steps in multi-PC scenarios.
+- Use `comment` heavily. It makes failures readable.
+- Use `expect.error` and `expect.errorContains` when testing rejection behavior.
+- Use `queueMonsterActions` and `queueDiceRolls` together when exact monster replay matters.
 
 ```json
 {

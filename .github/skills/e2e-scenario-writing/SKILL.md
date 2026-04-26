@@ -1,223 +1,156 @@
 ---
 name: e2e-scenario-writing
-description: 'Write, debug, and extend E2E JSON combat test scenarios for the DungeonMaster game-server test harness. USE FOR: creating new combat scenarios, converting AgentTestPlayer run reports into deterministic E2E tests, debugging failing scenario steps, understanding the scenario JSON schema. DO NOT USE FOR: unit tests (use VitestWriter agent), modifying game-server source code, or running non-combat tests.'
+description: 'Write, debug, and extend deterministic E2E JSON combat scenarios for the DungeonMaster game-server test harness. USE FOR: creating new combat scenarios, fixing failing scenario steps, converting live play or bug reports into deterministic regressions, and understanding the current scenario runner schema. DO NOT USE FOR: unit tests, non-combat tests, or unrelated source-code changes outside the scenario harness.'
 argument-hint: 'Describe the combat flow or feature you want to test'
 ---
 
 # E2E Combat Scenario Writing
 
-Write deterministic JSON combat scenarios that run against the game-server test harness. Scenarios exercise the full 2-phase tabletop combat flow via HTTP API calls against an in-process Fastify server with in-memory repos and mock LLM/AI.
+Write deterministic JSON combat scenarios that run against the game-server combat harness. Scenarios hit the real Fastify API against an in-process app backed by in-memory repos, mock LLM services, and a queueable seeded dice roller.
+
+The authoritative implementation lives in:
+
+- `packages/game-server/scripts/test-harness/combat-e2e.ts`
+- `packages/game-server/scripts/test-harness/scenario-runner.ts`
+
+This skill should stay aligned with those files first. Nearby passing scenarios are the second source of truth.
 
 ## When to Use
 
 - Creating a new E2E test scenario for a combat feature
-- Converting an AgentTestPlayer live-play report into a deterministic regression test
+- Converting live play, bug reports, or transcripts into deterministic regressions
 - Debugging why a scenario step is failing
 - Extending an existing scenario with new combat interactions
+- Updating scenario docs or references to match the current runner
 
 ## Quick Start
 
-1. Create a JSON file in `packages/game-server/scripts/test-harness/scenarios/<category>/`
-2. Define setup (character sheet + monsters) and actions (combat sequence)
-3. Run: `pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=<category>/<name>`
+1. Start from the nearest existing passing scenario, not from a blank file.
+2. Place the new JSON in `packages/game-server/scripts/test-harness/scenarios/<category>/` beside similar coverage.
+3. Define `setup` and `actions`.
+4. Run a single scenario with:
+
+```powershell
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=<category>/<name>
+```
+
+5. Run the full suite with:
+
+```powershell
+pnpm -C packages/game-server test:e2e:combat:mock -- --all --no-color
+```
+
+6. Use verbose output when debugging:
+
+```powershell
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=<category>/<name> --verbose
+pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=<category>/<name> --detailed
+```
 
 > **CRITICAL**: Use `=` (not space) between `--scenario` and the value. The value is relative to the `scenarios/` folder, without `.json` extension.
 
 ## File Organization
 
+Prefer the nearest existing category instead of inventing a new one unless the coverage area is genuinely new.
+
+Current top-level scenario directories in the repo include:
+
 ```
 scripts/test-harness/scenarios/
-├── core/              # Basic combat flows (happy-path, movement, multi-pc)
-├── fighter/           # Fighter class abilities (action-surge, second-wind)
-├── monk/              # Monk abilities (flurry, stunning-strike, deflect)
-├── rogue/             # Rogue tactics (cunning-action, sneak-attack)
-├── wizard/            # Wizard spells (shield-reaction, spell-casting)
-├── barbarian/         # Barbarian features (rage, reckless-attack)
-├── cleric/            # Cleric features (turn-undead, healing)
-├── paladin/           # Paladin features (divine-smite, lay-on-hands)
-├── grapple/           # Grapple mechanics
-├── terrain/           # Terrain and map mechanics (pits, difficult terrain)
-├── opportunity-attack/# OA scenarios
-├── death-saves/       # Death save mechanics
-├── inventory/         # Item pickup, equip, drop
-├── rest/              # Short and long rest scenarios
-└── conditions/        # Condition application and mechanics
+├── barbarian/
+├── bard/
+├── class-combat/
+├── cleric/
+├── conditions/
+├── core/
+├── death-saves/
+├── druid/
+├── feat/
+├── fighter/
+├── mastery/
+├── monk/
+├── packages/
+├── paladin/
+├── ranger/
+├── rogue/
+├── sorcerer/
+├── warlock/
+└── wizard/
 ```
 
-## Scenario JSON Schema
+## References
 
-See [schema reference](./references/scenario-schema.md) for the complete JSON structure.
+- See [schema reference](./references/scenario-schema.md) for the current scenario shape.
+- See [action types reference](./references/action-types.md) for the current runner action surface.
+- See [assertions reference](./references/assertions.md) for the current `assertState` fields.
 
-## Action Types Reference
+## Golden Examples
 
-See [action types reference](./references/action-types.md) for all 20 action types with examples.
+When authoring or debugging, start from one of these passing scenarios before inventing a new shape.
 
-## Assertion Reference
+- `packages/game-server/scripts/test-harness/scenarios/wizard/spell-delivery-modes-full-spectrum.json`
+  Best reference for a compact single-PC spell scenario with attack-roll, save-based, healing, buff, zone, and auto-hit delivery paths. Also shows honest material-component setup for `Bless`.
 
-See [assertions reference](./references/assertions.md) for all `assertState` fields.
+- `packages/game-server/scripts/test-harness/scenarios/core/surprise-alert-willing-swap-red.json`
+  Best reference for multi-PC setup, `actor` usage, `setSurprise`, queued initiative dice, initiative swap prompts, and roll-result error expectations.
 
-## Workflow for Converting AgentTestPlayer Reports
+- `packages/game-server/scripts/test-harness/scenarios/class-combat/monk/deflect-and-patient-defense.json`
+  Best reference for round-structured class-combat authoring, `queueMonsterActions`, `queueDiceRolls`, reaction waits, `reactionRespond`, and checkpoint assertions around resource tracking.
 
-1. **Read the report** — identify key combat events, dice rolls, and outcomes
-2. **Define setup** — extract character sheet (ability scores, HP, AC, spells, attacks) and monster stat blocks
-3. **Map events to actions** — each player action becomes an `action`, `initiate`, or `rollResult` step
-4. **Add assertions** — verify HP changes, conditions, resource consumption, concentration
-5. **Handle AI turns** — use `waitForTurn` + `endTurn` for monster rounds, or `queueMonsterActions` for exact replay
-6. **Run and iterate** — fix assertion values based on actual server output
+- `packages/game-server/scripts/test-harness/scenarios/ranger/party-scout.json`
+  Best reference for a larger multi-PC scenario with multiple acting characters, concentration tracking across turns, class-feature interactions, and explicit per-actor turn sequencing.
 
-## Common Pitfalls & Solutions
+Use the smallest example that already matches the flow you need. Copying a smaller correct scenario is usually better than adapting a large one.
 
-### Target naming
-- Use exact creature names from setup: `"cast Healing Word on Brother Aldric"` (not `"on myself"`)
-- Monster names must match the `name` field in setup exactly (case-insensitive for spells)
+## Recommended Workflow
 
-### Two-spell rule (D&D 5e 2024)
-- If you cast a leveled spell as a bonus action, you can only cast cantrips (not leveled spells) as your action that turn, and vice versa
-- Test with `expect.error: true` and `expect.errorContains` to verify enforcement
+1. Find the closest passing scenario and copy its structure.
+2. Keep the scenario deterministic.
+3. Use `queueDiceRolls` for server-side dice you need to control.
+4. Use `queueMonsterActions` when monster turns must be exact.
+5. Use `assertState` after important boundaries so failures localize cleanly.
+6. Re-run the single scenario until green.
+7. Only then run the broader suite.
 
-### Spell slot tracking
-- Spell slots are named `spellSlot_1`, `spellSlot_2`, `spellSlot_3` etc. in resource pools
-- Assert with `characterResource: { poolName: "spellSlot_1", current: 3, max: 4 }`
+## Determinism Rules
 
-### Extra Attack auto-chaining
-- When damage resolves and the character has Extra Attack, the server auto-chains to the next attack
-- The scenario runner auto-completes these chains by sending natural-1 miss rolls
-- To test the chain explicitly, set `expect.actionComplete: false` on the damage step
+- Prefer explicit queued dice over loose HP ranges when the outcome matters.
+- Prefer scripted monster decisions over default AI when sequencing matters.
+- If the scenario is multi-PC, use `actor` on character-specific steps.
+- If a feature consumes resources, assert the corresponding pool after the spend.
+- If a spell has material requirements, model the inventory or focus honestly. Do not weaken the scenario to hide a real requirement.
 
-### Monster turns and AI
-- Default: set `aiConfig.defaultBehavior` in setup (e.g., `"attack"`)
-- Monsters auto-act between player turns — use `waitForTurn` to skip to next player turn
-- For exact monster action sequences: use `queueMonsterActions` with FIFO decision queue
-- Queue is consumed in order; when empty, falls back to `defaultBehavior`
+## Common Pitfalls
 
-### Concentration
-- Casting a new concentration spell auto-drops the previous one
-- Assert with `characterConcentration: "Bless"` or `characterConcentration: null`
-- Zone spells (Spirit Guardians) deal damage at the start of affected creatures' turns
-
-### Roll format
-- Initiative: `"I rolled 15"` or `"15"`
-- Attack: `"I rolled 18"` or `"18"`
-- Damage: `"I rolled 8"` or `"8"`
-- The text is parsed, so natural language works
-
-### Positions and distance
-- Grid uses Chebyshev distance: `max(|dx|, |dy|)` — each cell = 5ft
-- Diagonal movement costs the same as cardinal
-- Melee range = 5ft (adjacent cells), ranged varies by weapon
-
-### Spirit Guardians zone damage
-- Triggers at the start of each affected creature's turn (not when cast)
-- Damage occurs during AI turns, visible in the log between `waitForTurn` calls
-- Assert monster HP with `min`/`max` bounds to account for random save outcomes
+- Target names come from scenario setup. Use the exact names the runner and parser will see.
+- `assertState.characterHp` only supports `min` and `max`, not `exact`.
+- Extra Attack and similar chained flows often require `expect.actionComplete: false` on intermediate damage steps.
+- Material components are enforced for many spells. If the scenario casts one, make the setup support it.
+- `setSurprise` is an action before combat initiation, not a setup key.
+- `sheet` and monster `statBlock` are mostly pass-through. Do not overfit to old doc tables when a nearby passing scenario already shows the correct shape.
 
 ## Debugging Tips
 
-1. **Run with `--verbose`** to see step summaries
-2. **Run with `--detailed`** to see full request/response JSON
-3. **Check the step number** in the failure message — count from 1 in the `actions` array
-4. **Use `assertState` liberally** — add checkpoint assertions between combat phases
-5. **Comment every step** — use the `comment` field to describe what each step tests
+1. Run with `--verbose` first.
+2. Use `--detailed` when you need request and response bodies.
+3. Match failures by step number against the `actions` array.
+4. Add `comment` fields so failures are readable.
+5. Add checkpoint assertions instead of waiting until the end of the scenario.
 
----
+## Class-Combat Scenarios
 
-## Class Combat Suite (`class-combat/`)
+The `class-combat/` suite is still the long-form deterministic regression layer for multi-round class kits. Treat nearby passing class-combat scenarios as the strongest authoring reference for:
 
-The `class-combat/` directory is a comprehensive multi-round E2E suite covering every PHB class at level 5. Each class has 3–4 scenarios that exercise synergistic ability groups in realistic multi-round combat.
+- multi-round scripting
+- round-boundary resource assertions
+- queued monster action choreography
+- reaction timing
+- larger HP pools used to keep abilities online for several rounds
 
-### Suite Location & Plan
+## Accuracy Rule
 
-- **Scenarios**: `packages/game-server/scripts/test-harness/scenarios/class-combat/<class>/<scenario>.json`
-- **Master plan**: `.github/prompts/plan-class-combat-suite.prompt.md` — lists every scenario with setup, round plan, and ability coverage
-- **Coverage tracker**: `packages/game-server/scripts/test-harness/scenarios/class-combat/COVERAGE.md` — tracks pass/fail, ability coverage, and known gaps
-- **Cross-class regressions**: `class-combat/core/` — scenarios that span multiple classes (e.g., healing-dice-regression)
+If the docs and the runner disagree, trust the runner. If the runner and a passing scenario disagree, trust the passing scenario first and then confirm in the runner.
 
-### Design Principles (Class Combat)
-
-1. **Bumped HP** — heroes at 100–150, monsters at 80–150 to sustain 3–5 rounds
-2. **Fully scripted monsters** via `queueMonsterActions` for full determinism
-3. **Level 5** — Extra Attack, subclass features, L3 spells all online
-4. **Round-boundary `assertState`** — checkpoint assertions after each round to localize failures
-5. **Resource tracking** — assert resource pool depletion (ki, spell slots, rage, etc.) after each spend
-6. **Don't work around bugs** — if a scenario reveals an engine bug, document it in COVERAGE.md as a GAP and assert the buggy behavior (or let it fail), never weaken the test to pass
-
-### File Structure
-
-```
-scripts/test-harness/scenarios/class-combat/
-├── COVERAGE.md              # Ability coverage tracker + known gaps
-├── core/                    # Cross-class regression scenarios
-│   └── healing-dice-regression.json
-├── fighter/                 # F1, F2, F3
-│   ├── burst-and-endurance.json
-│   ├── weapon-mastery-tactics.json
-│   └── tank-vs-resistance.json
-├── monk/                    # M1, M2, M3, M4
-│   ├── flurry-and-open-hand.json
-│   ├── stunning-strike-lockdown.json
-│   ├── deflect-and-patient-defense.json
-│   └── ki-resource-depletion.json
-├── rogue/                   # R1, R2, R3
-│   ├── sneak-attack-advantage.json
-│   ├── cunning-escape-artist.json
-│   └── evasion-vs-aoe.json
-├── wizard/                  # W1, W2, W3, W4
-│   ├── aoe-blaster.json
-│   ├── shield-and-counterspell.json
-│   ├── absorb-elements-melee.json
-│   └── spell-slot-economy.json
-├── barbarian/               # B1, B2, B3
-│   ├── rage-and-reckless.json
-│   ├── frenzy-extra-attack.json
-│   └── rage-resistance-types.json
-├── cleric/                  # C1, C2, C3, C4
-│   ├── party-healer.json
-│   ├── bless-and-bane-party.json
-│   ├── turn-undead-horde.json
-│   └── divine-support-multiround.json
-├── paladin/                 # P1, P2, P3
-│   ├── smite-and-heal.json
-│   ├── party-aura-tank.json
-│   └── channel-divinity-smite-burst.json
-└── warlock/                 # WL1, WL2, WL3
-    ├── hex-and-blast.json
-    ├── hellish-rebuke-defense.json
-    └── hold-and-control.json
-```
-
-### Running Class Combat Scenarios
-
-```bash
-# Single scenario
-pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=class-combat/fighter/burst-and-endurance
-
-# All class-combat scenarios
-pnpm -C packages/game-server test:e2e:combat:mock -- --all
-
-# Multiple specific scenarios (PowerShell)
-$scenarios = @("class-combat/fighter/burst-and-endurance", "class-combat/monk/flurry-and-open-hand")
-$failed = @()
-foreach ($s in $scenarios) {
-  pnpm -C packages/game-server test:e2e:combat:mock -- --scenario=$s | Out-Host
-  if ($LASTEXITCODE -ne 0) { $failed += $s }
-}
-```
-
-### Adding a New Class Combat Scenario
-
-#### Step 1: Check the plan
-Read `.github/prompts/plan-class-combat-suite.prompt.md` for the scenario ID (e.g., F2, M3, WL2), setup details, round plan, and ability grouping.
-
-#### Step 2: Create the scenario JSON
-Follow these conventions:
-
-**Naming**: `"name": "ClassName: Descriptive Title — Ability1 + Ability2 + Ability3"`
-
-**Character sheet** must include:
-- `className`, `subclass`, `level: 5`
-- `features` array listing class features explicitly
-- `resourcePools` for all class resources (ki, rage, actionSurge, secondWind, channelDivinity)
-- `spellSlots`, `preparedSpells`, `spellcastingAbility`, `spellSaveDC`, `spellAttackBonus` for casters
 
 **Monster stat blocks** must include:
 - `actions` array with Multiattack entry (required for multi-attack monsters):
