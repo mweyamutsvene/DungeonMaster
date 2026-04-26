@@ -1,0 +1,98 @@
+{
+  "name": "Druid Wild Shape Stat Swap",
+  "description": "Wild Shape should store a dedicated form HP pool and not grant temp HP. This scenario enters Wild Shape and verifies resource spend plus zero temp HP after transformation.",
+  "setup": {
+    "character": {
+      "name": "Leaf",
+      "className": "Druid",
+      "level": 2,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "classId": "druid",
+        "className": "druid",
+        "level": 2,
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 10
+        },
+        "maxHp": 18,
+        "currentHp": 18,
+        "armorClass": 12,
+        "speed": 30,
+        "resourcePools": [
+          { "name": "wildShape", "current": 2, "max": 2 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Goblin",
+        "position": { "x": 14, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 7,
+          "hp": 7,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "attack" }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat and request initiative.",
+      "input": { "text": "I prepare to transform" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Leaf goes first.",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Use Wild Shape.",
+      "input": { "text": "wildshape" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "One Wild Shape use spent.",
+      "expect": {
+        "characterResource": { "poolName": "wildShape", "current": 1, "max": 2 }
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "True form-swap path: no temp HP is granted.",
+      "expect": {
+        "characterTempHp": { "exact": 0 }
+      }
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import { normalizeResources, getActiveEffects, readBoolean, useAttack, getPositi
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { breakConcentration, getConcentrationSpellName } from "../helpers/concentration-helper.js";
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../helpers/temp-hp.js";
+import { applyDamageToWildShapeForm, readWildShapeForm } from "../helpers/wild-shape-form-helper.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -474,16 +475,30 @@ export class AiAttackResolver {
       let actualHpAfter = targetCombatant.hpCurrent;
       if (damageApplied > 0) {
         const hpBefore = targetCombatant.hpCurrent;
-        const tempBefore = readTempHp(targetCombatant.resources);
-        const abs = applyDamageWithTempHp(hpBefore, tempBefore, damageApplied);
-        const hpAfter = abs.hpAfter;
-        actualHpAfter = hpAfter;
-        await combat.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
-        if (abs.tempAbsorbed > 0 || tempBefore > 0) {
-          const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
-          await combat.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
-          aiLog(`Temp HP absorbed ${abs.tempAbsorbed} of ${damageApplied} damage (tempHp ${tempBefore} → ${abs.tempHpAfter}).`);
+        let hpAfter = hpBefore;
+        const formBefore = readWildShapeForm(targetCombatant.resources);
+        if (formBefore && formBefore.hpRemainingInForm > 0) {
+          const formDamage = applyDamageToWildShapeForm(targetCombatant.resources, damageApplied);
+          hpAfter = Math.max(0, hpBefore - formDamage.spilloverDamage);
+          await combat.updateCombatantState(targetCombatant.id, {
+            hpCurrent: hpAfter,
+            resources: formDamage.updatedResources as any,
+          });
+          aiLog(
+            `Wild Shape HP absorbed ${formDamage.absorbedByForm} damage (spill ${formDamage.spilloverDamage}, formBroken=${String(formDamage.formBroken)}).`,
+          );
+        } else {
+          const tempBefore = readTempHp(targetCombatant.resources);
+          const abs = applyDamageWithTempHp(hpBefore, tempBefore, damageApplied);
+          hpAfter = abs.hpAfter;
+          if (abs.tempAbsorbed > 0 || tempBefore > 0) {
+            const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
+            await combat.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
+            aiLog(`Temp HP absorbed ${abs.tempAbsorbed} of ${damageApplied} damage (tempHp ${tempBefore} → ${abs.tempHpAfter}).`);
+          }
+          await combat.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
         }
+        actualHpAfter = hpAfter;
 
         await applyKoEffectsIfNeeded(
           targetCombatant,

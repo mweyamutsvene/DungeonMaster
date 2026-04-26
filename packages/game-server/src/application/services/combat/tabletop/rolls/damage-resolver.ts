@@ -48,6 +48,7 @@ import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../../helpe
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../../helpers/temp-hp.js";
 import { qualifiesForDarkOnesBlessing, darkOnesBlessingTempHp } from "../../../../../domain/entities/classes/warlock.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
+import { applyDamageToWildShapeForm, readWildShapeForm } from "../../helpers/wild-shape-form-helper.js";
 import type { CombatVictoryStatus } from "../../combat-victory-policy.js";
 import { parseDamageModifier } from "../combat-text-parser.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
@@ -372,14 +373,31 @@ export class DamageResolver {
     let hpAfter = hpBefore;
 
     if (targetCombatant) {
-      const tempBefore = readTempHp(targetCombatant.resources);
-      const abs = applyDamageWithTempHp(targetCombatant.hpCurrent, tempBefore, totalDamage);
-      hpAfter = abs.hpAfter;
-      if (this.debugLogsEnabled) console.log(`[DamageResolver] HP change: ${hpBefore} -> ${hpAfter} (target: ${targetCombatant.id}, damage: ${totalDamage}, tempAbsorbed: ${abs.tempAbsorbed})`);
-      await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
-      if (abs.tempAbsorbed > 0 || tempBefore > 0) {
-        const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
-        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
+      const formBefore = readWildShapeForm(targetCombatant.resources);
+      if (formBefore && formBefore.hpRemainingInForm > 0) {
+        const formDamage = applyDamageToWildShapeForm(targetCombatant.resources, totalDamage);
+        hpAfter = Math.max(0, targetCombatant.hpCurrent - formDamage.spilloverDamage);
+        if (this.debugLogsEnabled) {
+          console.log(
+            `[DamageResolver] Wild Shape HP routing: absorbed=${formDamage.absorbedByForm}, spill=${formDamage.spilloverDamage}, formBroken=${formDamage.formBroken}`,
+          );
+          console.log(`[DamageResolver] HP change: ${hpBefore} -> ${hpAfter} (target: ${targetCombatant.id}, damage: ${totalDamage})`);
+        }
+
+        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+          hpCurrent: hpAfter,
+          resources: formDamage.updatedResources as any,
+        });
+      } else {
+        const tempBefore = readTempHp(targetCombatant.resources);
+        const abs = applyDamageWithTempHp(targetCombatant.hpCurrent, tempBefore, totalDamage);
+        hpAfter = abs.hpAfter;
+        if (this.debugLogsEnabled) console.log(`[DamageResolver] HP change: ${hpBefore} -> ${hpAfter} (target: ${targetCombatant.id}, damage: ${totalDamage}, tempAbsorbed: ${abs.tempAbsorbed})`);
+        await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { hpCurrent: hpAfter });
+        if (abs.tempAbsorbed > 0 || tempBefore > 0) {
+          const updatedRes = withTempHp(targetCombatant.resources, abs.tempHpAfter);
+          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, { resources: updatedRes as any });
+        }
       }
       await this.eventEmitter.emitDamageEvents(sessionId, encounter.id, actorId, action.targetId, characters, monsters, totalDamage, hpAfter);
 

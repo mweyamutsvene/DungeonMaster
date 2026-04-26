@@ -111,11 +111,11 @@
       }
     },
     {
-      "comment": "RAW 2024: Wild Shape grants TEMP HP equal to 5 × druid level. Actual HP (40) is untouched — temp HP absorbs damage first.",
+      "comment": "Wild Shape now uses a dedicated beast-form HP pool (no temp HP). Character HP remains untouched while the form absorbs damage.",
       "type": "assertState",
       "expect": {
         "characterHp": { "min": 40, "max": 40 },
-        "characterTempHp": { "exact": 25 }
+        "characterTempHp": { "exact": 0 }
       }
     },
     {

@@ -107,6 +107,80 @@ describe('Creature Hydration', () => {
       expect(character.hasCondition('Frightened')).toBe(true);
     });
 
+    it('overlays combat-facing HP/AC/speed from wild shape form state', () => {
+      const record: SessionCharacterRecord = {
+        id: 'char-druid-1',
+        sessionId: 'session-1',
+        name: 'Leaf',
+        level: 2,
+        className: 'Druid',
+        sheet: {
+          abilityScores: {
+            strength: 10,
+            dexterity: 12,
+            constitution: 14,
+            intelligence: 10,
+            wisdom: 16,
+            charisma: 10,
+          },
+          maxHP: 18,
+          currentHP: 18,
+          armorClass: 12,
+          speed: 30,
+          classId: 'druid',
+        },
+        faction: 'party',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const combatantState: CombatantStateRecord = {
+        id: 'combatant-druid-1',
+        encounterId: 'enc-1',
+        combatantType: 'Character',
+        characterId: 'char-druid-1',
+        monsterId: null,
+        npcId: null,
+        initiative: 15,
+        hpCurrent: 18,
+        hpMax: 18,
+        hpTemp: 0,
+        conditions: [],
+        resources: {
+          wildShapeActive: true,
+          wildShapeForm: {
+            formName: 'Beast of the Land',
+            armorClass: 13,
+            speedFeet: 30,
+            maxHp: 10,
+            hpRemainingInForm: 6,
+            attacks: [
+              {
+                name: 'Bestial Strike',
+                kind: 'melee',
+                attackBonus: 5,
+                damage: { diceCount: 1, diceSides: 8, modifier: 0 },
+                damageType: 'slashing',
+              },
+            ],
+            originalCharacterId: 'char-druid-1',
+            appliedAtRound: 1,
+            hitDiceUsed: 0,
+          },
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const character = hydrateCharacter(record, combatantState);
+
+      expect(character.getCurrentHP()).toBe(6);
+      expect(character.getMaxHP()).toBe(10);
+      expect(character.getAC()).toBe(13);
+      expect(character.getSpeed()).toBe(30);
+    });
+
     it('should populate equipment from pre-enriched equippedArmor on sheet', () => {
       const record: SessionCharacterRecord = {
         id: 'char-armored',

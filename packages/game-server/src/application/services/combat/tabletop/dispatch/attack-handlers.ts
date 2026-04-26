@@ -66,6 +66,7 @@ import type {
   SessionNPCRecord,
 } from "../../../../types.js";
 import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
+import { readWildShapeForm } from "../../helpers/wild-shape-form-helper.js";
 
 export class AttackHandlers {
   constructor(
@@ -240,7 +241,11 @@ export class AttackHandlers {
     if (!actorCombatant) throw new ValidationError("Actor not found in encounter");
 
     const actorSource = getClassBackedActorSource(actorId, characters, npcs);
-    const actorSheet = (actorSource?.sheet ?? {}) as any;
+    const actorSheet = { ...((actorSource?.sheet ?? {}) as Record<string, unknown>) } as any;
+    const wildShapeForm = readWildShapeForm(actorCombatant.resources);
+    if (wildShapeForm && wildShapeForm.attacks.length > 0) {
+      actorSheet.attacks = wildShapeForm.attacks.map((attack) => ({ ...attack, equipped: true }));
+    }
     const actorLevel = actorSource?.level ?? ClassFeatureResolver.getLevel(actorSheet, undefined);
     const actorClassName = actorSource?.className ?? actorSheet?.className ?? "";
 

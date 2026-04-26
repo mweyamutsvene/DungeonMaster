@@ -3,9 +3,9 @@ type: plan
 flow: ClassAbilities,CreatureHydration,EntityManagement
 feature: wild-shape-stat-swap
 author: claude-orchestrator
-status: DRAFT
+status: COMPLETE
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-04-26
 ---
 
 # Plan: Wild Shape True Stat-Block Swap (Druid L2)
@@ -73,3 +73,16 @@ interface WildShapeForm {
 
 ## Unblocks
 Druid as frontline combatant L2+, Circle of Moon subclass viable.
+
+## Execution Checklist
+- [x] Run pre-change baseline gates (`typecheck`, `test`, `test:e2e:combat:mock -- --all`).
+- [x] Add RED tests (unit + integration + E2E) for structured Wild Shape form state and stat swap.
+- [x] Implement structured `wildShapeForm` state model and replace temp-HP-only Wild Shape execution path.
+- [x] Integrate Wild Shape form overlay into hydration, tabletop attack selection, AC resolution, and damage routing.
+- [x] Integrate Wild Shape form HP routing into AI melee/ranged damage application.
+- [x] Green targeted regression suite (`wild-shape-form-helper`, wild-shape executor overlay test, integration + druid scenarios).
+- [x] Run full post-change gates (`typecheck`, `test`, `test:e2e:combat:mock -- --all`).
+- [x] Update legacy scenario expectation for removed Wild Shape temp HP assumption.
+
+## Open Issues
+- [x] `core/party-npc-victory` showed transient failure during one full-E2E pass; isolated rerun passed and final full-E2E rerun passed.

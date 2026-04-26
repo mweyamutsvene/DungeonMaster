@@ -24,6 +24,10 @@ import {
   getActiveEffects,
   addActiveEffectsToResources,
 } from "../../../helpers/resource-utils.js";
+import {
+  createWildShapeFormState,
+  withWildShapeForm,
+} from "../../../helpers/wild-shape-form-helper.js";
 import { nanoid } from "nanoid";
 import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
 
@@ -99,37 +103,19 @@ export class WildShapeExecutor implements AbilityExecutor {
 
       updatedResources = addActiveEffectsToResources(updatedResources, wildShapeEffect);
 
-      // D&D 5e 2024: Wild Shape grants temp HP = 5 × druid level (not HP replacement).
-      // Druid keeps their own HP; temp HP absorbs damage first.
-      const tempHpGranted = 5 * level;
-      const existingTempHp = typeof (resources as any)?.tempHp === "number"
-        ? ((resources as any).tempHp as number)
-        : 0;
-      const newTempHp = Math.max(existingTempHp, tempHpGranted);
-
-      // Store beast form data for combat service consumption
-      updatedResources = {
-        ...(updatedResources as Record<string, unknown>),
-        tempHp: newTempHp,
-        wildShapeActive: true,
-        wildShapeForm: form,
-        wildShapeHp: statBlock.hp,
-        wildShapeHpMax: statBlock.hp,
-        wildShapeAc: statBlock.ac,
-        wildShapeAttackBonus: statBlock.attackBonus,
-        wildShapeDamage: statBlock.damage,
-        wildShapeMultiattack: statBlock.multiattack,
-        wildShapeSpeed: statBlock.speed,
-      } as any;
+      const currentRound = Math.max(1, Number(context.combat?.getRound?.() ?? 1));
+      const formState = createWildShapeFormState(form, statBlock, context.actor.getId(), currentRound);
+      updatedResources = withWildShapeForm(updatedResources, formState);
 
       return {
         success: true,
-        summary: `Transforms into ${form}! AC ${statBlock.ac}, ${tempHpGranted} temp HP, +${statBlock.attackBonus} to hit, ${statBlock.damage} damage${statBlock.multiattack ? " with Multiattack" : ""}.`,
+        summary: `Transforms into ${form}! Form HP ${formState.maxHp}, AC ${statBlock.ac}, +${statBlock.attackBonus} to hit, ${statBlock.damage} damage${statBlock.multiattack ? " with Multiattack" : ""}.`,
         resourcesSpent: { wildShape: 1 },
         data: {
           abilityName: "Wild Shape",
           form,
           statBlock,
+          wildShapeForm: formState,
           spendResource: { poolName: "wildShape", amount: 1 },
           updatedResources,
         },
