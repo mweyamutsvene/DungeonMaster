@@ -36,12 +36,14 @@ import { normalizeConditions, getExhaustionD20Penalty } from "../../../../domain
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { deriveRollModeFromConditions } from "../tabletop/combat-text-parser.js";
 import { detectDamageReactions, getEligibleOnHitEnhancements } from "../../../../domain/entities/classes/combat-text-profile.js";
-import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
+import { getAllCombatTextProfiles, getCriticalHitThreshold, classHasFeature } from "../../../../domain/entities/classes/registry.js";
 import { checkFlanking } from "../../../../domain/rules/flanking.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map-types.js";
 import { getObscurationAttackModifiers } from "../../../../domain/rules/combat-map-sight.js";
 import { resolveReadiedAttackTriggers } from "../helpers/readied-attack-trigger.js";
 import { divineSmiteDice } from "../../../../domain/entities/classes/paladin.js";
+import { COLOSSUS_SLAYER } from "../../../../domain/entities/classes/feature-keys.js";
+import { qualifiesForDarkOnesBlessing, darkOnesBlessingTempHp } from "../../../../domain/entities/classes/warlock.js";
 import { getResourcePools } from "../helpers/resource-utils.js";
 
 type AiLogger = (msg: string) => void;
@@ -221,7 +223,23 @@ export class AiAttackResolver {
     } else {
       d20 = diceRoller.d20().total;
     }
-    const critical = d20 === 20;
+
+    // Load attacker class info for subclass-gated features (crit threshold, Colossus Slayer, Dark One's Blessing)
+    let attackerClassName: string | undefined;
+    let attackerLevel = 0;
+    let attackerSubclass: string | undefined;
+    let attackerAbilityScores: Record<string, number> = {};
+    try {
+      const attackerStats = await combatantResolver.getCombatStats(actorRef as CombatantRef);
+      attackerClassName = attackerStats.className?.toLowerCase();
+      attackerLevel = attackerStats.level ?? 0;
+      attackerSubclass = attackerStats.subclass;
+      attackerAbilityScores = attackerStats.abilityScores as unknown as Record<string, number>;
+    } catch {
+      // No class info — proceed with defaults
+    }
+    const critThreshold = getCriticalHitThreshold(attackerClassName ?? "", attackerLevel, attackerSubclass);
+    const critical = d20 >= critThreshold;
 
     // Attack bonus from ActiveEffects (Bless, etc.)
     const atkBonusResult = calculateBonusFromEffects(attackerActiveEffects, "attack_rolls");
@@ -380,6 +398,26 @@ export class AiAttackResolver {
         }
       }
 
+      // D&D 5e 2024: Colossus Slayer (Hunter Ranger L3+) — once/turn +1d8 vs target below max HP
+      if (
+        attackerClassName === "ranger" &&
+        attackerLevel >= 3 &&
+        classHasFeature("ranger", COLOSSUS_SLAYER, attackerLevel, attackerSubclass)
+      ) {
+        const attackerRes = normalizeResources(aiCombatant.resources);
+        if (!attackerRes.colossusSlayerUsedThisTurn) {
+          const targetMaxHp = (targetCombatant as any).hpMax ?? (targetCombatant as any).hpMaximum ?? targetCombatant.hpCurrent;
+          if (targetCombatant.hpCurrent < targetMaxHp) {
+            const csRoll = diceRoller.rollDie(8);
+            damageApplied += csRoll.total;
+            aiLog(`[AiAttackResolver] Colossus Slayer: +${csRoll.total} bonus damage (1d8, once per turn)`);
+            await combat.updateCombatantState(aiCombatant.id, {
+              resources: { ...attackerRes, colossusSlayerUsedThisTurn: true },
+            });
+          }
+        }
+      }
+
       // AI2-M7: Divine Smite / on-hit enhancements for AI paladins (and other classes)
       // Check if the attacker has on-hit enhancements available (Divine Smite, etc.)
       if (attackKind === "melee") {
@@ -513,6 +551,26 @@ export class AiAttackResolver {
           const spellName = getConcentrationSpellName(targetCombatant.resources);
           if (spellName) {
             await breakConcentration(targetCombatant, encounterId, combat, (msg) => aiLog(`[KO] ${msg}`));
+          }
+        }
+
+        // D&D 5e 2024: Dark One's Blessing (Fiend Warlock L3+) — kill → temp HP
+        if (hpBefore > 0 && hpAfter === 0 && attackerClassName === "warlock") {
+          const blessing = qualifiesForDarkOnesBlessing({
+            className: attackerClassName,
+            level: attackerLevel,
+            subclass: attackerSubclass,
+            abilityScores: attackerAbilityScores as any,
+          });
+          if (blessing) {
+            const grantedTemp = darkOnesBlessingTempHp(blessing.chaMod, blessing.warlockLevel);
+            const currentTemp = readTempHp(aiCombatant.resources);
+            const newTemp = Math.max(currentTemp, grantedTemp);
+            if (newTemp !== currentTemp) {
+              const updatedRes = withTempHp(aiCombatant.resources, newTemp);
+              await combat.updateCombatantState(aiCombatant.id, { resources: updatedRes as any });
+              aiLog(`[AiAttackResolver] Dark One's Blessing: Warlock gains ${grantedTemp} temp HP (had ${currentTemp} → ${newTemp})`);
+            }
           }
         }
 

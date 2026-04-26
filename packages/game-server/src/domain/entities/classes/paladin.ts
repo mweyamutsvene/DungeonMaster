@@ -122,6 +122,12 @@ export const PALADIN_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
       category: "bonusAction" as const,
       normalizedPatterns: [/divinesense/, /channeldivinity(?:divine)?sense/],
     },
+    {
+      keyword: "sacred-weapon",
+      abilityId: "class:paladin:sacred-weapon",
+      category: "bonusAction" as const,
+      normalizedPatterns: [/^sacredweapon$|channeldivinitysacredweapon|sacredweaponchannel/],
+    },
   ],
   attackEnhancements: [
     {

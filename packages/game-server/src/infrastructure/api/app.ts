@@ -35,6 +35,7 @@ import {
   FrenzyExecutor,
   LayOnHandsExecutor,
   ChannelDivinityExecutor,
+  SacredWeaponExecutor,
   TurnUndeadExecutor,
   DivineSparkExecutor,
   BardicInspirationExecutor,
@@ -293,6 +294,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new FrenzyExecutor());
   abilityRegistry.register(new LayOnHandsExecutor());
   abilityRegistry.register(new ChannelDivinityExecutor());
+  abilityRegistry.register(new SacredWeaponExecutor());
   abilityRegistry.register(new TurnUndeadExecutor());
   abilityRegistry.register(new DivineSparkExecutor());
   abilityRegistry.register(new BardicInspirationExecutor());

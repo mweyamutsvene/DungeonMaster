@@ -1,0 +1,169 @@
+{
+  "name": "Cleric: Life Domain Disciple of Life — Cure Wounds bonus healing (L3)",
+  "description": "Tests that a Level 3 Life Domain Cleric's Disciple of Life feature adds 2 + slot level bonus HP to healing spells. Casting Cure Wounds (L1 slot) with a queued die of 4: expected = 4 (die) + 3 (WIS mod) + 3 (Disciple of Life: 2+1) = 10 total healing. Fighter starts at 8 HP and must reach exactly 18 HP after the cast. If the assertion passes, the healing handler correctly applies the Disciple of Life bonus via classHasFeature('cleric', DISCIPLE_OF_LIFE, 3, 'life-domain').",
+  "setup": {
+    "characters": [
+      {
+        "comment": "Life Domain Cleric L3: WIS 16 (+3), subclass life-domain triggers Disciple of Life. spellSaveDC 13, spellAttackBonus +5. IMPORTANT: className+subclass+level live inside the sheet so the healing handler can read them via casterSheetRec.",
+        "name": "Sister Mira",
+        "className": "Cleric",
+        "subclass": "life-domain",
+        "level": 3,
+        "position": { "x": 5, "y": 10 },
+        "sheet": {
+          "className": "Cleric",
+          "subclass": "life-domain",
+          "level": 3,
+          "abilityScores": {
+            "strength": 10,
+            "dexterity": 10,
+            "constitution": 12,
+            "intelligence": 10,
+            "wisdom": 16,
+            "charisma": 12
+          },
+          "maxHp": 22,
+          "currentHp": 22,
+          "armorClass": 16,
+          "speed": 30,
+          "proficiencyBonus": 2,
+          "spellcastingAbility": "wisdom",
+          "spellSaveDC": 13,
+          "spellAttackBonus": 5,
+          "spellSlots": { "1": 3, "2": 2 },
+          "preparedSpells": [
+            { "name": "Cure Wounds", "level": 1 },
+            { "name": "Sacred Flame", "level": 0 }
+          ],
+          "attacks": [
+            {
+              "name": "Mace",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 2,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 0 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      },
+      {
+        "comment": "Fighter ally: starts at 8/24 HP (wounded). Positioned adjacent to Sister Mira for Cure Wounds touch. Needs 10+ healing to reach HP 18 (proving Disciple of Life bonus).",
+        "name": "Sir Garrett",
+        "className": "Fighter",
+        "level": 3,
+        "position": { "x": 10, "y": 10 },
+        "sheet": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 12,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 24,
+          "currentHp": 8,
+          "armorClass": 16,
+          "speed": 30,
+          "proficiencyBonus": 2,
+          "attacks": [
+            {
+              "name": "Longsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "monsters": [
+      {
+        "comment": "Cave Goblin: present to make combat valid. AI endTurn so it does not attack and dirty the Fighter's HP between rounds.",
+        "name": "Cave Goblin",
+        "position": { "x": 25, "y": 10 },
+        "statBlock": {
+          "type": "humanoid",
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": { "defaultBehavior": "endTurn" }
+  },
+  "actions": [
+    {
+      "comment": "=== Initiate combat — Sister Mira goes first ===",
+      "type": "initiate",
+      "actor": "Sister Mira",
+      "input": { "text": "I channel divine power to heal my ally!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "comment": "High initiative ensures Sister Mira acts first.",
+      "type": "rollResult",
+      "actor": "Sister Mira",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "comment": "Checkpoint before heal: Sir Garrett starts at 8 HP.",
+      "type": "assertState",
+      "actor": "Sir Garrett",
+      "expect": {
+        "characterHp": { "min": 7, "max": 9 }
+      }
+    },
+    {
+      "comment": "Queue both 2d8 Cure Wounds dice as [2, 2]. 5e 2024: Cure Wounds is 2d8+WIS at L1. Dice total = 4. With DoL: 4 + 3 (WIS) + 3 (DoL: 2+slot1) = 10 healing. Without DoL: 4 + 3 = 7. Max Fighter HP is 24, so no capping either way.",
+      "type": "queueDiceRolls",
+      "input": { "values": [2, 2], "label": "Cure Wounds 2d8 rolls = [2, 2] total 4" }
+    },
+    {
+      "comment": "Cast Cure Wounds (L1) on Sir Garrett. Touch range — Mira(5,10) adjacent to Garrett(10,10). Healing resolved server-side from queued die. Expected: actionComplete: true.",
+      "type": "action",
+      "actor": "Sister Mira",
+      "input": { "text": "cast Cure Wounds on Sir Garrett" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "comment": "Verify L1 spell slot consumed: 3 → 2.",
+      "type": "assertState",
+      "actor": "Sister Mira",
+      "expect": {
+        "characterResource": { "poolName": "spellSlot_1", "current": 2, "max": 3 }
+      }
+    },
+    {
+      "comment": "Sir Garrett healed 10 HP (2+2 dice + 3 WIS mod + 3 Disciple of Life). HP: 8 → 18. If DoL is NOT applied, heal = 4+3=7 and HP = 15 — fails min 17 check. Range min 17, max 19 is a tight band only reachable with Disciple of Life bonus.",
+      "type": "assertState",
+      "actor": "Sir Garrett",
+      "expect": {
+        "characterHp": { "min": 17, "max": 19 }
+      }
+    }
+  ]
+}

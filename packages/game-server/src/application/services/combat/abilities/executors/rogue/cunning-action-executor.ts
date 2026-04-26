@@ -6,8 +6,9 @@
  */
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
-import { CUNNING_ACTION } from "../../../../../../domain/entities/classes/feature-keys.js";
-import { requireActor, requireClassFeature } from "../executor-helpers.js";
+import { CUNNING_ACTION, FAST_HANDS } from "../../../../../../domain/entities/classes/feature-keys.js";
+import { requireActor, requireClassFeature, extractClassInfo, extractSubclassId } from "../executor-helpers.js";
+import { classHasFeature } from "../../../../../../domain/entities/classes/registry.js";
 
 /**
  * Executor for Cunning Action (Rogue class feature).
@@ -24,7 +25,13 @@ export class CunningActionExecutor implements AbilityExecutor {
       normalized === 'cunningaction' ||          // LLM-friendly: "Cunning Action"
       normalized === 'cunningactiondash' ||
       normalized === 'cunningactiondisengage' ||
-      normalized === 'cunningactionhide'
+      normalized === 'cunningactionhide' ||
+      // Fast Hands (Thief subclass L3+)
+      normalized === 'cunningactionuseobject' ||
+      normalized === 'cunningactionsleightofhand' ||
+      normalized === 'cunningactionthievestools' ||
+      normalized === 'fasthandsuseobject' ||
+      normalized === 'fasthandssleightofhand'
     );
   }
 
@@ -48,6 +55,12 @@ export class CunningActionExecutor implements AbilityExecutor {
         choice = 'disengage';
       } else if (normalized.includes('hide')) {
         choice = 'hide';
+      } else if (normalized.includes('useobject') || normalized.includes('use-object')) {
+        choice = 'useObject';
+      } else if (normalized.includes('sleight')) {
+        choice = 'sleightOfHand';
+      } else if (normalized.includes('thievestools') || normalized.includes('thieves-tools')) {
+        choice = 'thievesTools';
       }
     }
 
@@ -60,7 +73,33 @@ export class CunningActionExecutor implements AbilityExecutor {
         choice = 'hide';
       } else if (textLower.includes('disengage')) {
         choice = 'disengage';
+      } else if (textLower.includes('useobject') || textLower.includes('use object')) {
+        choice = 'useObject';
+      } else if (textLower.includes('sleight')) {
+        choice = 'sleightOfHand';
+      } else if (textLower.includes('thievestools') || textLower.includes('thieves tools') || textLower.includes("thieves' tools")) {
+        choice = 'thievesTools';
       }
+    }
+
+    // Fast Hands choices (Thief subclass L3+)
+    const fastHandsChoices = ['useObject', 'sleightOfHand', 'thievesTools'];
+    if (choice && fastHandsChoices.includes(choice)) {
+      const { level, className } = extractClassInfo(params);
+      const subclassId = extractSubclassId(params);
+      if (!classHasFeature(className, FAST_HANDS, level, subclassId)) {
+        return {
+          success: false,
+          summary: "Fast Hands requires Thief subclass (level 3+)",
+          error: "SUBCLASS_REQUIRED",
+        };
+      }
+      const choiceLabel = choice === 'useObject' ? 'Use Object' : choice === 'sleightOfHand' ? 'Sleight of Hand' : "Thieves' Tools";
+      return {
+        success: true,
+        summary: `Used Cunning Action: ${choiceLabel} (Thief: Fast Hands)`,
+        data: { choice, abilityName: "Cunning Action (Fast Hands)" },
+      };
     }
 
     // Default to disengage if ambiguous (safest tactical choice)

@@ -46,6 +46,8 @@ export type CombatantCombatStats = {
   damageDefenses?: DamageDefenses;
   /** Character class name (e.g., "monk", "fighter"). Only set for Characters. */
   className?: string;
+  /** Character subclass id (e.g., "champion", "hunter", "fiend"). Only set for Characters and class-backed NPCs. */
+  subclass?: string;
   /**
    * Saving throw proficiencies as normalized lowercase ability names
    * (e.g., `["constitution", "wisdom"]`). Accepts both `"constitution_save"` and
@@ -240,6 +242,7 @@ export class CombatantResolver implements ICombatantResolver {
 
       const equip = extractEquippedFromSheet(c.sheet);
       const className = sheet.className ?? (typeof c.className === "string" ? c.className : undefined);
+      const subclass = typeof c.sheet.subclass === "string" ? c.sheet.subclass : undefined;
 
       return {
         name: c.name,
@@ -255,6 +258,7 @@ export class CombatantResolver implements ICombatantResolver {
         hasTwoHandedWeapon: equip.hasTwoHanded,
         damageDefenses: extractDefenses(c.sheet),
         className,
+        subclass,
         saveProficiencies: extractSaveProficiencies(c.sheet),
       };
     }
@@ -318,6 +322,7 @@ export class CombatantResolver implements ICombatantResolver {
       : undefined;
     const equipment = isClassBackedNpc(n) ? extractEquippedFromSheet(npcSource) : undefined;
     const className = isClassBackedNpc(n) ? getNpcClassName(n) : undefined;
+    const subclass = isClassBackedNpc(n) ? (typeof npcSource.subclass === "string" ? npcSource.subclass : undefined) : undefined;
 
     return {
       name: n.name,
@@ -333,6 +338,7 @@ export class CombatantResolver implements ICombatantResolver {
       hasTwoHandedWeapon: equipment?.hasTwoHanded,
       damageDefenses: extractDefenses(npcSource),
       className,
+      subclass,
       saveProficiencies: extractSaveProficiencies(npcSource),
     };
   }

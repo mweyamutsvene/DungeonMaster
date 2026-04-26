@@ -30,7 +30,7 @@ export {
 } from "./monk/index.js";
 
 // Paladin abilities
-export { LayOnHandsExecutor, ChannelDivinityExecutor } from "./paladin/index.js";
+export { LayOnHandsExecutor, ChannelDivinityExecutor, SacredWeaponExecutor } from "./paladin/index.js";
 
 // Ranger abilities
 export { MoveHuntersMarkExecutor } from "./ranger/index.js";
