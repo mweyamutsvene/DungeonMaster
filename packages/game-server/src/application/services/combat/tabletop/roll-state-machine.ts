@@ -1040,15 +1040,17 @@ export class RollStateMachine {
       }
     }
 
-    // D&D 5e 2024 Rogue Cunning Strike (L5+): forgo one Sneak Attack die (d6)
-    // to apply the named effect (poison/trip/withdraw). Only applies when SA was
-    // actually eligible AND we have at least 1 SA die to forgo.
-    let activeCunningStrike: "poison" | "trip" | "withdraw" | undefined;
-    if (action.cunningStrike && sneakAttackDiceCount >= 1) {
-      activeCunningStrike = action.cunningStrike;
-      sneakAttackDiceCount -= 1;
-      if (this.debugLogsEnabled) {
-        console.log(`[RollStateMachine] Cunning Strike (${activeCunningStrike}) — forgoing 1 SA die, remaining ${sneakAttackDiceCount}d6`);
+    // D&D 5e 2024 Rogue Cunning Strike (L5+): forgo SA dice to apply the named effect.
+    // daze costs 2 SA dice; all others cost 1.
+    let activeCunningStrike: "poison" | "trip" | "withdraw" | "disarm" | "daze" | undefined;
+    if (action.cunningStrike) {
+      const dazeCost = action.cunningStrike === "daze" ? 2 : 1;
+      if (sneakAttackDiceCount >= dazeCost) {
+        activeCunningStrike = action.cunningStrike;
+        sneakAttackDiceCount -= dazeCost;
+        if (this.debugLogsEnabled) {
+          console.log(`[RollStateMachine] Cunning Strike (${activeCunningStrike}) — forgoing ${dazeCost} SA die(s), remaining ${sneakAttackDiceCount}d6`);
+        }
       }
     }
 

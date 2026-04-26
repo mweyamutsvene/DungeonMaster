@@ -1,8 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { sneakAttackDiceForLevel, Rogue, ROGUE_COMBAT_TEXT_PROFILE } from "./rogue.js";
+import { sneakAttackDiceForLevel, parseCunningStrikeOption, Rogue, ROGUE_COMBAT_TEXT_PROFILE } from "./rogue.js";
 import { detectAttackReactions, type AttackReactionInput } from "./combat-text-profile.js";
 import { classHasFeature } from "./registry.js";
 import { WEAPON_MASTERY, UNCANNY_DODGE, EVASION } from "./feature-keys.js";
+
+describe("parseCunningStrikeOption", () => {
+  it("parses existing options: poison, trip, withdraw", () => {
+    expect(parseCunningStrikeOption("cunning strike poison")).toBe("poison");
+    expect(parseCunningStrikeOption("cunning strike trip")).toBe("trip");
+    expect(parseCunningStrikeOption("cunning strike withdraw")).toBe("withdraw");
+    expect(parseCunningStrikeOption("cunning-strike: trip")).toBe("trip");
+  });
+
+  it("parses disarm (1d SA cost)", () => {
+    expect(parseCunningStrikeOption("cunning strike disarm")).toBe("disarm");
+    expect(parseCunningStrikeOption("cunning-strike: disarm")).toBe("disarm");
+    expect(parseCunningStrikeOption("cunning-strike disarm")).toBe("disarm");
+  });
+
+  it("parses daze (2d SA cost)", () => {
+    expect(parseCunningStrikeOption("cunning strike daze")).toBe("daze");
+    expect(parseCunningStrikeOption("cunning-strike daze")).toBe("daze");
+    expect(parseCunningStrikeOption("cunning-strike: daze")).toBe("daze");
+  });
+
+  it("returns null when no cunning strike option present", () => {
+    expect(parseCunningStrikeOption("attack goblin with shortsword")).toBeNull();
+    expect(parseCunningStrikeOption("sneak attack")).toBeNull();
+    expect(parseCunningStrikeOption("")).toBeNull();
+  });
+});
 
 describe("Rogue sneak attack", () => {
   it("scales sneak attack dice by level", () => {

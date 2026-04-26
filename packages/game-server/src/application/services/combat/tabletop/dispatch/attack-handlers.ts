@@ -615,9 +615,8 @@ export class AttackHandlers {
       ...(coverACBonus > 0 ? { coverACBonus } : {}),
     };
 
-    // D&D 5e 2024 Rogue Cunning Strike (L5+): parse optional text rider
-    // "cunning strike poison|trip|withdraw". Validates class/level + melee constraint
-    // for poison/trip, then attaches to pending action for resolution after damage.
+    // D&D 5e 2024 Rogue Cunning Strike (L5+): parse optional text rider.
+    // poison/trip require melee. disarm/daze/withdraw work with any SA-eligible attack.
     const cunningStrikeOption = parseCunningStrikeOption(text);
     if (cunningStrikeOption) {
       if (!classHasFeature(actorClassName, CUNNING_STRIKE, actorLevel)) {

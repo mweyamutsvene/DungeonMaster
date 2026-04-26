@@ -19,6 +19,7 @@ import {
   ActionSurgeExecutor,
   IndomitableExecutor,
   SecondWindExecutor,
+  TacticalMindExecutor,
   NimbleEscapeExecutor,
   CunningActionExecutor,
   SteadyAimExecutor,
@@ -276,6 +277,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   abilityRegistry.register(new ActionSurgeExecutor());
   abilityRegistry.register(new IndomitableExecutor());
   abilityRegistry.register(new SecondWindExecutor());
+  abilityRegistry.register(new TacticalMindExecutor());
   abilityRegistry.register(new NimbleEscapeExecutor());
   abilityRegistry.register(new CunningActionExecutor());
   abilityRegistry.register(new SteadyAimExecutor());
@@ -439,6 +441,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       const abilityRegistryInner = new AbilityRegistry();
       abilityRegistryInner.register(new ActionSurgeExecutor());
       abilityRegistryInner.register(new SecondWindExecutor());
+      abilityRegistryInner.register(new TacticalMindExecutor());
       abilityRegistryInner.register(new NimbleEscapeExecutor());
       abilityRegistryInner.register(new CunningActionExecutor());
       abilityRegistryInner.register(new SteadyAimExecutor());

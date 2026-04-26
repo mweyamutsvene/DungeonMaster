@@ -270,7 +270,8 @@ export type RollInterruptOption =
   | { kind: "lucky-feat"; pointsRemaining: number }
   | { kind: "halfling-lucky" }
   | { kind: "portent"; valueRolled: number; portentEffectId: string }
-  | { kind: "cutting-words"; effectId: string; sides: number; sourceCombatantId: string };
+  | { kind: "cutting-words"; effectId: string; sides: number; sourceCombatantId: string }
+  | { kind: "tactical-mind"; secondWindRemaining: number };
 
 /**
  * Resume context stored with a roll_interrupt so the resolve handler can

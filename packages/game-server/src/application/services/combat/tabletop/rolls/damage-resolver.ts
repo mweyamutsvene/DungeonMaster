@@ -893,7 +893,7 @@ export class DamageResolver {
    * - withdraw: attacker gains disengaged flag (no OA on subsequent movement)
    */
   private async resolveCunningStrike(
-    option: "poison" | "trip" | "withdraw",
+    option: "poison" | "trip" | "withdraw" | "disarm" | "daze",
     actorId: string,
     targetId: string,
     encounterId: string,
@@ -912,8 +912,6 @@ export class DamageResolver {
 
     if (option === "withdraw") {
       // Grant disengaged flag: attacker can move without provoking OAs after this hit.
-      // RAW also caps movement to half speed for this movement — not modeled; disengaged
-      // flag is the mechanical essential (prevents OA).
       const combatants = await this.deps.combatRepo.listCombatants(encounterId);
       const actorCombatant = combatants.find(
         (c: any) => c.combatantType === "Character" && c.characterId === actorId,
@@ -933,6 +931,75 @@ export class DamageResolver {
         summary:
           "Cunning Strike (Withdraw): no Opportunity Attacks provoked on next half-speed move.",
       };
+    }
+
+    if (option === "daze") {
+      // Daze (2d cost): CON save. On failure: target loses reaction and can only use
+      // Action OR Bonus Action (not both) until start of rogue's next turn.
+      // Implementation: mark reactionUsed + set dazedNextTurn flag on target.
+      const enhancement: HitRiderEnhancement = {
+        abilityId: "class:rogue:cunning-strike",
+        displayName: "Cunning Strike (Daze)",
+        postDamageEffect: "saving-throw",
+        context: {
+          saveAbility: "constitution",
+          saveDC,
+          saveReason: "Cunning Strike (Daze)",
+          sourceId: actorId,
+          onSuccess: {
+            summary: "Shakes off the daze!",
+          } satisfies SaveOutcome,
+          onFailure: {
+            summary: "Dazed! Lost reaction; can only use Action OR Bonus Action until rogue's next turn.",
+          } satisfies SaveOutcome,
+        },
+      };
+
+      const result = await this.hitRiderResolver.resolvePostDamageEffect(
+        enhancement, actorId, targetId, encounterId,
+        characters, monsters, npcs,
+      );
+
+      // On save failure, also burn the target's reaction and stamp the dazed flag.
+      if (result && !result.saved) {
+        const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+        const targetCombatant = findCombatantByEntityId(combatants, targetId);
+        if (targetCombatant) {
+          const tRes = normalizeResources(targetCombatant.resources);
+          await this.deps.combatRepo.updateCombatantState(targetCombatant.id, {
+            resources: { ...tRes, reactionUsed: true, dazedNextTurn: true } as any,
+          });
+          if (this.debugLogsEnabled) {
+            console.log(`[DamageResolver] Cunning Strike (Daze): reactionUsed+dazedNextTurn on ${targetId}`);
+          }
+        }
+      }
+      return result;
+    }
+
+    if (option === "disarm") {
+      // Disarm (1d cost): STR save. On failure: target drops one held weapon.
+      const enhancement: HitRiderEnhancement = {
+        abilityId: "class:rogue:cunning-strike",
+        displayName: "Cunning Strike (Disarm)",
+        postDamageEffect: "saving-throw",
+        context: {
+          saveAbility: "strength",
+          saveDC,
+          saveReason: "Cunning Strike (Disarm)",
+          sourceId: actorId,
+          onSuccess: {
+            summary: "Keeps their grip!",
+          } satisfies SaveOutcome,
+          onFailure: {
+            summary: "Disarmed! Drops a held weapon.",
+          } satisfies SaveOutcome,
+        },
+      };
+      return this.hitRiderResolver.resolvePostDamageEffect(
+        enhancement, actorId, targetId, encounterId,
+        characters, monsters, npcs,
+      );
     }
 
     // Poison / Trip: build a synthetic HitRiderEnhancement and resolve via the

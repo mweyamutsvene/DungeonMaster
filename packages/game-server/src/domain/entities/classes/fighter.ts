@@ -276,6 +276,7 @@ export const FIGHTER_COMBAT_TEXT_PROFILE: ClassCombatTextProfile = {
     { keyword: "action-surge", normalizedPatterns: [/actionsurge|useactionsurge/], abilityId: "class:fighter:action-surge", category: "classAction" },
     { keyword: "second-wind", normalizedPatterns: [/secondwind|usesecondwind/], abilityId: "class:fighter:second-wind", category: "bonusAction" },
     { keyword: "indomitable", normalizedPatterns: [/indomitable|useindomitable/], abilityId: "class:fighter:indomitable", category: "classAction" },
+    { keyword: "tactical-mind", normalizedPatterns: [/tacticalmind|usetacticalmind/], abilityId: "class:fighter:tactical-mind", category: "classAction" },
   ],
   attackEnhancements: [],
   allyAttackReactions: [PROTECTION_REACTION, INTERCEPTION_REACTION],

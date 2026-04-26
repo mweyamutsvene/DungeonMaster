@@ -158,6 +158,47 @@ describe("RollInterruptResolver", () => {
       .toEqual(resolver.findAttackInterruptOptions(combatant, EMPTY_SHEET, 10));
   });
 
+  // ── Tactical Mind (findAbilityCheckInterruptOptions) ───────────────────
+
+  describe("findAbilityCheckInterruptOptions — Tactical Mind", () => {
+    function withSecondWind(current: number) {
+      return { resourcePools: [{ name: "secondWind", current, max: 1 }] };
+    }
+
+    it("returns tactical-mind for Fighter L2+ with secondWind remaining", () => {
+      const combatant = makeCombatant({ resources: withSecondWind(1) as any });
+      const sheet = { className: "fighter", level: 2 };
+      const options = resolver.findAbilityCheckInterruptOptions(combatant, sheet);
+      expect(options).toContainEqual(expect.objectContaining({ kind: "tactical-mind" }));
+    });
+
+    it("does NOT return tactical-mind for Fighter L1 (no feature yet)", () => {
+      const combatant = makeCombatant({ resources: withSecondWind(1) as any });
+      const sheet = { className: "fighter", level: 1 };
+      const options = resolver.findAbilityCheckInterruptOptions(combatant, sheet);
+      expect(options.some(o => o.kind === "tactical-mind")).toBe(false);
+    });
+
+    it("does NOT return tactical-mind when secondWind is spent", () => {
+      const combatant = makeCombatant({ resources: withSecondWind(0) as any });
+      const sheet = { className: "fighter", level: 2 };
+      const options = resolver.findAbilityCheckInterruptOptions(combatant, sheet);
+      expect(options.some(o => o.kind === "tactical-mind")).toBe(false);
+    });
+
+    it("does NOT return tactical-mind for non-Fighter class", () => {
+      const combatant = makeCombatant({ resources: withSecondWind(1) as any });
+      const sheet = { className: "wizard", level: 5 };
+      const options = resolver.findAbilityCheckInterruptOptions(combatant, sheet);
+      expect(options.some(o => o.kind === "tactical-mind")).toBe(false);
+    });
+
+    it("returns empty when combatant is undefined", () => {
+      const sheet = { className: "fighter", level: 2 };
+      expect(resolver.findAbilityCheckInterruptOptions(undefined, sheet)).toEqual([]);
+    });
+  });
+
   // ── buildAttackInterruptData ────────────────────────────────────────────
 
   it("buildAttackInterruptData returns correct PendingRollInterruptData", () => {

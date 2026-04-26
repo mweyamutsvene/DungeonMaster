@@ -18,7 +18,7 @@ export { WildShapeExecutor } from "./druid/index.js";
 export { RevertWildShapeExecutor } from "./druid/index.js";
 
 // Fighter abilities
-export { ActionSurgeExecutor, IndomitableExecutor, SecondWindExecutor } from "./fighter/index.js";
+export { ActionSurgeExecutor, IndomitableExecutor, SecondWindExecutor, TacticalMindExecutor } from "./fighter/index.js";
 
 // Monk abilities
 export {

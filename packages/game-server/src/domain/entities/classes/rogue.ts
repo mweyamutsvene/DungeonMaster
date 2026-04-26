@@ -6,10 +6,11 @@ import { classHasFeature } from "./registry.js";
 
 /**
  * Cunning Strike option (D&D 5e 2024 Rogue L5+).
- * When a rogue deals Sneak Attack damage, they may forgo one SA die (d6)
- * to apply ONE of these effects instead of rolling that die.
+ * When a rogue deals Sneak Attack damage, they may forgo SA dice to apply ONE effect:
+ * - poison, trip, withdraw, disarm: costs 1 SA die
+ * - daze: costs 2 SA dice (CON save or lose reaction + can only use Action OR BA next turn)
  */
-export type CunningStrikeOption = "poison" | "trip" | "withdraw";
+export type CunningStrikeOption = "poison" | "trip" | "withdraw" | "disarm" | "daze";
 
 /**
  * Parse a Cunning Strike option from free-text action input.
@@ -18,7 +19,7 @@ export type CunningStrikeOption = "poison" | "trip" | "withdraw";
  */
 export function parseCunningStrikeOption(text: string): CunningStrikeOption | null {
   const lower = text.toLowerCase();
-  const m = lower.match(/cunning[\s\-]*strike\s*[:\-]?\s*(poison|trip|withdraw)\b/);
+  const m = lower.match(/cunning[\s\-]*strike\s*[:\-]?\s*(poison|trip|withdraw|disarm|daze)\b/);
   return m ? (m[1] as CunningStrikeOption) : null;
 }
 

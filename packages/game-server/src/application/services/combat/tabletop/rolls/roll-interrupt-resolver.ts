@@ -14,6 +14,8 @@ import type { CombatantStateRecord } from "../../../../types.js";
 import { getActiveEffects, getResourcePools, normalizeResources } from "../../helpers/resource-utils.js";
 import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
 import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
+import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
+import { TACTICAL_MIND } from "../../../../../domain/entities/classes/feature-keys.js";
 import type {
   RollInterruptOption,
   PendingRollInterruptData,
@@ -71,6 +73,22 @@ export class RollInterruptResolver {
   ): RollInterruptOption[] {
     // Same option set — saves benefit from the same interrupts as attacks.
     return this.findAttackInterruptOptions(actorCombatant, actorSheet, rawD20);
+  }
+
+  // ─────────────────────── Ability check options ───────────────────────────
+
+  /**
+   * Find interrupt options available for an ability check made by `actorCombatant`.
+   * Includes Tactical Mind (Fighter L2+: spend Second Wind to reroll, take higher).
+   */
+  findAbilityCheckInterruptOptions(
+    actorCombatant: CombatantStateRecord | undefined,
+    actorSheet: Record<string, unknown>,
+  ): RollInterruptOption[] {
+    if (!actorCombatant) return [];
+    const options: RollInterruptOption[] = [];
+    this._addTacticalMindOption(actorCombatant, actorSheet, options);
+    return options;
   }
 
   // ─────────────────────── Payload builders ────────────────────────────────
@@ -201,6 +219,23 @@ export class RollInterruptResolver {
       "";
     if (species.toLowerCase().includes("halfling")) {
       out.push({ kind: "halfling-lucky" });
+    }
+  }
+
+  private _addTacticalMindOption(
+    combatant: CombatantStateRecord,
+    actorSheet: Record<string, unknown>,
+    out: RollInterruptOption[],
+  ): void {
+    const className = (actorSheet.className as string | undefined) ?? "";
+    const level = (actorSheet.level as number | undefined) ?? 0;
+    if (!classHasFeature(className, TACTICAL_MIND, level)) return;
+
+    const pools = getResourcePools(combatant.resources);
+    const swPool = pools.find((p) => p.name === "secondWind");
+    const remaining = swPool?.current ?? 0;
+    if (remaining > 0) {
+      out.push({ kind: "tactical-mind", secondWindRemaining: remaining });
     }
   }
 
