@@ -59,7 +59,7 @@ describe("listSpellsByLevel", () => {
 
   it("returns level 1 spells", () => {
     const level1 = listSpellsByLevel(1);
-    expect(level1.length).toBe(36);
+    expect(level1.length).toBe(38);
     const names = level1.map((s) => s.name);
     expect(names).toContain("Burning Hands");
     expect(names).toContain("Magic Missile");
@@ -83,7 +83,7 @@ describe("listSpellsByLevel", () => {
 
   it("returns level 2 spells", () => {
     const level2 = listSpellsByLevel(2);
-    expect(level2.length).toBe(19);
+    expect(level2.length).toBe(20);
     const names = level2.map((s) => s.name);
     expect(names).toContain("Hold Person");
     expect(names).toContain("Misty Step");

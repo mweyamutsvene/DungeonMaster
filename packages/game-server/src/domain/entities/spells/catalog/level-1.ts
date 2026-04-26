@@ -788,7 +788,10 @@ export const CHROMATIC_ORB = {
   school: 'evocation',
   castingTime: 'action',
   range: 90,
-  components: { v: true, s: true, m: 'a diamond worth 50+ GP' },
+  components: {
+    v: true, s: true,
+    m: { description: 'a diamond worth 50+ GP', itemKeyword: 'diamond', costGp: 50, consumed: false },
+  },
   classLists: ['Sorcerer', 'Wizard'],
   description: 'Hurl a 4-inch orb. Choose acid, cold, fire, lightning, poison, or thunder. Ranged spell attack; 3d8 of chosen type. +1d8 per slot level above 1st.',
 } as const satisfies CanonicalSpell;
@@ -845,6 +848,36 @@ export const GOODBERRY = {
   description: 'Up to ten berries appear in your hand infused with magic for the next 24 hours. A creature can eat one as a Bonus Action to regain 1 Hit Point and count it as a full meal.',
 } as const satisfies CanonicalSpell;
 
+export const FIND_FAMILIAR = {
+  name: 'Find Familiar',
+  level: 1,
+  ritual: true,
+  school: 'conjuration',
+  castingTime: 'action',
+  range: 10,
+  components: {
+    v: true, s: true,
+    m: { description: 'burning incense and herbs worth 10+ GP, consumed', itemKeyword: 'incense', costGp: 10, consumed: true },
+  },
+  classLists: ['Wizard'],
+  description: 'Summon a familiar — a Tiny spirit in animal form (bat, cat, frog, hawk, lizard, octopus, owl, poisonous snake, rat, raven, seahorse, spider, or weasel). It acts on its own initiative, obeys your telepathic commands (10 min/cast), and can Aid your attack rolls.',
+} as const satisfies CanonicalSpell;
+
+export const IDENTIFY = {
+  name: 'Identify',
+  level: 1,
+  ritual: true,
+  school: 'divination',
+  castingTime: 'action',
+  range: 'touch',
+  components: {
+    v: true, s: true,
+    m: { description: 'a pearl worth 100+ GP', itemKeyword: 'pearl', costGp: 100, consumed: false },
+  },
+  classLists: ['Bard', 'Wizard'],
+  description: 'Touch one object or creature. Learn all magic properties of the target, how to use them, and any spells currently affecting it.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   ABSORB_ELEMENTS,
   ARMOR_OF_AGATHYS,
@@ -882,4 +915,6 @@ export const LEVEL_1_CATALOG: readonly CanonicalSpell[] = [
   WRATHFUL_SMITE,
   CHROMATIC_ORB,
   WITCH_BOLT,
+  FIND_FAMILIAR,
+  IDENTIFY,
 ];

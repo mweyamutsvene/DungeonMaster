@@ -8,6 +8,7 @@ import {
 } from "../../../infrastructure/testing/memory-repos.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 import type { CharacterItemInstance } from "../../../domain/entities/items/magic-item.js";
+import type { StructuredMaterialComponent } from "../../../domain/entities/spells/catalog/types.js";
 
 const SESSION = "session-1";
 
@@ -288,5 +289,134 @@ describe("InventoryService.createItemsForCharacter", () => {
 
     const after = await chars.getById("alice");
     expect(after!.sheetVersion).toBe(created.sheetVersion);
+  });
+});
+
+// ─── Material component helpers ────────────────────────────────────────────
+
+function gem(name: string, valueGp: number, quantity = 1): CharacterItemInstance {
+  return { name, quantity, valueGp } as unknown as CharacterItemInstance;
+}
+
+const DIAMOND_300: StructuredMaterialComponent = {
+  description: "a diamond worth 300+ GP, consumed",
+  itemKeyword: "diamond",
+  costGp: 300,
+  consumed: true,
+};
+
+const DIAMOND_50: StructuredMaterialComponent = {
+  description: "a diamond worth 50+ GP",
+  itemKeyword: "diamond",
+  costGp: 50,
+  consumed: false,
+};
+
+describe("InventoryService.findItemMatchingComponent", () => {
+  it("finds item matching keyword and sufficient value", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 300)]);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
+
+    expect(result.found).toBe(true);
+    expect(result.itemName).toBe("Diamond");
+  });
+
+  it("returns found=false when no item matches keyword", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Ruby", 500)]);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
+
+    expect(result.found).toBe(false);
+  });
+
+  it("returns found=false when item value is below costGp", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 100)]);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
+
+    expect(result.found).toBe(false);
+  });
+
+  it("returns found=false when inventory is empty", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", []);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
+
+    expect(result.found).toBe(false);
+  });
+
+  it("returns found=false when character not in session", async () => {
+    const { service } = buildService();
+
+    const result = await service.findItemMatchingComponent(SESSION, "ghost", DIAMOND_300);
+
+    expect(result.found).toBe(false);
+  });
+
+  it("matches case-insensitively on item name", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("flawless diamond", 300)]);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
+
+    expect(result.found).toBe(true);
+  });
+});
+
+describe("InventoryService.consumeMaterialComponent", () => {
+  it("removes item from inventory when quantity is 1", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 300)]);
+
+    await service.consumeMaterialComponent(SESSION, "alice", DIAMOND_300);
+
+    const after = await chars.getById("alice");
+    expect((after!.sheet as any).inventory).toHaveLength(0);
+  });
+
+  it("decrements quantity by 1 when stack > 1", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 300, 3)]);
+
+    await service.consumeMaterialComponent(SESSION, "alice", DIAMOND_300);
+
+    const after = await chars.getById("alice");
+    const inv = (after!.sheet as any).inventory as CharacterItemInstance[];
+    expect(inv).toHaveLength(1);
+    expect(inv[0].quantity).toBe(2);
+  });
+
+  it("emits InventoryChanged use event", async () => {
+    const { service, chars, events } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 300)]);
+
+    await service.consumeMaterialComponent(SESSION, "alice", DIAMOND_300);
+
+    const changed = events.getAll().filter((e) => e.type === "InventoryChanged");
+    expect(changed).toHaveLength(1);
+    expect((changed[0].payload as any).action).toBe("use");
+    expect((changed[0].payload as any).itemName).toBe("Diamond");
+  });
+
+  it("throws ValidationError when matching item not found", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Ruby", 300)]);
+
+    await expect(
+      service.consumeMaterialComponent(SESSION, "alice", DIAMOND_300),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("non-consumed component: findItemMatchingComponent finds item (50gp diamond)", async () => {
+    const { service, chars } = buildService();
+    await createCharacter(chars, "alice", "Alice", [gem("Diamond", 50)]);
+
+    const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_50);
+    expect(result.found).toBe(true);
   });
 });

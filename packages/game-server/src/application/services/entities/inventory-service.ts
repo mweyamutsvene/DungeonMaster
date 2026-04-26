@@ -31,6 +31,7 @@ import type { InventoryChangedPayload } from "../../repositories/event-repositor
 import type { JsonValue, SessionCharacterRecord } from "../../types.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 import type { CharacterItemInstance } from "../../../domain/entities/items/magic-item.js";
+import type { StructuredMaterialComponent } from "../../../domain/entities/spells/catalog/types.js";
 import {
   addInventoryItem,
   decrementItemExpiries,
@@ -311,6 +312,81 @@ export class InventoryService {
       },
       "expire",
     );
+  }
+
+  /**
+   * Find an item matching a structured material component (keyword + min GP value).
+   * Used by SpellActionHandler to validate presence before slot consumption.
+   */
+  async findItemMatchingComponent(
+    sessionId: string,
+    charId: string,
+    material: StructuredMaterialComponent,
+  ): Promise<{ found: boolean; itemName?: string }> {
+    const char = await this.deps.charactersRepo.getById(charId);
+    if (!char || char.sessionId !== sessionId) return { found: false };
+
+    const inventory = getInventoryFromSheet(char.sheet);
+    const keyword = material.itemKeyword?.toLowerCase();
+    const match = inventory.find((item) => {
+      if (keyword && !item.name.toLowerCase().includes(keyword)) return false;
+      const value = typeof (item as { valueGp?: number }).valueGp === "number"
+        ? (item as { valueGp?: number }).valueGp!
+        : 0;
+      return value >= (material.costGp ?? 0);
+    });
+
+    return match ? { found: true, itemName: match.name } : { found: false };
+  }
+
+  /**
+   * Remove one unit of a material component from a character's inventory.
+   * Called after validating presence — only invoke when `material.consumed === true`.
+   */
+  async consumeMaterialComponent(
+    sessionId: string,
+    charId: string,
+    material: StructuredMaterialComponent,
+  ): Promise<void> {
+    await this.runInUow(async (repos) => {
+      const char = await repos.charactersRepo.getById(charId);
+      if (!char || char.sessionId !== sessionId) {
+        throw new NotFoundError(`Character not found: ${charId}`);
+      }
+
+      const inventory = getInventoryFromSheet(char.sheet);
+      const keyword = material.itemKeyword?.toLowerCase();
+      const item = inventory.find((i) => {
+        if (keyword && !i.name.toLowerCase().includes(keyword)) return false;
+        const value = typeof (i as { valueGp?: number }).valueGp === "number"
+          ? (i as { valueGp?: number }).valueGp!
+          : 0;
+        return value >= (material.costGp ?? 0);
+      });
+
+      if (!item) {
+        throw new ValidationError(
+          `Material component not found in inventory: ${material.description}`,
+        );
+      }
+
+      const updatedInv = removeInventoryItem(inventory, item.name, 1);
+      await repos.charactersRepo.updateSheet(
+        char.id,
+        setInventoryOnSheet(char.sheet, updatedInv),
+      );
+      await repos.eventsRepo.append(sessionId, {
+        id: nanoid(),
+        type: "InventoryChanged",
+        payload: {
+          characterId: char.id,
+          characterName: char.name,
+          action: "use",
+          itemName: item.name,
+          quantity: 1,
+        },
+      });
+    });
   }
 
   // -------------------------------------------------------------------------

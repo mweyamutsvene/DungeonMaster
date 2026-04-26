@@ -193,28 +193,27 @@ export class SpellActionHandler {
         }
       }
 
-      // D&D 5e 2024: Material component enforcement (consumed components only).
-      // We enforce inventory presence ONLY for components that are CONSUMED on cast
-      // (Revivify's 300gp diamond, Continual Flame's 50gp ruby dust, etc.). Non-consumed
-      // costed components (e.g., Bless's Holy Symbol focus, Chromatic Orb's reusable diamond)
-      // are assumed satisfied by a spellcasting focus / component pouch / repeated reuse.
-      // This is intentionally narrower than strict RAW to avoid breaking baseline gameplay
-      // for spells whose foci every caster always carries.
-      // TODO: SS-M10 — actual decrement of consumed items at cast time (currently validated only).
+      // D&D 5e 2024: Material component enforcement.
+      // All costed components (costGp > 0) require the caster to have the item in inventory.
+      // Consumed components are removed from inventory at cast time.
+      // Enforcement is skipped when inventoryService is not provided (test environments).
       const material = parseMaterialComponent(canonical?.components?.m);
-      if (material?.consumed && material.costGp && material.costGp > 0 && character) {
-        const inventoryRaw = (sheet as { inventory?: unknown })?.inventory;
-        const inventory = Array.isArray(inventoryRaw) ? inventoryRaw as Array<Record<string, unknown>> : [];
-        const keyword = material.itemKeyword?.toLowerCase();
-        const found = inventory.find((item) => {
-          const name = typeof item.name === "string" ? item.name.toLowerCase() : "";
-          if (keyword && !name.includes(keyword)) return false;
-          const value = typeof item.valueGp === "number" ? item.valueGp : 0;
-          return value >= (material.costGp ?? 0);
-        });
-        if (!found) {
+      if (material?.costGp && material.costGp > 0 && this.deps.inventoryService) {
+        const check = await this.deps.inventoryService.findItemMatchingComponent(
+          sessionId,
+          actorId,
+          material,
+        );
+        if (!check.found) {
           throw new ValidationError(
-            `Cannot cast ${castInfo.spellName} — required material component (consumed): ${material.description}`,
+            `Cannot cast ${castInfo.spellName} — required material component: ${material.description}`,
+          );
+        }
+        if (material.consumed) {
+          await this.deps.inventoryService.consumeMaterialComponent(
+            sessionId,
+            actorId,
+            material,
           );
         }
       }

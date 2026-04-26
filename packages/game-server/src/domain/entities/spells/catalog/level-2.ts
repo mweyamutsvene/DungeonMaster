@@ -435,11 +435,26 @@ export const ZONE_OF_TRUTH = {
   description: 'Creatures in a 15-foot-radius sphere cannot speak deliberate lies. CHA save to detect the zone (not its effect).',
 } as const satisfies CanonicalSpell;
 
+export const CONTINUAL_FLAME = {
+  name: 'Continual Flame',
+  level: 2,
+  school: 'evocation',
+  castingTime: 'action',
+  range: 'touch',
+  components: {
+    v: true, s: true,
+    m: { description: 'ruby dust worth 50+ GP, consumed', itemKeyword: 'ruby', costGp: 50, consumed: true },
+  },
+  classLists: ['Cleric', 'Druid', 'Wizard'],
+  description: 'A flame, equivalent in brightness to a torch, springs forth from an object you touch. The flame looks like a regular flame, but it creates no heat and doesn\'t use oxygen.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_2_CATALOG: readonly CanonicalSpell[] = [
   AID,
   BLINDNESS_DEAFNESS,
   BRANDING_SMITE,
   CLOUD_OF_DAGGERS,
+  CONTINUAL_FLAME,
   DARKNESS,
   HOLD_PERSON,
   INVISIBILITY,

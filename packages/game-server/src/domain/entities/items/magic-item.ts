@@ -359,6 +359,8 @@ export interface CharacterItemInstance {
    * until an in-world clock is implemented.
    */
   longRestsRemaining?: number;
+  /** GP value of this item instance (used for costed material component validation). */
+  valueGp?: number;
 }
 
 /**

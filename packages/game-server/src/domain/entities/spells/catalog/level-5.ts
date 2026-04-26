@@ -133,11 +133,27 @@ export const CLOUDKILL = {
   description: 'A 20-foot-radius sphere of poisonous fog. 5d8 poison damage (CON save for half) on entering or starting turn. The cloud moves 10 feet away from you at the start of each of your turns.',
 } as const satisfies CanonicalSpell;
 
+export const RAISE_DEAD = {
+  name: 'Raise Dead',
+  level: 5,
+  healing: { diceCount: 0, diceSides: 0, modifier: 1 },
+  school: 'necromancy',
+  castingTime: 'action',
+  range: 'touch',
+  components: {
+    v: true, s: true,
+    m: { description: 'a diamond worth 500+ GP, consumed', itemKeyword: 'diamond', costGp: 500, consumed: true },
+  },
+  classLists: ['Bard', 'Cleric', 'Druid', 'Paladin'],
+  description: 'Touch a creature dead for no longer than 10 days. It revives with 1 HP and the Poisoned condition until it finishes a Long Rest.',
+} as const satisfies CanonicalSpell;
+
 export const LEVEL_5_CATALOG: readonly CanonicalSpell[] = [
   ANIMATE_OBJECTS,
   CLOUDKILL,
   CONE_OF_COLD,
   HOLD_MONSTER,
+  RAISE_DEAD,
   TELEKINESIS,
   WALL_OF_FORCE,
 ];

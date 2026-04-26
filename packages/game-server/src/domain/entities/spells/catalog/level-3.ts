@@ -65,7 +65,10 @@ export const REVIVIFY = {
   school: 'necromancy',
   castingTime: 'action',
   range: 'touch',
-  components: { v: true, s: true, m: 'a diamond worth 300+ GP, consumed' },
+  components: {
+    v: true, s: true,
+    m: { description: 'a diamond worth 300+ GP, consumed', itemKeyword: 'diamond', costGp: 300, consumed: true },
+  },
   classLists: ['Cleric', 'Druid', 'Paladin', 'Ranger'],
   description: 'Touch a creature dead less than 1 minute. It revives with 1 HP.',
 } as const satisfies CanonicalSpell;

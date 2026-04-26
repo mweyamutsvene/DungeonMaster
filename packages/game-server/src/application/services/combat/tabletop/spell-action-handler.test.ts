@@ -2,12 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SpellActionHandler } from "./spell-action-handler.js";
 import type { TabletopCombatServiceDeps } from "./tabletop-types.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
-import { MemoryCombatRepository } from "../../../../infrastructure/testing/memory-repos.js";
+import { MemoryCombatRepository, MemoryCharacterRepository, MemoryEventRepository } from "../../../../infrastructure/testing/memory-repos.js";
 import type { LlmRoster } from "../../../../application/commands/game-command.js";
 import { FixedDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import { ValidationError } from "../../../errors.js";
 import { AbilityRegistry } from "../abilities/ability-registry.js";
 import type { SessionCharacterRecord } from "../../../types.js";
+import { InventoryService } from "../../entities/inventory-service.js";
 
 const SESSION_ID = "session-1";
 const ENCOUNTER_ID = "enc-1";
@@ -1178,6 +1179,281 @@ describe("SpellActionHandler", () => {
 
       expect(result.type).toBe("SIMPLE_ACTION_COMPLETE");
       expect(result.message).toContain("on Fighter");
+    });
+  });
+
+  // ─────────────────────── Material component enforcement ────────────────────
+  describe("material component enforcement", () => {
+    const CLERIC_ID = "cleric-mc";
+    const SESSION_MC = "session-mc";
+
+    const clericRoster: LlmRoster = {
+      characters: [{ id: CLERIC_ID, name: "Cleric" }],
+      monsters: [{ id: TARGET_ID, name: "Goblin" }],
+      npcs: [],
+    };
+
+    const clericWithRevivify = (inventoryItems: unknown[] = []): SessionCharacterRecord => ({
+      id: CLERIC_ID,
+      sheet: {
+        preparedSpells: [
+          { name: "Revivify", level: 3, healing: { diceCount: 0, diceSides: 0, modifier: 1 } },
+          { name: "Chromatic Orb", level: 1, attackType: "ranged_spell", damage: { diceCount: 3, diceSides: 8 }, damageType: "fire" },
+        ],
+        spellAttackBonus: 5,
+        spellSaveDC: 13,
+        spellcastingAbility: "wisdom",
+        abilityScores: { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 16, charisma: 10 },
+        inventory: inventoryItems,
+      },
+    } as unknown as SessionCharacterRecord);
+
+    async function buildMcSetup(inventoryItems: unknown[] = []) {
+      const mcCombatRepo = new MemoryCombatRepository();
+      const charRepo = new MemoryCharacterRepository();
+      const eventRepo = new MemoryEventRepository();
+
+      await charRepo.createInSession(SESSION_MC, {
+        id: CLERIC_ID,
+        name: "Cleric",
+        level: 5,
+        className: "Cleric",
+        sheet: { inventory: inventoryItems },
+      });
+
+      const invService = new InventoryService({
+        charactersRepo: charRepo,
+        events: eventRepo,
+        logger: { warn: () => {} },
+      });
+
+      const mcDeps: TabletopCombatServiceDeps = {
+        combatRepo: mcCombatRepo,
+        actions: { castSpell: vi.fn().mockResolvedValue(undefined) },
+        twoPhaseActions: {
+          initiateSpellCast: vi.fn().mockResolvedValue({ status: "no_reactions", counterspellOpportunities: [] }),
+        },
+        pendingActions: { getById: vi.fn().mockResolvedValue(undefined) },
+        diceRoller: new FixedDiceRoller(10),
+        abilityRegistry: new AbilityRegistry(),
+        monsters: { listBySession: vi.fn().mockResolvedValue([{ id: TARGET_ID, name: "Goblin", stats: { hp: 12, ac: 13 } }]) },
+        npcs: { listBySession: vi.fn().mockResolvedValue([]) },
+        inventoryService: invService,
+      } as unknown as TabletopCombatServiceDeps;
+
+      const mcEventEmitter: TabletopEventEmitter = {
+        generateNarration: vi.fn().mockResolvedValue(undefined),
+        markActionSpent: vi.fn().mockResolvedValue(undefined),
+        emitDamageEvents: vi.fn().mockResolvedValue(undefined),
+        emitHealingEvents: vi.fn().mockResolvedValue(undefined),
+        emitAttackEvents: vi.fn().mockResolvedValue(undefined),
+        emitConcentrationEvent: vi.fn().mockResolvedValue(undefined),
+      } as unknown as TabletopEventEmitter;
+
+      await mcCombatRepo.createEncounter(SESSION_MC, {
+        id: "enc-mc",
+        status: "Active",
+        round: 1,
+        turn: 0,
+      });
+
+      await mcCombatRepo.createCombatants("enc-mc", [
+        {
+          id: "comb-cleric",
+          combatantType: "Character",
+          characterId: CLERIC_ID,
+          monsterId: null,
+          npcId: null,
+          initiative: 15,
+          hpCurrent: 30,
+          hpMax: 30,
+          conditions: [],
+          resources: {
+            resourcePools: [
+              { name: "spellSlot_1", current: 4, max: 4 },
+              { name: "spellSlot_3", current: 2, max: 2 },
+            ],
+          },
+        },
+        {
+          id: "comb-goblin-mc",
+          combatantType: "Monster",
+          characterId: null,
+          monsterId: TARGET_ID,
+          npcId: null,
+          initiative: 10,
+          hpCurrent: 12,
+          hpMax: 12,
+          conditions: [],
+          resources: { resourcePools: [] },
+        },
+      ]);
+
+      const mcHandler = new SpellActionHandler(mcDeps, mcEventEmitter, false);
+      return { mcHandler, charRepo };
+    }
+
+    it("Revivify: throws ValidationError when no diamond in inventory", async () => {
+      const { mcHandler } = await buildMcSetup([]);
+
+      await expect(
+        mcHandler.handleCastSpell(
+          SESSION_MC, "enc-mc", CLERIC_ID,
+          { spellName: "Revivify" },
+          [clericWithRevivify([])],
+          clericRoster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("Revivify: throws ValidationError when diamond value is insufficient (100gp < 300gp)", async () => {
+      const diamond100 = { name: "Diamond", valueGp: 100, quantity: 1 };
+      const { mcHandler } = await buildMcSetup([diamond100]);
+
+      await expect(
+        mcHandler.handleCastSpell(
+          SESSION_MC, "enc-mc", CLERIC_ID,
+          { spellName: "Revivify" },
+          [clericWithRevivify([diamond100])],
+          clericRoster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("Revivify: consumes 300gp diamond at cast time", async () => {
+      const diamond300 = { name: "Diamond", valueGp: 300, quantity: 1 };
+      const { mcHandler, charRepo } = await buildMcSetup([diamond300]);
+
+      // Consumption happens before delivery — catch any delivery-layer errors and verify
+      // the diamond is gone regardless of whether the spell's effect resolved.
+      let caughtErr: unknown;
+      try {
+        await mcHandler.handleCastSpell(
+          SESSION_MC, "enc-mc", CLERIC_ID,
+          { spellName: "Revivify" },
+          [clericWithRevivify([diamond300])],
+          clericRoster,
+        );
+      } catch (e) {
+        caughtErr = e;
+      }
+      // Must NOT be a material-component error (that would mean consumption was blocked)
+      if (caughtErr instanceof Error) {
+        expect(caughtErr.message).not.toContain("material component");
+      }
+
+      const after = await charRepo.getById(CLERIC_ID);
+      const inv = (after!.sheet as any).inventory as unknown[];
+      expect(inv).toHaveLength(0);
+    });
+
+    it("Chromatic Orb: throws ValidationError when no 50gp diamond present", async () => {
+      const { mcHandler } = await buildMcSetup([]);
+
+      await expect(
+        mcHandler.handleCastSpell(
+          SESSION_MC, "enc-mc", CLERIC_ID,
+          { spellName: "Chromatic Orb", targetName: "Goblin" },
+          [clericWithRevivify([])],
+          clericRoster,
+        ),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("Chromatic Orb: diamond is NOT consumed after successful cast", async () => {
+      const diamond50 = { name: "Diamond", valueGp: 50, quantity: 1 };
+      const { mcHandler, charRepo } = await buildMcSetup([diamond50]);
+
+      await mcHandler.handleCastSpell(
+        SESSION_MC, "enc-mc", CLERIC_ID,
+        { spellName: "Chromatic Orb", targetName: "Goblin" },
+        [clericWithRevivify([diamond50])],
+        clericRoster,
+      );
+
+      const after = await charRepo.getById(CLERIC_ID);
+      const inv = (after!.sheet as any).inventory as unknown[];
+      expect(inv).toHaveLength(1);
+    });
+
+    it("skips material enforcement when inventoryService not provided", async () => {
+      const depsNoInvService = {
+        combatRepo: new MemoryCombatRepository(),
+        actions: { castSpell: vi.fn().mockResolvedValue(undefined) },
+        twoPhaseActions: {
+          initiateSpellCast: vi.fn().mockResolvedValue({ status: "no_reactions", counterspellOpportunities: [] }),
+        },
+        pendingActions: { getById: vi.fn().mockResolvedValue(undefined) },
+        diceRoller: new FixedDiceRoller(10),
+        abilityRegistry: new AbilityRegistry(),
+        monsters: { listBySession: vi.fn().mockResolvedValue([{ id: TARGET_ID, name: "Goblin", stats: { hp: 12, ac: 13 } }]) },
+        npcs: { listBySession: vi.fn().mockResolvedValue([]) },
+        // no inventoryService
+      } as unknown as TabletopCombatServiceDeps;
+
+      const noInvEventEmitter = {
+        generateNarration: vi.fn().mockResolvedValue(undefined),
+        markActionSpent: vi.fn().mockResolvedValue(undefined),
+        emitDamageEvents: vi.fn().mockResolvedValue(undefined),
+        emitHealingEvents: vi.fn().mockResolvedValue(undefined),
+        emitAttackEvents: vi.fn().mockResolvedValue(undefined),
+        emitConcentrationEvent: vi.fn().mockResolvedValue(undefined),
+      } as unknown as TabletopEventEmitter;
+
+      const noInvCombatRepo = depsNoInvService.combatRepo as MemoryCombatRepository;
+      await noInvCombatRepo.createEncounter("session-noinv", {
+        id: "enc-noinv",
+        status: "Active",
+        round: 1,
+        turn: 0,
+      });
+      await noInvCombatRepo.createCombatants("enc-noinv", [
+        {
+          id: "comb-cleric-ni",
+          combatantType: "Character",
+          characterId: "cleric-ni",
+          monsterId: null,
+          npcId: null,
+          initiative: 15,
+          hpCurrent: 30,
+          hpMax: 30,
+          conditions: [],
+          resources: { resourcePools: [{ name: "spellSlot_3", current: 1, max: 1 }] },
+        },
+      ]);
+
+      const noInvHandler = new SpellActionHandler(depsNoInvService, noInvEventEmitter, false);
+      const noInvChars: SessionCharacterRecord[] = [{
+        id: "cleric-ni",
+        sheet: {
+          preparedSpells: [
+            { name: "Revivify", level: 3, healing: { diceCount: 0, diceSides: 0, modifier: 1 } },
+          ],
+          spellAttackBonus: 5,
+          spellSaveDC: 13,
+          spellcastingAbility: "wisdom",
+          abilityScores: { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 16, charisma: 10 },
+          inventory: [],
+        },
+      } as unknown as SessionCharacterRecord];
+      const noInvRoster: LlmRoster = { characters: [{ id: "cleric-ni", name: "Cleric" }], monsters: [], npcs: [] };
+
+      // Should NOT throw a material-component ValidationError despite missing diamond.
+      // Other errors (e.g. "requires a target") are fine — just not material enforcement.
+      let caughtErr: unknown;
+      try {
+        await noInvHandler.handleCastSpell(
+          "session-noinv", "enc-noinv", "cleric-ni",
+          { spellName: "Revivify" },
+          noInvChars,
+          noInvRoster,
+        );
+      } catch (e) {
+        caughtErr = e;
+      }
+      if (caughtErr instanceof Error) {
+        expect(caughtErr.message).not.toContain("material component");
+      }
     });
   });
 });
