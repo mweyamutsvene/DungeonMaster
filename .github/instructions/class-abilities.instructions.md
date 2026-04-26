@@ -280,6 +280,16 @@ All 12 classes registered: Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladi
 
 Note: Stunning Strike, Deflect Attacks, and Open Hand Technique are handled as attack enhancements/reactions via `ClassCombatTextProfile`, not as AbilityRegistry executors. Divine Smite is an `AttackEnhancementDef` (not an action mapping, not an executor).
 
+## Wild Shape Runtime Contract
+
+For Druid Wild Shape, executors MUST write structured form state to `resources.wildShapeForm` via `wild-shape-form-helper.ts` and MUST NOT rely on ad-hoc flags or temp-HP overlays for form HP.
+
+- Enter form: use `createWildShapeFormState()` + `applyWildShapeForm()`
+- Exit form: use `removeWildShapeForm()`
+- Do not set/read `wildShapeActive` as source of truth
+
+Combat-facing consumers (hydration, attack projection, AC projection, and damage routing) should go through the helper projection/routing APIs to avoid duplicate Wild Shape logic across tabletop and AI paths.
+
 ## Cross-Cutting Touchpoints
 
 Class abilities reach beyond this flow in several places:

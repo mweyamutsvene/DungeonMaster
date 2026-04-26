@@ -29,6 +29,20 @@ export interface WildShapeFormState {
   hitDiceUsed: number;
 }
 
+export interface WildShapeDamageResult {
+  updatedResources: JsonValue;
+  absorbedByForm: number;
+  spilloverDamage: number;
+  formBroken: boolean;
+}
+
+export interface WildShapeCombatVitals {
+  maxHP: number;
+  currentHP: number;
+  armorClass: number;
+  speed: number;
+}
+
 function parseDamageDice(formula: string): { diceCount: number; diceSides: number } {
   const match = formula.trim().toLowerCase().match(/(\d+)d(\d+)/);
   if (!match) {
@@ -86,7 +100,7 @@ export function createWildShapeFormState(
   };
 }
 
-export function readWildShapeForm(resources: JsonValue | undefined): WildShapeFormState | null {
+export function getWildShapeForm(resources: JsonValue | undefined): WildShapeFormState | null {
   if (!isRecord(resources)) return null;
 
   const raw = resources.wildShapeForm;
@@ -119,46 +133,31 @@ export function readWildShapeForm(resources: JsonValue | undefined): WildShapeFo
   return raw as unknown as WildShapeFormState;
 }
 
-export function withWildShapeForm(resources: JsonValue, form: WildShapeFormState): JsonValue {
+export function hasWildShapeForm(resources: JsonValue | undefined): boolean {
+  return getWildShapeForm(resources) !== null;
+}
+
+export function applyWildShapeForm(resources: JsonValue, form: WildShapeFormState): JsonValue {
   const base = isRecord(resources) ? resources : {};
   return {
     ...base,
-    wildShapeActive: true,
     wildShapeForm: form,
   } as JsonValue;
 }
 
-export function clearWildShapeForm(resources: JsonValue): JsonValue {
+export function removeWildShapeForm(resources: JsonValue): JsonValue {
   const base = isRecord(resources) ? { ...resources } : {};
-
-  delete base.wildShapeActive;
   delete base.wildShapeForm;
 
-  // Legacy wild-shape metadata cleanup.
-  delete base.tempHp;
-  delete base.wildShapeHp;
-  delete base.wildShapeHpMax;
-  delete base.wildShapeAc;
-  delete base.wildShapeAttackBonus;
-  delete base.wildShapeDamage;
-  delete base.wildShapeMultiattack;
-  delete base.wildShapeSpeed;
-
-  // Remove Wild Shape effect marker if present.
   const filteredEffects = getActiveEffects(base as JsonValue).filter((e) => e.source !== "Wild Shape");
   return setActiveEffects(base as JsonValue, filteredEffects);
 }
 
-export function applyDamageToWildShapeForm(
+export function routeDamageThroughWildShapeForm(
   resources: JsonValue,
   incomingDamage: number,
-): {
-  updatedResources: JsonValue;
-  absorbedByForm: number;
-  spilloverDamage: number;
-  formBroken: boolean;
-} {
-  const form = readWildShapeForm(resources);
+): WildShapeDamageResult {
+  const form = getWildShapeForm(resources);
   if (!form || incomingDamage <= 0) {
     return {
       updatedResources: resources,
@@ -174,7 +173,7 @@ export function applyDamageToWildShapeForm(
       hpRemainingInForm: form.hpRemainingInForm - incomingDamage,
     };
     return {
-      updatedResources: withWildShapeForm(resources, nextForm),
+      updatedResources: applyWildShapeForm(resources, nextForm),
       absorbedByForm: incomingDamage,
       spilloverDamage: 0,
       formBroken: false,
@@ -183,9 +182,42 @@ export function applyDamageToWildShapeForm(
 
   const spilloverDamage = incomingDamage - form.hpRemainingInForm;
   return {
-    updatedResources: clearWildShapeForm(resources),
+    updatedResources: removeWildShapeForm(resources),
     absorbedByForm: form.hpRemainingInForm,
     spilloverDamage,
     formBroken: true,
   };
+}
+
+export function projectCombatVitalsWithWildShape(
+  resources: JsonValue | undefined,
+  baseVitals: WildShapeCombatVitals,
+): WildShapeCombatVitals {
+  const form = getWildShapeForm(resources);
+  if (!form) return baseVitals;
+
+  return {
+    maxHP: form.maxHp,
+    currentHP: form.hpRemainingInForm,
+    armorClass: form.armorClass,
+    speed: form.speedFeet,
+  };
+}
+
+export function projectArmorClassWithWildShape(
+  resources: JsonValue | undefined,
+  baseArmorClass: number,
+): number {
+  const form = getWildShapeForm(resources);
+  if (!form) return baseArmorClass;
+  return form.armorClass;
+}
+
+export function projectAttacksWithWildShape<T>(
+  resources: JsonValue | undefined,
+  fallbackAttacks: T[] | undefined,
+): T[] | WildShapeFormAttack[] | undefined {
+  const form = getWildShapeForm(resources);
+  if (!form || form.attacks.length === 0) return fallbackAttacks;
+  return form.attacks.map((attack) => ({ ...attack, equipped: true }));
 }

@@ -43,7 +43,7 @@ Architecture is sound across every flow. After three rounds of implementation + 
 
 1. ~~**d20 roll-interrupt hook**~~ ✅ DONE — `RollInterruptResolver` + `PendingRollInterruptData` + resolve endpoint landed. **Both attack and save paths implemented.** Attack + save paths: BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace. Concentration saves covered automatically (route through SAVING_THROW). Cutting Words/Silvery Barbs still open (require ally-scan at interrupt time — deferred until Bard class lands).
 2. **Subclass L3 features** for 12 base subclasses — typed framework exists; mechanical implementations missing for ~7. Plan in [plan-subclass-framework.md](plan-subclass-framework.md).
-3. **Wild Shape stat-block swap** — current implementation is temp-HP overlay, not real form swap. Plan in [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md).
+3. ~~**Wild Shape stat-block swap**~~ ✅ DONE — structured `wildShapeForm` runtime state now drives combat vitals projection (HP/AC/speed), attack projection, and shared damage routing in tabletop and AI paths.
 4. **Background field + Origin Feat / ASI pipeline** — Character.background field absent. Plan in [plan-background-pipeline.md](plan-background-pipeline.md).
 5. **E2E scenarios are 75% single-turn** — redundancy high; consolidation in progress.
 
@@ -172,7 +172,7 @@ Additional deterministic scenarios added and validated in this thread:
 | **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack, Danger Sense (SUP) | Primal Path mechanical features MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement SUP |
 | **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; attack + save consumption wired via roll-interrupt hook) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words require ally-scan — deferred) | ASI | Font of Inspiration + BI d8 SUP |
 | **Cleric** | Spellcasting, Divine Order MISSING | Channel Divinity (Turn Undead + Divine Spark) SUP | Divine Domain MISSING | ASI | Sear/Destroy Undead SUP |
-| **Druid** | Spellcasting, Primal Order MISSING | Wild Shape PARTIAL (temp HP + metadata; full swap/hydration pending) | Primal Circle MISSING | ASI | no universal |
+| **Druid** | Spellcasting, Primal Order MISSING | Wild Shape SUPPORTED (structured form-state swap/hydration + shared damage routing; no temp HP overlay) | Primal Circle PARTIAL | ASI | Wild Resurgence MISSING |
 | **Fighter** | Fighting Style, Second Wind SUP, Weapon Mastery 3 (cross-flow) | Action Surge SUP, Tactical Mind SUP | Martial Archetype MISSING | ASI | Extra Attack, Tactical Shift PARTIAL |
 | **Monk** | Martial Arts SUP, Unarmored Def | Ki/Focus pool SUP, Flurry/Patient/Step SUP, Unarmored Movement | Deflect Attacks SUP (reaction), Monastic Tradition MISSING | ASI, Slow Fall SUP | Extra Attack, Stunning Strike PARTIAL (inline) |
 | **Paladin** | Spellcasting, Lay on Hands SUP, Weapon Mastery 2 | Fighting Style, Divine Smite PARTIAL (inline), Channel Divinity PARTIAL | Sacred Oath MISSING | ASI, Divine Health | Extra Attack, Faithful Steed cross-flow |
@@ -422,7 +422,7 @@ Additional deterministic scenarios added and validated in this thread:
 | **AC with Mage Armor (13 + DEX)** | **MISSING P0** | Not detected; no `mageArmorActive` hydration |
 | Magic item +X armor/weapon bonuses | PARTIAL | Tabletop attack path applies +X weapon bonuses; AC/inventory parity across all combat paths still needs verification. |
 | **ASI boost merging into effective stats** | **MISSING P0** | `asiChoices` parsed but not applied to AC/attack/saves |
-| Wild Shape reverse hydration | PARTIAL | Resource/tempHP/metadata persist; transformed combat stat profile rehydration remains incomplete. |
+| Wild Shape reverse hydration | SUPPORTED | Structured `wildShapeForm` state projects transformed HP/AC/speed through hydration; tabletop + AI damage routing consume the same form HP pool before spillover. |
 | Species: natural armor | MISSING P1 | |
 | Species: breath weapons | MISSING P1 | Dragonborn |
 | Species: ability check bonuses | MISSING P1 | Clarify scope: Gnome Cunning is save-advantage vs magic (separate from ability checks). |
@@ -546,7 +546,7 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 | 8 | **Background field + background pipeline** | EntityManagement | Field entirely missing from Character. 2024 Origin Feat, ASI, skill/tool/language grants. **Plan: [plan-background-pipeline.md](plan-background-pipeline.md)** |
 | 9 | **Species trait auto-apply on character create** | EntityManagement | Currently applied at hydration only — not written to sheet on create. (Pairs with background pipeline plan.) |
 | 9b | **Subclass L3 features for 12 classes** | ClassAbilities | Framework + typed definitions exist; ~7 base subclasses need mechanical implementations. **Plan: [plan-subclass-framework.md](plan-subclass-framework.md)** |
-| 9c | **Wild Shape stat-block swap** (Druid L2) | ClassAbilities + CreatureHydration | Current implementation is a temp-HP hack — beast stats aren't actually applied. **Plan: [plan-wild-shape-stat-swap.md](plan-wild-shape-stat-swap.md)** |
+| 9c | ~~**Wild Shape stat-block swap** (Druid L2)~~ ✅ DONE | ClassAbilities + CreatureHydration | Implemented with structured runtime form state (`wildShapeForm`), projection helpers, and shared AI/tabletop damage routing. |
 | 10 | **Missing class feature executors** (grouped) | ClassAbilities | DONE for Steady Aim, Innate Sorcery, Sorcerous Restoration, Tactical Shift, Ritual Adept, Divine Spark, Magical Cunning, Slow Fall, Cunning Strike (all 5), and Tactical Mind. |
 | 11 | **Stunning Strike / Divine Smite / Cunning Strike architectural consolidation** | ClassAbilities | Currently inline in `hit-rider-resolver.ts` as attack enhancements. Works but should be dedicated executors for consistency. |
 | 12 | **Patron subclass combat hooks** | ClassAbilities | `darkOnesBlessingTempHp()` pure function exists; no kill-trigger event bus to fire it. Same pattern for other subclass procs. |
@@ -592,7 +592,7 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 | 17 | ASI merging into effective ability scores | CreatureHydration | MISSING |
 | 18 | Mage Armor AC detection | CreatureHydration | MISSING |
 | 19 | Magic item bonus parity across all combat paths | CreatureHydration + InventorySystem | PARTIAL |
-| 20 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities | PARTIAL |
+| 20 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities | SUPPORTED |
 | 21 | Lightning Bolt, Sleet Storm, Bestow Curse (L3 catalog) | SpellCatalog | MISSING |
 | 22 | Mage Hand, Shillelagh, Guidance, Spare the Dying cantrips | SpellCatalog | MISSING |
 | 23 | Magic Weapon, Prayer of Healing, Blur (L2 catalog) | SpellCatalog | MISSING |
@@ -746,12 +746,12 @@ After the initial 14 audits, a verification pass checked every UNVERIFIED item a
 - Reaction reset fires via `freshActionEconomy` at start of own turn (`combat.ts:185`).
 
 **Confirmed missing (audits correct):**
-- d20 roll-interrupt hook, background pipeline, inspiration grant/spend events, Divine Order, Primal Order, Wild Shape hydration parity, long-rest exhaustion reduction.
+- d20 roll-interrupt hook, background pipeline, inspiration grant/spend events, Divine Order, Primal Order, long-rest exhaustion reduction.
 - Monster catalog source/import parity for Orc remains open for explicit re-validation.
 
 **Confirmed partial (architectural):**
 - Stunning Strike, Divine Smite, Cunning Strike — inline in `hit-rider-resolver.ts`, not dedicated executors.
-- Wild Shape — temp HP grant + stat resource flags, not full stat-block replacement.
+- Wild Shape — structured form state with projected combat vitals and shared damage routing is implemented; remaining work is broader Druid feature breadth (Primal Order/Wild Resurgence) and subclass mechanics.
 - Patron subclass procs — pure functions but no kill-trigger event bus.
 - Character.hitDice — tracked in sheet JSON, not typed domain field.
 

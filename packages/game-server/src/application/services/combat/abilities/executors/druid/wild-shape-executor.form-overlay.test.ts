@@ -53,6 +53,6 @@ describe("WildShapeExecutor form overlay", () => {
     expect(wildShapeForm.maxHp).toBe(10);
 
     expect(updatedResources.tempHp).toBeUndefined();
-    expect(updatedResources.wildShapeActive).toBe(true);
+    expect(updatedResources.wildShapeActive).toBeUndefined();
   });
 });

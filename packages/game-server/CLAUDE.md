@@ -19,3 +19,4 @@ Per turn economy: 1 action, 1 bonus, 1 reaction, and a movement budget in feet.
 - Domain errors map to HTTP in `app.ts`.
 - Test files: `*.test.ts`, `*.integration.test.ts`, `*.llm.test.ts`.
 - Keep in-memory repos synced with repo interfaces.
+- Wild Shape runtime state lives in `resources.wildShapeForm`; use `wild-shape-form-helper.ts` for projection/routing.

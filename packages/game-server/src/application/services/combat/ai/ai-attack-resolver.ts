@@ -21,7 +21,7 @@ import { normalizeResources, getActiveEffects, readBoolean, useAttack, getPositi
 import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../helpers/ko-handler.js";
 import { breakConcentration, getConcentrationSpellName } from "../helpers/concentration-helper.js";
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../helpers/temp-hp.js";
-import { applyDamageToWildShapeForm, readWildShapeForm } from "../helpers/wild-shape-form-helper.js";
+import { routeDamageThroughWildShapeForm, getWildShapeForm } from "../helpers/wild-shape-form-helper.js";
 import { hasReactionAvailable } from "../../../../domain/rules/opportunity-attack.js";
 import { applyDamageDefenses } from "../../../../domain/rules/damage-defenses.js";
 import type { DamageDefenses } from "../../../../domain/rules/damage-defenses.js";
@@ -476,9 +476,9 @@ export class AiAttackResolver {
       if (damageApplied > 0) {
         const hpBefore = targetCombatant.hpCurrent;
         let hpAfter = hpBefore;
-        const formBefore = readWildShapeForm(targetCombatant.resources);
+        const formBefore = getWildShapeForm(targetCombatant.resources);
         if (formBefore && formBefore.hpRemainingInForm > 0) {
-          const formDamage = applyDamageToWildShapeForm(targetCombatant.resources, damageApplied);
+          const formDamage = routeDamageThroughWildShapeForm(targetCombatant.resources, damageApplied);
           hpAfter = Math.max(0, hpBefore - formDamage.spilloverDamage);
           await combat.updateCombatantState(targetCombatant.id, {
             hpCurrent: hpAfter,

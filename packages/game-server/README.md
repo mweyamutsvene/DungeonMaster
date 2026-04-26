@@ -33,6 +33,12 @@ src/
 4. **Testable** - Domain layer has zero external dependencies
 5. **Type-safe** - Full TypeScript coverage with strict mode
 
+## Wild Shape Runtime
+
+- Wild Shape uses structured `resources.wildShapeForm` state as the single source of truth.
+- Combat vitals/attacks/AC projections and form-damage routing are centralized in `application/services/combat/helpers/wild-shape-form-helper.ts`.
+- Tabletop and AI combat paths share the same Wild Shape routing helpers to prevent behavior drift.
+
 ## Development
 
 ```bash

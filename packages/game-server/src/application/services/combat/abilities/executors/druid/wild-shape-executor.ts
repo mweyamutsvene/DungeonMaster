@@ -26,7 +26,7 @@ import {
 } from "../../../helpers/resource-utils.js";
 import {
   createWildShapeFormState,
-  withWildShapeForm,
+  applyWildShapeForm,
 } from "../../../helpers/wild-shape-form-helper.js";
 import { nanoid } from "nanoid";
 import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
@@ -105,7 +105,7 @@ export class WildShapeExecutor implements AbilityExecutor {
 
       const currentRound = Math.max(1, Number(context.combat?.getRound?.() ?? 1));
       const formState = createWildShapeFormState(form, statBlock, context.actor.getId(), currentRound);
-      updatedResources = withWildShapeForm(updatedResources, formState);
+      updatedResources = applyWildShapeForm(updatedResources, formState);
 
       return {
         success: true,

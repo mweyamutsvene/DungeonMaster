@@ -48,7 +48,7 @@ import { applyKoEffectsIfNeeded, applyDamageWhileUnconscious } from "../../helpe
 import { applyDamageWithTempHp, readTempHp, withTempHp } from "../../helpers/temp-hp.js";
 import { qualifiesForDarkOnesBlessing, darkOnesBlessingTempHp } from "../../../../../domain/entities/classes/warlock.js";
 import { applyDamageDefenses, extractDamageDefenses } from "../../../../../domain/rules/damage-defenses.js";
-import { applyDamageToWildShapeForm, readWildShapeForm } from "../../helpers/wild-shape-form-helper.js";
+import { routeDamageThroughWildShapeForm, getWildShapeForm } from "../../helpers/wild-shape-form-helper.js";
 import type { CombatVictoryStatus } from "../../combat-victory-policy.js";
 import { parseDamageModifier } from "../combat-text-parser.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
@@ -373,9 +373,9 @@ export class DamageResolver {
     let hpAfter = hpBefore;
 
     if (targetCombatant) {
-      const formBefore = readWildShapeForm(targetCombatant.resources);
+      const formBefore = getWildShapeForm(targetCombatant.resources);
       if (formBefore && formBefore.hpRemainingInForm > 0) {
-        const formDamage = applyDamageToWildShapeForm(targetCombatant.resources, totalDamage);
+        const formDamage = routeDamageThroughWildShapeForm(targetCombatant.resources, totalDamage);
         hpAfter = Math.max(0, targetCombatant.hpCurrent - formDamage.spilloverDamage);
         if (this.debugLogsEnabled) {
           console.log(

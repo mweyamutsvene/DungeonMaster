@@ -25,7 +25,7 @@ import { isFightingStyleId } from "../../../../domain/entities/classes/fighting-
 import type { EquippedItems, EquippedArmorCategory } from "../../../../domain/entities/items/equipped-items.js";
 import { lookupArmor } from "../../../../domain/entities/items/armor-catalog.js";
 import { getNpcClassName, getNpcLevel, getNpcMechanicsSource, isClassBackedNpc } from "./class-backed-actor.js";
-import { readWildShapeForm } from "./wild-shape-form-helper.js";
+import { hasWildShapeForm, projectCombatVitalsWithWildShape } from "./wild-shape-form-helper.js";
 
 /**
  * Parse ability scores from JSON sheet.
@@ -188,20 +188,18 @@ export function hydrateCharacter(
   // Parse core stats from sheet JSON
   const abilityScores = extractAbilityScores(readObject(sheet, 'abilityScores'));
   const level = readNumber(sheet, 'level') ?? record.level;
-  let maxHP = readNumber(sheet, 'maxHP') ?? readNumber(sheet, 'hitPoints') ?? 10;
-  let currentHP = combatantState?.hpCurrent ?? readNumber(sheet, 'currentHP') ?? maxHP;
+  const maxHP = readNumber(sheet, 'maxHP') ?? readNumber(sheet, 'hitPoints') ?? 10;
+  const currentHP = combatantState?.hpCurrent ?? readNumber(sheet, 'currentHP') ?? maxHP;
   const tempHP = combatantState?.hpTemp ?? 0;
-  let armorClass = readNumber(sheet, 'armorClass') ?? readNumber(sheet, 'ac') ?? 10;
-  let speed = readNumber(sheet, 'speed') ?? 30;
-
-  // Wild Shape form overlay: combat-facing HP/AC/speed come from form state while transformed.
-  const wildShapeForm = readWildShapeForm(combatantState?.resources);
-  if (wildShapeForm) {
-    maxHP = wildShapeForm.maxHp;
-    currentHP = wildShapeForm.hpRemainingInForm;
-    armorClass = wildShapeForm.armorClass;
-    speed = wildShapeForm.speedFeet;
-  }
+  const armorClass = readNumber(sheet, 'armorClass') ?? readNumber(sheet, 'ac') ?? 10;
+  const speed = readNumber(sheet, 'speed') ?? 30;
+  const combatVitals = projectCombatVitalsWithWildShape(combatantState?.resources, {
+    maxHP,
+    currentHP,
+    armorClass,
+    speed,
+  });
+  const transformed = hasWildShapeForm(combatantState?.resources);
   
   // Parse optional fields
   const experiencePoints = readNumber(sheet, 'experiencePoints') ?? readNumber(sheet, 'xp') ?? 0;
@@ -270,11 +268,11 @@ export function hydrateCharacter(
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
     name: record.name,
-    maxHP,
-    currentHP,
+    maxHP: combatVitals.maxHP,
+    currentHP: combatVitals.currentHP,
     tempHP,
-    armorClass,
-    speed: wildShapeForm ? speed : (speciesTraits?.speed ?? speed),
+    armorClass: combatVitals.armorClass,
+    speed: transformed ? combatVitals.speed : (speciesTraits?.speed ?? combatVitals.speed),
     abilityScores: new AbilityScores(abilityScores),
     level,
     characterClass: record.className ?? 'Fighter',

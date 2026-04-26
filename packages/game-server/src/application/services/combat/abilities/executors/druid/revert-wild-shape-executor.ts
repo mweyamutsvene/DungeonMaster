@@ -15,8 +15,8 @@ import {
   normalizeResources,
 } from "../../../helpers/resource-utils.js";
 import {
-  clearWildShapeForm,
-  readWildShapeForm,
+  removeWildShapeForm,
+  getWildShapeForm,
 } from "../../../helpers/wild-shape-form-helper.js";
 import { requireSheet, requireResources } from "../executor-helpers.js";
 
@@ -32,7 +32,7 @@ export class RevertWildShapeExecutor implements AbilityExecutor {
     const resourcesErr = requireResources(params); if (resourcesErr) return resourcesErr;
 
     const resources = normalizeResources(params!.resources);
-    const form = readWildShapeForm(resources);
+    const form = getWildShapeForm(resources);
     if (!form) {
       return {
         success: false,
@@ -41,7 +41,7 @@ export class RevertWildShapeExecutor implements AbilityExecutor {
       };
     }
 
-    const sanitized = clearWildShapeForm(resources);
+    const sanitized = removeWildShapeForm(resources);
 
     return {
       success: true,

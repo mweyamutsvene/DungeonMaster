@@ -148,7 +148,6 @@ describe('Creature Hydration', () => {
         hpTemp: 0,
         conditions: [],
         resources: {
-          wildShapeActive: true,
           wildShapeForm: {
             formName: 'Beast of the Land',
             armorClass: 13,

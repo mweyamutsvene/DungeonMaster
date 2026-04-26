@@ -24,6 +24,7 @@ Complex task (4+ files, multi-flow, new feature):
 - Read source for truth. Docs give laws.
 - `plans/` is message bus.
 - If hook complains, fix real issue.
+- Wild Shape form state must go through `wild-shape-form-helper.ts` projection/routing APIs (no ad-hoc overlay logic).
 
 ## Auto Memory Path
 `C:\Users\tommy\.claude\projects\c--Users-tommy-Development-DungeonMaster\memory\`

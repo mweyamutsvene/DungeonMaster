@@ -66,7 +66,7 @@ import { mergeFightingStyleFeatId } from "../../../../domain/entities/classes/fi
 import { getAbilityModifier, getProficiencyBonus } from "../../../../domain/rules/ability-checks.js";
 import { doubleDiceInFormula } from "./combat-text-parser.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
-import { readWildShapeForm } from "../helpers/wild-shape-form-helper.js";
+import { projectArmorClassWithWildShape } from "../helpers/wild-shape-form-helper.js";
 import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 
@@ -428,7 +428,7 @@ export class RollStateMachine {
     const baseAC = (target as any).statBlock?.armorClass || (target as any).sheet?.armorClass || 10;
     // D&D 5e 2024: Cover grants AC bonus (half +2, three-quarters +5)
     const coverBonus = (action as any).coverACBonus ?? 0;
-    let targetAC = baseAC + coverBonus;
+    let targetAC = baseAC;
     let attackBonus = action.weaponSpec?.attackBonus ?? 5;
 
     // Apply feat modifiers to attack bonus (e.g. Archery +2 for ranged)
@@ -455,10 +455,8 @@ export class RollStateMachine {
     const targetCombatant = findCombatantByEntityId(combatants, targetId);
     const targetEffects = getActiveEffects(targetCombatant?.resources ?? {});
 
-    const wildShapeTargetForm = readWildShapeForm(targetCombatant?.resources);
-    if (wildShapeTargetForm) {
-      targetAC = wildShapeTargetForm.armorClass + coverBonus;
-    }
+    targetAC = projectArmorClassWithWildShape(targetCombatant?.resources, targetAC);
+    targetAC += coverBonus;
 
     // Attack bonus from effects (flat + dice)
     const attackBonusResult = calculateBonusFromEffects(attackerEffects, 'attack_rolls');

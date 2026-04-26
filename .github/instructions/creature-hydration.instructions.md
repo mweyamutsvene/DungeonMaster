@@ -39,5 +39,6 @@ Bridge persisted creature data into combat-facing domain objects and combat-stat
 - **Character.sheet is schemaless JSON** — every field access must have a fallback. No field is guaranteed to exist.
 - **Character and resolver paths have different tolerance levels** — hydration falls back aggressively for partial schemaless data, while resolver code fails fast when required combat stats are absent.
 - **Monster and NPC hydration both follow the stat-block pattern today** — character hydration is the distinct path.
+- **Wild Shape hydration is now projection-based** — character hydration should use `wild-shape-form-helper.ts` projection helpers as the single source for transformed HP/AC/speed, not bespoke field overrides.
 - **AC logic is split** — `Creature.getAC()` uses stored `armorClass` unless equipped armor/shield metadata exists, then computes from armor formula + DEX + shield. `Character.getAC()` can override that for class-specific Unarmored Defense and then add armored feat bonuses. Natural armor is not modeled here today.
 - **Species hydration applies speed, darkvision, save advantages, and merged damage resistances** — do not document species ability-score bonuses in this flow unless the code starts applying them.

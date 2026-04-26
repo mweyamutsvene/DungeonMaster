@@ -8,6 +8,7 @@
 import type { CombatantStateRecord, CombatEncounterRecord, SessionCharacterRecord } from "../../../types.js";
 import type { ICharacterRepository, IMonsterRepository, INPCRepository } from "../../../repositories/index.js";
 import type { FactionService } from "../helpers/faction-service.js";
+import { hasWildShapeForm } from "../helpers/wild-shape-form-helper.js";
 import type { ICombatantResolver } from "../helpers/combatant-resolver.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
 import { getMapZones, getCoverLevel } from "../../../../domain/rules/combat-map.js";
@@ -467,9 +468,8 @@ export class AiContextBuilder {
     if (statBlock && typeof statBlock.type === "string") return statBlock.type;
     const sheet = entityData.sheet as Record<string, unknown> | undefined;
     if (sheet && typeof sheet.creatureType === "string") return sheet.creatureType;
-    // Wild Shape: characters in beast form carry `wildShapeActive` + `wildShapeForm`.
-    const wildShape = (aiCombatant.resources as Record<string, unknown> | undefined)?.wildShapeActive;
-    if (wildShape) return "beast";
+    // Wild Shape: characters in beast form carry a structured `wildShapeForm` payload.
+    if (hasWildShapeForm(aiCombatant.resources)) return "beast";
     return undefined;
   }
 
