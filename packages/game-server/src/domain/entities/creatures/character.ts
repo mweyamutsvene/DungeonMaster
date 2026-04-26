@@ -54,6 +54,7 @@ function reconcileResourcePools(existing: readonly ResourcePool[], defaults: rea
 export interface CharacterData extends CreatureData {
   level: number;
   characterClass: string;
+  background?: string;
   /**
    * Normalized class id used for mechanics.
    * If omitted, we will try to infer it from `characterClass`.
@@ -141,6 +142,7 @@ export interface CharacterData extends CreatureData {
 export class Character extends Creature {
   private level: number;
   private characterClass: string;
+  private background?: string;
   private classId?: CharacterClassId;
   private subclass?: string;
   private subclassLevel?: number;
@@ -162,6 +164,7 @@ export class Character extends Creature {
     super(data);
     this.level = data.level;
     this.characterClass = data.characterClass;
+    this.background = data.background;
     this.classId = data.classId;
     this.subclass = data.subclass;
     this.subclassLevel = data.subclassLevel;
@@ -218,6 +221,10 @@ export class Character extends Creature {
 
   getClass(): string {
     return this.characterClass;
+  }
+
+  getBackground(): string | undefined {
+    return this.background;
   }
 
   getClassId(): CharacterClassId | undefined {
@@ -497,6 +504,7 @@ export class Character extends Creature {
       ...super.toJSON(),
       level: this.level,
       class: this.characterClass,
+      ...(this.background ? { background: this.background } : {}),
       classId: this.classId,
       experiencePoints: this.experiencePoints,
       proficiencyBonus: this.getProficiencyBonus(),

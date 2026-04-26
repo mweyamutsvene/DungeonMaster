@@ -76,6 +76,58 @@ async function createSessionAndCharacter(
 
 describe("EM-M2/M3/M4 API endpoints", () => {
   describe("PATCH /sessions/:id/characters/:characterId", () => {
+    it("applies background pipeline fields on character creation", async () => {
+      const { app } = buildTestApp();
+
+      const sessionRes = await app.inject({
+        method: "POST",
+        url: "/sessions",
+        payload: { storyFramework: {} },
+      });
+      const sessionId = sessionRes.json<{ id: string }>().id;
+
+      const createRes = await app.inject({
+        method: "POST",
+        url: `/sessions/${sessionId}/characters`,
+        payload: {
+          name: "Pipeline Hero",
+          level: 1,
+          className: "Rogue",
+          background: "criminal",
+          asiChoice: { dexterity: 2, constitution: 1, intelligence: 1 },
+          sheet: {
+            abilityScores: {
+              strength: 10,
+              dexterity: 14,
+              constitution: 12,
+              intelligence: 10,
+              wisdom: 10,
+              charisma: 10,
+            },
+            maxHp: 10,
+            currentHp: 10,
+            armorClass: 14,
+            speed: 30,
+          },
+        },
+      });
+
+      expect(createRes.statusCode).toBe(200);
+      const created = createRes.json<{ sheet: Record<string, unknown> }>();
+      const sheet = created.sheet;
+
+      expect(sheet.background).toBe("criminal");
+      expect(sheet.abilityScores).toMatchObject({
+        dexterity: 16,
+        constitution: 13,
+        intelligence: 11,
+      });
+      expect(sheet.featIds).toEqual(expect.arrayContaining(["feat_alert"]));
+      expect(sheet.skillProficiencies).toEqual(expect.arrayContaining(["sleightOfHand", "stealth"]));
+
+      await app.close();
+    });
+
     it("applies valid ASI choices", async () => {
       const { app } = buildTestApp();
       const { sessionId, charId } = await createSessionAndCharacter(app);

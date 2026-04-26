@@ -16,6 +16,163 @@ import { enrichSheetAttacks } from "../../../domain/entities/items/weapon-catalo
 import { enrichSheetArmor } from "../../../domain/entities/items/armor-catalog.js";
 import { enrichSheetClassFeatures } from "../../../domain/entities/classes/class-feature-enrichment.js";
 import type { AbilityScoresData } from "../../../domain/entities/core/ability-scores.js";
+import { getBackgroundDefinition } from "../../../domain/entities/backgrounds/registry.js";
+import type { AbilityScore, BackgroundAsiChoice } from "../../../domain/entities/backgrounds/types.js";
+
+const ABILITY_KEYS: readonly AbilityScore[] = [
+  "strength",
+  "dexterity",
+  "constitution",
+  "intelligence",
+  "wisdom",
+  "charisma",
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toAbilityScores(value: unknown): AbilityScoresData {
+  const scores = isRecord(value) ? value : {};
+  const normalized: AbilityScoresData = {
+    strength: Number(scores.strength ?? 10),
+    dexterity: Number(scores.dexterity ?? 10),
+    constitution: Number(scores.constitution ?? 10),
+    intelligence: Number(scores.intelligence ?? 10),
+    wisdom: Number(scores.wisdom ?? 10),
+    charisma: Number(scores.charisma ?? 10),
+  };
+
+  for (const key of ABILITY_KEYS) {
+    if (!Number.isFinite(normalized[key])) {
+      throw new ValidationError(`Invalid ability score for ${key}`);
+    }
+  }
+
+  return normalized;
+}
+
+function validateAndApplyBackgroundAsi(params: {
+  baseScores: AbilityScoresData;
+  asiChoice: BackgroundAsiChoice | undefined;
+  backgroundAbilities: readonly AbilityScore[];
+}): AbilityScoresData {
+  const { baseScores, asiChoice, backgroundAbilities } = params;
+  if (!asiChoice) {
+    throw new ValidationError("Background ASI choice is required when background is provided");
+  }
+
+  const entries = Object.entries(asiChoice).filter((entry): entry is [AbilityScore, number] =>
+    typeof entry[1] === "number" && entry[1] > 0,
+  );
+
+  if (entries.length !== 3) {
+    throw new ValidationError("Background ASI must include exactly three ability entries");
+  }
+
+  const allowed = new Set(backgroundAbilities);
+  let ones = 0;
+  let twos = 0;
+  let total = 0;
+
+  for (const [ability, increase] of entries) {
+    if (!allowed.has(ability)) {
+      throw new ValidationError(`Background ASI cannot increase ${ability} for this background`);
+    }
+    if (!Number.isInteger(increase) || (increase !== 1 && increase !== 2)) {
+      throw new ValidationError(`Background ASI increase for ${ability} must be 1 or 2`);
+    }
+    if (increase === 1) ones += 1;
+    if (increase === 2) twos += 1;
+    total += increase;
+  }
+
+  const isSplit = total === 4 && twos === 1 && ones === 2;
+  const isThreeOnes = total === 3 && twos === 0 && ones === 3;
+  if (!isSplit && !isThreeOnes) {
+    throw new ValidationError("Background ASI must be +2/+1/+1 or +1/+1/+1 across the background abilities");
+  }
+
+  const next: AbilityScoresData = { ...baseScores };
+  for (const [ability, increase] of entries) {
+    const after = next[ability] + increase;
+    if (after > 20) {
+      throw new ValidationError(`Background ASI would raise ${ability} above 20`);
+    }
+    next[ability] = after;
+  }
+  return next;
+}
+
+function mergeUniqueStrings(existing: unknown, additions: readonly string[]): string[] {
+  const base = Array.isArray(existing) ? existing.filter((entry): entry is string => typeof entry === "string") : [];
+  const merged = new Set(base);
+  for (const value of additions) merged.add(value);
+  return [...merged];
+}
+
+function mergeBackgroundEquipment(sheet: Record<string, unknown>, equipment: readonly { name: string; quantity: number }[]): void {
+  const existing = Array.isArray(sheet.inventory) ? [...sheet.inventory] : [];
+
+  for (const item of equipment) {
+    const index = existing.findIndex((entry) => {
+      if (!isRecord(entry)) return false;
+      const name = entry.name;
+      return typeof name === "string" && name.toLowerCase() === item.name.toLowerCase();
+    });
+
+    if (index >= 0) {
+      const current = existing[index];
+      if (!isRecord(current)) continue;
+      const currentQty = typeof current.quantity === "number" ? current.quantity : 1;
+      existing[index] = { ...current, quantity: currentQty + item.quantity };
+      continue;
+    }
+
+    existing.push({
+      name: item.name,
+      quantity: item.quantity,
+      equipped: false,
+      attuned: false,
+    });
+  }
+
+  sheet.inventory = existing;
+}
+
+function applyBackgroundPipeline(params: {
+  sheet: Record<string, unknown>;
+  backgroundId: string;
+  asiChoice?: BackgroundAsiChoice;
+  languageChoice?: string;
+}): Record<string, unknown> {
+  const background = getBackgroundDefinition(params.backgroundId);
+  const baseScores = toAbilityScores(params.sheet.abilityScores);
+  const adjustedScores = validateAndApplyBackgroundAsi({
+    baseScores,
+    asiChoice: params.asiChoice,
+    backgroundAbilities: background.abilityScoreOptions,
+  });
+
+  const nextSheet: Record<string, unknown> = {
+    ...params.sheet,
+    background: background.id,
+    abilityScores: adjustedScores,
+    featIds: mergeUniqueStrings(params.sheet.featIds, [background.originFeat]),
+    skillProficiencies: mergeUniqueStrings(params.sheet.skillProficiencies, [...background.skillProficiencies]),
+    toolProficiencies: mergeUniqueStrings(params.sheet.toolProficiencies, [background.toolProficiency]),
+  };
+
+  const languageToAdd = background.language === "any"
+    ? params.languageChoice?.trim()
+    : background.language;
+  if (languageToAdd) {
+    nextSheet.languages = mergeUniqueStrings(params.sheet.languages, [languageToAdd]);
+  }
+
+  mergeBackgroundEquipment(nextSheet, background.startingEquipment);
+  return nextSheet;
+}
 
 /**
  * Character CRUD for a given game session.
@@ -39,6 +196,9 @@ export class CharacterService {
       sheet: JsonValue;
       id?: string;
       classLevels?: Array<{ classId: string; level: number; subclass?: string }>;
+      background?: string;
+      asiChoice?: BackgroundAsiChoice;
+      languageChoice?: string;
     },
   ): Promise<SessionCharacterRecord> {
     const session = await this.sessions.getById(sessionId);
@@ -60,13 +220,24 @@ export class CharacterService {
     const id = input.id ?? nanoid();
 
     // Enrich sheet with canonical weapon properties and armor metadata from catalogs
-    let sheet = (typeof input.sheet === "object" && input.sheet !== null)
-      ? enrichSheetClassFeatures(
-          enrichSheetArmor(enrichSheetAttacks(input.sheet as Record<string, unknown>)),
-          input.level,
-          input.className ?? null,
-        )
-      : input.sheet;
+    let sheet = input.sheet;
+    if (isRecord(sheet)) {
+      let nextSheet = { ...sheet };
+      if (input.background) {
+        nextSheet = applyBackgroundPipeline({
+          sheet: nextSheet,
+          backgroundId: input.background,
+          asiChoice: input.asiChoice,
+          languageChoice: input.languageChoice,
+        });
+      }
+
+      sheet = enrichSheetClassFeatures(
+        enrichSheetArmor(enrichSheetAttacks(nextSheet)),
+        input.level,
+        input.className ?? null,
+      );
+    }
 
     // Store classLevels in sheet JSON when provided (multiclass support)
     if (input.classLevels && input.classLevels.length > 0 && typeof sheet === "object" && sheet !== null) {

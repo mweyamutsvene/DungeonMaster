@@ -26,7 +26,15 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
    */
   app.post<{
     Params: { id: string };
-    Body: { name: string; level: number; className?: string | null; sheet: unknown };
+    Body: {
+      name: string;
+      level: number;
+      className?: string | null;
+      sheet: unknown;
+      background?: string;
+      asiChoice?: Record<string, number>;
+      languageChoice?: string;
+    };
   }>("/sessions/:id/characters", async (req) => {
     const sessionId = req.params.id;
 
@@ -35,6 +43,9 @@ export function registerSessionCharacterRoutes(app: FastifyInstance, deps: Sessi
       level: req.body.level,
       className: req.body.className ?? null,
       sheet: req.body.sheet,
+      background: req.body.background,
+      asiChoice: req.body.asiChoice,
+      languageChoice: req.body.languageChoice,
     };
 
     if (deps.unitOfWork) {

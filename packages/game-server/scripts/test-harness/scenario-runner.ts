@@ -30,6 +30,9 @@ export interface CharacterSetup {
   name: string;
   className: string;
   level: number;
+  background?: string;
+  asiChoice?: Record<string, number>;
+  languageChoice?: string;
   /** Optional subclass identifier (e.g. "draconic-sorcery-red", "Hunter"). Merged into sheet. */
   subclass?: string;
   position?: { x: number; y: number };
@@ -843,6 +846,9 @@ export async function runScenario(
         name: charSetup.name,
         level: charSetup.level,
         className: charSetup.className,
+        background: charSetup.background,
+        asiChoice: charSetup.asiChoice,
+        languageChoice: charSetup.languageChoice,
         sheet: charSheet,
       };
       logRequest("POST", `${baseUrl}/sessions/${sessionId}/characters`, charPayload);

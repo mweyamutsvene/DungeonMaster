@@ -255,6 +255,7 @@ export function hydrateCharacter(
   const skillExpertise = readArray<string>(sheet, 'skillExpertise');
   const preparedSpells = readArray<string>(sheet, 'preparedSpells');
   const knownSpells = readArray<string>(sheet, 'knownSpells');
+  const background = readString(sheet, 'background') ?? undefined;
 
   const data: CharacterData = {
     id: combatantState?.id ?? record.id,  // Use combatant ID in combat context
@@ -267,6 +268,7 @@ export function hydrateCharacter(
     abilityScores: new AbilityScores(abilityScores),
     level,
     characterClass: record.className ?? 'Fighter',
+    background,
     classId: classId as CharacterData['classId'],
     subclass,
     subclassLevel,
