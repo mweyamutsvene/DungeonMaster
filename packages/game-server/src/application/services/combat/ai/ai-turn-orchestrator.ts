@@ -36,6 +36,7 @@ import { chooseLegendaryAction, type LegendaryActionDecision } from "./legendary
 import type { BattlePlanService } from "./battle-plan-service.js";
 import { DeterministicAiDecisionMaker } from "./deterministic-ai.js";
 import { ClassFeatureResolver } from "../../../../domain/entities/classes/class-feature-resolver.js";
+import { getNpcMechanicsSource } from "../helpers/class-backed-actor.js";
 import {
   hasAdvantageFromEffects,
   hasDisadvantageFromEffects,
@@ -958,7 +959,7 @@ export class AiTurnOrchestrator {
     } else if (boss.npcId) {
       const npc = await this.npcs.getById(boss.npcId);
       if (npc) {
-        const sb = npc.statBlock as Record<string, unknown>;
+        const sb = getNpcMechanicsSource(npc);
         if (Array.isArray(sb?.attacks)) attacks = sb.attacks as typeof attacks;
       }
     }

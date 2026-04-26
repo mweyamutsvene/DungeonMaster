@@ -155,8 +155,14 @@ model SessionNPC {
   sessionId String
 
   name      String
-  /// Class-based stat block (similar to SessionCharacter.sheet structure)
-  statBlock Json
+  /// Traditional monster-style NPC representation.
+  statBlock Json?
+  /// Class-backed NPC class id/name (e.g. Fighter, Wizard).
+  className String?
+  /// Class-backed NPC level.
+  level     Int?
+  /// Character-like mechanics sheet for class-backed NPCs.
+  sheet     Json?
   
   /// Faction determines allies/enemies in combat
   faction      String @default("party")

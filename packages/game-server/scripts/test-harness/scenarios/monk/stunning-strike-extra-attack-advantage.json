@@ -1,0 +1,148 @@
+{
+  "name": "Monk: Stunning Strike chained Extra Attack gets advantage",
+  "description": "Regression from the live monk-vs-monk run. After a monk lands Stunning Strike in melee, the chained Extra Attack prompt should carry advantage against the adjacent stunned target.",
+  "setup": {
+    "character": {
+      "name": "Kai Stormfist",
+      "className": "Monk",
+      "subclass": "Open Hand",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 36,
+        "currentHp": 36,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Extra Attack", "description": "Attack twice when you take the Attack action" },
+          { "name": "Stunning Strike", "description": "On hit, spend 1 ki; target CON save or Stunned" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Vex Training Dummy",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 16,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 12,
+            "charisma": 8
+          },
+          "maxHp": 40,
+          "hp": 40,
+          "armorClass": 15,
+          "speed": 40,
+          "challengeRating": 1,
+          "experienceValue": 200,
+          "attacks": [
+            {
+              "name": "Unarmed Strike",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I attack Vex Training Dummy" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Open with a normal melee hit so Stunning Strike is offered as an on-hit enhancement.",
+      "input": { "text": "attack Vex Training Dummy with Unarmed Strike" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "15" },
+      "comment": "15 + 6 = 21 vs AC 15, hit. Stunning Strike should be offered.",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true,
+        "eligibleEnhancements": [{ "keyword": "stunning-strike" }]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Force the target's CON save to fail so Stunned is definitely applied before the chained Extra Attack prompt.",
+      "input": { "values": [1] }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "6 with stunning strike" },
+      "comment": "Spend 1 ki and apply Stunned. The chained Extra Attack prompt should immediately carry advantage against the adjacent stunned target.",
+      "expect": {
+        "actionComplete": false,
+        "stunningStrike": {},
+        "rollType": "attack",
+        "requiresPlayerInput": true,
+        "advantage": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "13" },
+      "comment": "Resolve the chained Extra Attack prompt after the advantage assertion above.",
+      "expect": {
+        "hit": true,
+        "rollType": "damage",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "5" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Ki should have been spent once, and the target should still be stunned at end of the monk's turn.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 },
+        "monsterConditions": { "name": "Vex Training Dummy", "hasConditions": ["Stunned"] }
+      }
+    }
+  ]
+}

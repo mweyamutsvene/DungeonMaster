@@ -22,6 +22,7 @@ import { parseMultiattackCount } from "./ai-multiattack-parser.js";
 import type { TurnStepResult, AiCombatContext } from "./ai-types.js";
 import { getInventory } from "../helpers/resource-utils.js";
 import { lookupMagicItem } from "../../../../domain/entities/items/magic-item-catalog.js";
+import { getNpcClassName, getNpcLevel, getNpcMechanicsSource } from "../helpers/class-backed-actor.js";
 
 export class AiContextBuilder {
   private readonly aiDebugEnabled =
@@ -219,9 +220,9 @@ export class AiContextBuilder {
         } else if (a.combatantType === "NPC" && a.npcId) {
           const npc = await this.getCachedNPC(a.npcId);
           if (npc) {
-            const statBlock = npc.statBlock as Record<string, unknown>;
-            className = statBlock?.className as string | undefined;
-            level = statBlock?.level as number | undefined;
+            const statBlock = getNpcMechanicsSource(npc);
+            className = getNpcClassName(npc) || undefined;
+            level = getNpcLevel(npc) || undefined;
             armorClass = statBlock?.armorClass as number | undefined;
             speed = (statBlock?.speed as number | undefined) ?? 30;
             size = statBlock?.size as string | undefined;
@@ -328,9 +329,9 @@ export class AiContextBuilder {
         } else if (e.combatantType === "NPC" && e.npcId) {
           const npc = await this.getCachedNPC(e.npcId);
           if (npc) {
-            const statBlock = npc.statBlock as Record<string, unknown>;
-            className = statBlock?.className as string | undefined;
-            level = statBlock?.level as number | undefined;
+            const statBlock = getNpcMechanicsSource(npc);
+            className = getNpcClassName(npc) || undefined;
+            level = getNpcLevel(npc) || undefined;
             armorClass = statBlock?.armorClass as number | undefined;
             speed = (statBlock?.speed as number | undefined) ?? 30;
             size = statBlock?.size as string | undefined;
@@ -554,14 +555,14 @@ export class AiContextBuilder {
         attacksPerAction: parseMultiattackCount((statBlock.actions as unknown[]) || []),
       };
     } else if (aiCombatant.combatantType === "NPC") {
-      const statBlock = entityData.statBlock as Record<string, unknown>;
+      const statBlock = getNpcMechanicsSource(entityData as any);
       const defenses = extractDamageDefenses(statBlock);
       const ac = statBlock.armorClass as number | undefined;
       const speed = (statBlock.speed as number | undefined) ?? 30;
       const abilityScores = this.extractAbilityScores(statBlock);
       const npcSize = statBlock.size as string | undefined;
-      const npcClass = statBlock.className as string | undefined;
-      const npcLevel = statBlock.level as number | undefined;
+      const npcClass = getNpcClassName(entityData as any) || undefined;
+      const npcLevel = getNpcLevel(entityData as any) || undefined;
       const { spellSaveDC, spellAttackBonus } = this.extractSpellCasting(statBlock);
       const classAbilities = this.getClassAbilitiesForContext(npcClass, npcLevel);
       return {

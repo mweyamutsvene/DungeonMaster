@@ -37,6 +37,7 @@ import type {
   ActionParseResult,
 } from "../tabletop-types.js";
 import type { AbilityActor, AbilityCombatContext } from "../../../../../domain/abilities/ability-executor.js";
+import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
 
 // ─── Shared adapter helpers ────────────────────────────────────────────
 
@@ -113,26 +114,23 @@ export class ClassAbilityHandlers {
     text: string,
   ): Promise<ActionParseResult> {
     const actor = inferActorRef(actorId, roster);
-
-    if (actor.type !== "Character") {
-      throw new ValidationError("Class abilities can only be used by characters");
+    const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+    if (!actorSource) {
+      throw new ValidationError("Class abilities require a character or class-backed NPC");
     }
 
-    const character = characters.find((c) => c.id === actorId);
-    if (!character) {
-      throw new ValidationError("Character not found");
-    }
-
-    const sheet = (character.sheet ?? {}) as any;
-    const level = sheet?.level ?? character?.level ?? 1;
-    const className = sheet?.className ?? character?.className ?? "";
+    const sheet = actorSource.sheet as any;
+    const level = actorSource.level;
+    const className = actorSource.className;
 
     const combatantStates = await this.deps.combatRepo.listCombatants(encounterId);
     const actorCombatant = combatantStates.find(
-      (c: any) => c.combatantType === "Character" && c.characterId === actorId,
+      (c: any) => actorSource.sourceType === "Character"
+        ? c.combatantType === "Character" && c.characterId === actorId
+        : c.combatantType === "NPC" && c.npcId === actorId,
     );
     if (!actorCombatant) {
-      throw new ValidationError("Character not in combat");
+      throw new ValidationError("Actor not in combat");
     }
 
     const resources = actorCombatant.resources ?? {};
@@ -199,7 +197,7 @@ export class ClassAbilityHandlers {
 
     const mockCreature = buildAbilityActor(
       actorId,
-      character.name,
+      actorSource.name,
       actorCombatant.hpCurrent ?? sheet?.currentHp ?? sheet?.maxHp ?? 0,
       actorCombatant.hpMax ?? sheet?.maxHp ?? 0,
       sheet?.speed ?? 30,

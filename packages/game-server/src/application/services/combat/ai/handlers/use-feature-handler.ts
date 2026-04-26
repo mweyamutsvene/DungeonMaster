@@ -6,6 +6,7 @@
 
 import type { AiActionHandler, AiActionHandlerContext, AiActionHandlerDeps, AiHandlerResult } from "../ai-action-handler.js";
 import { spendAction } from "../../helpers/resource-utils.js";
+import { getNpcMechanicsSource } from "../../helpers/class-backed-actor.js";
 
 export class UseFeatureHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -71,7 +72,7 @@ export class UseFeatureHandler implements AiActionHandler {
       try {
         const npcRecord = await npcs.getById(aiCombatant.npcId);
         if (npcRecord) {
-          sheet = (npcRecord.statBlock as Record<string, unknown>) ?? undefined;
+          sheet = getNpcMechanicsSource(npcRecord);
         }
       } catch { /* Non-fatal */ }
     }

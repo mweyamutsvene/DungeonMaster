@@ -30,6 +30,7 @@ import { applyKoEffectsIfNeeded } from "../../helpers/ko-handler.js";
 import type { SavingThrowResolver } from "./saving-throw-resolver.js";
 import type { WeaponMasteryProperty } from "../../../../../domain/rules/weapon-mastery.js";
 import type { TabletopCombatServiceDeps, WeaponSpec } from "../tabletop-types.js";
+import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
 
 export class WeaponMasteryResolver {
   constructor(
@@ -67,9 +68,9 @@ export class WeaponMasteryResolver {
         if (!this.savingThrowResolver) return "";
 
         // Get attacker's ability modifier + proficiency for DC
-        const actorChar = characters.find((c: any) => c.id === actorId);
-        const actorSheet = (actorChar?.sheet ?? {}) as any;
-        const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
+        const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+        const actorSheet = (actorSource?.sheet ?? {}) as any;
+        const actorLevel = actorSource?.level ?? ClassFeatureResolver.getLevel(actorSheet, undefined);
         const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
         // Use STR or DEX depending on weapon type (finesse can use DEX)
         const strScore = actorSheet?.abilityScores?.strength ?? 10;
@@ -106,9 +107,9 @@ export class WeaponMasteryResolver {
         // Topple: CON save or knocked Prone
         if (!this.savingThrowResolver) return "";
 
-        const actorChar = characters.find((c: any) => c.id === actorId);
-        const actorSheet = (actorChar?.sheet ?? {}) as any;
-        const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
+        const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+        const actorSheet = (actorSource?.sheet ?? {}) as any;
+        const actorLevel = actorSource?.level ?? ClassFeatureResolver.getLevel(actorSheet, undefined);
         const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
         const strScore = actorSheet?.abilityScores?.strength ?? 10;
         const dexScore = actorSheet?.abilityScores?.dexterity ?? 10;

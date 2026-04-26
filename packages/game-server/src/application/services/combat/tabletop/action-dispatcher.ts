@@ -12,6 +12,7 @@ import {
   spendResourceFromPool,
 } from "../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
+import { getClassBackedActorSource } from "../helpers/class-backed-actor.js";
 import { normalizeConditions, canTakeActions } from "../../../../domain/entities/combat/conditions.js";
 import { tryMatchClassAction } from "../../../../domain/entities/classes/combat-text-profile.js";
 import { getAllCombatTextProfiles } from "../../../../domain/entities/classes/registry.js";
@@ -223,7 +224,7 @@ export class ActionDispatcher {
 
     // -- Offhand attack --
     if (command.kind === "offhand") {
-      const skipBonusCost = await this.shouldSkipBonusCostForOffhand(encounterId, actorId, characters);
+      const skipBonusCost = await this.shouldSkipBonusCostForOffhand(encounterId, actorId, characters, npcs);
       return this.classAbilityHandlers.handleBonusAbility(
         sessionId,
         encounterId,
@@ -323,12 +324,13 @@ export class ActionDispatcher {
     encounterId: string,
     actorId: string,
     characters: SessionCharacterRecord[],
+    npcs: SessionNPCRecord[],
   ): Promise<boolean> {
-    const actorChar = characters.find((c) => c.id === actorId);
-    if (!actorChar) return false;
+    const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+    if (!actorSource) return false;
 
-    const sheet = (actorChar.sheet ?? {}) as any;
-    const className = actorChar.className ?? sheet?.className ?? "";
+    const sheet = actorSource.sheet as any;
+    const className = actorSource.className;
     const attacks: Array<{ name: string }> = sheet?.attacks ?? [];
     const offHand = attacks.length > 1 ? attacks[1] : undefined;
     if (!offHand) return false;
@@ -337,9 +339,7 @@ export class ActionDispatcher {
     if (offhandMastery !== "nick") return false;
 
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatants.find(
-      (c: any) => c.combatantType === "Character" && c.characterId === actorId,
-    );
+    const actorCombatant = findCombatantByEntityId(combatants, actorId);
     const nickRes = actorCombatant ? normalizeResources(actorCombatant.resources) : ({} as any);
     return !nickRes.nickUsedThisTurn;
   }
@@ -421,19 +421,7 @@ export class ActionDispatcher {
           this.movementHandlers.handleJumpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.characters, ctx.monsters, ctx.roster),
       },
 
-      // 4. Simple actions (dash/dodge/disengage/ready)
-      {
-        id: "simpleAction",
-        tryParse: (text) => tryParseSimpleActionText(text),
-        handle: (parsed, ctx) => {
-          if (parsed === "ready") {
-            return this.socialHandlers.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
-          }
-          return this.socialHandlers.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
-        },
-      },
-
-      // 4.5. Metamagic + cast chain (must run BEFORE classAction so the
+      // 4. Metamagic + cast chain (must run BEFORE classAction so the
       // "quickened spell" prefix doesn't resolve to the plain metamagic
       // executor without chaining into the spell cast).
       {
@@ -451,9 +439,7 @@ export class ActionDispatcher {
           const encounter = encounters.find((e: any) => e.status === "Active") ?? encounters[0];
           if (!encounter) throw new ValidationError("No active encounter");
           const combatants = await this.deps.combatRepo.listCombatants(encounter.id);
-          const actorCombatant = combatants.find(
-            (c: any) => c.combatantType === "Character" && c.characterId === ctx.actorId,
-          );
+          const actorCombatant = findCombatantByEntityId(combatants, ctx.actorId);
           if (!actorCombatant) throw new ValidationError("Actor not found in encounter");
 
           const resources = (actorCombatant.resources as Record<string, unknown>) ?? {};
@@ -482,7 +468,9 @@ export class ActionDispatcher {
         },
       },
 
-      // 5. Profile-driven class action matching
+      // 5. Profile-driven class action matching.
+      // This must run before generic simple actions so explicit class text such as
+      // "step of the wind dash" doesn't get intercepted as a plain Dash action.
       {
         id: "classAction",
         tryParse: (text) => tryMatchClassAction(text, profiles),
@@ -494,7 +482,19 @@ export class ActionDispatcher {
         },
       },
 
-      // 6. Hide
+      // 6. Simple actions (dash/dodge/disengage/ready)
+      {
+        id: "simpleAction",
+        tryParse: (text) => tryParseSimpleActionText(text),
+        handle: (parsed, ctx) => {
+          if (parsed === "ready") {
+            return this.socialHandlers.handleReadyAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.text, ctx.roster);
+          }
+          return this.socialHandlers.handleSimpleAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster);
+        },
+      },
+
+      // 7. Hide
       {
         id: "hide",
         tryParse: (text) => tryParseHideText(text) ? true : null,
@@ -502,7 +502,7 @@ export class ActionDispatcher {
           this.socialHandlers.handleHideAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.characters, ctx.roster),
       },
 
-      // 7. Search
+      // 8. Search
       {
         id: "search",
         tryParse: (text) => tryParseSearchText(text) ? true : null,
@@ -510,7 +510,7 @@ export class ActionDispatcher {
           this.socialHandlers.handleSearchAction(ctx.sessionId, ctx.encounterId, ctx.actorId, ctx.roster),
       },
 
-      // 8. Off-hand attack (with TWF validation + Nick mastery)
+      // 9. Off-hand attack (with TWF validation + Nick mastery)
       {
         id: "offhand",
         tryParse: (text) => tryParseOffhandAttackText(text) ? true : null,
@@ -519,12 +519,13 @@ export class ActionDispatcher {
             ctx.encounterId,
             ctx.actorId,
             ctx.characters,
+            ctx.npcs,
           );
           return this.classAbilityHandlers.handleBonusAbility(ctx.sessionId, ctx.encounterId, ctx.actorId, "base:bonus:offhand-attack", ctx.text, ctx.characters, ctx.monsters, ctx.npcs, ctx.roster, skipBonusCost);
         },
       },
 
-      // 9. Help
+      // 10. Help
       {
         id: "help",
         tryParse: (text) => tryParseHelpText(text),
@@ -532,7 +533,7 @@ export class ActionDispatcher {
           this.socialHandlers.handleHelpAction(ctx.sessionId, ctx.encounterId, ctx.actorId, parsed, ctx.roster),
       },
 
-      // 10. Shove
+      // 11. Shove
       {
         id: "shove",
         tryParse: (text) => tryParseShoveText(text),

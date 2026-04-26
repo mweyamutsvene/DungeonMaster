@@ -43,16 +43,31 @@ export interface ScenarioSetup {
   characters?: CharacterSetup[];
   monsters: Array<{
     name: string;
+    /** Expect advantage on the resulting chained attack roll prompt. */
+    advantage?: boolean;
+    /** Expect disadvantage on the resulting chained attack roll prompt. */
+    disadvantage?: boolean;
     position?: { x: number; y: number };
     statBlock: Record<string, unknown>;
   }>;
-  npcs?: Array<{
-    name: string;
-    position?: { x: number; y: number };
-    faction?: string;
-    aiControlled?: boolean;
-    statBlock: Record<string, unknown>;
-  }>;
+  npcs?: Array<
+    {
+      name: string;
+      position?: { x: number; y: number };
+      faction?: string;
+      aiControlled?: boolean;
+      statBlock: Record<string, unknown>;
+    }
+    | {
+      name: string;
+      position?: { x: number; y: number };
+      faction?: string;
+      aiControlled?: boolean;
+      className: string;
+      level: number;
+      sheet: Record<string, unknown>;
+    }
+  >;
   /** Configure mock AI behavior */
   aiConfig?: {
     defaultBehavior?: AiBehavior;
@@ -865,17 +880,27 @@ export async function runScenario(
     const npcIds: string[] = [];
     if (scenario.setup.npcs) {
       for (const npc of scenario.setup.npcs) {
-        // Merge position into statBlock if provided
-        const npcStatBlock = {
-          ...npc.statBlock,
-          ...(npc.position ? { position: npc.position } : {}),
-        };
-        const npcPayload = {
-          name: npc.name,
-          statBlock: npcStatBlock,
-          faction: npc.faction ?? "party",
-          aiControlled: npc.aiControlled ?? true,
-        };
+        const npcPayload = "statBlock" in npc
+          ? {
+            name: npc.name,
+            statBlock: {
+              ...npc.statBlock,
+              ...(npc.position ? { position: npc.position } : {}),
+            },
+            faction: npc.faction ?? "party",
+            aiControlled: npc.aiControlled ?? true,
+          }
+          : {
+            name: npc.name,
+            className: npc.className,
+            level: npc.level,
+            sheet: {
+              ...npc.sheet,
+              ...(npc.position ? { position: npc.position } : {}),
+            },
+            faction: npc.faction ?? "party",
+            aiControlled: npc.aiControlled ?? true,
+          };
         logRequest("POST", `${baseUrl}/sessions/${sessionId}/npcs`, npcPayload);
         const npcRes = await httpPost(`${baseUrl}/sessions/${sessionId}/npcs`, npcPayload);
         logResponse(npcRes.status, npcRes.body);

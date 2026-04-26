@@ -76,7 +76,10 @@ export interface SessionNPCRecord {
   name: string;
   faction: string | null;
   aiControlled: boolean;
-  statBlock: JsonValue;
+  statBlock: JsonValue | null;
+  className: string | null;
+  level: number | null;
+  sheet: JsonValue | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -388,13 +391,25 @@ export interface MonsterSetup {
   statBlock: Record<string, unknown>;
 }
 
-export interface NPCSetup {
+export interface StatBlockNPCSetup {
   name: string;
   position?: { x: number; y: number };
   faction?: string;
   aiControlled?: boolean;
   statBlock: Record<string, unknown>;
 }
+
+export interface ClassBackedNPCSetup {
+  name: string;
+  position?: { x: number; y: number };
+  faction?: string;
+  aiControlled?: boolean;
+  className: string;
+  level: number;
+  sheet: Record<string, unknown>;
+}
+
+export type NPCSetup = StatBlockNPCSetup | ClassBackedNPCSetup;
 
 // ============================================================================
 // CLI Options

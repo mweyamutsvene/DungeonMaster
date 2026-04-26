@@ -43,6 +43,8 @@ import type {
   WeaponSpec,
 } from "../tabletop-types.js";
 import type { SessionCharacterRecord } from "../../../../types.js";
+import type { SessionNPCRecord } from "../../../../types.js";
+import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
 
 /** Normalize an ID for case/separator-insensitive comparison. */
 function normalizeId(id: string): string {
@@ -68,16 +70,17 @@ export class HitRiderResolver {
     actorId: string;
     encounterId: string;
     characters: SessionCharacterRecord[];
+    npcs?: SessionNPCRecord[];
     weaponSpec?: WeaponSpec;
     bonusAction?: string;
   }): Promise<HitRiderEnhancement[]> {
-    const { rawText, actorId, encounterId, characters, weaponSpec, bonusAction } = input;
+    const { rawText, actorId, encounterId, characters, npcs = [], weaponSpec, bonusAction } = input;
 
-    const actorChar = characters.find((c) => c.id === actorId);
-    if (!actorChar) return [];
+    const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+    if (!actorSource) return [];
 
-    const actorClassName = actorChar.className ?? (actorChar.sheet as any)?.className ?? "";
-    const actorLevel = ClassFeatureResolver.getLevel((actorChar.sheet ?? {}) as any, actorChar.level);
+    const actorClassName = actorSource.className;
+    const actorLevel = actorSource.level;
 
     const combatants = await this.deps.combatRepo.listCombatants(encounterId);
     const actorCombatant = findCombatantByEntityId(combatants, actorId);
@@ -90,7 +93,7 @@ export class HitRiderResolver {
     const onHitDefs = matchingProfiles.flatMap((p) => (p.attackEnhancements ?? []).filter((e) => (e.trigger ?? "onDeclare") === "onHit"));
 
     // Filter to eligible defs
-    const actorSubclass = (actorChar.sheet as any)?.subclass ?? "";
+    const actorSubclass = (actorSource.sheet as any)?.subclass ?? "";
     const eligibleDefs = onHitDefs.filter((def) => {
       if (actorLevel < def.minLevel) return false;
       if (def.requiresSubclass && normalizeId(def.requiresSubclass) !== normalizeId(actorSubclass ?? "")) return false;
@@ -177,7 +180,7 @@ export class HitRiderResolver {
 
     if (matched.length === 0) return enhancements;
 
-    const actorSheet = (actorChar.sheet ?? {}) as any;
+    const actorSheet = actorSource.sheet as any;
     const wisdomScore = actorSheet?.abilityScores?.wisdom ?? 10;
     const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet, actorLevel);
     const wisMod = Math.floor((wisdomScore - 10) / 2);

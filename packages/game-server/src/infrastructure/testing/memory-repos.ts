@@ -648,13 +648,17 @@ export class MemoryNPCRepository implements INPCRepository {
 
   async createInSession(
     sessionId: string,
-    input: { id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean },
+    input: CreateNPCInput,
   ): Promise<SessionNPCRecord> {
+    const isStatBlockNpc = "statBlock" in input;
     const created: SessionNPCRecord = {
       id: input.id,
       sessionId,
       name: input.name,
-      statBlock: input.statBlock,
+      statBlock: isStatBlockNpc ? input.statBlock : null,
+      className: isStatBlockNpc ? null : input.className,
+      level: isStatBlockNpc ? null : input.level,
+      sheet: isStatBlockNpc ? null : input.sheet,
       faction: input.faction ?? "party",
       aiControlled: input.aiControlled ?? true,
       createdAt: now(),
@@ -666,7 +670,7 @@ export class MemoryNPCRepository implements INPCRepository {
 
   async createMany(
     sessionId: string,
-    inputs: Array<{ id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean }>,
+    inputs: CreateNPCInput[],
   ): Promise<SessionNPCRecord[]> {
     const results: SessionNPCRecord[] = [];
     for (const input of inputs) {
@@ -694,6 +698,9 @@ export class MemoryNPCRepository implements INPCRepository {
   async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
     const existing = this.npcs.get(id);
     if (!existing) throw new Error("NPC not found: " + id);
+    if (!existing.statBlock || typeof existing.statBlock !== "object" || Array.isArray(existing.statBlock)) {
+      throw new Error("Cannot update statBlock for a class-backed NPC: " + id);
+    }
     const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
     const merged = { ...currentStatBlock, ...data };
     const updated: SessionNPCRecord = { ...existing, statBlock: merged, updatedAt: now() };

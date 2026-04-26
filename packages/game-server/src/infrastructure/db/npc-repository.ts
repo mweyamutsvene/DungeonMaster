@@ -14,12 +14,16 @@ export class PrismaNPCRepository implements INPCRepository {
   constructor(private prisma: PrismaClient | Prisma.TransactionClient) {}
 
   async createInSession(sessionId: string, input: CreateNPCInput): Promise<SessionNPCRecord> {
+    const isStatBlockNpc = "statBlock" in input;
     const npc = await this.prisma.sessionNPC.create({
       data: {
         id: input.id,
         sessionId,
         name: input.name,
-        statBlock: input.statBlock as Prisma.InputJsonValue,
+        statBlock: isStatBlockNpc ? input.statBlock as Prisma.InputJsonValue : Prisma.JsonNull,
+        className: isStatBlockNpc ? null : input.className,
+        level: isStatBlockNpc ? null : input.level,
+        sheet: isStatBlockNpc ? Prisma.JsonNull : input.sheet as Prisma.InputJsonValue,
         faction: input.faction ?? "party",
         aiControlled: input.aiControlled ?? true,
       },
@@ -64,6 +68,9 @@ export class PrismaNPCRepository implements INPCRepository {
   async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
     const existing = await this.prisma.sessionNPC.findUnique({ where: { id } });
     if (!existing) throw new Error("NPC not found: " + id);
+    if (!existing.statBlock || typeof existing.statBlock !== "object" || Array.isArray(existing.statBlock)) {
+      throw new Error("Cannot update statBlock for a class-backed NPC: " + id);
+    }
     const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
     const merged = { ...currentStatBlock, ...data };
     return this.prisma.sessionNPC.update({

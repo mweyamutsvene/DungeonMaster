@@ -42,7 +42,10 @@ export type SessionNPCRecord = {
   id: string;
   sessionId: string;
   name: string;
-  statBlock: JsonValue;
+  statBlock: JsonValue | null;
+  className: string | null;
+  level: number | null;
+  sheet: JsonValue | null;
   faction: string;
   aiControlled: boolean;
   createdAt: Date;

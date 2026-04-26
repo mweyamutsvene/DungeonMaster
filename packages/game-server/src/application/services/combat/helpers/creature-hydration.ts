@@ -24,6 +24,7 @@ import type { FightingStyleId } from "../../../../domain/entities/classes/fighti
 import { isFightingStyleId } from "../../../../domain/entities/classes/fighting-style.js";
 import type { EquippedItems, EquippedArmorCategory } from "../../../../domain/entities/items/equipped-items.js";
 import { lookupArmor } from "../../../../domain/entities/items/armor-catalog.js";
+import { getNpcClassName, getNpcLevel, getNpcMechanicsSource, isClassBackedNpc } from "./class-backed-actor.js";
 
 /**
  * Parse ability scores from JSON sheet.
@@ -364,11 +365,12 @@ export function hydrateNPC(
   record: SessionNPCRecord,
   combatantState?: CombatantStateRecord,
 ): NPC {
-  const statBlock = record.statBlock as Record<string, unknown>;
+  const statBlock = getNpcMechanicsSource(record);
+  const classBacked = isClassBackedNpc(record);
   
   // Parse core stats from statBlock JSON
   const abilityScores = extractAbilityScores(readObject(statBlock, 'abilityScores'));
-  const maxHP = readNumber(statBlock, 'maxHP') ?? readNumber(statBlock, 'hitPoints') ?? 10;
+  const maxHP = readNumber(statBlock, 'maxHP') ?? readNumber(statBlock, 'maxHp') ?? readNumber(statBlock, 'hitPoints') ?? 10;
   const currentHP = combatantState?.hpCurrent ?? readNumber(statBlock, 'currentHP') ?? maxHP;
   const tempHP = combatantState?.hpTemp ?? 0;
   const armorClass = readNumber(statBlock, 'armorClass') ?? readNumber(statBlock, 'ac') ?? 10;
@@ -376,6 +378,15 @@ export function hydrateNPC(
   const proficiencyBonus = readNumber(statBlock, 'proficiencyBonus') ?? undefined;
   const challengeRating = readNumber(statBlock, 'challengeRating') ?? readNumber(statBlock, 'cr') ?? undefined;
   const role = readString(statBlock, 'role');
+  const classId = classBacked
+    ? readString(statBlock, 'classId') ?? getNpcClassName(record).toLowerCase()
+    : undefined;
+  const subclass = classBacked ? readString(statBlock, 'subclass') ?? undefined : undefined;
+  const featIds = classBacked
+    ? readArray<string>(statBlock, 'featIds') ?? readArray<string>(statBlock, 'feats') ?? []
+    : [];
+  const equipment = classBacked ? extractEquipment(statBlock) : undefined;
+  const armorTraining = classId ? getArmorTrainingForClass(classId) : undefined;
   
   // Conditions from combat state
   const conditions = combatantState ? extractConditions(combatantState.conditions) : [];
@@ -392,6 +403,12 @@ export function hydrateNPC(
     proficiencyBonus,
     challengeRating,
     role,
+    level: classBacked ? getNpcLevel(record) : undefined,
+    classId,
+    subclass,
+    featIds: featIds.length > 0 ? featIds : undefined,
+    equipment,
+    armorTraining,
     damageResistances: readArray<string>(statBlock, 'damageResistances') ?? undefined,
     damageImmunities: readArray<string>(statBlock, 'damageImmunities') ?? undefined,
     damageVulnerabilities: readArray<string>(statBlock, 'damageVulnerabilities') ?? undefined,

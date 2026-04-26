@@ -1,0 +1,16 @@
+# SME Feedback — CombatOrchestration — Round 1
+## Verdict: NEEDS_WORK
+
+## Issues (if NEEDS_WORK)
+1. The plan updates the front-door tabletop files, but it does not cover the deeper roll-resolution path that still re-reads only Character data. `tabletop/roll-state-machine.ts`, `tabletop/rolls/damage-resolver.ts`, and `tabletop/rolls/hit-rider-resolver.ts` all contain Character-only attacker lookups for Sneak Attack, Dark One's Blessing, crit-threshold/class-feature checks, and post-hit resource tracking. With only `attack-handlers.ts` and `class-ability-handlers.ts` changed, a class-backed NPC can get through dispatch and still lose or misresolve class mechanics once the pending action advances to attack/damage resolution.
+2. The dispatcher slice is incomplete. `tabletop/action-dispatcher.ts` still has a Character-only `shouldSkipBonusCostForOffhand()` helper, so a class-backed NPC using Nick/offhand logic will still be evaluated as if it were not a class-backed martial actor. The current plan lists `attack-handlers.ts`, but not the dispatcher helper that decides whether that bonus-action cost is skipped before the handler runs.
+3. The plan does not resolve the runtime split between tabletop and AI/combat lifecycle orchestration. `combat-service.ts` still installs startup class effects only for `combatantType === "Character"`, `ai-action-executor.ts` still executes NPC bonus actions without NPC sheet/class params, and `ai-turn-orchestrator.ts` still computes NPC attacks-per-action from `npc.statBlock.className/level`. That means class-backed NPCs would be partially supported in tabletop parsing while AI turns and combat-start passive setup still use the old stat-block-only model.
+
+## Missing Context
+- The plan needs an explicit rule for KO/death-save behavior. Current turn progression still treats Characters differently from NPCs at 0 HP. If class-backed NPCs are still supposed to use NPC KO rules, say that directly; if they should gain Character-like death-save handling, `combat-service.ts` and AI turn orchestration need to be in scope.
+- The example change converts an allied wizard NPC scenario, but tabletop and AI spell-casting still source NPC spell data from `npc.statBlock`, not an NPC sheet. If wizard-style spellcasting is in scope for class-backed NPCs, this plan needs a coordinated follow-up with the spell-casting path.
+
+## Suggested Changes
+1. Expand the CombatOrchestration scope to include `tabletop/action-dispatcher.ts`, `tabletop/roll-state-machine.ts`, `tabletop/rolls/damage-resolver.ts`, and `tabletop/rolls/hit-rider-resolver.ts`, and route all attacker/class-feature lookups through one shared class-backed actor adapter instead of repeated `characters.find(...)` branches.
+2. Add explicit CombatOrchestration steps for `combat-service.ts`, `ai-action-executor.ts`, and `ai-turn-orchestrator.ts` so class-backed NPCs get consistent startup effects, attacks-per-action, and bonus-action execution across both tabletop and AI paths.
+3. State the intended 0-HP contract for class-backed NPCs before implementation starts. The answer determines whether this is only a class-mechanics hydration change or also a turn-state-machine change.

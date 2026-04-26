@@ -9,6 +9,7 @@ import { spendAction } from "../../helpers/resource-utils.js";
 import { resolveSpell, prepareSpellCast } from "../../helpers/spell-slot-manager.js";
 import type { CombatantRef } from "../../helpers/combatant-ref.js";
 import { AiSpellDelivery } from "./ai-spell-delivery.js";
+import { getNpcMechanicsSource } from "../../helpers/class-backed-actor.js";
 
 export class CastSpellHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -77,7 +78,7 @@ export class CastSpellHandler implements AiActionHandler {
       try {
         const npcRecord = await deps.npcs.getById(aiCombatant.npcId);
         if (npcRecord) {
-          casterSource = (npcRecord.statBlock as Record<string, unknown>) ?? {};
+          casterSource = getNpcMechanicsSource(npcRecord);
           const spellDef = resolveSpell(spellName, casterSource);
           if (spellDef) isConcentration = spellDef.concentration ?? false;
         }

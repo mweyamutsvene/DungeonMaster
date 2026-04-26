@@ -191,6 +191,55 @@ describe("AiContextBuilder", () => {
     });
   });
 
+  describe("class-backed NPC combatant basics", () => {
+    it("uses NPC sheet mechanics when building combat context", async () => {
+      const npc = await npcs.createInSession(SESSION_ID, {
+        id: "npc-1",
+        name: "Guard Captain",
+        className: "fighter",
+        level: 4,
+        sheet: {
+          armorClass: 18,
+          speed: 30,
+          size: "Medium",
+          abilityScores: {
+            strength: 16,
+            dexterity: 12,
+            constitution: 14,
+            intelligence: 10,
+            wisdom: 11,
+            charisma: 10,
+          },
+          attacks: [{ name: "Longsword", attackBonus: 5, damage: { diceCount: 1, diceSides: 8, modifier: 3 } }],
+        } as JsonValue,
+        faction: "party",
+        aiControlled: true,
+      });
+
+      const combatant = makeCombatant({
+        id: "npc-1",
+        npcId: "npc-1",
+        combatantType: "NPC",
+        initiative: 12,
+        hpCurrent: 27,
+        hpMax: 27,
+      });
+
+      const ctx = await builder.build(
+        npc as unknown as Record<string, unknown>, combatant, [combatant], makeEncounter(), [], [], [],
+      );
+
+      expect(ctx.combatant.name).toBe("Guard Captain");
+      expect(ctx.combatant.class).toBe("fighter");
+      expect(ctx.combatant.level).toBe(4);
+      expect(ctx.combatant.ac).toBe(18);
+      expect(ctx.combatant.speed).toBe(30);
+      expect(ctx.combatant.attacks).toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: "Longsword" })]),
+      );
+    });
+  });
+
   // --------------------------------------------------------------------------
   // Action economy
   // --------------------------------------------------------------------------

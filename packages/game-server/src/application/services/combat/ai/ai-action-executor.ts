@@ -272,6 +272,58 @@ export class AiActionExecutor {
         const actorEntityId = actorRef.type === "Monster" ? actorRef.monsterId!
           : actorRef.type === "Character" ? actorRef.characterId!
           : actorRef.npcId!;
+
+        let className: string | undefined;
+        let level: number | undefined;
+        let speed: number | undefined;
+        let sheet: Record<string, unknown> | undefined;
+
+        if (actorRef.type === "Character" && this.characters) {
+          const character = await this.characters.getById(actorEntityId);
+          const rawSheet = character?.sheet;
+          if (rawSheet && typeof rawSheet === "object" && rawSheet !== null && !Array.isArray(rawSheet)) {
+            sheet = rawSheet as Record<string, unknown>;
+          }
+          className = character?.className ?? (typeof sheet?.className === "string" ? sheet.className : undefined);
+          level = character?.level ?? (typeof sheet?.level === "number" ? sheet.level : undefined);
+          speed = typeof sheet?.speed === "number" ? sheet.speed : undefined;
+        } else if (actorRef.type === "Monster" && this.monsters) {
+          const monster = await this.monsters.getById(actorEntityId);
+          const rawStatBlock = monster?.statBlock;
+          if (rawStatBlock && typeof rawStatBlock === "object" && rawStatBlock !== null && !Array.isArray(rawStatBlock)) {
+            sheet = rawStatBlock as Record<string, unknown>;
+          }
+          className = typeof sheet?.className === "string" ? sheet.className : undefined;
+          level = typeof sheet?.level === "number" ? sheet.level : undefined;
+          speed = typeof sheet?.speed === "number" ? sheet.speed : undefined;
+        } else if (actorRef.type === "NPC" && this.npcs) {
+          const npc = await this.npcs.getById(actorEntityId);
+          const rawSheet = npc?.sheet;
+          const rawStatBlock = npc?.statBlock;
+          if (rawSheet && typeof rawSheet === "object" && rawSheet !== null && !Array.isArray(rawSheet)) {
+            sheet = rawSheet as Record<string, unknown>;
+          } else if (rawStatBlock && typeof rawStatBlock === "object" && rawStatBlock !== null && !Array.isArray(rawStatBlock)) {
+            sheet = rawStatBlock as Record<string, unknown>;
+          }
+          className = npc?.className ?? (typeof sheet?.className === "string" ? sheet.className : undefined) ?? undefined;
+          level = npc?.level ?? (typeof sheet?.level === "number" ? sheet.level : undefined) ?? undefined;
+          speed = typeof sheet?.speed === "number" ? sheet.speed : undefined;
+        }
+
+        let abilityResources = aiCombatant.resources;
+        if (speed !== undefined) {
+          const normalizedResources = aiCombatant.resources && typeof aiCombatant.resources === "object" && !Array.isArray(aiCombatant.resources)
+            ? { ...(aiCombatant.resources as Record<string, unknown>) }
+            : {};
+          if (typeof normalizedResources.speed !== "number") {
+            normalizedResources.speed = speed;
+            abilityResources = normalizedResources;
+            await this.combat.updateCombatantState(aiCombatant.id, {
+              resources: normalizedResources,
+            });
+          }
+        }
+
         const result = await this.abilityRegistry.execute({
           sessionId,
           encounterId,
@@ -280,7 +332,9 @@ export class AiActionExecutor {
             getName: () => (aiCombatant as any).name ?? "Unknown",
             getCurrentHP: () => aiCombatant.hpCurrent ?? 0,
             getMaxHP: () => aiCombatant.hpMax ?? 0,
-            getSpeed: () => 30,
+            getSpeed: () => speed ?? 30,
+            getLevel: () => level ?? 1,
+            getClassId: () => className ?? "",
             modifyHP: () => ({ actualChange: 0 }),
           },
           combat: {
@@ -294,7 +348,10 @@ export class AiActionExecutor {
           abilityId: bonusActionId,
           params: {
             actor: actorRef,
-            resources: aiCombatant.resources,
+            resources: abilityResources,
+            ...(className ? { className } : {}),
+            ...(level ? { level } : {}),
+            ...(sheet ? { sheet } : {}),
             target: decision.target
               ? {
                   type: actorRef.type === "Monster" ? "Character" : "Monster",

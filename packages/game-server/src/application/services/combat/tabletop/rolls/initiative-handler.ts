@@ -28,6 +28,7 @@ import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers
 import { parseLegendaryTraits } from "../../../../../domain/entities/creatures/legendary-actions.js";
 import { computeInitiativeRollMode } from "../tabletop-utils.js";
 import { resolveD20Roll } from "../roll-state-machine.js";
+import { getNpcClassName, getNpcConditionsFromSource, getNpcCurrentHpFromSource, getNpcLevel, getNpcMaxHpFromSource, getNpcMechanicsSource } from "../../helpers/class-backed-actor.js";
 import type { TabletopEventEmitter } from "../tabletop-event-emitter.js";
 import { assertValidTransition } from "../pending-action-state-machine.js";
 import type {
@@ -341,14 +342,15 @@ export class InitiativeHandler {
 
     // Add NPCs to combat (party allies)
     for (const npc of npcs) {
-      const statBlock = npc.statBlock as any;
+      const statBlock = getNpcMechanicsSource(npc) as any;
       const npcDexMod = statBlock?.abilityScores?.dexterity
         ? Math.floor((statBlock.abilityScores.dexterity - 10) / 2)
         : 0;
 
       // Extract class info early (needed for Feral Instinct initiative check)
-      const npcClassName = typeof statBlock?.className === "string" ? statBlock.className : "";
-      const npcLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
+      const npcClassName = getNpcClassName(npc);
+      const npcLevel = getNpcLevel(npc);
+      const npcClassLevels = Array.isArray(statBlock?.classLevels) ? statBlock.classLevels : undefined;
 
       // D&D 5e 2024: Use d20 roll for NPC initiative (with surprise/condition modifiers)
       // NPCs are party allies, so they use "party" side for surprise
@@ -365,9 +367,9 @@ export class InitiativeHandler {
       }
       const npcInitiative = npcRoll + npcDexMod;
 
-      const npcResources = buildCombatantResources(npcClassName, npcLevel, statBlock);
+      const npcResources = buildCombatantResources(npcClassName, npcLevel, statBlock, npcClassLevels);
 
-      combatants.push(this.buildCombatantEntry("NPC", npc.id, npcInitiative, statBlock?.hp ?? statBlock?.maxHp ?? 10, statBlock?.maxHp ?? statBlock?.hp ?? 10, npcResources));
+      combatants.push(this.buildCombatantEntry("NPC", npc.id, npcInitiative, getNpcCurrentHpFromSource(npc) || 10, getNpcMaxHpFromSource(npc) || 10, npcResources));
     }
 
     // Check for existing combatants
@@ -471,10 +473,9 @@ export class InitiativeHandler {
 
             const allyNpc = npcs.find((n) => n.id === t.actorId);
             if (allyNpc) {
-              const npcBlock = allyNpc.statBlock as Record<string, unknown> | undefined;
               return isWillingSwapTargetFromState({
-                hp: Number(npcBlock?.hp ?? npcBlock?.maxHp ?? 0),
-                conditions: npcBlock?.conditions,
+                hp: getNpcCurrentHpFromSource(allyNpc),
+                conditions: getNpcConditionsFromSource(allyNpc),
               });
             }
 
@@ -632,8 +633,8 @@ export class InitiativeHandler {
           })
         : targetNpc
           ? isWillingSwapTargetFromState({
-              hp: Number((targetNpc.statBlock as any)?.hp ?? (targetNpc.statBlock as any)?.maxHp ?? 0),
-              conditions: (targetNpc.statBlock as any)?.conditions,
+              hp: getNpcCurrentHpFromSource(targetNpc),
+              conditions: getNpcConditionsFromSource(targetNpc),
             })
           : false;
 

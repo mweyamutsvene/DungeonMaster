@@ -129,16 +129,30 @@ export async function setupFromScenario(
   const npcs: SessionNPCRecord[] = [];
   if (scenario.setup.npcs) {
     for (const n of scenario.setup.npcs) {
-      const statBlock = {
-        ...n.statBlock,
-        ...(n.position ? { position: n.position } : {}),
-      };
-      const npc = await client.addNpc(session.id, {
-        name: n.name,
-        statBlock,
-        faction: n.faction ?? "party",
-        aiControlled: n.aiControlled ?? true,
-      });
+      const npc = await client.addNpc(
+        session.id,
+        "statBlock" in n
+          ? {
+              name: n.name,
+              statBlock: {
+                ...n.statBlock,
+                ...(n.position ? { position: n.position } : {}),
+              },
+              faction: n.faction ?? "party",
+              aiControlled: n.aiControlled ?? true,
+            }
+          : {
+              name: n.name,
+              className: n.className,
+              level: n.level,
+              sheet: {
+                ...n.sheet,
+                ...(n.position ? { position: n.position } : {}),
+              },
+              faction: n.faction ?? "party",
+              aiControlled: n.aiControlled ?? true,
+            },
+      );
       npcs.push(npc);
     }
   }

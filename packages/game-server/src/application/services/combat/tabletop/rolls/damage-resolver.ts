@@ -81,6 +81,7 @@ import { rogueCunningStrikeSaveDC } from "../../../../../domain/entities/classes
 import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
 import { classHasFeature } from "../../../../../domain/entities/classes/registry.js";
 import { ELEMENTAL_AFFINITY, COLOSSUS_SLAYER } from "../../../../../domain/entities/classes/feature-keys.js";
+import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
 
 /**
  * Map a Draconic Sorcery subclass id (e.g., "draconic-sorcery-red") to the
@@ -161,8 +162,8 @@ export class DamageResolver {
 
     // ── Fighting Style: Dueling (+2 damage one-handed melee, no other weapons) ──
     // Also TWF-style ability modifier on offhand attacks, and GWF die-min transform.
-    const actorCharForStyle = characters.find((c) => c.id === action.actorId);
-    const actorSheetForStyle = (actorCharForStyle?.sheet ?? {}) as Record<string, unknown>;
+    const actorSourceForStyle = getClassBackedActorSource(action.actorId, characters, npcs);
+    const actorSheetForStyle = (actorSourceForStyle?.sheet ?? {}) as Record<string, unknown>;
     const rawFeatIdsDmg = (actorSheetForStyle.featIds as string[] | undefined)
       ?? (actorSheetForStyle.feats as string[] | undefined) ?? [];
     const fightingStyleDmg = actorSheetForStyle.fightingStyle as string | undefined;
@@ -269,9 +270,9 @@ export class DamageResolver {
     // resistance/vulnerability applies to the total. Both features are
     // once-per-turn, tracked via resource flags that reset on turn start.
     {
-      const className = typeof actorCharForStyle?.className === "string" ? actorCharForStyle.className : null;
-      const level = typeof actorCharForStyle?.level === "number"
-        ? actorCharForStyle.level
+      const className = actorSourceForStyle?.className || null;
+      const level = typeof actorSourceForStyle?.level === "number"
+        ? actorSourceForStyle.level
         : (typeof (actorSheetForStyle.level) === "number" ? (actorSheetForStyle.level as number) : 0);
       const subclass = typeof actorSheetForStyle.subclass === "string" ? actorSheetForStyle.subclass : undefined;
       const dmgType = action.weaponSpec?.damageType?.toLowerCase();
@@ -420,9 +421,9 @@ export class DamageResolver {
       // creature from >0 HP to 0 HP, gain temp HP equal to max(1, CHA mod + Warlock level).
       // Temp HP does NOT stack: the higher of current-vs-new pool wins (RAW).
       if (hpBefore > 0 && hpAfter === 0) {
-        const actorChar = characters.find((c) => c.id === actorId);
-        if (actorChar) {
-          const actorSheet = (actorChar.sheet ?? {}) as Record<string, unknown> & {
+        const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+        if (actorSource) {
+          const actorSheet = actorSource.sheet as Record<string, unknown> & {
             className?: string | null;
             level?: number;
             subclass?: string;
@@ -430,8 +431,8 @@ export class DamageResolver {
             abilityScores?: { charisma?: number } & Record<string, number | undefined>;
           };
           const blessing = qualifiesForDarkOnesBlessing({
-            className: actorChar.className ?? actorSheet.className,
-            level: actorChar.level ?? actorSheet.level,
+            className: actorSource.className || actorSheet.className,
+            level: actorSource.level || actorSheet.level,
             subclass: actorSheet.subclass,
             classLevels: actorSheet.classLevels,
             abilityScores: actorSheet.abilityScores,
@@ -902,9 +903,9 @@ export class DamageResolver {
     monsters: SessionMonsterRecord[],
     npcs: SessionNPCRecord[],
   ): Promise<HitRiderEnhancementResult | undefined> {
-    const actorChar = characters.find((c) => c.id === actorId);
-    const actorSheet = (actorChar?.sheet ?? {}) as Record<string, unknown>;
-    const actorLevel = ClassFeatureResolver.getLevel(actorSheet as any, actorChar?.level);
+    const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+    const actorSheet = (actorSource?.sheet ?? {}) as Record<string, unknown>;
+    const actorLevel = actorSource?.level ?? ClassFeatureResolver.getLevel(actorSheet as any, undefined);
     const abilityScores = (actorSheet.abilityScores as Record<string, number> | undefined) ?? {};
     const dex = abilityScores.dexterity ?? 10;
     const profBonus = ClassFeatureResolver.getProficiencyBonus(actorSheet as any, actorLevel);

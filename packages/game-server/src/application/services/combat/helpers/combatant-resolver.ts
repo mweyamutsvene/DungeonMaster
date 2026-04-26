@@ -14,6 +14,7 @@ import type { CombatantStateRecord } from "../../../types.js";
 import type { CombatantRef } from "./combatant-ref.js";
 import { isRecord, readNumber } from "./json-helpers.js";
 import { extractAbilityScores, type AbilityScoresData } from "./combat-utils.js";
+import { getNpcClassName, getNpcLevel, getNpcMechanicsSource, isClassBackedNpc } from "./class-backed-actor.js";
 
 type CombatantEquipment = {
   weapon?: string;
@@ -295,35 +296,44 @@ export class CombatantResolver implements ICombatantResolver {
 
     const n = await this.npcs.getById(ref.npcId);
     if (!n) throw new ValidationError(`NPC not found: ${ref.npcId}`);
-    if (!isRecord(n.statBlock)) throw new ValidationError("NPC statBlock must be an object");
-    const statBlock = parseStatBlockJson(n.statBlock);
+    const npcSource = getNpcMechanicsSource(n);
+    if (!isRecord(npcSource)) throw new ValidationError("NPC mechanics source must be an object");
+    const statBlock = parseStatBlockJson(npcSource);
 
-    const armorClass = readNumber(n.statBlock, "armorClass") ?? readNumber(n.statBlock, "ac");
+    const armorClass = readNumber(npcSource, "armorClass") ?? readNumber(npcSource, "ac");
     const abilityScores = extractAbilityScores(statBlock.abilityScores);
-    const skills = extractSkills(n.statBlock);
-    const passivePerceptionFromStatBlock = readNumber(n.statBlock, "passivePerception");
+    const skills = extractSkills(npcSource);
+    const passivePerceptionFromStatBlock = readNumber(npcSource, "passivePerception");
     const passivePerception = passivePerceptionFromStatBlock ??
       (typeof skills?.perception === "number" ? 10 + skills.perception : undefined);
     if (armorClass === null || !abilityScores) {
       throw new ValidationError("NPC is missing required combat stats (armorClass, abilityScores)");
     }
 
-    // NPCs may have a level or we default to 1
-    const level = readNumber(n.statBlock, "level") ?? 1;
-    const proficiencyBonusFromSheet = readNumber(n.statBlock, "proficiencyBonus");
+    const level = isClassBackedNpc(n) ? Math.max(1, getNpcLevel(n)) : readNumber(npcSource, "level") ?? 1;
+    const proficiencyBonusFromSheet = readNumber(npcSource, "proficiencyBonus");
     const proficiencyBonus = proficiencyBonusFromSheet ?? calculateProficiencyBonus(level);
+    const featIds = isClassBackedNpc(n)
+      ? ((npcSource.featIds as readonly string[] | undefined) ?? (npcSource.feats as readonly string[] | undefined))
+      : undefined;
+    const equipment = isClassBackedNpc(n) ? extractEquippedFromSheet(npcSource) : undefined;
+    const className = isClassBackedNpc(n) ? getNpcClassName(n) : undefined;
 
     return {
       name: n.name,
       armorClass,
       abilityScores,
       passivePerception,
-      size: extractSize(n.statBlock),
+      featIds,
+      equipment,
+      size: extractSize(npcSource),
       skills,
       level,
       proficiencyBonus,
-      damageDefenses: extractDefenses(n.statBlock),
-      saveProficiencies: extractSaveProficiencies(n.statBlock),
+      hasTwoHandedWeapon: equipment?.hasTwoHanded,
+      damageDefenses: extractDefenses(npcSource),
+      className,
+      saveProficiencies: extractSaveProficiencies(npcSource),
     };
   }
 
@@ -344,9 +354,37 @@ export class CombatantResolver implements ICombatantResolver {
     if (ref.type === "NPC") {
       const n = await this.npcs.getById(ref.npcId);
       if (!n) throw new ValidationError(`NPC not found: ${ref.npcId}`);
-      if (!isRecord(n.statBlock)) return [];
-      const statBlock = parseStatBlockJson(n.statBlock);
-      return Array.isArray(statBlock.attacks) ? statBlock.attacks : [];
+      const npcSource = getNpcMechanicsSource(n);
+      if (!isRecord(npcSource)) return [];
+      const statBlock = parseStatBlockJson(npcSource);
+      if (Array.isArray(statBlock.attacks) && statBlock.attacks.length > 0) {
+        return statBlock.attacks;
+      }
+
+      if (!isClassBackedNpc(n)) return [];
+
+      const sheet = parseCharacterSheet(npcSource);
+      const weaponName = sheet.equipment?.weapon?.name;
+      if (!weaponName) return [];
+
+      const stripped = weaponName.replace(/^\+\d+\s+/, "");
+      const catalogEntry = lookupWeapon(weaponName) ?? lookupWeapon(stripped);
+      if (!catalogEntry) {
+        return [{ name: weaponName, kind: "melee", reach: 5 }];
+      }
+
+      if (catalogEntry.kind === "ranged") {
+        const [normal, long] = catalogEntry.range ?? [30, 120];
+        return [{ name: weaponName, kind: "ranged", range: `${normal}/${long}` }];
+      }
+
+      const reach = catalogEntry.properties.includes("reach") ? 10 : 5;
+      const attack: Record<string, unknown> = { name: weaponName, kind: "melee", reach };
+      if (catalogEntry.range) {
+        const [normal, long] = catalogEntry.range;
+        attack.range = `${normal}/${long}`;
+      }
+      return [attack];
     }
 
     // Character — read attacks from raw sheet JSON, fall back to weapon catalog

@@ -22,6 +22,22 @@ export class MoveAwayFromHandler implements AiActionHandler {
     const { sessionId, encounterId, aiCombatant, decision, allCombatants, actorRef } = ctx;
     const { combat, combatantResolver, aiLog, executeBonusAction } = deps;
 
+    let movementCombatant = aiCombatant;
+    let movementResources = (movementCombatant.resources as Record<string, unknown>) ?? {};
+    let bonusResult: { action: string; summary: string } | null = null;
+
+    // Retreat-specific bonus actions like Disengage or Step of the Wind Dash must
+    // apply before pathfinding so they can suppress OAs or increase movement budget.
+    if (decision.bonusAction) {
+      bonusResult = await executeBonusAction(sessionId, encounterId, movementCombatant, decision, actorRef);
+      const refreshedCombatants = await combat.listCombatants(encounterId);
+      const refreshedCombatant = refreshedCombatants.find((combatant) => combatant.id === movementCombatant.id);
+      if (refreshedCombatant) {
+        movementCombatant = refreshedCombatant;
+        movementResources = (movementCombatant.resources as Record<string, unknown>) ?? {};
+      }
+    }
+
     if (!decision.target) {
       return {
         action: decision.action,
@@ -40,8 +56,7 @@ export class MoveAwayFromHandler implements AiActionHandler {
       };
     }
 
-    const resources = (aiCombatant.resources as Record<string, unknown>) ?? {};
-    const currentPos = resources.position as { x: number; y: number } | undefined;
+    const currentPos = movementResources.position as { x: number; y: number } | undefined;
     if (!currentPos) {
       return {
         action: decision.action,
@@ -72,7 +87,7 @@ export class MoveAwayFromHandler implements AiActionHandler {
       };
     }
 
-    const speed = getEffectiveSpeed(aiCombatant.resources);
+    const speed = getEffectiveSpeed(movementCombatant.resources);
     if (speed <= 0) {
       return {
         action: decision.action,
@@ -81,11 +96,11 @@ export class MoveAwayFromHandler implements AiActionHandler {
         data: { movedFeet: 0, speedZero: true },
       };
     }
-    const hasDashed = (resources.dashed as boolean) ?? false;
+    const hasDashed = (movementResources.dashed as boolean) ?? false;
     let effectiveSpeed = hasDashed ? speed * 2 : speed;
 
     // Cap by already-spent movement (second+ move in the same turn)
-    const movementRemainingValue = resources.movementRemaining;
+    const movementRemainingValue = movementResources.movementRemaining;
     if (typeof movementRemainingValue === "number") {
       effectiveSpeed = Math.min(effectiveSpeed, movementRemainingValue as number);
     }
@@ -98,7 +113,7 @@ export class MoveAwayFromHandler implements AiActionHandler {
       };
     }
 
-    const aiConditions = normalizeConditions(aiCombatant.conditions as unknown[]);
+    const aiConditions = normalizeConditions(movementCombatant.conditions as unknown[]);
     const isProne = hasCondition(aiConditions, "Prone");
     if (isProne) {
       const standUpCost = Math.ceil(speed / 2);
@@ -187,9 +202,9 @@ export class MoveAwayFromHandler implements AiActionHandler {
 
     const outcome = await resolveAiMovement(deps.getMovementDeps(), {
       sessionId, encounterId,
-      aiCombatant, actorRef, allCombatants,
+      aiCombatant: movementCombatant, actorRef, allCombatants,
       currentPos, finalDestination: retreatDest,
-      effectiveSpeed, resources,
+      effectiveSpeed, resources: movementResources,
       pathCells, pathCostFeet, pathNarrationHints,
     });
 
@@ -214,9 +229,6 @@ export class MoveAwayFromHandler implements AiActionHandler {
         },
       };
     }
-
-    const bonusResult = await executeBonusAction(sessionId, encounterId, aiCombatant, decision, actorRef);
-
     if (outcome.kind === "no_reactions") {
       const newDist = Math.round(calculateDistance(retreatDest, targetPos));
       const mainSummary = `${actorName} retreats ${outcome.pathCostFeet}ft from ${targetName} (now ${newDist}ft away)`;

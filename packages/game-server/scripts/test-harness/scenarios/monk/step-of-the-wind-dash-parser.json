@@ -1,0 +1,117 @@
+{
+  "name": "Monk: 'step of the wind dash' routes to ki-powered dash",
+  "description": "Regression for the Step of the Wind dash parser collision. The explicit text 'use step of the wind dash' should route to the monk bonus-action feature, spend 1 ki, and leave the action available. If the simple Dash parser steals the input first, ki will not be spent and the wrong economy path will be used.",
+  "setup": {
+    "character": {
+      "name": "Kai Stormfist",
+      "className": "Monk",
+      "subclass": "Open Hand",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 36,
+        "currentHp": 36,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ],
+        "features": [
+          { "name": "Step of the Wind", "description": "Spend 1 ki to Disengage or Dash as a bonus action; jump distance doubled" }
+        ],
+        "resourcePools": [
+          { "name": "ki", "current": 5, "max": 5 }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Training Ogre",
+        "position": { "x": 80, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I close with the ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "This exact text should route to the monk bonus-action Dash feature, not the generic action Dash parser.",
+      "input": { "text": "use step of the wind dash" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "Step of the Wind dash should spend 1 ki while preserving the action for later in the turn.",
+      "expect": {
+        "characterResource": { "poolName": "ki", "current": 4, "max": 5 },
+        "characterPosition": { "x": 10, "y": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "The regular action should still be available after the bonus-action Step of the Wind dash.",
+      "input": { "text": "move to (70, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "expect": {
+        "characterPosition": { "x": 70, "y": 10 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

@@ -23,6 +23,8 @@ import type {
   RestResponse,
   InventoryResponse,
   MonsterCatalogResponse,
+  StatBlockNPCSetup,
+  ClassBackedNPCSetup,
 } from "./types.js";
 
 export interface GameClientOptions {
@@ -89,7 +91,7 @@ export class GameClient {
 
   async addNpc(
     sessionId: string,
-    npc: { name: string; statBlock: Record<string, unknown>; faction?: string; aiControlled?: boolean },
+    npc: StatBlockNPCSetup | ClassBackedNPCSetup,
   ): Promise<SessionNPCRecord> {
     return this.http.post<SessionNPCRecord>(
       `/sessions/${sessionId}/npcs`,

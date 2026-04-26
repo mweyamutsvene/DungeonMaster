@@ -1,0 +1,120 @@
+{
+  "name": "Monk AI: Step of the Wind dash affects same-turn retreat distance",
+  "description": "Regression from the live monk-vs-monk run. An AI monk uses moveAwayFrom with Step of the Wind dash as a bonus action. The retreat should use the bonus-action Dash distance in the same turn rather than moving only base speed and applying Dash afterward.",
+  "setup": {
+    "character": {
+      "name": "Kai Stormfist",
+      "className": "Monk",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 16,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 16,
+          "charisma": 8
+        },
+        "maxHp": 36,
+        "currentHp": 36,
+        "armorClass": 16,
+        "speed": 40,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Unarmed Strike",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Vex Nightthorn",
+        "position": { "x": 20, "y": 10 },
+        "statBlock": {
+          "className": "monk",
+          "level": 5,
+          "abilityScores": {
+            "strength": 12,
+            "dexterity": 16,
+            "constitution": 14,
+            "intelligence": 12,
+            "wisdom": 15,
+            "charisma": 10
+          },
+          "maxHp": 33,
+          "hp": 33,
+          "armorClass": 15,
+          "speed": 40,
+          "challengeRating": 3,
+          "savingThrows": {
+            "dexterity": 6,
+            "constitution": 5
+          },
+          "attacks": [
+            {
+              "name": "Unarmed Strike",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I square up against Vex Nightthorn" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Vex should retreat using moveAwayFrom and Step of the Wind dash in the same turn.",
+      "input": {
+        "decisions": [
+          {
+            "action": "moveAwayFrom",
+            "target": "Kai Stormfist",
+            "bonusAction": "step_of_the_wind_dash",
+            "endTurn": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "endTurn",
+      "comment": "Pass to Vex so the retreat executes. Start distance is 10 ft, so no opportunity attack should interfere."
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Return to Kai after Vex completes the retreat turn.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "With Step of the Wind dash applied before pathfinding, Vex should make the long retreat and end at x=80 rather than the old short retreat at x=50. This keeps the regression scoped to same-turn dash application instead of assuming a specific base-speed hydration model.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterPosition": { "x": 10, "y": 10 },
+        "monsterPosition": { "name": "Vex Nightthorn", "x": 80, "y": 10 }
+      }
+    }
+  ]
+}

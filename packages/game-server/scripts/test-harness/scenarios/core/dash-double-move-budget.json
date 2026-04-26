@@ -1,0 +1,110 @@
+{
+  "name": "Dash: base action doubles movement budget",
+  "description": "Regression from the live boss-fight run. A fighter uses the normal Dash action, then attempts a 60 ft move in the same turn. This should only succeed if Dash actually increases movement budget for the base action path.",
+  "setup": {
+    "character": {
+      "name": "Dash Tester",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 8
+        },
+        "maxHp": 44,
+        "currentHp": 44,
+        "armorClass": 18,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 6,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Distant Ogre",
+        "position": { "x": 75, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 19,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 6,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 4 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I charge the ogre" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "18" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "action",
+      "comment": "Dash should spend the action and raise total movement budget from 30 ft to 60 ft for the rest of this turn.",
+      "input": { "text": "dash" },
+      "expect": { "actionComplete": true, "type": "SIMPLE_ACTION_COMPLETE" }
+    },
+    {
+      "type": "action",
+      "comment": "Move a full 60 ft from (10,10) to (70,10). This fails if base Dash does not actually increase movement remaining.",
+      "input": { "text": "move to (70, 10)" },
+      "expect": { "actionComplete": true }
+    },
+    {
+      "type": "assertState",
+      "comment": "The fighter should now be adjacent to the ogre after a full 60 ft dash movement turn.",
+      "expect": {
+        "combatStatus": "Active",
+        "characterPosition": { "x": 70, "y": 10 },
+        "monsterPosition": { "name": "Distant Ogre", "x": 75, "y": 10 }
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Dash spent the action, so an attack in the same turn must still be rejected.",
+      "input": { "text": "attack Distant Ogre" },
+      "expect": { "error": true, "errorContains": "action" }
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import type {
   INPCRepository,
   ISpellRepository,
 } from "../../application/repositories/index.js";
+import type { CreateNPCInput } from "../../application/repositories/npc-repository.js";
 import type {
   CombatantStateRecord,
   CombatEncounterRecord,
@@ -408,13 +409,16 @@ class MemoryNPCRepository implements INPCRepository {
 
   async createInSession(
     sessionId: string,
-    input: { id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean },
+    input: CreateNPCInput,
   ): Promise<SessionNPCRecord> {
     const created: SessionNPCRecord = {
       id: input.id,
       sessionId,
       name: input.name,
-      statBlock: input.statBlock,
+      statBlock: "statBlock" in input ? input.statBlock : null,
+      className: "className" in input ? input.className : null,
+      level: "level" in input ? input.level : null,
+      sheet: "sheet" in input ? input.sheet : null,
       faction: input.faction ?? "neutral",
       aiControlled: input.aiControlled ?? false,
       createdAt: now(),
@@ -426,7 +430,7 @@ class MemoryNPCRepository implements INPCRepository {
 
   async createMany(
     sessionId: string,
-    inputs: Array<{ id: string; name: string; statBlock: JsonValue; faction?: string; aiControlled?: boolean }>,
+    inputs: CreateNPCInput[],
   ): Promise<SessionNPCRecord[]> {
     const results: SessionNPCRecord[] = [];
     for (const input of inputs) {
@@ -454,6 +458,9 @@ class MemoryNPCRepository implements INPCRepository {
   async updateStatBlock(id: string, data: Partial<Record<string, unknown>>): Promise<SessionNPCRecord> {
     const existing = this.npcs.get(id);
     if (!existing) throw new Error("NPC not found: " + id);
+    if (!existing.statBlock) {
+      throw new Error(`Cannot update statBlock for class-backed NPC ${id}`);
+    }
     const currentStatBlock = (existing.statBlock as Record<string, unknown>) ?? {};
     const merged = { ...currentStatBlock, ...data };
     const updated: SessionNPCRecord = { ...existing, statBlock: merged, updatedAt: now() };
@@ -857,6 +864,82 @@ describe("game-server api", () => {
       },
     });
     expect(res.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/npcs creates a class-backed NPC", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/npcs`,
+      payload: {
+        name: "Captain Mira",
+        className: "fighter",
+        level: 5,
+        faction: "party",
+        aiControlled: true,
+        sheet: {
+          hp: 44,
+          maxHp: 44,
+          armorClass: 17,
+          abilityScores: {
+            strength: 18,
+            dexterity: 12,
+            constitution: 16,
+            intelligence: 10,
+            wisdom: 12,
+            charisma: 11,
+          },
+          equipment: [{ itemId: "longsword" }],
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.name).toBe("Captain Mira");
+    expect(body.statBlock).toBeNull();
+    expect(body.className).toBe("fighter");
+    expect(body.level).toBe(5);
+    expect(body.sheet.className).toBe("fighter");
+    expect(body.sheet.level).toBe(5);
+
+    await app.close();
+  });
+
+  it("POST /sessions/:id/npcs rejects mixed stat-block and class-backed payloads", async () => {
+    const { app } = buildTestApp();
+
+    const createdSession = await app.inject({
+      method: "POST",
+      url: "/sessions",
+      payload: { storyFramework: {} },
+    });
+    const sessionId = (createdSession.json() as any).id as string;
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/sessions/${sessionId}/npcs`,
+      payload: {
+        name: "Invalid Hybrid",
+        className: "fighter",
+        level: 3,
+        sheet: { hp: 20 },
+        statBlock: { hp: 20 },
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).message).toContain("Provide either statBlock or className + level + sheet");
 
     await app.close();
   });

@@ -65,6 +65,7 @@ import type {
   SessionMonsterRecord,
   SessionNPCRecord,
 } from "../../../../types.js";
+import { getClassBackedActorSource } from "../../helpers/class-backed-actor.js";
 
 export class AttackHandlers {
   constructor(
@@ -235,13 +236,13 @@ export class AttackHandlers {
 
     // Validate positions
     const combatantStates = await this.deps.combatRepo.listCombatants(encounterId);
-    const actorCombatant = combatantStates.find((c: any) => c.combatantType === "Character" && c.characterId === actorId);
+    const actorCombatant = findCombatantByEntityId(combatantStates, actorId);
     if (!actorCombatant) throw new ValidationError("Actor not found in encounter");
 
-    const actorChar = characters.find((c) => c.id === actorId);
-    const actorSheet = (actorChar?.sheet ?? {}) as any;
-    const actorLevel = ClassFeatureResolver.getLevel(actorSheet, actorChar?.level);
-    const actorClassName = actorChar?.className ?? actorSheet?.className ?? "";
+    const actorSource = getClassBackedActorSource(actorId, characters, npcs);
+    const actorSheet = (actorSource?.sheet ?? {}) as any;
+    const actorLevel = actorSource?.level ?? ClassFeatureResolver.getLevel(actorSheet, undefined);
+    const actorClassName = actorSource?.className ?? actorSheet?.className ?? "";
 
     // Merge picked-up weapons into the attacks array so they can be used in attacks
     const pickedUp = Array.isArray((actorCombatant.resources as any)?.pickedUpWeapons)
