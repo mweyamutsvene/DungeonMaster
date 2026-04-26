@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Scenario Runner
  *
  * Loads and executes test scenarios defined in JSON files.
@@ -99,7 +99,8 @@ export type ScenarioAction =
   | NpcActionAction
   | ApplyConditionAction
   | QueueMonsterActionsAction
-  | QueueDiceRollsAction;
+  | QueueDiceRollsAction
+  | RollInterruptResolveAction;
 
 interface InitiateAction {
   type: "initiate";
@@ -327,6 +328,33 @@ interface ReactionRespondAction {
 
 /**
  * Queue specific raw d20/die values into the server's DiceRoller queue.
+  /**
+   * Resolve a pending d20 roll interrupt (Bardic Inspiration, Lucky feat, Halfling Lucky, Portent).
+   * Calls POST /sessions/:id/combat/:encounterId/pending-roll-interrupt/resolve.
+   */
+  interface RollInterruptResolveAction {
+    type: "rollInterruptResolve";
+    /** Which character is resolving the interrupt (name). Default: first character. */
+    actor?: string;
+    input: {
+      /** What to do with the interrupt */
+      choice: "decline" | "bardic-inspiration" | "lucky-feat" | "halfling-lucky" | "portent";
+      /** Optional: specific effectId for bardic-inspiration (if multiple available) */
+      effectId?: string;
+      /** Required for portent: the portentEffectId to use */
+      portentEffectId?: string;
+    };
+    comment?: string;
+    expect?: {
+      hit?: boolean;
+      actionComplete?: boolean;
+      requiresPlayerInput?: boolean;
+      rollType?: string;
+    };
+  }
+
+  /**
+   * Queue specific raw d20/die values into the server's DiceRoller queue.
  * These values are consumed FIFO by the NEXT server-side die rolls
  * (e.g., CON saves for Stunning Strike, monster attack rolls, damage rolls).
  * When the queue is empty, the server falls back to its seeded roller.
@@ -1811,6 +1839,41 @@ export async function runScenario(
           logPlayerMessage(body.message, body.narration, reactAction.input.choice === "use" ? "Opportunity Attack" : "Declined");
           
           log(`${colors.green}✓${colors.reset} Reaction response: ${reactAction.input.choice}`);
+          break;
+        }
+
+        case "rollInterruptResolve": {
+          const rirAction = action as RollInterruptResolveAction;
+          const rirActorId = resolveActorId(rirAction.actor);
+          const choiceInput = rirAction.input;
+          let choicePayload: "decline" | Record<string, unknown>;
+          if (choiceInput.choice === "decline") {
+            choicePayload = "decline";
+          } else {
+            const c: Record<string, unknown> = { kind: choiceInput.choice };
+            if (choiceInput.effectId) c.effectId = choiceInput.effectId;
+            if (choiceInput.portentEffectId) c.portentEffectId = choiceInput.portentEffectId;
+            choicePayload = c;
+          }
+          const rirPayload = { actorId: rirActorId, choice: choicePayload };
+          logRequest("POST", `${baseUrl}/sessions/${sessionId}/combat/${encounterId}/pending-roll-interrupt/resolve`, rirPayload);
+          const rirRes = await httpPost(`${baseUrl}/sessions/${sessionId}/combat/${encounterId}/pending-roll-interrupt/resolve`, rirPayload);
+          logResponse(rirRes.status, rirRes.body);
+          if (rirRes.status !== 200) {
+            throw new Error(`rollInterruptResolve failed: ${JSON.stringify(rirRes.body)}`);
+          }
+          const rirBody = rirRes.body as any;
+          logPlayerMessage(rirBody.message, rirBody.narration, `Interrupt resolved: ${choiceInput.choice}`);
+          if (rirAction.expect?.hit !== undefined && rirBody.hit !== rirAction.expect.hit) {
+            throw new Error(`Expected hit=${rirAction.expect.hit}, got hit=${rirBody.hit}`);
+          }
+          if (rirAction.expect?.requiresPlayerInput !== undefined && rirBody.requiresPlayerInput !== rirAction.expect.requiresPlayerInput) {
+            throw new Error(`Expected requiresPlayerInput=${rirAction.expect.requiresPlayerInput}, got ${rirBody.requiresPlayerInput}`);
+          }
+          if (rirAction.expect?.rollType && rirBody.rollType !== rirAction.expect.rollType) {
+            throw new Error(`Expected rollType=${rirAction.expect.rollType}, got ${rirBody.rollType}`);
+          }
+          log(`${colors.green}✓${colors.reset} Roll interrupt resolved: ${choiceInput.choice}`);
           break;
         }
 

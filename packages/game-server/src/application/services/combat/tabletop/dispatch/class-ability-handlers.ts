@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ClassAbilityHandlers — class ability and bonus-action ability handlers.
  *
  * Extracted from ActionDispatcher (Phase: God-Module Decomposition §2a).
@@ -897,6 +897,20 @@ export class ClassAbilityHandlers {
         updateData.hpCurrent = (result.data!.hpUpdate as any).hpCurrent;
       }
       await this.deps.combatRepo.updateCombatantState(actorCombatant.id, updateData);
+    }
+
+    // If the executor produced an inspirationEffect (e.g. Bardic Inspiration),
+    // place it on the TARGET combatant's resources so the roll-interrupt-resolver
+    // can detect it when that combatant rolls a d20 attack or saving throw.
+    if (result.data?.inspirationEffect && targetCombatantRecord) {
+      const biEffect = result.data.inspirationEffect as import("../../../../../domain/entities/combat/effects.js").ActiveEffect;
+      const freshCombatants = await this.deps.combatRepo.listCombatants(encounterId);
+      const freshTarget = freshCombatants.find((c: any) => c.id === targetCombatantRecord!.id);
+      const targetResources = (freshTarget ?? targetCombatantRecord).resources ?? {};
+      const enc = await this.deps.combatRepo.getEncounterById(encounterId);
+      const stampedEffect = { ...biEffect, appliedAtRound: enc?.round ?? 1, appliedAtTurnIndex: enc?.turn ?? 0 };
+      const updatedTargetResources = addActiveEffectsToResources(targetResources, stampedEffect);
+      await this.deps.combatRepo.updateCombatantState(targetCombatantRecord!.id, { resources: updatedTargetResources as any });
     }
 
     return {

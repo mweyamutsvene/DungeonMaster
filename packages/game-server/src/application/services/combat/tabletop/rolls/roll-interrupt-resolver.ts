@@ -11,7 +11,7 @@
  */
 
 import type { CombatantStateRecord } from "../../../../types.js";
-import { getActiveEffects, normalizeResources } from "../../helpers/resource-utils.js";
+import { getActiveEffects, getResourcePools, normalizeResources } from "../../helpers/resource-utils.js";
 import { computeFeatModifiers } from "../../../../../domain/rules/feat-modifiers.js";
 import { mergeFightingStyleFeatId } from "../../../../../domain/entities/classes/fighting-style.js";
 import type {
@@ -177,7 +177,11 @@ export class RollInterruptResolver {
     if (!featMods.luckyEnabled) return;
 
     const resources = normalizeResources(combatant.resources);
-    const luckPoints = typeof resources.luckPoints === "number" ? resources.luckPoints : 0;
+    const directLuckPoints = typeof resources.luckPoints === "number" ? resources.luckPoints : undefined;
+    const pooledLuckPoints = getResourcePools(combatant.resources)
+      .find((pool) => pool.name === "luckPoints")
+      ?.current;
+    const luckPoints = directLuckPoints ?? pooledLuckPoints ?? 0;
     if (luckPoints > 0) {
       out.push({ kind: "lucky-feat", pointsRemaining: luckPoints });
     }

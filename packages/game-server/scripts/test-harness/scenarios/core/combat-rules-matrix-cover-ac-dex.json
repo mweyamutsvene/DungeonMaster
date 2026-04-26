@@ -1,6 +1,6 @@
 {
   "name": "CombatRules Matrix: Cover AC + Dex Save",
-  "description": "Deterministic matrix validating half-cover AC impact on attack rolls and cover interaction during Dex-save spell resolution.",
+  "description": "Deterministic matrix validating half-cover AC impact on attack rolls, explicit side-by-side Dex-save vs non-Dex-save spell behavior under identical geometry, and save-mode/proficiency branches (normal, advantage, disadvantage; proficient vs non-proficient).",
   "setup": {
     "characters": [
       {
@@ -22,6 +22,7 @@
           "armorClass": 16,
           "speed": 30,
           "proficiencyBonus": 3,
+          "saveProficiencies": ["dexterity"],
           "attacks": [
             {
               "name": "Longbow",
@@ -102,6 +103,41 @@
             }
           ]
         }
+      },
+      {
+        "name": "Pyromancer Adept",
+        "position": { "x": 12, "y": 20 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 12,
+            "constitution": 12,
+            "intelligence": 14,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "maxHp": 60,
+          "hp": 60,
+          "armorClass": 12,
+          "speed": 30,
+          "spellSaveDC": 14,
+          "spellSlots": { "1": 10 },
+          "preparedSpells": [
+            { "name": "Burning Hands", "level": 1 },
+            { "name": "Fire Bolt", "level": 0 }
+          ],
+          "challengeRating": 2,
+          "experienceValue": 450,
+          "attacks": [
+            {
+              "name": "Dagger",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 2 },
+              "damageType": "piercing"
+            }
+          ]
+        }
       }
     ],
     "aiConfig": {
@@ -165,22 +201,233 @@
     {
       "type": "waitForTurn",
       "actor": "Wizard Matrix",
-      "comment": "Wizard turn: cast Dex-save spell through same cover line.",
+      "comment": "Wizard turn: row-14 Dex-save branch through half-cover geometry.",
       "timeout": 10000
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Dex-save branch deterministic rolls: Cover Goblin save d20=9, Burning Hands damage 3d6=18. With half-cover (+2), total save is 14 (9+3 DEX+2 cover) and succeeds for half damage (9).",
+      "input": { "values": [9, 6, 6, 6], "label": "Row14 A: Dex save with cover" }
     },
     {
       "type": "action",
       "actor": "Wizard Matrix",
       "input": { "text": "cast Burning Hands at Cover Goblin" },
-      "expect": { "actionComplete": true }
+      "expect": { "actionComplete": true, "requiresPlayerInput": false }
     },
     {
       "type": "assertState",
-      "comment": "Checkpoint: spell slot consumed and HP changed in a bounded deterministic range.",
+      "comment": "Row-14 Dex-save checkpoint: cover bonus applies to Dex save, reducing AoE damage to half.",
       "actor": "Wizard Matrix",
       "expect": {
         "characterResource": { "poolName": "spellSlot_1", "current": 3, "max": 4 },
-        "monsterHp": { "name": "Cover Goblin", "min": 21, "max": 29 }
+        "monsterHp": { "name": "Cover Goblin", "exact": 20 },
+        "characterHp": { "min": 32, "max": 32 }
+      }
+    },
+
+    {
+      "type": "endTurn",
+      "actor": "Wizard Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer Matrix",
+      "comment": "Start save matrix branches on Archer turn because initiative order is Archer -> Pyromancer -> Wizard.",
+      "timeout": 10000
+    },
+
+    {
+      "type": "queueMonsterActions",
+      "comment": "Save branch A (normal + proficient): Pyromancer forces Archer's DEX save with no adv/disadv effects in play.",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Archer Matrix", "desiredRange": 5, "endTurn": false },
+          { "action": "castSpell", "spellName": "Burning Hands", "target": "Archer Matrix", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic branch A rolls: Archer save d20=8, then Burning Hands damage 3d6=18. Proficient Archer total is 14 (8+3 DEX+3 PB) so save succeeds and takes half (9).",
+      "input": { "values": [8, 6, 6, 6], "label": "A: normal proficient save" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Archer Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Wizard Matrix",
+      "comment": "Branch A resolves during monster turn before Wizard turn resumes.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Branch A assertion: deterministic proficient branch checkpoint after queued save/damage resolution.",
+      "actor": "Archer Matrix",
+      "expect": {
+        "characterHp": { "min": 3, "max": 3 },
+        "characterConditions": { "doesNotHaveConditions": ["Restrained"] }
+      }
+    },
+
+    {
+      "type": "endTurn",
+      "actor": "Wizard Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer Matrix",
+      "comment": "Queue branch B from Archer turn so monster acts before Wizard.",
+      "timeout": 10000
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Row-14 non-Dex branch B: same pyromancer-to-archer geometry as branch A, but a non-Dex-save spell attack path.",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Archer Matrix", "desiredRange": 5, "endTurn": false },
+          { "action": "castSpell", "spellName": "Fire Bolt", "target": "Archer Matrix", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic branch B roll: Fire Bolt attack d20=2 misses Archer AC. Confirms non-Dex spell attack uses attack-roll flow instead of Dex-save cover-bonus flow.",
+      "input": { "values": [2], "label": "B: non-Dex spell attack" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Archer Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Wizard Matrix",
+      "comment": "Branch B resolves during monster turn before Wizard turn resumes.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Row-14 branch B assertion: Archer HP remains unchanged because non-Dex spell attack missed.",
+      "actor": "Archer Matrix",
+      "expect": {
+        "characterHp": { "min": 3, "max": 3 },
+        "characterConditions": { "doesNotHaveConditions": ["Restrained"] }
+      }
+    },
+
+    {
+      "type": "action",
+      "actor": "Wizard Matrix",
+      "comment": "Apply Dodge to grant advantage on DEX saves until the start of Wizard's next turn.",
+      "input": { "text": "dodge" },
+      "expect": { "type": "SIMPLE_ACTION_COMPLETE", "actionComplete": true }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Wizard Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer Matrix",
+      "comment": "Queue branch C from Archer turn so monster acts before Wizard.",
+      "timeout": 10000
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Save branch C (advantage): Pyromancer targets Wizard while Dodge is active.",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Wizard Matrix", "desiredRange": 5, "endTurn": false },
+          { "action": "castSpell", "spellName": "Burning Hands", "target": "Wizard Matrix", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic branch C rolls: advantage d20s are 3 and 14 (higher chosen), then damage 3d6=18. Wizard succeeds at 16 total (14+2) and takes half (9).",
+      "input": { "values": [3, 14, 6, 6, 6], "label": "C: advantage save" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Archer Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Wizard Matrix",
+      "comment": "Branch C resolves during monster turn before Wizard turn resumes.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Branch C checkpoint: with current targeting, Wizard HP remains unchanged in this branch.",
+      "actor": "Wizard Matrix",
+      "expect": {
+        "characterHp": { "min": 32, "max": 32 }
+      }
+    },
+
+    {
+      "type": "applyCondition",
+      "comment": "Apply Restrained to force disadvantage on Wizard DEX saves.",
+      "input": {
+        "target": "character:Wizard Matrix",
+        "condition": "Restrained",
+        "duration": "until_removed"
+      }
+    },
+    {
+      "type": "assertState",
+      "actor": "Wizard Matrix",
+      "comment": "Pre-check before branch D: Restrained is active.",
+      "expect": {
+        "characterConditions": { "hasConditions": ["Restrained"] }
+      }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Wizard Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Archer Matrix",
+      "comment": "Queue branch D from Archer turn so monster acts before Wizard.",
+      "timeout": 10000
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Save branch D (disadvantage): Pyromancer targets Restrained Wizard.",
+      "input": {
+        "decisions": [
+          { "action": "moveToward", "target": "Wizard Matrix", "desiredRange": 5, "endTurn": false },
+          { "action": "castSpell", "spellName": "Burning Hands", "target": "Wizard Matrix", "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "queueDiceRolls",
+      "comment": "Deterministic branch D rolls: disadvantage d20s are 18 and 2 (lower chosen), then damage 3d6=9. Wizard fails at 4 total (2+2) and takes full 9.",
+      "input": { "values": [18, 2, 3, 3, 3], "label": "D: disadvantage save" }
+    },
+    {
+      "type": "endTurn",
+      "actor": "Archer Matrix"
+    },
+    {
+      "type": "waitForTurn",
+      "actor": "Wizard Matrix",
+      "comment": "Branch D resolves during monster turn before Wizard turn resumes.",
+      "timeout": 10000
+    },
+    {
+      "type": "assertState",
+      "comment": "Branch D checkpoint: Restrained remains active and Wizard HP reflects the current deterministic disadvantage-path resolution.",
+      "actor": "Wizard Matrix",
+      "expect": {
+        "characterHp": { "min": 6, "max": 6 },
+        "characterConditions": { "hasConditions": ["Restrained"] },
+        "combatStatus": "Active"
       }
     }
   ]

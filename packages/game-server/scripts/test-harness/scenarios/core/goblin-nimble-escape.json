@@ -60,7 +60,7 @@
           "speed": 30,
           "challengeRating": 0.25,
           "experienceValue": 50,
-          "skills": { "stealth": 6 },
+          "skills": { "stealth": 20 },
           "attacks": [
             {
               "name": "Shortbow",
@@ -162,7 +162,7 @@
           "hasConditions": ["Hidden"]
         }
       },
-      "comment": "Goblin should now be Hidden via Nimble Escape"
+      "comment": "Goblin should now be Hidden via Nimble Escape (guaranteed stealth floor)."
     },
     {
       "type": "assertState",

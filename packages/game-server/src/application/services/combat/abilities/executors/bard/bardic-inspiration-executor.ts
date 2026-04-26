@@ -20,7 +20,6 @@ import {
   spendResourceFromPool,
   hasBonusActionAvailable,
   useBonusAction,
-  addActiveEffectsToResources,
 } from "../../../helpers/resource-utils.js";
 import { nanoid } from "nanoid";
 import { requireSheet, requireResources, requireClassFeature, extractClassInfo } from "../executor-helpers.js";
@@ -68,17 +67,15 @@ export class BardicInspirationExecutor implements AbilityExecutor {
       let updatedResources = spendResourceFromPool(resources, "bardicInspiration", 1);
       updatedResources = useBonusAction(updatedResources);
 
-      // Create an ActiveEffect granting the Bardic Inspiration die
-      // The target creature (params.targetId or the ally) receives this effect.
-      // For now we store it on the caster's resources — the combat service
-      // will transfer it to the target when target selection is resolved.
+      // Create the Bardic Inspiration effect.
+      // handleBonusAbility will place this on the TARGET combatant's resources
+      // (not the caster) so the roll-interrupt-resolver finds it when that
+      // combatant next rolls a d20 attack or save.
       const inspirationEffect = createEffect(nanoid(), "bonus", "custom", "until_triggered", {
         diceValue: { count: 1, sides: dieSides },
         source: "Bardic Inspiration",
         description: `Add 1d${dieSides} to one ability check, attack roll, or saving throw`,
       });
-
-      updatedResources = addActiveEffectsToResources(updatedResources, inspirationEffect);
 
       const targetName = (params?.targetName as string) ?? "an ally";
 

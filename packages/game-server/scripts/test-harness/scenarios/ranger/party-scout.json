@@ -58,6 +58,9 @@
           "maxHp": 28, "currentHp": 28,
           "armorClass": 15, "speed": 30,
           "proficiencyBonus": 2,
+          "skills": {
+            "stealth": 20
+          },
           "attacks": [
             {
               "name": "Shortbow",
@@ -323,7 +326,7 @@
     },
 
     {
-      "comment": "R1 Finn: Hide (bonus action via Cunning Action). With Pass Without Trace aura, Stealth = DEX (+4) + prof (+2) + PWT (+10) = +16.",
+      "comment": "R1 Finn: Hide (bonus action via Cunning Action). Finn has an explicit high Stealth floor so Hidden outcome is deterministic.",
       "type": "action",
       "actor": "Finn",
       "input": { "text": "hide" },

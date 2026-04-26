@@ -1,4 +1,4 @@
-/**
+﻿/**
  * RollStateMachine - Handles all dice-roll resolution for tabletop combat.
  *
  * Manages the state transitions:
@@ -70,6 +70,7 @@ import type { TabletopEventEmitter } from "./tabletop-event-emitter.js";
 import { SavingThrowResolver } from "./rolls/saving-throw-resolver.js";
 
 import type {
+  PendingAction,
   PendingRollInterruptData,
 } from "../../../../domain/entities/combat/pending-action.js";
 import { RollInterruptResolver } from "./rolls/roll-interrupt-resolver.js";
@@ -534,7 +535,100 @@ export class RollStateMachine {
         attackerSheet,
         rollValue,
       );
-      if (interruptOptions.length > 0) {
+
+      // Back-compat bridge: when Lucky is the only available interrupt on a miss,
+      // keep the legacy lucky_reroll pending-reaction flow used by existing tests/scenarios.
+      const luckyOption = interruptOptions.find((o) => o.kind === "lucky-feat");
+      const legacyLuckyOnly = total < effectAdjustedAC
+        && !!luckyOption
+        && interruptOptions.every((o) => o.kind === "lucky-feat");
+      if (legacyLuckyOnly && attackerCombatant) {
+        const actorRef = attackerCombatant.characterId
+          ? { type: "Character" as const, characterId: attackerCombatant.characterId }
+          : attackerCombatant.monsterId
+            ? { type: "Monster" as const, monsterId: attackerCombatant.monsterId }
+            : attackerCombatant.npcId
+              ? { type: "NPC" as const, npcId: attackerCombatant.npcId }
+              : null;
+
+        if (actorRef) {
+          const pendingActionId = nanoid();
+          const opportunityId = nanoid();
+          const luckyPending: PendingAction = {
+            id: pendingActionId,
+            encounterId: encounter.id,
+            actor: actorRef,
+            type: "lucky_reroll",
+            data: {
+              type: "lucky_reroll",
+              sessionId,
+              actorEntityId: actorId,
+              originalRoll: rollValue,
+              originalTotal: total,
+              attackBonus,
+              targetAC: effectAdjustedAC,
+              originalAttackAction: { ...action } as Record<string, unknown>,
+            },
+            reactionOpportunities: [
+              {
+                id: opportunityId,
+                combatantId: actorId,
+                reactionType: "lucky_reroll",
+                canUse: true,
+                context: {
+                  targetId,
+                  originalRoll: rollValue,
+                  originalTotal: total,
+                  targetAC: effectAdjustedAC,
+                },
+              },
+            ],
+            resolvedReactions: [],
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + 30_000),
+          };
+
+          await this.deps.pendingActions.create(luckyPending);
+          await this.deps.combatRepo.clearPendingAction(encounter.id);
+          await this.deps.combatRepo.setPendingAction(encounter.id, {
+            id: pendingActionId,
+            type: "reaction_pending",
+            pendingActionId,
+            pausedActionType: "ATTACK",
+            sessionId,
+          } as any);
+
+          const currentOutcome = hit ? "Hit" : "Miss";
+          return {
+            rollType: "attack" as const,
+            rawRoll: rollValue,
+            modifier: attackBonus,
+            total,
+            targetAC: effectAdjustedAC,
+            hit: false,
+            requiresPlayerInput: true,
+            actionComplete: false,
+            pendingActionId,
+            luckyPrompt: {
+              pendingActionId,
+              reactionType: "lucky_reroll",
+              rollType: "attack",
+              originalRoll: rollValue,
+              originalTotal: total,
+              targetAC: effectAdjustedAC,
+            },
+            message: `${rollPrefix} + ${attackBonus} = ${total} vs AC ${effectAdjustedAC}. ${currentOutcome}. Lucky available: reroll this attack?`,
+          };
+        }
+      }
+
+      // Only interrupt when the roll would otherwise miss (additive options like BI)
+      // or when the option replaces the die value (Portent, Halfling Lucky).
+      const needsInterrupt = interruptOptions.length > 0 && (
+        total < effectAdjustedAC ||
+        interruptOptions.some((o) => o.kind === "portent" || o.kind === "halfling-lucky")
+      );
+      if (needsInterrupt) {
         const interruptData: PendingRollInterruptData =
           this.rollInterruptResolver.buildAttackInterruptData(
             sessionId,
