@@ -132,6 +132,10 @@ If a monster takes multiple attacks or has named actions, include the relevant `
 
 ## Setup: NPCs
 
+NPCs support two shapes: **stat-block** (classic monster-style) and **class-backed** (full character sheet with level/class).
+
+### Stat-Block NPC (legacy)
+
 ```typescript
 {
   npcs?: Array<{
@@ -141,6 +145,105 @@ If a monster takes multiple attacks or has named actions, include the relevant `
     aiControlled?: boolean;
     statBlock: Record<string, unknown>;
   }>
+}
+```
+
+### Class-Backed NPC (preferred for ally NPCs)
+
+Use this shape when the NPC should behave like a PC — with class features, spell slots, resource pools, and AI spell casting.
+
+```typescript
+{
+  npcs?: Array<{
+    name: string;
+    position?: { x: number; y: number };
+    faction?: string;       // e.g. "party" for ally NPCs
+    aiControlled?: boolean; // true = AI-driven turns
+    className: string;      // e.g. "Wizard", "Cleric"
+    level: number;
+    sheet: {
+      classId: string;      // lowercase class name
+      abilityScores: { ... };
+      maxHP: number;        // NPC sheets use maxHP (not maxHp)
+      currentHP: number;    // NPC sheets use currentHP (not currentHp)
+      armorClass: number;
+      speed: number;
+      proficiencyBonus?: number;
+      // Spell casters:
+      spellcastingAbility?: string;
+      spellSaveDC?: number;
+      spellAttackBonus?: number;
+      spellSlots?: Record<string, number>; // { "1": 4, "2": 3, "3": 2 }
+      preparedSpells?: Array<{ name: string; level: number }>; // BA-heal hint + docs
+      spells?: Array<{                     // drives AI spell evaluation
+        name: string;
+        level: number;
+        attackBonus?: number;
+        saveDC?: number;
+        saveAbility?: string;
+        damage?: string;       // e.g. "2d10", "8d6"
+        damageType?: string;
+        range?: number;
+        aoe?: boolean;
+        concentration?: boolean;
+        isBonusAction?: boolean;
+        isReaction?: boolean;
+      }>;
+      // Weapon fallback:
+      attacks?: Array<{                    // physical weapon attacks
+        name: string;
+        kind: "melee" | "ranged";
+        range?: string;
+        attackBonus: number;
+        damage: { diceCount: number; diceSides: number; modifier: number };
+        damageType: string;
+      }>;
+    };
+  }>
+}
+```
+
+**Key differences from character sheets:**
+- NPC sheets use `maxHP` / `currentHP` (capital HP), characters use `maxHp` / `currentHp`
+- `spells[]` drives what the AI will cast; `preparedSpells[]` is for BA-heal estimation and documentation
+- `attacks[]` is for physical weapon attacks only — cantrips/spells go in `spells[]`
+- If `attacks` is omitted, the resolver falls back to `sheet.equipment.weapon` → weapon catalog
+- Resource pools (spell slots etc.) are auto-initialized from `className` + `level` at combat start
+
+**Example — Wizard ally NPC:**
+```json
+{
+  "name": "Elara the Wise",
+  "faction": "party",
+  "aiControlled": true,
+  "className": "Wizard",
+  "level": 5,
+  "sheet": {
+    "classId": "wizard",
+    "abilityScores": { "strength": 8, "dexterity": 14, "constitution": 14, "intelligence": 16, "wisdom": 12, "charisma": 10 },
+    "maxHP": 24,
+    "currentHP": 24,
+    "armorClass": 12,
+    "speed": 30,
+    "proficiencyBonus": 3,
+    "spellcastingAbility": "intelligence",
+    "spellSaveDC": 14,
+    "spellAttackBonus": 6,
+    "spellSlots": { "1": 4, "2": 3, "3": 2 },
+    "preparedSpells": [
+      { "name": "Fire Bolt", "level": 0 },
+      { "name": "Fireball", "level": 3 },
+      { "name": "Shield", "level": 1 }
+    ],
+    "spells": [
+      { "name": "Fire Bolt", "level": 0, "attackBonus": 6, "damage": "2d10", "damageType": "fire", "range": 120 },
+      { "name": "Fireball", "level": 3, "saveDC": 14, "saveAbility": "dexterity", "damage": "8d6", "damageType": "fire", "aoe": true, "range": 150, "concentration": false },
+      { "name": "Shield", "level": 1, "isReaction": true, "concentration": false }
+    ],
+    "attacks": [
+      { "name": "Quarterstaff", "kind": "melee", "range": "melee", "attackBonus": 1, "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 }, "damageType": "bludgeoning" }
+    ]
+  }
 }
 ```
 

@@ -137,6 +137,34 @@ Use the smallest example that already matches the flow you need. Copying a small
 4. Add `comment` fields so failures are readable.
 5. Add checkpoint assertions instead of waiting until the end of the scenario.
 
+## Class-Backed NPC Allies
+
+Use the **class-backed NPC** shape when adding an AI-controlled ally (party member NPC) with class features, spell casting, and resource pools.
+
+**Two important distinctions from character sheets:**
+
+| Field | Character sheet | NPC sheet |
+|---|---|---|
+| Max HP | `maxHp` | `maxHP` |
+| Current HP | `currentHp` | `currentHP` |
+| Spell driver | `preparedSpells` or `spells` | `spells` (AI picks from this) |
+| Physical attacks | `attacks` | `attacks` (weapons only, cantrips go in `spells`) |
+
+**Spell lists — two arrays with different purposes:**
+- `spells[]` → drives the AI spell evaluator (`pickSpell`). The AI only casts spells listed here.
+- `preparedSpells[]` → documents the prepared list; used by the BA-heal estimation hint. Not checked for enforcement yet.
+
+**Attacks vs. Spells:**
+- Put physical weapons (Quarterstaff, Shortsword) in `attacks[]`
+- Put cantrips and leveled spells in `spells[]`
+- If `attacks` is omitted, the engine falls back to `sheet.equipment.weapon` → weapon catalog
+
+**Resource pools** (spell slots, Ki, Channel Divinity, etc.) are auto-initialized from `className` + `level` at combat start. You don't need to declare them in the sheet unless you want to set a non-default initial value.
+
+See [scenario-schema.md](./references/scenario-schema.md#setup-npcs) for the full NPC shape reference and a working Wizard ally example.
+
+---
+
 ## Class-Combat Scenarios
 
 The `class-combat/` suite is still the long-form deterministic regression layer for multi-round class kits. Treat nearby passing class-combat scenarios as the strongest authoring reference for:
