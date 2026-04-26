@@ -9,6 +9,7 @@ import {
 import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 import type { CharacterItemInstance } from "../../../domain/entities/items/magic-item.js";
 import type { StructuredMaterialComponent } from "../../../domain/entities/spells/catalog/types.js";
+import { parseMaterialComponent } from "../../../domain/entities/spells/catalog/material-component.js";
 
 const SESSION = "session-1";
 
@@ -365,6 +366,37 @@ describe("InventoryService.findItemMatchingComponent", () => {
     const result = await service.findItemMatchingComponent(SESSION, "alice", DIAMOND_300);
 
     expect(result.found).toBe(true);
+  });
+
+  it("treats a cleric's holy symbol focus as satisfying non-consumed holy symbol requirements", async () => {
+    const { service, chars } = buildService();
+    await chars.createInSession(SESSION, {
+      id: "cleric",
+      name: "Cleric",
+      level: 5,
+      className: "Cleric",
+      sheet: { inventory: [] },
+    });
+
+    const holySymbol = parseMaterialComponent("a Holy Symbol worth 5+ GP");
+    const result = await service.findItemMatchingComponent(SESSION, "cleric", holySymbol!);
+
+    expect(result).toEqual({ found: true, itemName: "Holy Symbol" });
+  });
+
+  it("does not treat implicit holy symbol focus as satisfying consumed components", async () => {
+    const { service, chars } = buildService();
+    await chars.createInSession(SESSION, {
+      id: "cleric",
+      name: "Cleric",
+      level: 5,
+      className: "Cleric",
+      sheet: { inventory: [] },
+    });
+
+    const result = await service.findItemMatchingComponent(SESSION, "cleric", DIAMOND_300);
+
+    expect(result.found).toBe(false);
   });
 });
 

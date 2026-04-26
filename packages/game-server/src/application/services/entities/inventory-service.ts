@@ -97,6 +97,17 @@ function setInventoryOnSheet(
   return { ...base, inventory };
 }
 
+function hasImplicitHolySymbolFocus(
+  char: Pick<SessionCharacterRecord, "className">,
+  material: StructuredMaterialComponent,
+): boolean {
+  if (material.consumed) return false;
+  if ((material.itemKeyword ?? "").toLowerCase() !== "holy symbol") return false;
+
+  const className = (char.className ?? "").toLowerCase();
+  return className === "cleric" || className === "paladin";
+}
+
 // ---------------------------------------------------------------------------
 // InventoryService
 // ---------------------------------------------------------------------------
@@ -336,7 +347,15 @@ export class InventoryService {
       return value >= (material.costGp ?? 0);
     });
 
-    return match ? { found: true, itemName: match.name } : { found: false };
+    if (match) {
+      return { found: true, itemName: match.name };
+    }
+
+    if (hasImplicitHolySymbolFocus(char, material)) {
+      return { found: true, itemName: "Holy Symbol" };
+    }
+
+    return { found: false };
   }
 
   /**

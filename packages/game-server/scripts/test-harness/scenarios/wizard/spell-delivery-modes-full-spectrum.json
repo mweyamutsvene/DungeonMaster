@@ -21,6 +21,9 @@
         "spellSaveDC": 15,
         "spellAttackBonus": 7,
         "spellSlots": { "1": 4, "2": 3, "3": 2 },
+        "inventory": [
+          { "name": "Holy Symbol", "quantity": 1, "valueGp": 5 }
+        ],
         "preparedSpells": [
           { "name": "Fire Bolt", "level": 0 },
           { "name": "Burning Hands", "level": 1 },

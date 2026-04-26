@@ -52,6 +52,7 @@ export function parseMaterialComponent(
   // Common costed components — match item keyword for inventory lookup.
   // Order matters: more specific keywords first.
   const itemKeywords = [
+    'holy symbol',
     'diamond',
     'ruby',
     'pearl',

@@ -19,6 +19,9 @@
         "spellSaveDC": 14,
         "spellAttackBonus": 6,
         "spellSlots": { "1": 4 },
+        "inventory": [
+          { "name": "Holy Symbol", "quantity": 1, "valueGp": 5 }
+        ],
         "preparedSpells": [
           { "name": "Bless", "level": 1 },
           { "name": "Fire Bolt", "level": 0 }

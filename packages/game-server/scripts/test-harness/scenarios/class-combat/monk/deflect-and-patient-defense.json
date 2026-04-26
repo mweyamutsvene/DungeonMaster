@@ -266,8 +266,8 @@
     },
     {
       "type": "queueDiceRolls",
-      "comment": "R2 archer turn dice queue. Dodge from Patient Defense does NOT impose disadvantage on adjacent ranged attacks in this engine, so a single d20 is rolled. 15 = d20 attack, 6,6 = damage, 1 = deflect d10. Net 6 damage.",
-      "input": { "values": [15, 6, 6, 1] }
+      "comment": "R2 archer turn dice queue. Patient Defense now imposes disadvantage here, so the attack consumes two d20s before damage. 15,14 = disadvantage attack rolls (lowest 14 still hits AC 8), 6,6 = damage, 1 = deflect d10. Net 6 damage, so Deflect reduces but does not zero the hit.",
+      "input": { "values": [15, 14, 6, 6, 1] }
     },
     {
       "type": "endTurn",

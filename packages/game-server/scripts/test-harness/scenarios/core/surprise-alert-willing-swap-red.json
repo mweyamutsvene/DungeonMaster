@@ -1,6 +1,6 @@
 {
   "name": "Surprise + Alert: only willing allies can swap initiative",
-  "description": "Party is surprised (initiative disadvantage). Alert holder gets a swap offer, but unconscious allies are excluded from eligible targets and swap attempts to them are rejected.",
+  "description": "Party is surprised, but the Alert holder ignores initiative disadvantage and still gets a swap offer. Unconscious allies are excluded from eligible targets and swap attempts to them are rejected.",
   "setup": {
     "characters": [
       {
@@ -134,20 +134,20 @@
   "actions": [
     {
       "type": "setSurprise",
-      "comment": "Party is surprised; Vanguard should roll initiative at disadvantage.",
+      "comment": "Party is surprised; Vanguard's Alert feat should suppress initiative disadvantage.",
       "input": { "surprise": "party" }
     },
     {
       "type": "queueDiceRolls",
-      "comment": "Deterministic auto-initiative rolls: Ready Ally disadvantage (12,2 -> 2), Fallen Ally disadvantage (11,3 -> 3), Raider normal (17).",
+      "comment": "Deterministic auto-initiative rolls: Ready Ally disadvantage (12,2 -> 2), Fallen Ally disadvantage (11,3 -> 3), Raider normal (17). Vanguard rolls manually without disadvantage because of Alert.",
       "input": { "values": [12, 2, 11, 3, 17], "label": "initiative auto-rolls" }
     },
     {
       "type": "initiate",
       "actor": "Vanguard",
-      "comment": "Initiate combat while surprised; expect disadvantage roll prompt.",
+      "comment": "Initiate combat while surprised; Alert should remove disadvantage from Vanguard's roll prompt.",
       "input": { "text": "roll initiative" },
-      "expect": { "rollType": "initiative", "requiresPlayerInput": true, "disadvantage": true }
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
     },
     {
       "type": "rollResult",
