@@ -47,6 +47,8 @@ interface TargetResult {
   hpAfter: number;
   conditionsApplied: string[];
   fullCover: boolean;
+  advantage?: boolean;
+  disadvantage?: boolean;
 }
 
 export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
@@ -405,8 +407,8 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
       requiresPlayerInput: false,
       actionComplete: true,
       type: "SIMPLE_ACTION_COMPLETE",
-      action: "CastSpell",
-      message: `Cast ${castInfo.spellName} at ${targetName}.${slotNote} ${saveAbility.charAt(0).toUpperCase() + saveAbility.slice(1)} save DC ${spellSaveDC}: d20(${resolution.rawRoll})+${resolution.modifier}=${resolution.total}. ${saveResult}.${damageMessage}${conditionMessage}`,
+      action: "CastSpell",      advantage: resolution.hasAdvantage,
+      disadvantage: resolution.hasDisadvantage,      message: `Cast ${castInfo.spellName} at ${targetName}.${slotNote} ${saveAbility.charAt(0).toUpperCase() + saveAbility.slice(1)} save DC ${spellSaveDC}: d20(${resolution.rawRoll})+${resolution.modifier}=${resolution.total}. ${saveResult}.${damageMessage}${conditionMessage}`,
     };
   }
 
@@ -753,6 +755,8 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
         hpAfter,
         conditionsApplied: resolution.conditionsApplied,
         fullCover: false,
+        advantage: resolution.hasAdvantage,
+        disadvantage: resolution.hasDisadvantage,
       });
     }
 
@@ -779,11 +783,15 @@ export class SaveSpellDeliveryHandler implements SpellDeliveryHandler {
     const areaDesc = `${area.size}ft ${area.type}`;
     const abilityName = saveAbility.charAt(0).toUpperCase() + saveAbility.slice(1);
     const affectedCount = targetResults.filter(r => !r.fullCover).length;
+    const anyAdvantage = targetResults.some(r => r.advantage ?? false);
+    const anyDisadvantage = targetResults.some(r => r.disadvantage ?? false);
     return {
       requiresPlayerInput: false,
       actionComplete: true,
       type: 'SIMPLE_ACTION_COMPLETE' as const,
       action: 'CastSpell',
+      advantage: anyAdvantage,
+      disadvantage: anyDisadvantage,
       message: `Cast ${castInfo.spellName} (${areaDesc}).${slotNote} ${abilityName} save DC ${spellSaveDC}. Affected ${affectedCount} creature${affectedCount !== 1 ? 's' : ''}: ${targetSummaries}`,
     };
   }

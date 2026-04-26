@@ -1,0 +1,110 @@
+{
+  "name": "Saving throw roll-mode flags exposed in save response",
+  "description": "Verifies that saving throw responses include deterministic advantage/disadvantage fields. Applies Restrained to the target (disadvantage on DEX saves) then casts Burning Hands. The response must expose disadvantage:true, advantage:false. Monster placed adjacent to caster so 15ft cone geometry hits it.",
+  "setup": {
+    "character": {
+      "name": "Harness Probe",
+      "className": "Wizard",
+      "level": 5,
+      "position": { "x": 2, "y": 2 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 8,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 18,
+          "wisdom": 12,
+          "charisma": 10
+        },
+        "maxHp": 32,
+        "currentHp": 32,
+        "armorClass": 12,
+        "speed": 30,
+        "proficiencyBonus": 3,
+        "spellcastingAbility": "intelligence",
+        "spellSaveDC": 14,
+        "spellAttackBonus": 7,
+        "spellSlots": { "1": 4 },
+        "preparedSpells": [
+          { "name": "Burning Hands", "level": 1 }
+        ],
+        "attacks": [
+          {
+            "name": "Quarterstaff",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 1,
+            "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+            "damageType": "bludgeoning"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Probe Target",
+        "position": { "x": 3, "y": 2 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 10,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 30,
+          "hp": 30,
+          "armorClass": 12,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ],
+    "aiConfig": {
+      "defaultBehavior": "endTurn"
+    }
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I begin casting" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "20" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "applyCondition",
+      "comment": "Apply Restrained to Probe Target — gives disadvantage on DEX saving throws (D&D 2024)",
+      "input": {
+        "target": "monster:Probe Target",
+        "condition": "Restrained",
+        "duration": "until_removed"
+      }
+    },
+    {
+      "type": "action",
+      "comment": "Cast Burning Hands (DEX save). Restrained imposes disadvantage. Response must expose roll-mode flags.",
+      "input": { "text": "cast Burning Hands at Probe Target" },
+      "expect": {
+        "actionComplete": true,
+        "requiresPlayerInput": false,
+        "advantage": false,
+        "disadvantage": true
+      }
+    }
+  ]
+}

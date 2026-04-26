@@ -95,6 +95,10 @@ export interface SavingThrowResolution {
   conditionsRemoved: string[];
   /** Whether the target has Evasion (Rogue 7/Monk 7 — DEX saves only) */
   hasEvasion?: boolean;
+  /** Whether the saving throw was rolled with advantage */
+  hasAdvantage: boolean;
+  /** Whether the saving throw was rolled with disadvantage */
+  hasDisadvantage: boolean;
 }
 
 export class SavingThrowResolver {
@@ -236,6 +240,8 @@ export class SavingThrowResolver {
         appliedOutcome: outcome,
         conditionsApplied,
         conditionsRemoved,
+        hasAdvantage: false,
+        hasDisadvantage: false,
       };
     }
 
@@ -591,6 +597,8 @@ export class SavingThrowResolver {
       conditionsApplied,
       conditionsRemoved,
       hasEvasion: evasionDetected || undefined,
+      hasAdvantage: hasFinalAdvantage && !hasEffectDisadvantage,
+      hasDisadvantage: hasEffectDisadvantage && !hasFinalAdvantage,
     };
   }
 
@@ -620,6 +628,8 @@ export class SavingThrowResolver {
       outcomeSummary: resolution.appliedOutcome.summary,
       conditionsApplied: resolution.conditionsApplied.length > 0 ? resolution.conditionsApplied : undefined,
       conditionsRemoved: resolution.conditionsRemoved.length > 0 ? resolution.conditionsRemoved : undefined,
+      advantage: resolution.hasAdvantage,
+      disadvantage: resolution.hasDisadvantage,
       actionComplete: opts?.actionComplete ?? true,
       requiresPlayerInput: opts?.requiresPlayerInput ?? false,
       message: (() => {

@@ -459,6 +459,10 @@ export interface SavingThrowAutoResult {
   /** Conditions applied as a result of the save */
   conditionsApplied?: string[];
   conditionsRemoved?: string[];
+  /** Whether the save was rolled with advantage */
+  advantage?: boolean;
+  /** Whether the save was rolled with disadvantage */
+  disadvantage?: boolean;
   actionComplete: boolean;
   requiresPlayerInput: boolean;
   message: string;
