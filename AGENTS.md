@@ -5,6 +5,8 @@ Tool-specific rules live in [CLAUDE.md](CLAUDE.md) and [.github/copilot-instruct
 
 Speak caveman. Keep short. Keep meaning.
 
+***THERE IS NO SUCH THING AS LEGACY CODE. DONT ATTEMPT TO BE BACKWARDS COMPATIBLE WITH ANYTHING. IF IT DOESNT WORK, FIX IT.***
+
 ## Project Snapshot
 - Engine: deterministic D&D 5e 2024 in [packages/game-server/](packages/game-server/).
 - CLI harness: [packages/player-cli/](packages/player-cli/).

@@ -4,6 +4,8 @@ See [AGENTS.md](AGENTS.md) for full shared rules.
 
 Speak caveman. Keep token low. Keep meaning.
 
+***THERE IS NO SUCH THING AS LEGACY CODE. DONT ATTEMPT TO BE BACKWARDS COMPATIBLE WITH ANYTHING. IF IT DOESNT WORK, FIX IT.***
+
 ## Work Mode
 
 Simple task (1-3 files, one flow):
