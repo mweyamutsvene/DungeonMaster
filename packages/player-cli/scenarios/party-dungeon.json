@@ -133,7 +133,10 @@
         "name": "Elara the Wise",
         "faction": "party",
         "aiControlled": true,
-        "statBlock": {
+        "className": "Wizard",
+        "level": 5,
+        "sheet": {
+          "classId": "wizard",
           "abilityScores": {
             "strength": 8,
             "dexterity": 14,
@@ -142,19 +145,37 @@
             "wisdom": 12,
             "charisma": 10
           },
-          "maxHp": 24,
-          "hp": 24,
+          "maxHP": 24,
+          "currentHP": 24,
           "armorClass": 12,
           "speed": 30,
-          "challengeRating": 2,
+          "proficiencyBonus": 3,
+          "spellcastingAbility": "intelligence",
+          "spellSaveDC": 14,
+          "spellAttackBonus": 6,
+          "spellSlots": { "1": 4, "2": 3, "3": 2 },
+          "preparedSpells": [
+            { "name": "Fire Bolt", "level": 0 },
+            { "name": "Magic Missile", "level": 1 },
+            { "name": "Scorching Ray", "level": 2 },
+            { "name": "Fireball", "level": 3 },
+            { "name": "Shield", "level": 1 }
+          ],
+          "spells": [
+            { "name": "Fire Bolt", "level": 0, "attackBonus": 6, "damage": "2d10", "damageType": "fire", "range": 120, "kind": "ranged" },
+            { "name": "Magic Missile", "level": 1, "damage": "3x1d4+1", "damageType": "force", "range": 120, "concentration": false },
+            { "name": "Scorching Ray", "level": 2, "attackBonus": 6, "damage": "3x2d6", "damageType": "fire", "range": 120, "concentration": false },
+            { "name": "Fireball", "level": 3, "saveDC": 14, "saveAbility": "dexterity", "damage": "8d6", "damageType": "fire", "aoe": true, "range": 150, "concentration": false },
+            { "name": "Shield", "level": 1, "isBonusAction": false, "isReaction": true, "concentration": false }
+          ],
           "attacks": [
             {
-              "name": "Fire Bolt",
-              "kind": "ranged",
-              "range": "120 ft",
-              "attackBonus": 5,
-              "damage": { "diceCount": 2, "diceSides": 10, "modifier": 0 },
-              "damageType": "fire"
+              "name": "Quarterstaff",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 1,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": -1 },
+              "damageType": "bludgeoning"
             }
           ]
         }
