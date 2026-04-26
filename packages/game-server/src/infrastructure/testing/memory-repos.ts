@@ -19,6 +19,7 @@ import type {
   INPCRepository,
   ISpellRepository,
 } from "../../application/repositories/index.js";
+import type { CreateNPCInput } from "../../application/repositories/npc-repository.js";
 import type {
   CombatantStateRecord,
   CombatEncounterRecord,

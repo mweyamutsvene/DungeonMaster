@@ -458,6 +458,136 @@ describe('Creature Hydration', () => {
       expect(npc.getProficiencyBonus()).toBe(2);
       expect(npc.getCurrentHP()).toBe(20);
     });
+
+    it('should hydrate a class-backed NPC using sheet (className + level)', () => {
+      const record: SessionNPCRecord = {
+        id: 'npc-class-1',
+        sessionId: 'session-1',
+        name: 'Allied Wizard',
+        statBlock: null,
+        className: 'Wizard',
+        level: 5,
+        sheet: {
+          classId: 'wizard',
+          abilityScores: {
+            strength: 8,
+            dexterity: 14,
+            constitution: 13,
+            intelligence: 18,
+            wisdom: 12,
+            charisma: 10,
+          },
+          maxHP: 32,
+          currentHP: 32,
+          armorClass: 13,
+          speed: 30,
+          subclass: 'Evoker',
+          featIds: ['feat_war_caster'],
+        },
+        faction: 'allies',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const npc = hydrateNPC(record);
+
+      expect(npc.getName()).toBe('Allied Wizard');
+      expect(npc.getLevel()).toBe(5);
+      expect(npc.getClassId()).toBe('wizard');
+      expect(npc.getSubclass()).toBe('Evoker');
+      expect(npc.getCurrentHP()).toBe(32);
+      expect(npc.getMaxHP()).toBe(32);
+      expect(npc.getFeatIds()).toContain('feat_war_caster');
+    });
+
+    it('should apply combat state HP to class-backed NPC', () => {
+      const record: SessionNPCRecord = {
+        id: 'npc-class-2',
+        sessionId: 'session-1',
+        name: 'NPC Fighter',
+        statBlock: null,
+        className: 'Fighter',
+        level: 3,
+        sheet: {
+          classId: 'fighter',
+          abilityScores: {
+            strength: 16,
+            dexterity: 13,
+            constitution: 15,
+            intelligence: 10,
+            wisdom: 12,
+            charisma: 11,
+          },
+          maxHP: 28,
+          currentHP: 28,
+          armorClass: 17,
+          speed: 30,
+        },
+        faction: 'allies',
+        aiControlled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const combatantState: CombatantStateRecord = {
+        id: 'combatant-npc-class',
+        encounterId: 'encounter-1',
+        combatantType: 'NPC',
+        characterId: null,
+        monsterId: null,
+        npcId: 'npc-class-2',
+        initiative: 12,
+        hpCurrent: 10,
+        hpMax: 28,
+        hpTemp: 0,
+        conditions: ['Poisoned'],
+        resources: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const npc = hydrateNPC(record, combatantState);
+
+      expect(npc.getCurrentHP()).toBe(10);
+      expect(npc.getMaxHP()).toBe(28);
+      expect(npc.hasCondition('Poisoned')).toBe(true);
+    });
+
+    it('class-backed NPC with no classId on sheet falls back to className lowercase', () => {
+      const record: SessionNPCRecord = {
+        id: 'npc-class-3',
+        sessionId: 'session-1',
+        name: 'Rogue NPC',
+        statBlock: null,
+        className: 'Rogue',
+        level: 4,
+        sheet: {
+          // No classId field — should fall back to className.toLowerCase()
+          abilityScores: {
+            strength: 10,
+            dexterity: 18,
+            constitution: 12,
+            intelligence: 14,
+            wisdom: 10,
+            charisma: 12,
+          },
+          maxHP: 24,
+          currentHP: 24,
+          armorClass: 14,
+          speed: 30,
+        },
+        faction: 'allies',
+        aiControlled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const npc = hydrateNPC(record);
+
+      expect(npc.getLevel()).toBe(4);
+      expect(npc.getClassId()).toBe('rogue');
+    });
   });
 
   describe('extractCombatantState', () => {

@@ -641,7 +641,7 @@ export class AttackHandlers {
 
     await this.deps.combatRepo.setPendingAction(encounterId, pendingAction);
 
-    const attackerName = actorChar?.name ?? "The attacker";
+    const attackerName = actorSource?.name ?? "The attacker";
     const narration = await this.eventEmitter.generateNarration("attackRequest", {
       attackerName,
       targetName: (target as any).name,

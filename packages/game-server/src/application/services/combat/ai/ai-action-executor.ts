@@ -333,8 +333,6 @@ export class AiActionExecutor {
             getCurrentHP: () => aiCombatant.hpCurrent ?? 0,
             getMaxHP: () => aiCombatant.hpMax ?? 0,
             getSpeed: () => speed ?? 30,
-            getLevel: () => level ?? 1,
-            getClassId: () => className ?? "",
             modifyHP: () => ({ actualChange: 0 }),
           },
           combat: {

@@ -939,7 +939,7 @@ describe("game-server api", () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect((res.json() as any).message).toContain("Provide either statBlock or className + level + sheet");
+    expect((res.json() as any).message).toContain("exactly one representation");
 
     await app.close();
   });
