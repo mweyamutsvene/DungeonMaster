@@ -17,12 +17,21 @@ import type { FastifyInstance } from "fastify";
 import type { SessionRouteDeps } from "./types.js";
 import { setTerrainAt, addGroundItem, type CombatMap, type TerrainType } from "../../../../domain/rules/combat-map.js";
 import type { GroundItem } from "../../../../domain/entities/items/ground-item.js";
-import { normalizeConditions } from "../../../../domain/entities/combat/conditions.js";
+import { normalizeConditions, getExhaustionLevel, isExhaustionLethal } from "../../../../domain/entities/combat/conditions.js";
 import { isConcentrationBreakingCondition } from "../../../../domain/rules/concentration.js";
 import { ValidationError } from "../../../../application/errors.js";
 import { breakConcentration, getConcentrationSpellName } from "../../../../application/services/combat/helpers/concentration-helper.js";
 import type { JsonValue } from "../../../../application/types.js";
 import { nanoid } from "nanoid";
+
+function isAliveForCombatResolution(combatant: { combatantType: string; hpCurrent: number; resources: unknown }): boolean {
+  if (combatant.hpCurrent > 0) return true;
+  if (combatant.combatantType !== "Character") return false;
+  const resources = (combatant.resources ?? {}) as Record<string, unknown>;
+  const deathSaves = resources.deathSaves as { failures?: number } | undefined;
+  if (!deathSaves) return true;
+  return (deathSaves.failures ?? 0) < 3;
+}
 
 export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionRouteDeps): void {
   /**
@@ -404,7 +413,36 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
       throw new ValidationError("No fields to patch");
     }
 
-    const updated = await deps.combatRepo.updateCombatantState(combatantId, patch as any);
+    let updated = await deps.combatRepo.updateCombatantState(combatantId, patch as any);
+
+    const normalizedConditions = normalizeConditions(updated.conditions);
+    const exhaustionLevel = getExhaustionLevel(normalizedConditions);
+    if (isExhaustionLethal(exhaustionLevel) && updated.hpCurrent > 0) {
+      const currentResources = ((updated.resources ?? {}) as Record<string, unknown>);
+      const lethalResources = updated.combatantType === "Character"
+        ? {
+            ...currentResources,
+            deathSaves: { successes: 0, failures: 3 },
+            stabilized: false,
+          }
+        : currentResources;
+      updated = await deps.combatRepo.updateCombatantState(combatantId, {
+        hpCurrent: 0,
+        resources: lethalResources as JsonValue,
+      });
+
+      const combatants = await deps.combatRepo.listCombatants(encounterId);
+      const partyAlive = combatants.some((combatant) =>
+        (combatant.combatantType === "Character" || combatant.combatantType === "NPC")
+        && isAliveForCombatResolution(combatant),
+      );
+      const enemyAlive = combatants.some((combatant) =>
+        combatant.combatantType === "Monster" && isAliveForCombatResolution(combatant),
+      );
+      if (!partyAlive || !enemyAlive) {
+        await deps.combatRepo.updateEncounter(encounterId, { status: "Complete" });
+      }
+    }
 
     // D&D 5e 2024: concentration ends on Incapacitated (and implied conditions)
     // and when HP drops to 0 (dying/dead). DM overrides must enforce the same rules.

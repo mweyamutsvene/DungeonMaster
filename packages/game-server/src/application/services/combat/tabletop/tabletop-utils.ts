@@ -8,6 +8,7 @@
 
 import { classHasFeature } from "../../../../domain/entities/classes/registry.js";
 import { FERAL_INSTINCT } from "../../../../domain/entities/classes/feature-keys.js";
+import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
 import type { SurpriseSpec } from "./tabletop-types.js";
 
 // ----- Surprise -----
@@ -47,11 +48,13 @@ export function computeInitiativeModifiers(
   side: "party" | "enemy",
   conditions?: unknown[],
   classInfo?: { className: string; level: number },
+  featIds?: readonly string[],
 ): { advantage: boolean; disadvantage: boolean } {
   let advSources = 0;
   let disadvSources = 0;
+  const isSurprised = isCreatureSurprised(creatureId, surprise, side);
 
-  if (isCreatureSurprised(creatureId, surprise, side)) disadvSources++;
+  if (isSurprised) disadvSources++;
 
   let isIncapacitated = false;
   if (conditions && Array.isArray(conditions)) {
@@ -69,11 +72,16 @@ export function computeInitiativeModifiers(
     }
   }
 
+  const featMods = computeFeatModifiers(featIds ?? []);
+  if (featMods.initiativeAddProficiency && isSurprised && !isIncapacitated && disadvSources > 0) {
+    disadvSources--;
+  }
+
   // D&D 5e 2024: Feral Instinct (Barbarian 7+) grants advantage on initiative
   // and negates surprise disadvantage if not incapacitated
   if (classInfo && classInfo.className.toLowerCase() === "barbarian" && classHasFeature("barbarian", FERAL_INSTINCT, classInfo.level)) {
     advSources++;
-    if (isCreatureSurprised(creatureId, surprise, side) && !isIncapacitated && disadvSources > 0) {
+    if (isSurprised && !isIncapacitated && disadvSources > 0) {
       disadvSources--;
     }
   }
@@ -96,9 +104,10 @@ export function computeInitiativeRollMode(
   side: "party" | "enemy",
   conditions?: unknown[],
   classInfo?: { className: string; level: number },
+  featIds?: readonly string[],
 ): "normal" | "advantage" | "disadvantage" {
   const { advantage, disadvantage } = computeInitiativeModifiers(
-    creatureId, surprise, side, conditions, classInfo,
+    creatureId, surprise, side, conditions, classInfo, featIds,
   );
   if (advantage) return "advantage";
   if (disadvantage) return "disadvantage";

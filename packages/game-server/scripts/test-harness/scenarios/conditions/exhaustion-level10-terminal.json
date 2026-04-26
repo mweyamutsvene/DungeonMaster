@@ -1,6 +1,6 @@
 {
-  "name": "RED: Exhaustion Level 10 Terminal State (2024)",
-  "description": "Expected RED until level-10 exhaustion lethal handling is wired into combat-state resolution. 2024 RAW: reaching exhaustion level 10 should kill the character. This scenario asserts terminal state immediately after applying exhaustion:10.",
+  "name": "Exhaustion level 10 terminal state (2024)",
+  "description": "Applying exhaustion level 10 should immediately kill the combatant and end the encounter when no allies remain.",
   "setup": {
     "character": {
       "name": "Spent Sentinel",
@@ -88,7 +88,7 @@
     },
     {
       "type": "assertState",
-      "comment": "RED expectation: level 10 exhaustion should produce a terminal character state and completed combat.",
+      "comment": "Level 10 exhaustion should produce a terminal character state and completed combat.",
       "expect": {
         "characterHp": { "max": 0 },
         "combatStatus": "Complete"

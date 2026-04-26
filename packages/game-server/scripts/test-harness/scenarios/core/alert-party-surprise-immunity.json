@@ -1,6 +1,6 @@
 {
-  "name": "RED: Alert should ignore initiative disadvantage from party surprise",
-  "description": "Expected RED (current behavior gap): with surprise='party', an Alert feat holder should not roll initiative with disadvantage. Engine currently still returns disadvantage=true for the Alert actor under full party surprise.",
+  "name": "Alert ignores initiative disadvantage from party surprise",
+  "description": "When the party is surprised, an Alert feat holder should still roll initiative normally while allies without Alert still suffer the surprise penalty.",
   "setup": {
     "characters": [
       {
@@ -102,13 +102,12 @@
   "actions": [
     {
       "type": "setSurprise",
-      "comment": "Full party surprise. RED expectation: Alert should still clear initiative disadvantage for Vanguard.",
+      "comment": "Full party surprise. Alert should clear Vanguard's initiative disadvantage.",
       "input": { "surprise": "party" }
     },
     {
       "type": "initiate",
       "actor": "Vanguard",
-      "comment": "Expected failure reason: response currently returns disadvantage=true even with feat_alert.",
       "input": { "text": "roll initiative" },
       "expect": { "rollType": "initiative", "requiresPlayerInput": true, "disadvantage": false }
     }

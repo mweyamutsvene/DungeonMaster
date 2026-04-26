@@ -207,9 +207,12 @@ export class InitiativeHandler {
     const charClassName = (charSheet?.className ?? "") as string;
     const charLevel = (charSheet?.level ?? 0) as number;
     const playerRollMode = computeInitiativeRollMode(
-      actorId, action.surprise, "party",
+      actorId,
+      action.surprise,
+      "party",
       charSheet?.conditions,
       charClassName ? { className: charClassName, level: charLevel } : undefined,
+      (charSheet?.featIds as string[] | undefined) ?? (charSheet?.feats as string[] | undefined) ?? [],
     );
     const { effective: rollValue } = resolveD20Roll(command, playerRollMode);
 
@@ -282,7 +285,14 @@ export class InitiativeHandler {
       }
 
       // Auto-roll initiative for non-initiator characters (with surprise/condition modifiers)
-      const otherInitMode = computeInitiativeRollMode(otherChar.id, action.surprise, "party", otherSheet?.conditions, otherClassName && otherLevel > 0 ? { className: otherClassName, level: otherLevel } : undefined);
+      const otherInitMode = computeInitiativeRollMode(
+        otherChar.id,
+        action.surprise,
+        "party",
+        otherSheet?.conditions,
+        otherClassName && otherLevel > 0 ? { className: otherClassName, level: otherLevel } : undefined,
+        otherFeatIds,
+      );
       const otherRoll = rollInitiativeD20(this.deps.diceRoller, otherInitMode);
       if (otherInitMode !== "normal" && this.debugLogsEnabled) {
         console.log(`[InitiativeHandler] Character "${otherChar.name}" initiative with ${otherInitMode}: roll=${otherRoll}`);
@@ -310,7 +320,13 @@ export class InitiativeHandler {
         const monsterLevel = typeof statBlock?.level === "number" ? statBlock.level : 0;
 
         // D&D 5e 2024: Use d20 roll for monster initiative (with surprise/condition modifiers)
-        const monsterInitMode = computeInitiativeRollMode(targetId, action.surprise, "enemy", statBlock?.conditions, monsterClassName && monsterLevel > 0 ? { className: monsterClassName, level: monsterLevel } : undefined);
+        const monsterInitMode = computeInitiativeRollMode(
+          targetId,
+          action.surprise,
+          "enemy",
+          statBlock?.conditions,
+          monsterClassName && monsterLevel > 0 ? { className: monsterClassName, level: monsterLevel } : undefined,
+        );
         const monsterRoll = rollInitiativeD20(this.deps.diceRoller, monsterInitMode);
         if (monsterInitMode !== "normal" && this.debugLogsEnabled) {
           console.log(`[InitiativeHandler] Monster "${monster.name}" initiative with ${monsterInitMode}: roll=${monsterRoll}`);
@@ -336,7 +352,13 @@ export class InitiativeHandler {
 
       // D&D 5e 2024: Use d20 roll for NPC initiative (with surprise/condition modifiers)
       // NPCs are party allies, so they use "party" side for surprise
-      const npcInitMode = computeInitiativeRollMode(npc.id, action.surprise, "party", statBlock?.conditions, npcClassName && npcLevel > 0 ? { className: npcClassName, level: npcLevel } : undefined);
+      const npcInitMode = computeInitiativeRollMode(
+        npc.id,
+        action.surprise,
+        "party",
+        statBlock?.conditions,
+        npcClassName && npcLevel > 0 ? { className: npcClassName, level: npcLevel } : undefined,
+      );
       const npcRoll = rollInitiativeD20(this.deps.diceRoller, npcInitMode);
       if (npcInitMode !== "normal" && this.debugLogsEnabled) {
         console.log(`[InitiativeHandler] NPC "${npc.name}" initiative with ${npcInitMode}: roll=${npcRoll}`);

@@ -974,6 +974,7 @@ export class AiTurnOrchestrator {
     // ── ActiveEffect integration: advantage/disadvantage + attack bonus ──
     const attackerActiveEffects = getActiveEffects(boss.resources ?? {});
     const targetActiveEffects = getActiveEffects(target.resources ?? {});
+    const targetEntityId = target.characterId ?? target.monsterId ?? target.npcId ?? target.id;
     const attackKind: "melee" | "ranged" = (attackDef as any).kind === "ranged" ? "ranged" : "melee";
 
     let effectAdvantage = 0;
@@ -992,7 +993,8 @@ export class AiTurnOrchestrator {
       if (eff.target !== "attack_rolls" && eff.target !== "melee_attack_rolls" && eff.target !== "ranged_attack_rolls") continue;
       if (eff.target === "melee_attack_rolls" && attackKind !== "melee") continue;
       if (eff.target === "ranged_attack_rolls" && attackKind !== "ranged") continue;
-      if (!eff.targetCombatantId || eff.targetCombatantId !== target.id) continue;
+      if (!eff.targetCombatantId) continue;
+      if (eff.targetCombatantId !== target.id && eff.targetCombatantId !== targetEntityId) continue;
       if (eff.type === "advantage") effectAdvantage++;
       if (eff.type === "disadvantage") effectDisadvantage++;
     }

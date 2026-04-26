@@ -203,11 +203,13 @@ export class ActionService {
         targetCombatantId: entityId,
         source: 'Dodge',
         description: 'Attacks against this creature have disadvantage',
+        expiresAt: { event: 'start_of_turn', combatantId: entityId },
       }),
       createEffect(nanoid(), 'advantage', 'saving_throws', 'until_start_of_next_turn', {
         ability: 'dexterity',
         source: 'Dodge',
         description: 'Advantage on Dexterity saving throws',
+        expiresAt: { event: 'start_of_turn', combatantId: entityId },
       }),
     ];
     const updatedResources = addActiveEffectsToResources(

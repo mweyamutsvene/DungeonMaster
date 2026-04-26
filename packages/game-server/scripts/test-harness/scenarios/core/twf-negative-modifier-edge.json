@@ -1,6 +1,6 @@
 {
-  "name": "RED: Two-Weapon Fighting negative modifier on off-hand damage",
-  "description": "Pending CombatRules fidelity gap: off-hand damage should include a negative ability modifier in 2024 rules. This RED scenario asserts the expected branch and should fail until negative-mod off-hand handling is fidelity-complete.",
+  "name": "Two-Weapon Fighting negative modifier on off-hand damage",
+  "description": "Verifies that off-hand damage keeps a negative ability modifier in 2024 rules instead of flooring the damage at the base die.",
   "setup": {
     "character": {
       "name": "Edge Striker",
@@ -134,7 +134,7 @@
     },
     {
       "type": "rollResult",
-      "comment": "RED EXPECTED-FAILURE BRANCH: off-hand damage should include negative modifier (2 + -1 = 1), not floor at base die. Expected Dummy HP 18 -> 17.",
+      "comment": "Off-hand damage should include the negative modifier: 2 + (-1) = 1. Dummy HP 18 -> 17.",
       "input": { "text": "2" },
       "expect": {
         "actionComplete": true
@@ -142,7 +142,7 @@
     },
     {
       "type": "assertState",
-      "comment": "EXPECTED FAILURE until negative-mod off-hand branch is fidelity-complete. If engine drops the -1 modifier on off-hand, HP will be 16 instead of expected 17.",
+      "comment": "Off-hand damage should land for exactly 1, leaving the dummy at 17 HP.",
       "expect": {
         "monsterHp": { "name": "Training Dummy", "min": 17, "max": 17 },
         "combatStatus": "Active"

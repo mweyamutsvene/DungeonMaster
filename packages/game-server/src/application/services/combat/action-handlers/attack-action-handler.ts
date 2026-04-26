@@ -78,7 +78,19 @@ export class AttackActionHandler {
 
     const targetState = findCombatantStateByRef(combatants, input.target);
     if (!targetState) throw new NotFoundError("Target not found in encounter");
-    if (targetState.hpCurrent <= 0) throw new ValidationError("Target is already defeated");
+    if (targetState.hpCurrent <= 0) {
+      const targetResources = normalizeResources(targetState.resources);
+      const deathSaves = (targetResources as any).deathSaves as { failures?: number } | undefined;
+      const stabilized = (targetResources as any).stabilized === true;
+      const downedCharacterCanBeTargeted =
+        targetState.combatantType === "Character" &&
+        targetState.hpCurrent === 0 &&
+        (stabilized || (deathSaves?.failures ?? 0) < 3);
+
+      if (!downedCharacterCanBeTargeted) {
+        throw new ValidationError("Target is already defeated");
+      }
+    }
 
     // D&D 2024 Charmed: can't attack the charmer
     const attackerConditionsForCharm = normalizeConditions(attackerState.conditions as unknown[]);
@@ -167,6 +179,7 @@ export class AttackActionHandler {
     // -- ActiveEffect integration: advantage/disadvantage + AC bonus + attack bonus + extra damage + defenses --
     const attackerActiveEffects = getActiveEffects(attackerState.resources ?? {});
     const targetActiveEffects = getActiveEffects(targetState.resources ?? {});
+    const targetEntityId = targetState.characterId ?? targetState.monsterId ?? targetState.npcId ?? targetState.id;
     const attackKind: "melee" | "ranged" = spec.kind === "ranged" ? "ranged" : "melee";
 
     // Count advantage/disadvantage sources from ActiveEffects
@@ -186,7 +199,8 @@ export class AttackActionHandler {
       if (eff.target !== 'attack_rolls' && eff.target !== 'melee_attack_rolls' && eff.target !== 'ranged_attack_rolls') continue;
       if (eff.target === 'melee_attack_rolls' && attackKind !== 'melee') continue;
       if (eff.target === 'ranged_attack_rolls' && attackKind !== 'ranged') continue;
-      if (!eff.targetCombatantId || eff.targetCombatantId !== targetState.id) continue;
+      if (!eff.targetCombatantId) continue;
+      if (eff.targetCombatantId !== targetState.id && eff.targetCombatantId !== targetEntityId) continue;
       if (eff.type === 'advantage') effectAdvantage++;
       if (eff.type === 'disadvantage') effectDisadvantage++;
     }
@@ -241,7 +255,7 @@ export class AttackActionHandler {
           && (e.target === 'damage_rolls'
             || (e.target === 'melee_damage_rolls' && attackKind === 'melee')
             || (e.target === 'ranged_damage_rolls' && attackKind === 'ranged'))
-          && (!e.targetCombatantId || e.targetCombatantId === targetState.id)
+            && (!e.targetCombatantId || e.targetCombatantId === targetState.id || e.targetCombatantId === targetEntityId)
       );
       for (const eff of dmgEffects) {
         if (eff.type === 'bonus') effectExtraDamage += eff.value ?? 0;

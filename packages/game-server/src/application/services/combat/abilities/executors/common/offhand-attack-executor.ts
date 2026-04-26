@@ -11,7 +11,10 @@
 
 import type { AbilityExecutor, AbilityExecutionContext, AbilityExecutionResult } from "../../../../../../domain/abilities/ability-executor.js";
 import { resolveWeaponMastery } from "../../../../../../domain/rules/weapon-mastery.js";
-import { evaluateOffhandAttackEligibility } from "../../../../../../domain/combat/two-weapon-fighting.js";
+import {
+  evaluateOffhandAttackEligibility,
+  computeOffhandDamageModifier,
+} from "../../../../../../domain/combat/two-weapon-fighting.js";
 import { requireActor } from "../executor-helpers.js";
 
 function hasDualWielderFeat(sheet: Record<string, unknown>): boolean {
@@ -141,8 +144,14 @@ export class OffhandAttackExecutor implements AbilityExecutor {
       };
     }
 
-    // Off-hand attacks use the same attack bonus but NO damage modifier
-    // (D&D 5e: you don't add ability modifier to off-hand damage)
+    const offhandBaseModifier = Number((offhandWeapon as any)?.damage?.modifier ?? 0);
+    const offhandDamageModifier = computeOffhandDamageModifier(
+      offhandBaseModifier,
+      eligibility.offhandAddsAbilityModifier,
+    );
+
+    // Off-hand attacks apply negative ability modifiers normally.
+    // Positive modifiers require Two-Weapon Fighting style.
     const className = params?.className as string | undefined;
     const pendingAction = {
       type: "ATTACK",
@@ -158,9 +167,11 @@ export class OffhandAttackExecutor implements AbilityExecutor {
         damage: {
           diceCount: offhandWeapon.damage.diceCount,
           diceSides: offhandWeapon.damage.diceSides,
-          modifier: 0, // Off-hand: NO ability modifier on damage
+          modifier: offhandDamageModifier,
         },
-        damageFormula: `${offhandWeapon.damage.diceCount}d${offhandWeapon.damage.diceSides}`,
+        damageFormula: offhandDamageModifier === 0
+          ? `${offhandWeapon.damage.diceCount}d${offhandWeapon.damage.diceSides}`
+          : `${offhandWeapon.damage.diceCount}d${offhandWeapon.damage.diceSides}${offhandDamageModifier > 0 ? "+" : ""}${offhandDamageModifier}`,
         mastery: resolveWeaponMastery(
           offhandWeapon.name,
           sheet ?? {},

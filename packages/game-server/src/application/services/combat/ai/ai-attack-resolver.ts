@@ -140,6 +140,7 @@ export class AiAttackResolver {
     // ── ActiveEffect integration: advantage/disadvantage + attack bonus + AC bonus ──
     const attackerActiveEffects = getActiveEffects(aiCombatant.resources ?? {});
     const targetActiveEffects = getActiveEffects(targetCombatant.resources ?? {});
+    const targetEntityId = targetCombatant.characterId ?? targetCombatant.monsterId ?? targetCombatant.npcId ?? targetCombatant.id;
     const attackKind: "melee" | "ranged" = picked.kind === "ranged" ? "ranged" : "melee";
 
     let effectAdvantage = 0;
@@ -158,7 +159,8 @@ export class AiAttackResolver {
       if (eff.target !== "attack_rolls" && eff.target !== "melee_attack_rolls" && eff.target !== "ranged_attack_rolls") continue;
       if (eff.target === "melee_attack_rolls" && attackKind !== "melee") continue;
       if (eff.target === "ranged_attack_rolls" && attackKind !== "ranged") continue;
-      if (!eff.targetCombatantId || eff.targetCombatantId !== targetCombatant.id) continue;
+      if (!eff.targetCombatantId) continue;
+      if (eff.targetCombatantId !== targetCombatant.id && eff.targetCombatantId !== targetEntityId) continue;
       if (eff.type === "advantage") effectAdvantage++;
       if (eff.type === "disadvantage") effectDisadvantage++;
     }
@@ -358,7 +360,7 @@ export class AiAttackResolver {
             (e.target === "damage_rolls" ||
               (e.target === "melee_damage_rolls" && attackKind === "melee") ||
               (e.target === "ranged_damage_rolls" && attackKind === "ranged")) &&
-            (!e.targetCombatantId || e.targetCombatantId === targetCombatant.id),
+            (!e.targetCombatantId || e.targetCombatantId === targetCombatant.id || e.targetCombatantId === targetEntityId),
         );
         let effectDmgTotal = 0;
         for (const eff of dmgEffects) {

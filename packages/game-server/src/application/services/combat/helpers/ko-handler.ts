@@ -96,15 +96,17 @@ export async function applyDamageWhileUnconscious(
 ): Promise<{ deathSaves: DeathSaves; instantDeath: boolean }> {
   const resources = normalizeResources(combatant.resources);
   const currentDS: DeathSaves = (resources as any).deathSaves ?? resetDeathSaves();
+  const wasStabilized = (resources as any).stabilized === true || currentDS.successes >= 3;
+  const baseDS = wasStabilized ? resetDeathSaves() : currentDS;
   const { deathSaves: updatedDS, instantDeath } = takeDamageWhileUnconscious(
-    currentDS,
+    baseDS,
     totalDamage,
     isCritical,
     combatant.hpMax,
   );
 
   await combatRepo.updateCombatantState(combatant.id, {
-    resources: { ...resources, deathSaves: updatedDS },
+    resources: { ...resources, deathSaves: updatedDS, stabilized: false },
   });
 
   if (instantDeath) {

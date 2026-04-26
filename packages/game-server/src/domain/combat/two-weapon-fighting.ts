@@ -112,12 +112,14 @@ export function canMakeOffhandAttack(
 /**
  * Compute the ability modifier bonus added to off-hand attack damage.
  *
- * D&D 5e 2024: Off-hand attacks do NOT add the ability modifier to damage,
- * unless the creature has the Two-Weapon Fighting style.
+ * D&D 5e 2024: The off-hand attack uses the attack's normal ability modifier.
+ * The Two-Weapon Fighting style only matters for enabling positive bonus damage;
+ * negative modifiers still apply.
  */
 export function computeOffhandDamageModifier(
   abilityModifier: number,
   hasTwoWeaponFightingStyle: boolean,
 ): number {
+  if (abilityModifier <= 0) return abilityModifier;
   return hasTwoWeaponFightingStyle ? abilityModifier : 0;
 }

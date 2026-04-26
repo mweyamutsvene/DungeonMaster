@@ -1,0 +1,151 @@
+{
+  "name": "Death Saves: critical failure and stabilization flow",
+  "description": "Validates death-save state transitions under pressure: Natural 1 counts as two failures, then subsequent successes can still stabilize the character.",
+  "setup": {
+    "character": {
+      "name": "Doomed Hero",
+      "className": "Fighter",
+      "level": 1,
+      "position": { "x": 0, "y": 0 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 10,
+          "dexterity": 10,
+          "constitution": 10,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 20,
+        "currentHp": 1,
+        "armorClass": 10,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Dagger",
+            "kind": "melee",
+            "attackBonus": 2,
+            "damage": { "diceCount": 1, "diceSides": 4, "modifier": 0 },
+            "damageType": "piercing"
+          }
+        ],
+        "features": [],
+        "resourcePools": []
+      }
+    },
+    "monsters": [
+      {
+        "name": "Deadly Foe",
+        "position": { "x": 5, "y": 0 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 20,
+            "dexterity": 20,
+            "constitution": 20,
+            "intelligence": 10,
+            "wisdom": 10,
+            "charisma": 10
+          },
+          "hp": 100,
+          "maxHp": 100,
+          "armorClass": 18,
+          "speed": 30,
+          "position": { "x": 5, "y": 0 },
+          "attacks": [
+            {
+              "name": "Greatsword",
+              "kind": "melee",
+              "range": "melee",
+              "attackBonus": 15,
+              "damage": { "diceCount": 1, "diceSides": 4, "modifier": 5 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "comment": "Start combat with low initiative so the monster KOs first.",
+      "input": { "text": "I face the Deadly Foe" },
+      "expect": { "rollType": "initiative" }
+    },
+    {
+      "type": "rollResult",
+      "comment": "Low initiative. Monster goes first and drops hero to 0 HP.",
+      "input": { "text": "2" },
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster KOs hero; hero starts death save loop."
+    },
+    {
+      "type": "rollResult",
+      "comment": "Natural 1 should apply two death-save failures.",
+      "input": { "text": "1" },
+      "expect": {
+        "rollType": "deathSave",
+        "deathSaveResult": "failure",
+        "deathSaves": { "successes": 0, "failures": 2 },
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Cycle to the next death-save turn."
+    },
+    {
+      "type": "rollResult",
+      "comment": "Success #1 after critical failure.",
+      "input": { "text": "12" },
+      "expect": {
+        "rollType": "deathSave",
+        "deathSaveResult": "success",
+        "deathSaves": { "successes": 1, "failures": 2 },
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Cycle to the next death-save turn."
+    },
+    {
+      "type": "rollResult",
+      "comment": "Success #2.",
+      "input": { "text": "14" },
+      "expect": {
+        "rollType": "deathSave",
+        "deathSaveResult": "success",
+        "deathSaves": { "successes": 2, "failures": 2 },
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Cycle to stabilization save."
+    },
+    {
+      "type": "rollResult",
+      "comment": "Third success stabilizes at 0 HP.",
+      "input": { "text": "16" },
+      "expect": {
+        "rollType": "deathSave",
+        "deathSaveResult": "stabilized",
+        "deathSaves": { "successes": 3, "failures": 2 },
+        "actionComplete": true
+      }
+    },
+    {
+      "type": "assertState",
+      "comment": "Stable checkpoint: 0 HP and combat still active.",
+      "expect": {
+        "characterHp": { "exact": 0 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}

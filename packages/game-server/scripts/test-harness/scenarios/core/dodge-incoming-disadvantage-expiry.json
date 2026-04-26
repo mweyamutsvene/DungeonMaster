@@ -1,6 +1,6 @@
 {
-  "name": "RED: Dodge Incoming Attack Timing (Disadvantage Until Next Turn)",
-  "description": "Expected RED until incoming attacks correctly respect Dodge duration. RAW 2024: Dodge should impose disadvantage on attacks against you until the start of your next turn.",
+  "name": "Dodge incoming attack timing (disadvantage until next turn)",
+  "description": "Verifies that Dodge imposes disadvantage on attacks against you until the start of your next turn.",
   "setup": {
     "character": {
       "name": "Shield Guardian",
@@ -74,7 +74,7 @@
       "comment": "Deterministic disadvantaged pair: high + low should resolve to a miss against AC 18.",
       "input": {
         "values": [18, 2],
-        "label": "red-dodge-incoming-disadvantage"
+        "label": "dodge-incoming-disadvantage"
       }
     },
     {
@@ -91,7 +91,7 @@
     },
     {
       "type": "assertState",
-      "comment": "RED expectation: no damage should be taken from the disadvantaged incoming attack while Dodge is active.",
+      "comment": "No damage should be taken from the disadvantaged incoming attack while Dodge is active.",
       "expect": {
         "combatStatus": "Active",
         "characterHp": { "min": 44, "max": 44 },

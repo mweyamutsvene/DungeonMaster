@@ -2137,11 +2137,14 @@ export async function runScenario(
                 break;
               }
               
-              // Check for pending DEATH_SAVE action — player's character is dying and needs a roll
-              if (tactical.pendingAction?.type === "DEATH_SAVE") {
-                isPlayerTurn = true;
-                log(`${colors.green}✓${colors.reset} Player's character is dying — death save required`);
-                break;
+              // Check for pending DEATH_SAVE action — only exit when it is actually
+              // a player-character turn (otherwise we can cut off queued monster actions).
+              if (tactical.pendingAction?.type === "DEATH_SAVE" && activeCombatant?.combatantType === "Character") {
+                if (!waitActorName || activeCombatant.name === waitActorName) {
+                  isPlayerTurn = true;
+                  log(`${colors.green}✓${colors.reset} Player's character is dying — death save required`);
+                  break;
+                }
               }
 
               // Auto-decline pending Shield/Deflect reactions that this scenario doesn't handle.

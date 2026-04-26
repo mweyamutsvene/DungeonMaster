@@ -134,9 +134,11 @@ describe("Two-Weapon Fighting", () => {
   });
 
   describe("computeOffhandDamageModifier", () => {
-    it("returns 0 without Two-Weapon Fighting style", () => {
+    it("suppresses only positive modifiers without Two-Weapon Fighting style", () => {
       expect(computeOffhandDamageModifier(3, false)).toBe(0);
       expect(computeOffhandDamageModifier(5, false)).toBe(0);
+      expect(computeOffhandDamageModifier(0, false)).toBe(0);
+      expect(computeOffhandDamageModifier(-1, false)).toBe(-1);
     });
 
     it("returns ability modifier with Two-Weapon Fighting style", () => {

@@ -269,9 +269,12 @@ export class TabletopCombatService {
     const actorClassName = (actorSheet?.className ?? "") as string;
     const actorLevel = (actorSheet?.level ?? 0) as number;
     const initModifiers = computeInitiativeModifiers(
-      actorId, surprise, "party",
+      actorId,
+      surprise,
+      "party",
       actorSheet?.conditions,
       actorClassName ? { className: actorClassName, level: actorLevel } : undefined,
+      (actorSheet?.featIds as string[] | undefined) ?? (actorSheet?.feats as string[] | undefined) ?? [],
     );
 
     const rollRequest: RollRequest = {
