@@ -453,7 +453,7 @@ export class MoveReactionHandler {
     }
 
     const status = await this.pendingActions.getStatus(input.pendingActionId);
-    if (status !== "ready_to_complete" && status !== "awaiting_reactions") {
+    if (status !== "ready_to_complete" && status !== "awaiting_reactions" && status !== "expired") {
       throw new ValidationError(`Cannot complete move in status: ${status}`);
     }
 
