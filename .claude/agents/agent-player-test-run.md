@@ -273,3 +273,10 @@ Run the solo-monk agent player test. Start the CLI with --control-port 3002, pla
 the encounter using the Monk Ki Abilities goals above, then write the findings report to
 .github/prompts/Test-Runs/run-solo-monk-<today's date>.prompt.md
 ```
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

@@ -50,3 +50,10 @@ Read `.github/copilot-instructions.md` at the start of every task for architectu
 - DO NOT call other agents — you are a leaf node
 - DO NOT skip edge cases or error paths
 - Always run tests after writing them
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

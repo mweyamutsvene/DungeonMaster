@@ -44,3 +44,10 @@ Manages item lifecycle across all three DDD layers: static item definitions and 
 - **Encumbrance helpers are utilities, not full runtime enforcement** — `inventory.ts` exposes 2024 carrying-capacity and encumbrance helpers, but routes and combat do not automatically enforce them today.
 - **Inventory lifecycle includes more than add/remove** — the current flow also handles temporary-item expiry (`longRestsRemaining`), atomic character-to-character transfer, and equipped magic-weapon bonus resolution from inventory data.
 - **Equip/unequip routes currently do not enforce proficiency gates** — equipment state changes and AC recomputation proceed without class proficiency validation in route handlers today.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

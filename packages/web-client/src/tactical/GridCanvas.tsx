@@ -1,9 +1,6 @@
 import { useRef, useEffect, useCallback } from "react";
 import { useAppStore } from "../store/app-store";
 
-// Cell size in px at 1x zoom
-const BASE_CELL = 48;
-
 interface GridCanvasProps {
   onCellTap?: (x: number, y: number) => void;
   onTokenTap?: (combatantId: string) => void;
@@ -12,17 +9,11 @@ interface GridCanvasProps {
 export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const combatants = useAppStore((s) => s.combatants);
-  const currentTurnId = useAppStore((s) => s.currentTurnCombatantId);
+  const activeCombatantId = useAppStore((s) => s.activeCombatantId);
 
-  // Determine grid extents from combatant positions
-  const cols = Math.max(
-    10,
-    ...combatants.filter((c) => c.position).map((c) => (c.position?.x ?? 0) + 2)
-  );
-  const rows = Math.max(
-    10,
-    ...combatants.filter((c) => c.position).map((c) => (c.position?.y ?? 0) + 2)
-  );
+  const positioned = combatants.filter((c) => c.position !== null);
+  const cols = Math.max(10, ...positioned.map((c) => (c.position?.x ?? 0) + 2));
+  const rows = Math.max(10, ...positioned.map((c) => (c.position?.y ?? 0) + 2));
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -61,11 +52,11 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       const py = c.position.y * cellH + cellH / 2;
       const r = Math.min(cellW, cellH) * 0.38;
 
-      const isPlayer = c.entityType === "Character";
-      const isCurrent = c.id === currentTurnId;
+      const isPlayer = c.combatantType === "Character";
+      const isCurrent = c.id === activeCombatantId;
       const isDead = c.hp.current <= 0;
 
-      // Token ring (active turn highlight)
+      // Active turn highlight ring
       if (isCurrent) {
         ctx.beginPath();
         ctx.arc(px, py, r + 4, 0, Math.PI * 2);
@@ -101,14 +92,12 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#eab308" : "#ef4444";
       ctx.fillRect(barX, barY, barW * hpPct, barH);
     }
-  }, [combatants, currentTurnId, cols, rows]);
+  }, [combatants, activeCombatantId, cols, rows]);
 
-  // Redraw whenever state changes
   useEffect(() => {
     draw();
   }, [draw]);
 
-  // Resize observer — keep canvas pixel-perfect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -137,7 +126,6 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
     const gx = Math.floor(mx / cellW);
     const gy = Math.floor(my / cellH);
 
-    // Check if a token was tapped
     const hit = combatants.find((c) => c.position?.x === gx && c.position?.y === gy);
     if (hit) {
       onTokenTap?.(hit.id);

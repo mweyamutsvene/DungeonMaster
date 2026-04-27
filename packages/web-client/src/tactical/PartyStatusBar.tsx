@@ -4,7 +4,7 @@ export function PartyStatusBar() {
   const combatants = useAppStore((s) => s.combatants);
   const openCharacterSheet = useAppStore((s) => s.openCharacterSheet);
 
-  const players = combatants.filter((c) => c.entityType === "Character");
+  const players = combatants.filter((c) => c.combatantType === "Character");
 
   if (players.length === 0) return null;
 
@@ -18,7 +18,7 @@ export function PartyStatusBar() {
         return (
           <button
             key={p.id}
-            onClick={() => openCharacterSheet(p.entityId)}
+            onClick={() => openCharacterSheet(p.id)}
             className="flex items-center gap-2 bg-slate-800 rounded-lg px-2 py-1 min-w-[100px] shrink-0 hover:bg-slate-700 transition-colors"
           >
             <div className="text-left min-w-0">

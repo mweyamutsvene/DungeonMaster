@@ -312,3 +312,10 @@ Class abilities reach beyond this flow in several places:
 10. **Registration in app.ts** — main app must register new executors, and any test app builder with its own registry must mirror those registrations.
 11. **Reaction defs check resource flags, not class identity** — Shield checks `hasShieldPrepared`, not `className === "wizard"`. Any class with the spell prepared can trigger the reaction.
 12. **Dual-mode executors** — attack-producing executors generally need tabletop mode (Flurry, Martial Arts, Offhand Attack, Frenzy). Non-attack executors resolve immediately.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

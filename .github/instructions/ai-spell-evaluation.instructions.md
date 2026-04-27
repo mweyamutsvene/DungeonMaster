@@ -36,3 +36,10 @@ Deterministic AI spellcasting has two separate parts: selection heuristics in `a
 - **AoE evaluation is split** — `ai-spell-evaluator.ts` estimates upside mostly from enemy coverage. Friendly-fire reduction happens later in `AiSpellDelivery.resolveTargets()`, which penalizes ally hits when choosing the AoE center.
 - **Spell slot validation is mandatory** — never spend a slot the creature doesn't have. Check `hasAvailableSlot()` before evaluating spells at that level.
 - **Bonus action spells are separate economy** — if the AI casts a bonus action spell, it can still use its action for attacks or cantrips (but NOT for another leveled spell per D&D rules).
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

@@ -14,3 +14,10 @@ Speak caveman. Keep short.
 6. Ground item live on combat map. Inventory files define shape. Combat map + tabletop handler do drop and pickup work.
 7. Encumbrance helper here. Not full runtime police yet. Object interaction spend tracked in combat resource as `objectInteractionUsed`.
 8. `equipped-items.ts` only hold types. `armor-catalog.ts` recompute real AC from equipped inventory.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

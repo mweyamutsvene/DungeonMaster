@@ -84,3 +84,10 @@ Write your challenge to `plans/challenge-{feature}.md`:
 - Be specific — "this might break something" is useless. "Step 3 changes `DamageResult` shape but the plan doesn't update `SpellActionHandler.applyDamage()` which consumes it at line ~420" is useful.
 - Challenge the PLAN, not the people. Focus on technical gaps.
 - If the plan is genuinely solid, say so. Don't manufacture issues.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

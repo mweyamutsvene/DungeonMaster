@@ -39,3 +39,10 @@ Tracks turn-scoped combat availability across two representations: a small domai
 - **Action Surge grants more attack capacity through resources, not a new `ActionEconomy` field** — the feature spends the `actionSurge` resource pool and applies its combat effect by increasing `attacksAllowedThisTurn` and clearing `actionSpent` via `grantAdditionalAction()`.
 - **Free object interaction lives only in the persisted resources blob** — it is tracked with `objectInteractionUsed`, not on `ActionEconomy`. In the current turn-refresh path it is cleared when `extractActionEconomy()` writes a fresh economy, not by `resetTurnResources()`.
 - **Use immutable updaters** — prefer `withActionSpent()` over the deprecated `spendAction()`. The deprecated mutable functions mutate via `(economy as any)` cast and will be removed.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

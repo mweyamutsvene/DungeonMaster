@@ -356,3 +356,10 @@ All snapshot fields are **optional** — plans stored before this feature was ad
 3. Add a sync heuristic check in `shouldReplan()` with a named constant threshold
 4. Add vitest tests in `battle-plan-service.test.ts` — cover both the trigger and the non-trigger case
 
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

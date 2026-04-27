@@ -6,31 +6,27 @@ interface ActionDef {
   id: string;
   label: string;
   icon: string;
-  type: "action" | "bonus" | "free";
-  disabled?: boolean;
 }
+
+const ACTIONS: ActionDef[] = [
+  { id: "attack", label: "Attack", icon: "⚔️" },
+  { id: "dodge", label: "Dodge", icon: "🛡️" },
+  { id: "dash", label: "Dash", icon: "💨" },
+  { id: "help", label: "Help", icon: "🤝" },
+  { id: "hide", label: "Hide", icon: "👁️" },
+];
 
 export function ActionBar() {
   const combatants = useAppStore((s) => s.combatants);
-  const currentTurnId = useAppStore((s) => s.currentTurnCombatantId);
+  const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
   const encounterId = useAppStore((s) => s.encounterId);
   const { id: sessionId } = useParams<{ id: string }>();
 
-  const myTurn =
-    !!currentTurnId &&
-    combatants.find((c) => c.id === currentTurnId)?.entityId === myCharacterId;
-
-  const current = combatants.find((c) => c.id === currentTurnId);
-  const res = current?.resources;
-
-  const actions: ActionDef[] = [
-    { id: "attack", label: "Attack", icon: "⚔️", type: "action", disabled: !res?.actionAvailable },
-    { id: "dodge", label: "Dodge", icon: "🛡️", type: "action", disabled: !res?.actionAvailable },
-    { id: "dash", label: "Dash", icon: "💨", type: "action", disabled: !res?.actionAvailable },
-    { id: "help", label: "Help", icon: "🤝", type: "action", disabled: !res?.actionAvailable },
-    { id: "hide", label: "Hide", icon: "👁️", type: "action", disabled: !res?.actionAvailable },
-  ];
+  const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
+  const myTurn = !!activeCombatant && activeCombatant.characterId === myCharacterId;
+  const ae = activeCombatant?.actionEconomy;
+  const actionAvailable = ae?.actionAvailable ?? false;
 
   async function handleEndTurn() {
     if (!sessionId || !encounterId) return;
@@ -43,15 +39,14 @@ export function ActionBar() {
 
   return (
     <div className="flex flex-col gap-1.5 px-2 py-2 bg-slate-900 border-t border-slate-800 shrink-0">
-      {/* Action buttons */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
-        {actions.map((a) => (
+        {ACTIONS.map((a) => (
           <button
             key={a.id}
-            disabled={!myTurn || a.disabled}
+            disabled={!myTurn || !actionAvailable}
             className={[
               "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors min-w-[56px]",
-              !myTurn || a.disabled
+              !myTurn || !actionAvailable
                 ? "bg-slate-800 text-slate-600 cursor-not-allowed"
                 : "bg-slate-700 text-slate-200 hover:bg-slate-600 active:bg-slate-500",
             ].join(" ")}
@@ -63,7 +58,6 @@ export function ActionBar() {
 
         <div className="h-full w-px bg-slate-700 mx-1 shrink-0" />
 
-        {/* Spells placeholder */}
         <button
           disabled={!myTurn}
           className={[
@@ -78,19 +72,16 @@ export function ActionBar() {
         </button>
       </div>
 
-      {/* End turn */}
-      {myTurn && (
+      {myTurn ? (
         <button
           onClick={handleEndTurn}
           className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold py-2 rounded-lg text-sm transition-colors"
         >
           End Turn
         </button>
-      )}
-
-      {!myTurn && (
+      ) : (
         <div className="text-center text-slate-500 text-xs py-1">
-          {current ? `${current.name}'s turn…` : "Waiting…"}
+          {activeCombatant ? `${activeCombatant.name}'s turn…` : "Waiting…"}
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { SessionResponse, TacticalViewResponse, EncounterRecord } from "../types/api";
+import type { SessionResponse, EncounterState, TacticalViewResponse } from "../types/api";
 
 const BASE = "/api";
 
@@ -21,15 +21,19 @@ export const gameServer = {
   listSessions: () =>
     apiFetch<{ sessions: SessionResponse["session"][] }>("/sessions"),
 
-  getEncounters: (sessionId: string) =>
-    apiFetch<{ encounters: EncounterRecord[] }>(`/sessions/${sessionId}/combat/encounters`),
+  // GET /sessions/:id/combat — 404 if no encounter exists
+  getCombatState: (sessionId: string, encounterId?: string) => {
+    const qs = encounterId ? `?encounterId=${encounterId}` : "";
+    return apiFetch<EncounterState>(`/sessions/${sessionId}/combat${qs}`);
+  },
 
   getTacticalView: (sessionId: string, encounterId: string) =>
     apiFetch<TacticalViewResponse>(`/sessions/${sessionId}/combat/${encounterId}/tactical`),
 
   endTurn: (sessionId: string, encounterId: string) =>
-    apiFetch<unknown>(`/sessions/${sessionId}/combat/${encounterId}/turn`, {
+    apiFetch<unknown>(`/sessions/${sessionId}/combat/next`, {
       method: "POST",
+      body: JSON.stringify({ encounterId }),
     }),
 
   submitAction: (sessionId: string, body: Record<string, unknown>) =>
@@ -44,8 +48,8 @@ export const gameServer = {
     pendingActionId: string,
     choice: "use" | "decline",
   ) =>
-    apiFetch<unknown>(`/sessions/${sessionId}/combat/${encounterId}/reactions/${pendingActionId}`, {
-      method: "POST",
-      body: JSON.stringify({ choice }),
-    }),
+    apiFetch<unknown>(
+      `/sessions/${sessionId}/combat/${encounterId}/reactions/${pendingActionId}`,
+      { method: "POST", body: JSON.stringify({ choice }) },
+    ),
 };

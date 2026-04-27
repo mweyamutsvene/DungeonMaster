@@ -1,4 +1,4 @@
-// REST API response shapes — keep in sync with game-server route handlers.
+// REST API response shapes — mirroring actual game-server route handlers.
 
 export interface SessionRecord {
   id: string;
@@ -7,62 +7,83 @@ export interface SessionRecord {
   storyFramework?: unknown;
 }
 
-export interface CharacterRecord {
-  id: string;
-  name: string;
-  class: string;
-  level: number;
-  sessionId: string;
-}
-
-export interface MonsterRecord {
-  id: string;
-  name: string;
-  sessionId: string;
-}
-
 export interface SessionResponse {
   session: SessionRecord;
-  characters: CharacterRecord[];
-  monsters: MonsterRecord[];
+  characters: { id: string; name: string; class: string; level: number; sessionId: string }[];
+  monsters: { id: string; name: string; sessionId: string }[];
   npcs: unknown[];
 }
 
-export interface EncounterRecord {
-  id: string;
-  sessionId: string;
-  status: "Pending" | "Active" | "Completed";
-  round: number;
+// Shape returned by GET /sessions/:id/combat
+export interface EncounterState {
+  encounter: {
+    id: string;
+    status: string; // "Pending" | "Active" | "Completed"
+    round: number;
+    turn: number;
+    pendingAction?: unknown;
+  };
+  combatants: EncounterCombatant[];
+  activeCombatant: EncounterCombatant | null;
 }
 
-// Combatant as returned by the tactical view endpoint
+export interface EncounterCombatant {
+  id: string;
+  combatantType: "Character" | "Monster" | "NPC";
+  characterId?: string;
+  monsterId?: string;
+  npcId?: string;
+  hpCurrent: number;
+  hpMax: number;
+  initiative: number;
+  resources?: Record<string, unknown>;
+}
+
+// Shape returned by GET /sessions/:id/combat/:encounterId/tactical
+export interface TacticalViewResponse {
+  encounterId: string;
+  status: string;
+  activeCombatantId: string;
+  combatants: TacticalCombatant[];
+  pendingAction?: unknown;
+  map?: unknown;
+  lastMovePath?: unknown;
+  zones?: unknown[];
+  groundItems?: unknown;
+  flankingEnabled?: boolean;
+}
+
 export interface TacticalCombatant {
   id: string;
   name: string;
-  entityType: "Character" | "Monster" | "NPC";
-  entityId: string;
-  initiative: number;
+  combatantType: "Character" | "Monster" | "NPC";
   hp: { current: number; max: number };
-  ac: number;
-  position?: { x: number; y: number };
-  isCurrentTurn: boolean;
-  resources?: {
+  position: { x: number; y: number } | null;
+  distanceFromActive: number | null;
+  actionEconomy: {
     actionAvailable: boolean;
     bonusActionAvailable: boolean;
     reactionAvailable: boolean;
-    movementRemaining: number;
-    movementMax: number;
+    movementRemainingFeet: number;
+    attacksUsed: number;
+    attacksAllowed: number;
   };
+  resourcePools: Array<{ name: string; current: number; max: number }>;
+  movement: { speed: number; dashed: boolean; movementSpent: boolean };
+  turnFlags: {
+    actionSpent: boolean;
+    bonusActionUsed: boolean;
+    reactionUsed: boolean;
+    disengaged: boolean;
+  };
+  conditions?: string[];
+  deathSaves?: { successes: number; failures: number };
 }
 
-export interface TacticalViewResponse {
-  encounterId: string;
-  round: number;
-  currentTurnCombatantId: string | null;
-  combatants: TacticalCombatant[];
-  map?: {
-    width: number;
-    height: number;
-    terrain: unknown[];
-  };
+// Stored combatant extends the tactical view shape with entity IDs (from EncounterState)
+export interface StoredCombatant extends TacticalCombatant {
+  characterId?: string;
+  monsterId?: string;
+  npcId?: string;
+  initiative: number;
 }

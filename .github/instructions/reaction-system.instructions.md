@@ -63,3 +63,10 @@ The only synchronization point: when encounter `pendingAction = "reaction_pendin
 - **The two-phase flow pauses combat through orchestration layers** — callers mirror repository-backed reaction prompts into encounter `pendingAction = reaction_pending` when needed. Do not assume the handler itself mutates encounter pending state.
 - **OA detection is centralized in `oa-detection.ts`** — both ActionService.move (programmatic) and MoveReactionHandler.initiate (two-phase) reuse it. Never duplicate OA eligibility logic inline.
 - **Move reactions are broader than leave-reach weapon OAs** — the current flow also supports War Caster spell OAs and `readied_action` move triggers, so move-trigger logic should stay centralized in the helper plus the move handler.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

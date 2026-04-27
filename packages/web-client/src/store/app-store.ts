@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { TacticalCombatant, TacticalViewResponse } from "../types/api";
+import type { StoredCombatant, TacticalViewResponse, EncounterState } from "../types/api";
 import type { ServerEvent, ReactionPromptPayload } from "../types/server-events";
 
 export type AppMode = "tactical" | "theatre" | null;
@@ -24,8 +24,8 @@ interface AppState {
   // Combat
   encounterId: string | null;
   round: number;
-  currentTurnCombatantId: string | null;
-  combatants: TacticalCombatant[];
+  activeCombatantId: string | null;
+  combatants: StoredCombatant[];
 
   // Reaction
   pendingReaction: ReactionPromptPayload | null;
@@ -43,9 +43,9 @@ interface AppState {
   setPlayerName(name: string): void;
   setMyCharacterId(id: string): void;
   setMode(mode: AppMode): void;
-  hydrateTacticalView(view: TacticalViewResponse): void;
+  hydrateCombat(encounter: EncounterState, tactical: TacticalViewResponse): void;
   handleServerEvent(event: ServerEvent): void;
-  openCharacterSheet(characterId?: string): void;
+  openCharacterSheet(combatantId?: string): void;
   closeCharacterSheet(): void;
   togglePartyChat(): void;
   dismissReaction(): void;
@@ -56,8 +56,15 @@ function narrationId() {
   return `n-${Date.now()}-${++_narrationSeq}`;
 }
 
-function combatantName(combatants: TacticalCombatant[], id: string): string {
-  return combatants.find((c) => c.id === id)?.name ?? id;
+function findByRef(
+  combatants: StoredCombatant[],
+  ref: { characterId?: string; monsterId?: string; npcId?: string; name?: string },
+): StoredCombatant | undefined {
+  if (ref.characterId) return combatants.find((c) => c.characterId === ref.characterId);
+  if (ref.monsterId) return combatants.find((c) => c.monsterId === ref.monsterId);
+  if (ref.npcId) return combatants.find((c) => c.npcId === ref.npcId);
+  if (ref.name) return combatants.find((c) => c.name === ref.name);
+  return undefined;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -67,7 +74,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   mode: null,
   encounterId: null,
   round: 1,
-  currentTurnCombatantId: null,
+  activeCombatantId: null,
   combatants: [],
   pendingReaction: null,
   narrationLog: [],
@@ -80,14 +87,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMyCharacterId: (myCharacterId) => set({ myCharacterId }),
   setMode: (mode) => set({ mode }),
 
-  hydrateTacticalView: (view) =>
+  hydrateCombat: (encounter, tactical) => {
+    // Merge entity IDs from EncounterState into the richer TacticalCombatant data
+    const entityMap = new Map(encounter.combatants.map((c) => [c.id, c]));
+    const combatants: StoredCombatant[] = tactical.combatants.map((tc) => {
+      const ec = entityMap.get(tc.id);
+      return {
+        ...tc,
+        characterId: ec?.characterId,
+        monsterId: ec?.monsterId,
+        npcId: ec?.npcId,
+        initiative: ec?.initiative ?? 0,
+      };
+    });
+
     set({
-      encounterId: view.encounterId,
-      round: view.round,
-      currentTurnCombatantId: view.currentTurnCombatantId,
-      combatants: view.combatants,
+      encounterId: tactical.encounterId,
+      round: encounter.encounter.round,
+      activeCombatantId: tactical.activeCombatantId,
+      combatants,
       mode: "tactical",
-    }),
+    });
+  },
 
   handleServerEvent: (event) => {
     const { combatants, narrationLog } = get();
@@ -98,41 +119,47 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
 
       case "CombatEnded":
-        set({ encounterId: null, mode: "theatre", currentTurnCombatantId: null, combatants: [] });
+        set({ encounterId: null, mode: "theatre", activeCombatantId: null, combatants: [] });
         break;
 
       case "TurnAdvanced":
         set({ round: event.payload.round });
-        // currentTurnCombatantId updated when tactical view is re-fetched
         break;
 
       case "DamageApplied": {
-        const { target, hpCurrent } = event.payload;
-        const targetId = target.characterId ?? target.monsterId ?? target.npcId ?? "";
-        set({
-          combatants: combatants.map((c) =>
-            c.entityId === targetId ? { ...c, hp: { ...c.hp, current: hpCurrent } } : c
-          ),
-        });
+        const match = findByRef(combatants, event.payload.target);
+        if (match) {
+          set({
+            combatants: combatants.map((c) =>
+              c.id === match.id
+                ? { ...c, hp: { ...c.hp, current: event.payload.hpCurrent } }
+                : c
+            ),
+          });
+        }
         break;
       }
 
       case "HealingApplied": {
-        const { target, hpCurrent } = event.payload;
-        const targetId = target.characterId ?? target.monsterId ?? target.npcId ?? "";
-        set({
-          combatants: combatants.map((c) =>
-            c.entityId === targetId ? { ...c, hp: { ...c.hp, current: hpCurrent } } : c
-          ),
-        });
+        const match = findByRef(combatants, event.payload.target);
+        if (match) {
+          set({
+            combatants: combatants.map((c) =>
+              c.id === match.id
+                ? { ...c, hp: { ...c.hp, current: event.payload.hpCurrent } }
+                : c
+            ),
+          });
+        }
         break;
       }
 
       case "Move": {
         const { actorId, to } = event.payload;
+        // actorId is a combatant ID (not entity ID)
         set({
           combatants: combatants.map((c) =>
-            c.entityId === actorId ? { ...c, position: to } : c
+            c.id === actorId ? { ...c, position: to } : c
           ),
         });
         break;
@@ -155,8 +182,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "AttackResolved": {
         const { attacker, target, hit } = event.payload;
-        const attackerName = attacker?.name ?? combatantName(combatants, attacker?.characterId ?? attacker?.monsterId ?? "");
-        const targetName = target?.name ?? combatantName(combatants, target?.characterId ?? target?.monsterId ?? "");
+        const attackerName = attacker?.name ?? findByRef(combatants, attacker ?? {})?.name ?? "?";
+        const targetName = target?.name ?? findByRef(combatants, target ?? {})?.name ?? "?";
         const text = hit
           ? `${attackerName} attacks ${targetName} — HIT!`
           : `${attackerName} attacks ${targetName} — MISS`;
@@ -184,8 +211,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  openCharacterSheet: (characterId) =>
-    set({ characterSheetOpen: true, characterSheetTargetId: characterId ?? null }),
+  openCharacterSheet: (combatantId) =>
+    set({ characterSheetOpen: true, characterSheetTargetId: combatantId ?? null }),
   closeCharacterSheet: () =>
     set({ characterSheetOpen: false, characterSheetTargetId: null }),
   togglePartyChat: () => set((s) => ({ partyChatOpen: !s.partyChatOpen })),

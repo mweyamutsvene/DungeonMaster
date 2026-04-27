@@ -14,7 +14,7 @@ export function SessionPage() {
 
   const mode = useAppStore((s) => s.mode);
   const setSession = useAppStore((s) => s.setSession);
-  const hydrateTacticalView = useAppStore((s) => s.hydrateTacticalView);
+  const hydrateCombat = useAppStore((s) => s.hydrateCombat);
   const setMode = useAppStore((s) => s.setMode);
   const characterSheetOpen = useAppStore((s) => s.characterSheetOpen);
   const pendingReaction = useAppStore((s) => s.pendingReaction);
@@ -24,7 +24,7 @@ export function SessionPage() {
   // Connect SSE for this session
   useSSE(sessionId ?? null);
 
-  // Bootstrap: fetch session + any active encounter
+  // Bootstrap: verify session exists, then check for active combat
   useEffect(() => {
     if (!sessionId) return;
 
@@ -33,24 +33,36 @@ export function SessionPage() {
     (async () => {
       try {
         await gameServer.getSession(sessionId);
+      } catch {
+        setLoadError("Session not found");
+        setTimeout(() => navigate("/"), 2000);
+        return;
+      }
 
-        // Check for an active encounter
-        try {
-          const { encounters } = await gameServer.getEncounters(sessionId);
-          const active = encounters.find((e) => e.status === "Active");
-          if (active) {
-            const tactical = await gameServer.getTacticalView(sessionId, active.id);
-            hydrateTacticalView(tactical);
-          } else {
-            setMode("theatre");
+      // GET /sessions/:id/combat — 404 means no active combat, which is fine
+      try {
+        const encounterState = await gameServer.getCombatState(sessionId);
+        const isActive =
+          encounterState.encounter.status === "Active" ||
+          encounterState.encounter.status === "Pending";
+
+        if (isActive) {
+          try {
+            const tactical = await gameServer.getTacticalView(
+              sessionId,
+              encounterState.encounter.id,
+            );
+            hydrateCombat(encounterState, tactical);
+          } catch {
+            // Tactical view failed — still show tactical layout with encounter state
+            setMode("tactical");
           }
-        } catch {
-          // No encounters endpoint yet or none active — go theatre
+        } else {
           setMode("theatre");
         }
-      } catch (err) {
-        setLoadError(err instanceof Error ? err.message : "Session not found");
-        setTimeout(() => navigate("/"), 2000);
+      } catch {
+        // 404 = no encounter — go to theatre mode
+        setMode("theatre");
       }
     })();
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -77,7 +89,6 @@ export function SessionPage() {
   return (
     <div className="h-full relative">
       {mode === "tactical" ? <TacticalLayout /> : <TheatreLayout />}
-
       {characterSheetOpen && <CharacterSheetModal />}
       {pendingReaction && <ReactionPrompt />}
     </div>

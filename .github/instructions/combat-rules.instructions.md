@@ -151,3 +151,10 @@ Effects are declared as data (`ActiveEffect` with `EffectDuration`). Two cleanup
 9. **Damage defense order** — immunity beats resistance beats vulnerability. If both resistance and vulnerability apply to the same type, they cancel out (D&D 5e rule). Applied by `applyDamageDefenses()` in `damage-defenses.ts`.
 
 This flow also includes the `domain/effects/` abstraction family. `Effect` is the base class, with concrete effects such as `DamageEffect`, `ConditionEffect`, and `HealingEffect`. These mutate creatures in memory but stay inside the domain layer.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

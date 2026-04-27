@@ -46,3 +46,10 @@ Zone trigger semantics such as `on_enter`, `on_start_turn`, and `per_5ft_moved` 
 - **Renderer output is text-grid, not guaranteed ASCII** — default mappings are mostly ASCII-style, but terrain output may include Unicode glyphs such as the water symbol.
 - **Pit terrain** triggers DEX saving throws — but only hydrate creature stats when a pit cell is actually entered (guard with `isPitEntry` first to avoid validation errors on non-pit moves). A successful save can still add `Prone`, and monk Slow Fall can reduce fall damage.
 - **`CombatZone` not `Zone`** — the type for persistent area effects is `CombatZone` (from `domain/entities/combat/zones.ts`), not `Zone`. Similarly, AoE templates are `AreaOfEffect`, not `AoETemplate`.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.

@@ -2,7 +2,7 @@ import { useAppStore } from "../store/app-store";
 
 export function InitiativeTracker() {
   const combatants = useAppStore((s) => s.combatants);
-  const currentTurnId = useAppStore((s) => s.currentTurnCombatantId);
+  const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const round = useAppStore((s) => s.round);
 
   const sorted = [...combatants].sort((a, b) => (b.initiative ?? 0) - (a.initiative ?? 0));
@@ -14,8 +14,8 @@ export function InitiativeTracker() {
       </span>
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
         {sorted.map((c) => {
-          const isCurrent = c.id === currentTurnId;
-          const isEnemy = c.entityType !== "Character";
+          const isCurrent = c.id === activeCombatantId;
+          const isEnemy = c.combatantType !== "Character";
           const isDead = c.hp.current <= 0;
 
           return (

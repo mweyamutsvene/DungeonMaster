@@ -42,3 +42,10 @@ Bridge persisted creature data into combat-facing domain objects and combat-stat
 - **Wild Shape hydration is now projection-based** — character hydration should use `wild-shape-form-helper.ts` projection helpers as the single source for transformed HP/AC/speed, not bespoke field overrides.
 - **AC logic is split** — `Creature.getAC()` uses stored `armorClass` unless equipped armor/shield metadata exists, then computes from armor formula + DEX + shield. `Character.getAC()` can override that for class-specific Unarmored Defense and then add armored feat bonuses. Natural armor is not modeled here today.
 - **Species hydration applies speed, darkvision, save advantages, and merged damage resistances** — do not document species ability-score bonuses in this flow unless the code starts applying them.
+
+## API Docs Alignment
+
+- Canonical client API docs live in `docs/api/` (README + reference + guides).
+- When changing routes, payloads, errors, events, or client integration loops, update the matching files in `docs/api/reference/` and `docs/api/guides/` in the same change.
+- For SME research, agent reviews, and implementation plans that affect client contracts, cite and update the impacted docs under `docs/api/`.
+- Treat these docs as done criteria for contract changes: `docs/api/reference/endpoints.md`, `docs/api/reference/schemas.md`, `docs/api/reference/events.md`, and `docs/api/reference/errors.md`.
