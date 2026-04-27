@@ -1,6 +1,6 @@
 # Handoff: Web Client Tactical View v7 — Dice Roll Modal + Full Attack Flow
 **Date:** 2026-04-27  
-**Commit:** `18d855f`  
+**Commits:** `18d855f`, `5970427`, `49f8dcd`  
 **Prior Handoff:** `plans/handoff-web-client-tactical-2026-04-27-v6.md`
 
 ---
@@ -12,11 +12,42 @@
 A bottom-sheet modal that intercepts every `requiresPlayerInput: true` response from the server and prompts the player to roll.
 
 - Parses `diceNeeded` notation (e.g. `d20`, `1d8+3`, `2d6`) and renders a **Roll** button
-- Rolling generates a random client-side result with breakdown display (e.g. `(7) + 3 = 10`)
-- Player can override with a manual entry field
+- Rolling generates a random client-side **raw die result** (NO modifier). The server always adds its own modifier server-side.
+  - e.g. `diceNeeded = "1d8+3"` → client rolls 1d8 → gets 2 → submits `"I rolled 2"` → server adds +3 = 5 total
+  - This matches the existing integration test contract (see `app.test.ts` line 3249)
+- Breakdown display shows the modifier info (e.g. `[2] + 3 = 5 (server adds modifier)`)
+- Player can override with a manual entry field (submit the raw die result)
 - On Confirm: submits `"I rolled N"` to `POST /sessions/:id/combat/roll-result`
 - On response: if another `requiresPlayerInput` follows (damage after hit), chains directly into the next modal
 - Cancel: clears the pending roll without submitting
+
+**⚠️ IMPORTANT — server contract for roll submission:**
+The value in `"I rolled N"` must be the **raw die result**, NOT the total (die + modifier).
+The server's `DamageResolver` does: `totalDamage = rollValue + parseDamageModifier(formula)`.
+Do NOT include the modifier in the submitted value.
+
+**Roll type labels and emoji:**
+| rollType | Label | Emoji |
+|---|---|---|
+| `initiative` | Roll Initiative | ⚡ |
+| `attack` | Roll Attack | ⚔️ |
+| `damage` | Roll Damage | 💥 |
+| `opportunity_attack` | Roll Opportunity Attack | ⚔️ |
+| `opportunity_attack_damage` | Roll Opportunity Attack Damage | 💥 |
+
+---
+
+## Bug Fixes This Session (commits `5970427`, `49f8dcd`)
+
+### 1. Polling storm on SSE reconnect (`5970427`)
+- **Symptom:** 8× `/tactical` GETs firing every 5s during combat
+- **Root cause:** SSE reconnect replays full event backlog; every replayed `TurnAdvanced` event bumped `tacticalVersion`, triggering a re-fetch
+- **Fix:** Added `_lastSeenTurnKey: string` to store (tracks `"round:turn"`). `TurnAdvanced` skips the version bump if the key matches. `CombatStarted` resets the key to `""`.
+
+### 2. Dice modifier double-counting (`49f8dcd`)
+- **Symptom:** Server applied 8 damage when player submitted 5 on "1d8+3"
+- **Root cause:** Client computed full expression total (2+3=5) but server adds +3 again = 8
+- **Fix:** `DiceRollModal` rolls only the dice portion and pre-fills input with raw die (e.g., 2), not total (5)
 
 **Roll type labels and emoji:**
 | rollType | Label | Emoji |
