@@ -1,0 +1,135 @@
+{
+  "name": "Player Opportunity Attack: Fighter misses fleeing Goblin",
+  "description": "A Fighter triggers an OA when a Goblin flees. Player chooses 'use' but rolls low and misses. Regression for bug where reactionRespond 'use' was ignored due to stale pendingAction read — move completed without waiting for OA roll.",
+  "setup": {
+    "character": {
+      "name": "Aggressive Agatha",
+      "className": "Fighter",
+      "level": 3,
+      "position": { "x": 30, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 16,
+          "dexterity": 14,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "maxHp": 28,
+        "currentHp": 28,
+        "armorClass": 16,
+        "speed": 30,
+        "proficiencyBonus": 2,
+        "attacks": [
+          {
+            "name": "Longsword",
+            "kind": "melee",
+            "range": "melee",
+            "attackBonus": 5,
+            "damage": { "diceCount": 1, "diceSides": 8, "modifier": 3 },
+            "damageType": "slashing"
+          }
+        ]
+      }
+    },
+    "monsters": [
+      {
+        "name": "Tough Goblin",
+        "position": { "x": 35, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 8,
+            "dexterity": 14,
+            "constitution": 14,
+            "intelligence": 10,
+            "wisdom": 8,
+            "charisma": 8
+          },
+          "maxHp": 20,
+          "hp": 20,
+          "armorClass": 13,
+          "speed": 30,
+          "challengeRating": 0.25,
+          "experienceValue": 50,
+          "attacks": [
+            {
+              "name": "Scimitar",
+              "kind": "melee",
+              "attackBonus": 4,
+              "damage": { "diceCount": 1, "diceSides": 6, "modifier": 2 },
+              "damageType": "slashing"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "I engage the goblin!" },
+      "expect": { "rollType": "initiative", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 1" },
+      "comment": "Low initiative — goblin goes first",
+      "expect": { "combatStarted": true }
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Wait for goblin's first turn",
+      "timeout": 10000
+    },
+    {
+      "type": "action",
+      "input": { "text": "attack goblin with longsword" },
+      "expect": { "rollType": "attack", "requiresPlayerInput": true }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 15" },
+      "comment": "15+5=20 vs AC 13 — hit"
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "I rolled 4" },
+      "comment": "4+3=7 damage. Goblin HP: 20→13"
+    },
+    {
+      "type": "configureAi",
+      "input": { "defaultBehavior": "flee" },
+      "comment": "Configure AI to flee, triggering player OA"
+    },
+    {
+      "type": "endTurn",
+      "comment": "End player turn — goblin flees"
+    },
+    {
+      "type": "waitForPlayerOa",
+      "comment": "Wait for OA prompt when goblin moves away",
+      "timeout": 10000
+    },
+    {
+      "type": "reactionRespond",
+      "input": { "choice": "use" },
+      "comment": "Player chooses to use OA — before bug fix, move completed immediately here"
+    },
+    {
+      "type": "playerOaRoll",
+      "input": { "attackRoll": 2, "damageRoll": 1 },
+      "comment": "Attack roll 2+5=7 vs AC 13 — miss. Goblin takes no damage.",
+      "expect": { "hit": false }
+    },
+    {
+      "type": "assertState",
+      "comment": "Goblin survived the miss — still alive with 13 HP",
+      "expect": {
+        "monstersAlive": 1,
+        "monsterHp": { "name": "Tough Goblin", "min": 13, "max": 13 },
+        "combatStatus": "Active"
+      }
+    }
+  ]
+}
