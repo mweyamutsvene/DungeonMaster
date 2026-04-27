@@ -55,6 +55,13 @@ export const gameServer = {
       body: JSON.stringify(body),
     }),
 
+  // POST /sessions/:id/combat/roll-result — submit a dice roll (initiative, attack, damage, saving throw)
+  submitRoll: (sessionId: string, body: { text: string; actorId: string }) =>
+    apiFetch<ActionResponse>(`/sessions/${sessionId}/combat/roll-result`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   previewPath: (
     sessionId: string,
     encounterId: string,

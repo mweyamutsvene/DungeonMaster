@@ -12,6 +12,7 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
   const encounterId = useAppStore((s) => s.encounterId);
+  const handleRollResponse = useAppStore((s) => s.handleRollResponse);
   const { id: sessionId } = useParams<{ id: string }>();
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
@@ -23,7 +24,8 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
   async function doAction(text: string) {
     if (!sessionId || !encounterId || !myCharacterId) return;
     try {
-      await gameServer.submitAction(sessionId, { text, actorId: myCharacterId, encounterId });
+      const response = await gameServer.submitAction(sessionId, { text, actorId: myCharacterId, encounterId });
+      handleRollResponse(response, myCharacterId);
     } catch (err) {
       console.error(`Action "${text}" failed:`, err);
     }

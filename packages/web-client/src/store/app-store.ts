@@ -1,6 +1,13 @@
 import { create } from "zustand";
-import type { StoredCombatant, TacticalViewResponse, EncounterState } from "../types/api";
+import type { StoredCombatant, TacticalViewResponse, EncounterState, ActionResponse } from "../types/api";
 import type { ServerEvent, ReactionPromptPayload } from "../types/server-events";
+
+export interface PendingRoll {
+  rollType: string;      // "attack" | "damage" | "initiative" | "opportunity_attack" | "opportunity_attack_damage"
+  diceNeeded?: string;   // e.g. "d20", "1d8+4", "2d6+3"
+  message: string;
+  actorId: string;
+}
 
 export type AppMode = "tactical" | "theatre" | null;
 
@@ -34,6 +41,9 @@ interface AppState {
   // Reaction
   pendingReaction: ReactionPromptPayload | null;
 
+  // Pending dice roll (attack, damage, initiative, etc.)
+  pendingRoll: PendingRoll | null;
+
   // Narration log
   narrationLog: NarrationEntry[];
 
@@ -54,6 +64,8 @@ interface AppState {
   closeCharacterSheet(): void;
   togglePartyChat(): void;
   dismissReaction(): void;
+  setPendingRoll(roll: PendingRoll | null): void;
+  handleRollResponse(response: ActionResponse, actorId: string): void;
 }
 
 let _narrationSeq = 0;
@@ -83,6 +95,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   combatants: [],
   tacticalVersion: 0,
   pendingReaction: null,
+  pendingRoll: null,
   narrationLog: [],
   characterSheetOpen: false,
   characterSheetTargetId: null,
@@ -232,4 +245,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ characterSheetOpen: false, characterSheetTargetId: null }),
   togglePartyChat: () => set((s) => ({ partyChatOpen: !s.partyChatOpen })),
   dismissReaction: () => set({ pendingReaction: null }),
+
+  setPendingRoll: (roll) => set({ pendingRoll: roll }),
+
+  handleRollResponse: (response, actorId) => {
+    if (response.requiresPlayerInput && response.rollType) {
+      set({
+        pendingRoll: {
+          rollType: response.rollType,
+          diceNeeded: response.diceNeeded,
+          message: response.message,
+          actorId,
+        },
+      });
+    } else {
+      set({ pendingRoll: null });
+    }
+  },
 }));

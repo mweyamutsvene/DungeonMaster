@@ -7,6 +7,7 @@ import { TacticalLayout } from "../tactical/TacticalLayout";
 import { TheatreLayout } from "../theatre/TheatreLayout";
 import { CharacterSheetModal } from "../shared-ui/CharacterSheetModal";
 import { ReactionPrompt } from "../shared-ui/ReactionPrompt";
+import { DiceRollModal } from "../shared-ui/DiceRollModal";
 import type { SessionResponse } from "../types/api";
 
 export function SessionPage() {
@@ -23,6 +24,7 @@ export function SessionPage() {
   const setMyCharacterId = useAppStore((s) => s.setMyCharacterId);
   const characterSheetOpen = useAppStore((s) => s.characterSheetOpen);
   const pendingReaction = useAppStore((s) => s.pendingReaction);
+  const pendingRoll = useAppStore((s) => s.pendingRoll);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sessionCharacters, setSessionCharacters] = useState<SessionResponse["characters"]>([]);
@@ -156,6 +158,7 @@ export function SessionPage() {
       {mode === "tactical" ? <TacticalLayout /> : <TheatreLayout />}
       {characterSheetOpen && <CharacterSheetModal />}
       {pendingReaction && <ReactionPrompt />}
+      {pendingRoll && <DiceRollModal />}
     </div>
   );
 }

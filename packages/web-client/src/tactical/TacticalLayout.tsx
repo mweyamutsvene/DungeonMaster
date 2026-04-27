@@ -14,6 +14,7 @@ export function TacticalLayout() {
   const { id: sessionId } = useParams<{ id: string }>();
   const openCharacterSheet = useAppStore((s) => s.openCharacterSheet);
   const moveCombatant = useAppStore((s) => s.moveCombatant);
+  const handleRollResponse = useAppStore((s) => s.handleRollResponse);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
@@ -41,11 +42,12 @@ export function TacticalLayout() {
     setAttackMode(false);
     clearMoveState();
     try {
-      await gameServer.submitAction(sessionId, {
+      const response = await gameServer.submitAction(sessionId, {
         text: `attack ${target.name}`,
         actorId: myCharacterId,
         encounterId,
       });
+      handleRollResponse(response, myCharacterId);
     } catch (err) {
       console.error("Attack action failed:", err);
     }
