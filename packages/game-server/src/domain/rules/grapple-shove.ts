@@ -73,6 +73,40 @@ export interface EscapeGrappleResult {
   reason?: string;
 }
 
+type ContestSaveAbility = "strength" | "dexterity";
+
+export interface ContestSaveModifierInput {
+  strength: number;
+  dexterity: number;
+}
+
+export interface ContestSaveModifierChoice {
+  ability: ContestSaveAbility;
+  modifier: number;
+}
+
+/**
+ * Resolve the best STR/DEX saving throw modifier for grapple/shove contests.
+ * Input modifiers are base ability modifiers; proficiency is added when present.
+ */
+export function getBestContestSaveModifier(
+  baseModifiers: ContestSaveModifierInput,
+  saveProficiencies: readonly string[] | undefined,
+  proficiencyBonus: number,
+): ContestSaveModifierChoice {
+  const normalizedProficiencies = new Set(
+    (saveProficiencies ?? []).map((p) => p.toLowerCase().replace(/_save$/, "")),
+  );
+
+  const strengthTotal = baseModifiers.strength + (normalizedProficiencies.has("strength") ? proficiencyBonus : 0);
+  const dexterityTotal = baseModifiers.dexterity + (normalizedProficiencies.has("dexterity") ? proficiencyBonus : 0);
+
+  if (dexterityTotal > strengthTotal) {
+    return { ability: "dexterity", modifier: dexterityTotal };
+  }
+  return { ability: "strength", modifier: strengthTotal };
+}
+
 /**
  * Resolve a grapple attempt (2024 rules).
  * Step 1: Unarmed Strike attack roll (d20 + STR mod + prof) vs target AC.

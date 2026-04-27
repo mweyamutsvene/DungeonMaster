@@ -60,6 +60,7 @@ import {
   takeDamageWhileUnconscious,
   type DeathSaves,
 } from "../../../../domain/rules/death-saves.js";
+import { getBestContestSaveModifier } from "../../../../domain/rules/grapple-shove.js";
 
 import { computeFeatModifiers } from "../../../../domain/rules/feat-modifiers.js";
 import { mergeFightingStyleFeatId } from "../../../../domain/entities/classes/fighting-style.js";
@@ -1412,9 +1413,14 @@ export class RollStateMachine {
     const strProficient = saveProficiencies.includes("strength_save") || saveProficiencies.includes("strength");
     const dexProficient = saveProficiencies.includes("dexterity_save") || saveProficiencies.includes("dexterity");
 
-    const fullStrMod = targetStrMod + (strProficient ? profBonus : 0);
-    const fullDexMod = targetDexMod + (dexProficient ? profBonus : 0);
-    const bestAbility = fullDexMod > fullStrMod ? "dexterity" : "strength";
+    const bestAbility = getBestContestSaveModifier(
+      { strength: targetStrMod, dexterity: targetDexMod },
+      [
+        ...(strProficient ? ["strength"] : []),
+        ...(dexProficient ? ["dexterity"] : []),
+      ],
+      profBonus,
+    ).ability;
 
     // 3. Check auto-fail from conditions (Stunned, Paralyzed, Petrified, Unconscious)
     const targetCombatant = findCombatantByEntityId(combatants, targetId);

@@ -1,0 +1,102 @@
+{
+  "name": "AI Grapple: Save proficiency can resist contest",
+  "description": "Programmatic AI grapple should respect target STR/DEX save proficiency in 2024 contest resolution.",
+  "setup": {
+    "character": {
+      "name": "Skilled Defender",
+      "className": "Fighter",
+      "level": 5,
+      "position": { "x": 10, "y": 10 },
+      "sheet": {
+        "abilityScores": {
+          "strength": 12,
+          "dexterity": 12,
+          "constitution": 14,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "saveProficiencies": ["strength"],
+        "maxHp": 38,
+        "currentHp": 38,
+        "armorClass": 10,
+        "speed": 30,
+        "proficiencyBonus": 3
+      }
+    },
+    "monsters": [
+      {
+        "name": "Arena Ogre",
+        "position": { "x": 15, "y": 10 },
+        "statBlock": {
+          "abilityScores": {
+            "strength": 16,
+            "dexterity": 8,
+            "constitution": 16,
+            "intelligence": 5,
+            "wisdom": 7,
+            "charisma": 7
+          },
+          "maxHp": 59,
+          "hp": 59,
+          "armorClass": 11,
+          "speed": 40,
+          "size": "Large",
+          "challengeRating": 1,
+          "attacks": [
+            {
+              "name": "Greatclub",
+              "kind": "melee",
+              "attackBonus": 5,
+              "damage": { "diceCount": 2, "diceSides": 8, "modifier": 3 },
+              "damageType": "bludgeoning"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "initiate",
+      "input": { "text": "ready up" },
+      "expect": {
+        "rollType": "initiative",
+        "requiresPlayerInput": true
+      }
+    },
+    {
+      "type": "rollResult",
+      "input": { "text": "1" },
+      "comment": "Low initiative so monster acts first.",
+      "expect": {
+        "combatStarted": true
+      }
+    },
+    {
+      "type": "queueMonsterActions",
+      "comment": "Force deterministic grapple decision using seed 11.",
+      "input": {
+        "decisions": [
+          { "action": "grapple", "target": "Skilled Defender", "seed": 11, "endTurn": true }
+        ]
+      }
+    },
+    {
+      "type": "endTurn"
+    },
+    {
+      "type": "waitForTurn",
+      "comment": "Monster attempts grapple via ActionService path. Save proficiency should allow resistance."
+    },
+    {
+      "type": "assertState",
+      "comment": "Skilled Defender should resist the grapple and remain ungrappled.",
+      "expect": {
+        "characterConditions": {
+          "doesNotHaveConditions": ["Grappled"]
+        }
+      }
+    }
+  ]
+}

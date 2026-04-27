@@ -5,7 +5,7 @@ feature: mechanics-and-coverage-l1-5
 author: claude-orchestrator
 status: DRAFT
 created: 2026-04-24
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # D&D 5e 2024 Engine — Mechanics & E2E Coverage Consolidated Report (L1-5)
@@ -53,7 +53,7 @@ The original audits over-flagged these as missing — verification + implementat
 
 - ~~**AI spell delivery resolution**~~ → Fully implemented in `ai-spell-delivery.ts` (740 LOC handling spell attacks, healing, save-based, buff/debuff, zones, cantrip scaling, upcasting, AoE optimal targeting). Wired through `cast-spell-handler.ts:163`.
 - ~~**Cunning Strike executor (Rogue L5)**~~ → Fully wired: all 5 options (poison/trip/withdraw/disarm/daze) implemented. `parseCunningStrikeOption` in rogue.ts, SA-die deduction in `roll-state-machine.ts:971`, save+condition resolution in `damage-resolver.ts:893`. Disarm drops weapon to ground; Daze applies CON-save-or-no-reaction/only-action-or-bonus.
-- ~~**Sear Undead (Cleric L5)**~~ → Implemented as Destroy Undead CR threshold in `class-ability-handlers.ts:546-557`.
+- **Sear Undead (Cleric L5)** remains **MISSING** as a distinct 2024 radiant-damage rider. Current Turn Undead path implements Destroy Undead CR-threshold behavior in `class-ability-handlers.ts:546-557`.
 - ~~**Monster catalog 12-monster gap**~~ → All 12 (Knight, Orc, Kobold, Wolf, Dire Wolf, Giant Spider, Ogre, Gnoll, Ghoul, Wight, Owlbear, Brown Bear) present in markdown source and imported.
 
 ### Resolved this session (actual implementation work)
@@ -169,18 +169,18 @@ Additional deterministic scenarios added and validated in this thread:
 
 | Class | L1 | L2 | L3 (subclass) | L4 | L5 |
 |---|---|---|---|---|---|
-| **Barbarian** | Rage (SUP), Unarmored Def (cross-flow), Weapon Mastery (cross-flow) | Reckless Attack, Danger Sense (SUP) | Primal Path mechanical features MISSING | ASI (cross-flow) | Extra Attack (cross-flow), Fast Movement SUP |
-| **Bard** | Spellcasting, Bardic Inspiration grant/refresh (SUP; attack + save consumption wired via roll-interrupt hook) | Expertise, Jack of All Trades SUP | Bard College MISSING (Cutting Words require ally-scan — deferred) | ASI | Font of Inspiration + BI d8 SUP |
-| **Cleric** | Spellcasting, Divine Order MISSING | Channel Divinity (Turn Undead + Divine Spark) SUP | Divine Domain MISSING | ASI | Sear/Destroy Undead SUP |
-| **Druid** | Spellcasting, Primal Order MISSING | Wild Shape SUPPORTED (structured form-state swap/hydration + shared damage routing; no temp HP overlay) | Primal Circle PARTIAL | ASI | Wild Resurgence MISSING |
-| **Fighter** | Fighting Style, Second Wind SUP, Weapon Mastery 3 (cross-flow) | Action Surge SUP, Tactical Mind SUP | Martial Archetype MISSING | ASI | Extra Attack, Tactical Shift PARTIAL |
-| **Monk** | Martial Arts SUP, Unarmored Def | Ki/Focus pool SUP, Flurry/Patient/Step SUP, Unarmored Movement | Deflect Attacks SUP (reaction), Monastic Tradition MISSING | ASI, Slow Fall SUP | Extra Attack, Stunning Strike PARTIAL (inline) |
-| **Paladin** | Spellcasting, Lay on Hands SUP, Weapon Mastery 2 | Fighting Style, Divine Smite PARTIAL (inline), Channel Divinity PARTIAL | Sacred Oath MISSING | ASI, Divine Health | Extra Attack, Faithful Steed cross-flow |
-| **Ranger** | Spellcasting, Favored Enemy / Hunter's Mark tie PARTIAL | Fighting Style, Deft Explorer (non-combat) | Archetype MISSING, Roving | ASI | Extra Attack |
-| **Rogue** | Expertise, Sneak Attack SUP, Weapon Mastery 2 | Cunning Action SUP, Steady Aim SUP | Archetype MISSING | ASI | Uncanny Dodge SUP, Cunning Strike SUP (all 5 options) |
-| **Sorcerer** | Spellcasting, Innate Sorcery SUP, L1 subclass defs PARTIAL | Font of Magic SUP | Metamagic SUP (Quickened/Twinned baseline) | ASI | Sorcerous Restoration SUP |
-| **Warlock** | Pact Magic SUP, Agonizing Blast invocation SUP, L1 subclass defs PARTIAL | Magical Cunning SUP | Pact Boon MISSING | ASI | 3rd-lvl Pact slots |
-| **Wizard** | Spellcasting, Ritual Adept SUP, Arcane Recovery via rest flow SUP | Scholar (2024) | Arcane Tradition MISSING | ASI | no universal |
+| **Barbarian** | - Rage (SUPPORTED)<br>- Unarmored Defense (cross-flow)<br>- Weapon Mastery (cross-flow) | - Reckless Attack (SUPPORTED)<br>- Danger Sense (SUPPORTED) | - Primal Path mechanical features (PARTIAL)<br>- Berserker Frenzy (SUPPORTED) | - Ability Score Improvement (cross-flow) | - Extra Attack (cross-flow)<br>- Fast Movement (SUPPORTED) |
+| **Bard** | - Spellcasting (SUPPORTED)<br>- Bardic Inspiration grant/refresh (SUPPORTED; attack/save roll-interrupt consumption wired; ability-check interrupts still open) | - Expertise (SUPPORTED)<br>- Jack of All Trades (SUPPORTED) | - Bard College (PARTIAL)<br>- Cutting Words attack-reaction path (SUPPORTED)<br>- Ability-check/damage-roll trigger parity (deferred) | - Ability Score Improvement | - Font of Inspiration (SUPPORTED)<br>- Bardic Inspiration d8 scaling (SUPPORTED) |
+| **Cleric** | - Spellcasting (SUPPORTED)<br>- Divine Order (MISSING) | - Channel Divinity: Turn Undead (SUPPORTED)<br>- Channel Divinity: Divine Spark (PARTIAL) | - Divine Domain (PARTIAL) | - Ability Score Improvement | - Destroy Undead (SUPPORTED) |
+| **Druid** | - Spellcasting (SUPPORTED)<br>- Primal Order (MISSING) | - Wild Shape (SUPPORTED; structured form-state swap/hydration + shared damage routing; no temp HP overlay) | - Primal Circle (PARTIAL) | - Ability Score Improvement | - Wild Resurgence (MISSING) |
+| **Fighter** | - Fighting Style (SUPPORTED)<br>- Second Wind (SUPPORTED)<br>- Weapon Mastery 3 (cross-flow) | - Action Surge (SUPPORTED)<br>- Tactical Mind (SUPPORTED) | - Champion (PARTIAL)<br>- Improved/Superior Critical (SUPPORTED)<br>- Remaining archetype mechanics (PARTIAL) | - Ability Score Improvement | - Extra Attack (SUPPORTED)<br>- Tactical Shift (PARTIAL) |
+| **Monk** | - Martial Arts (SUPPORTED)<br>- Unarmored Defense (SUPPORTED) | - Ki/Focus pool (SUPPORTED)<br>- Flurry of Blows / Patient Defense / Step of the Wind (SUPPORTED)<br>- Uncanny Metabolism (PARTIAL; pool tracked, no initiative trigger)<br>- Unarmored Movement (PARTIAL; L2 +10 only, L6/10/14/18 scaling missing) | - Open Hand (PARTIAL)<br>- Deflect Attacks reaction (SUPPORTED)<br>- Open Hand Technique L3 + Wholeness of Body L6 (SUPPORTED)<br>- Higher-level features (MISSING) | - Ability Score Improvement<br>- Slow Fall (SUPPORTED; auto-apply, no reaction prompt) | - Extra Attack (SUPPORTED)<br>- Stunning Strike (PARTIAL; inline, success-partial branch under-covered) |
+| **Paladin** | - Spellcasting (SUPPORTED)<br>- Lay on Hands (SUPPORTED)<br>- Weapon Mastery 2 | - Fighting Style (SUPPORTED)<br>- Divine Smite (PARTIAL; inline) | - Channel Divinity (PARTIAL; includes Divine Sense under current 2024 repository rules text)<br>- Sacred Oath (PARTIAL; Oath of Devotion Sacred Weapon implemented)<br>- Divine Health (MISSING) | - Ability Score Improvement | - Extra Attack (SUPPORTED)<br>- Faithful Steed (MISSING) |
+| **Ranger** | - Spellcasting (SUPPORTED)<br>- Favored Enemy / Hunter's Mark tie (SUPPORTED)<br>- Weapon Mastery 2 | - Fighting Style (SUPPORTED)<br>- Deft Explorer (non-combat) | - Hunter subclass (PARTIAL)<br>- Hunters Lore / Hunters Prey / Colossus Slayer (implemented)<br>- Broader archetype breadth (pending) | - Ability Score Improvement | - Extra Attack (SUPPORTED) |
+| **Rogue** | - Expertise (PARTIAL; doubling works, class-key/auto-grant parity incomplete)<br>- Sneak Attack (SUPPORTED)<br>- Weapon Mastery 2 | - Cunning Action (SUPPORTED)<br>- Steady Aim (PARTIAL; movement precondition unenforced) | - Thief (PARTIAL; definition/feature keys present, no dedicated combat executors) | - Ability Score Improvement | - Uncanny Dodge (SUPPORTED)<br>- Cunning Strike (SUPPORTED; all 5 options, Disarm inventory-removal parity pending) |
+| **Sorcerer** | - Spellcasting (SUPPORTED)<br>- Innate Sorcery (PARTIAL)<br>- L1 subclass definitions (PARTIAL) | - Font of Magic (SUPPORTED) | - Metamagic (PARTIAL)<br>- Quickened chained cast (SUPPORTED)<br>- Twinned activation/SP spend only | - Ability Score Improvement | - Sorcerous Restoration (PARTIAL; rest-refresh wiring present, thinner feature-specific scenario depth) |
+| **Warlock** | - Pact Magic (SUPPORTED)<br>- Agonizing Blast invocation (SUPPORTED) | - Magical Cunning (SUPPORTED) | - L3 subclass definitions (PARTIAL)<br>- Pact Boon (MISSING) | - Ability Score Improvement | - 3rd-level Pact slots (SUPPORTED) |
+| **Wizard** | - Spellcasting (SUPPORTED)<br>- Ritual Adept (MISSING)<br>- Arcane Recovery via rest flow (SUPPORTED) | - Scholar (MISSING) | - Arcane Tradition (PARTIAL; Evocation shell only) | - Ability Score Improvement | - No universal L5 feature |
 
 ### Structural gaps (class-wide)
 
@@ -536,26 +536,26 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 
 | # | Item | Flow | Notes |
 |---|---|---|---|
-| 1 | ~~**d20 roll-interrupt architectural hook**~~ ✅ DONE | ReactionSystem | `RollInterruptResolver` + `PendingRollInterruptData` + `POST …/pending-roll-interrupt/resolve`. **Both attack + save paths done.** BI die consumed, Lucky feat reroll, Halfling Lucky nat-1 reroll, Portent replace — all on attack rolls AND saving throws. Concentration saves covered automatically. Cutting Words/Silvery Barbs deferred (ally-scan). **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
+| 1 | ~~**d20 roll-interrupt architectural hook**~~ ✅ DONE | ReactionSystem | `RollInterruptResolver` + `PendingRollInterruptData` + `POST …/pending-roll-interrupt/resolve` are live for **attack + saving throw** interrupt resolution. BI/Lucky/Halfling Lucky/Portent are wired on those paths (including resource/effect consumption in resolve). **Concentration damage saves are still auto-resolved in `damage-resolver.ts` and do not currently route through roll-interrupt.** Cutting Words/Silvery Barbs ally-scan interrupt path remains deferred. **Plan: [plan-d20-roll-interrupt.md](plan-d20-roll-interrupt.md)** |
 | 2 | ~~**Counterspell 2014 → 2024 port**~~ ✅ DONE | SpellSystem | Ported in commit after 450f081. Target caster now makes a Con save vs counterspeller's save DC. `scenarios/wizard/counterspell-2024-con-save.json` validates. |
 | 3 | ~~**AI spell delivery resolution**~~ ✅ DONE | AISpellEvaluation | Delivery path is implemented and E2E-validated. |
 | 4 | ~~**Exhaustion mechanic (2024, 10-level, -2/level d20)**~~ ✅ DONE | CombatRules | Reconciled `conditions.ts` to 2024 RAW (was 2014-style 1-6/-level). `scenarios/core/exhaustion-accumulation.json` validates. Orphan `domain/rules/exhaustion.ts` deleted. Level 10 death helper available but auto-death trigger on application is future work. |
 | 5 | ~~**Fall damage (1d6/10ft, max 20d6, prone)**~~ ✅ DONE | CombatRules | Already implemented in `combat-map-core.ts` via `computeFallDamage` + `pit-terrain-resolver`. Audit was wrong. `scenarios/core/fall-damage-sequence.json` validates. Generic off-ledge fall damage (not through pits) is future work. |
-| 6 | ~~**Dispel Magic (L3 spell)**~~ ✅ DONE | SpellCatalog + SpellSystem | Catalog entry already present; new `DispelMagicDeliveryHandler` wired into delivery chain. Auto-dispels spells of level ≤ slot level; rolls ability check for higher-level spells. `scenarios/wizard/dispel-magic-concentration-break.json` validates. |
+| 6 | **Dispel Magic (L3 spell)** | SpellCatalog + SpellSystem | PARTIAL: catalog entry is present and `DispelMagicDeliveryHandler` is wired in SpellActionHandler. Current runtime supports concentration-target dispel with correct slot-level auto-dispel + higher-level ability-check branch (`wizard/dispel-magic-concentration-break.json`, `wizard/dispel-magic-ability-check.json`). Non-concentration active-spell-effect traversal is still pending. |
 | 7 | ~~**Material component enforcement**~~ ✅ DONE | SpellSystem | All costed components validated; consumed items removed from inventory at cast time. Find Familiar, Identify, Continual Flame, Raise Dead added to catalog. 21 unit tests. |
-| 8 | **Background field + background pipeline** | EntityManagement | Field entirely missing from Character. 2024 Origin Feat, ASI, skill/tool/language grants. **Plan: [plan-background-pipeline.md](plan-background-pipeline.md)** |
+| 8 | ~~**Background field + background pipeline**~~ ✅ DONE | EntityManagement | Background pipeline is implemented in `CharacterService.addCharacter`: validates background ASI choices, writes `sheet.background`, grants origin feat, applies skill/tool/language grants, and merges starting equipment; covered by `character-service.background-pipeline.test.ts` across all 16 backgrounds. |
 | 9 | **Species trait auto-apply on character create** | EntityManagement | Currently applied at hydration only — not written to sheet on create. (Pairs with background pipeline plan.) |
-| 9b | **Subclass L3 features for 12 classes** | ClassAbilities | Framework + typed definitions exist; ~7 base subclasses need mechanical implementations. **Plan: [plan-subclass-framework.md](plan-subclass-framework.md)** |
+| 9b | **Subclass L3 features for 12 classes** | ClassAbilities | Framework + typed definitions are live, and multiple L3 mechanics are implemented (Champion crit threshold, Berserker Frenzy, Open Hand Technique, Fast Hands, Colossus Slayer, Sacred Weapon, Dark One's Blessing). Remaining gaps are subclass breadth (for example Battle Master/Eldritch Knight/Arcane Trickster and broader Hunter/Cutting Words parity). |
 | 9c | ~~**Wild Shape stat-block swap** (Druid L2)~~ ✅ DONE | ClassAbilities + CreatureHydration | Implemented with structured runtime form state (`wildShapeForm`), projection helpers, and shared AI/tabletop damage routing. |
-| 10 | **Missing class feature executors** (grouped) | ClassAbilities | DONE for Steady Aim, Innate Sorcery, Sorcerous Restoration, Tactical Shift, Ritual Adept, Divine Spark, Magical Cunning, Slow Fall, Cunning Strike (all 5), and Tactical Mind. |
-| 11 | **Stunning Strike / Divine Smite / Cunning Strike architectural consolidation** | ClassAbilities | Currently inline in `hit-rider-resolver.ts` as attack enhancements. Works but should be dedicated executors for consistency. |
-| 12 | **Patron subclass combat hooks** | ClassAbilities | `darkOnesBlessingTempHp()` pure function exists; no kill-trigger event bus to fire it. Same pattern for other subclass procs. |
+| 10 | **Class feature runtime coverage (grouped)** | ClassAbilities | Mixed state: executors are live for Steady Aim, Innate Sorcery, Divine Spark, Magical Cunning, Tactical Mind; Cunning Strike resolves inline in `damage-resolver.ts`; Tactical Shift piggybacks Second Wind execution; Slow Fall is handled in pit terrain resolution; Sorcerous Restoration is rest-refresh policy only; Ritual Adept still lacks runtime cast-path support. |
+| 11 | **Stunning Strike / Divine Smite / Cunning Strike architectural consolidation** | ClassAbilities | Consolidation target remains: Stunning Strike + Divine Smite are inline in `hit-rider-resolver.ts`; Cunning Strike is inline in `damage-resolver.ts` (not hit-rider). Dedicated executor unification is still pending. |
+| 12 | **Patron subclass combat hooks** | ClassAbilities | Dark One's Blessing is already wired on KO in tabletop and AI attack resolvers via `qualifiesForDarkOnesBlessing`/`darkOnesBlessingTempHp`; broader patron trigger architecture is still fragmented (no generalized event-bus pattern). |
 | 13 | Monster catalog source/import parity | EntityManagement | PARTIAL: most allegedly-missing entries are present, but Orc parity should remain open until source/import alignment is explicitly re-validated. |
 | 14 | **Divine Order (Cleric Protector/Thaumaturge)** | ClassAbilities | Completely absent — blocks Cleric L1 identity in 2024. |
 | 15 | **Primal Order (Druid Magician/Warden)** | ClassAbilities | Completely absent — blocks Druid L1 identity in 2024. |
 | 16 | **Exhaustion reduction on long rest** | EntityManagement | `takeSessionRest("long")` doesn't reduce exhaustion by 1. Needed once exhaustion is consumed. |
 | 17 | **Lightning Bolt + Sleet Storm (L3 catalog)** | SpellCatalog | Sorcerer/Wizard staples missing. |
-| 18 | ~~**Sear Undead (Cleric L5)**~~ ✅ FALSE POSITIVE | ClassAbilities | Already implemented as Destroy Undead threshold in `class-ability-handlers.ts:546-557` via `getDestroyUndeadCRThreshold` from cleric.ts. |
+| 18 | **Sear Undead (Cleric L5)** | ClassAbilities | MISSING: 2024 Sear Undead radiant-damage rider is not implemented. Current Turn Undead path applies Destroy Undead CR-threshold auto-destroy behavior instead. |
 
 **Already working (removed from blocker list after verification):**
 - ~~Short rest + long rest operations~~ → implemented as `takeSessionRest`
@@ -573,23 +573,23 @@ Counts are based on `combat-e2e` `getAllScenarioNames()`: recursive `*.json` sca
 
 | # | Item | Flow | Current state |
 |---|---|---|---|
-| 1 | Forced movement tracking + OA/fall interaction | CombatRules | MISSING |
-| 2 | Critical damage dice-vs-flat (2024) | CombatRules | REWORK |
+| 1 | Forced movement tracking + OA/fall interaction | CombatRules | PARTIAL |
+| 2 | Critical damage dice-vs-flat (2024) | CombatRules | SUPPORTED |
 | 3 | Auto-AoE quality hardening | SpellSystem | PARTIAL |
 | 4 | War Caster feat concentration advantage | SpellSystem | MISSING |
 | 5 | Counterspell value-aware AI reaction decision | ReactionSystem + AIBehavior | PARTIAL |
 | 6 | Feather Fall / fall-damage pending choice | ReactionSystem | MISSING |
 | 7 | ~~Cunning Strike Disarm + Daze~~ ✅ DONE | ClassAbilities | `051ea49` |
 | 8 | ~~Tactical Mind after roll-interrupt~~ ✅ DONE | ClassAbilities | `051ea49` |
-| 9 | Roll-interrupt save/ability-check path (Cutting Words + BI) | ReactionSystem (architectural) | PARTIAL |
-| 10 | Future reaction feats (Sentinel, Polearm Master) | ReactionSystem | PARTIAL/MISSING |
+| 9 | Roll-interrupt ability-check + ally-trigger parity (Cutting Words/Silvery Barbs) | ReactionSystem (architectural) | PARTIAL |
+| 10 | Reaction feat coverage (Sentinel implemented; Polearm Master enter-reach OA pending) | ReactionSystem | PARTIAL |
 | 11 | OA once-per-trigger + reaction lifecycle cleanup | ActionEconomy | PARTIAL |
 | 12 | Flying movement mode in A* | CombatMap | MISSING |
 | 13 | Zone LOS blocking enforcement | CombatMap | MISSING |
-| 14 | Reach-aware adjacency helper | CombatMap | MISSING |
-| 15 | Invisibility/hidden map state | CombatMap | MISSING |
+| 14 | Reach-aware adjacency helper | CombatMap | PARTIAL |
+| 15 | Invisibility/hidden map state | CombatMap | PARTIAL |
 | 16 | Line of effect at AoE + spell target | CombatMap | MISSING |
-| 17 | ASI merging into effective ability scores | CreatureHydration | MISSING |
+| 17 | ASI merging into effective ability scores | CreatureHydration | PARTIAL |
 | 18 | Mage Armor AC detection | CreatureHydration | MISSING |
 | 19 | Magic item bonus parity across all combat paths | CreatureHydration + InventorySystem | PARTIAL |
 | 20 | Wild Shape reverse hydration | CreatureHydration + ClassAbilities | SUPPORTED |

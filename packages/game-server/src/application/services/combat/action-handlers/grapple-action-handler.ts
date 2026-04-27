@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import { shoveTarget, grappleTarget, escapeGrapple, isTargetTooLarge } from "../../../../domain/rules/grapple-shove.js";
+import { shoveTarget, grappleTarget, escapeGrapple, isTargetTooLarge, getBestContestSaveModifier } from "../../../../domain/rules/grapple-shove.js";
 import { SeededDiceRoller } from "../../../../domain/rules/dice-roller.js";
 import type { Position } from "../../../../domain/rules/movement.js";
 import type { CombatMap } from "../../../../domain/rules/combat-map.js";
@@ -139,6 +139,13 @@ export class GrappleActionHandler {
     const attackerStrMod = getAbilityModifier(actorStats.abilityScores.strength);
     const targetStrMod = getAbilityModifier(targetStats.abilityScores.strength);
     const targetDexMod = getAbilityModifier(targetStats.abilityScores.dexterity);
+    const targetBestContestSave = getBestContestSaveModifier(
+      { strength: targetStrMod, dexterity: targetDexMod },
+      targetStats.saveProficiencies,
+      targetStats.proficiencyBonus,
+    );
+    const targetStrSaveMod = targetBestContestSave.ability === "strength" ? targetBestContestSave.modifier : targetStrMod;
+    const targetDexSaveMod = targetBestContestSave.ability === "dexterity" ? targetBestContestSave.modifier : targetDexMod;
 
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
@@ -171,8 +178,8 @@ export class GrappleActionHandler {
       attackerStrMod,
       actorStats.proficiencyBonus,
       targetStats.armorClass,
-      targetStrMod,
-      targetDexMod,
+      targetStrSaveMod,
+      targetDexSaveMod,
       targetTooLarge,
       dice,
       shoveOptions,
@@ -369,6 +376,13 @@ export class GrappleActionHandler {
     const attackerStrMod = getAbilityModifier(actorStats.abilityScores.strength);
     const targetStrMod = getAbilityModifier(targetStats.abilityScores.strength);
     const targetDexMod = getAbilityModifier(targetStats.abilityScores.dexterity);
+    const targetBestContestSave = getBestContestSaveModifier(
+      { strength: targetStrMod, dexterity: targetDexMod },
+      targetStats.saveProficiencies,
+      targetStats.proficiencyBonus,
+    );
+    const targetStrSaveMod = targetBestContestSave.ability === "strength" ? targetBestContestSave.modifier : targetStrMod;
+    const targetDexSaveMod = targetBestContestSave.ability === "dexterity" ? targetBestContestSave.modifier : targetDexMod;
 
     // Check size - target can be at most one size larger
     const targetTooLarge = isTargetTooLarge(actorStats.size, targetStats.size);
@@ -404,8 +418,8 @@ export class GrappleActionHandler {
       attackerStrMod,
       actorStats.proficiencyBonus,
       targetStats.armorClass,
-      targetStrMod,
-      targetDexMod,
+      targetStrSaveMod,
+      targetDexSaveMod,
       targetTooLarge,
       hasFreeHand,
       dice,

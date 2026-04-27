@@ -5,6 +5,7 @@ import {
   grappleTarget,
   shoveTarget,
   escapeGrapple,
+  getBestContestSaveModifier,
 } from "./grapple-shove.js";
 
 describe("Grapple and Shove (2024 rules)", () => {
@@ -325,6 +326,28 @@ describe("Grapple and Shove (2024 rules)", () => {
       expect(result.hit).toBe(true);
       expect(result.success).toBe(true);
       expect(result.attackRoll).toBe(20);
+    });
+  });
+
+  describe("getBestContestSaveModifier", () => {
+    it("includes save proficiency when selecting best contest save ability", () => {
+      const best = getBestContestSaveModifier(
+        { strength: 1, dexterity: 1 },
+        ["strength"],
+        2,
+      );
+
+      expect(best).toEqual({ ability: "strength", modifier: 3 });
+    });
+
+    it("chooses dexterity when DEX save total is higher after proficiency", () => {
+      const best = getBestContestSaveModifier(
+        { strength: 2, dexterity: 1 },
+        ["dexterity"],
+        3,
+      );
+
+      expect(best).toEqual({ ability: "dexterity", modifier: 4 });
     });
   });
 });
