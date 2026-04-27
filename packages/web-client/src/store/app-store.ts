@@ -38,6 +38,9 @@ interface AppState {
   // SessionPage watches this and triggers the fetch — keeps async API calls out of the store.
   tacticalVersion: number;
 
+  // Tracks last processed TurnAdvanced ("round:turn") to deduplicate SSE backlog replays on reconnect.
+  _lastSeenTurnKey: string;
+
   // Reaction
   pendingReaction: ReactionPromptPayload | null;
 
@@ -94,6 +97,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeCombatantId: null,
   combatants: [],
   tacticalVersion: 0,
+  _lastSeenTurnKey: "",
   pendingReaction: null,
   pendingRoll: null,
   narrationLog: [],
@@ -139,6 +143,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((s) => ({
           encounterId: event.payload.encounterId,
           mode: "tactical",
+          _lastSeenTurnKey: "",
           tacticalVersion: s.tacticalVersion + 1,
         }));
         break;
@@ -147,13 +152,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ encounterId: null, mode: "theatre", activeCombatantId: null, combatants: [] });
         break;
 
-      case "TurnAdvanced":
+      case "TurnAdvanced": {
+        // Deduplicate replayed SSE backlog events (SSE reconnect sends the full event history).
+        const key = `${event.payload.round}:${event.payload.turn}`;
+        const { _lastSeenTurnKey } = get();
+        if (key === _lastSeenTurnKey) break;
         // Bump tacticalVersion so SessionPage re-fetches activeCombatantId + fresh action economy
         set((s) => ({
           round: event.payload.round,
+          _lastSeenTurnKey: key,
           tacticalVersion: s.tacticalVersion + 1,
         }));
         break;
+      }
 
       case "DamageApplied": {
         const match = findByRef(combatants, event.payload.target);
