@@ -116,6 +116,14 @@ export interface ActionResponse {
   success?: boolean;
   movedTo?: { x: number; y: number };
   pendingActionId?: string;
+  /** Populated on REACTION_CHECK — monsters that may take opportunity attacks on the moving combatant. */
+  opportunityAttacks?: Array<{
+    combatantId: string;
+    opportunityId: string;
+    combatantName?: string;
+    canAttack: boolean;
+    reactionType?: string;
+  }>;
 }
 
 export interface PathPreviewResponse {

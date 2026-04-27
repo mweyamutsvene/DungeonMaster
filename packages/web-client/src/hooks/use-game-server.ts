@@ -62,6 +62,24 @@ export const gameServer = {
       body: JSON.stringify(body),
     }),
 
+  // POST /sessions/:id/combat/move/complete — finish a move after OA reactions resolve
+  completeMove: (sessionId: string, body: { pendingActionId: string; roll?: number; rollType?: string }) =>
+    apiFetch<ActionResponse>(`/sessions/${sessionId}/combat/move/complete`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // POST /encounters/:encounterId/reactions/:pendingActionId/respond
+  respondToReaction: (
+    encounterId: string,
+    pendingActionId: string,
+    body: { combatantId: string; opportunityId: string; choice: "use" | "decline" },
+  ) =>
+    apiFetch<{ success: boolean; status: string }>(`/encounters/${encounterId}/reactions/${pendingActionId}/respond`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   previewPath: (
     sessionId: string,
     encounterId: string,
@@ -76,18 +94,6 @@ export const gameServer = {
     apiFetch<PathPreviewResponse>(
       `/sessions/${sessionId}/combat/${encounterId}/path-preview`,
       { method: "POST", body: JSON.stringify(body) },
-    ),
-
-  // POST /encounters/:encounterId/reactions/:pendingActionId/respond
-  respondToReaction: (
-    encounterId: string,
-    pendingActionId: string,
-    combatantId: string,
-    choice: "use" | "decline",
-  ) =>
-    apiFetch<unknown>(
-      `/encounters/${encounterId}/reactions/${pendingActionId}/respond`,
-      { method: "POST", body: JSON.stringify({ combatantId, opportunityId: pendingActionId, choice }) },
     ),
 
   // POST /sessions/:id/characters/generate — auto-generate character sheet

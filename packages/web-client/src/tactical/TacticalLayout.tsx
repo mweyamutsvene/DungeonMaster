@@ -108,12 +108,33 @@ export function TacticalLayout() {
     if (confirmingExistingDestination) {
       setMoving(true);
       try {
-        await gameServer.submitAction(sessionId, {
+        const response = await gameServer.submitAction(sessionId, {
           text: `move to ${x},${y}`,
           actorId: myCharacterId,
           encounterId,
         });
-        // Start path animation then update store position
+
+        if (response.type === "REACTION_CHECK" && response.pendingActionId) {
+          // Server is holding the move while reactions resolve.
+          // Auto-respond on behalf of all AI-controlled reactors (monsters always use OAs).
+          const opportunities = response.opportunityAttacks ?? [];
+          for (const opp of opportunities) {
+            if (!opp.canAttack) continue;
+            try {
+              await gameServer.respondToReaction(encounterId, response.pendingActionId, {
+                combatantId: opp.combatantId,
+                opportunityId: opp.opportunityId,
+                choice: "use",
+              });
+            } catch (err) {
+              console.warn("respondToReaction failed for", opp.combatantId, err);
+            }
+          }
+          // Complete the move — server executes OAs and commits the position.
+          await gameServer.completeMove(sessionId, { pendingActionId: response.pendingActionId });
+        }
+
+        // Animate along the confirmed path then update store position.
         if (pathPreview && gridRef.current) {
           gridRef.current.moveAlongPath(selectedMoverId, pathPreview.path);
         }
