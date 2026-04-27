@@ -5,6 +5,7 @@ import type {
   ActionResponse,
   PathPreviewResponse,
   CharacterSpellsResponse,
+  Character,
 } from "../types/api";
 
 const BASE = "/api";
@@ -39,7 +40,7 @@ export const gameServer = {
 
   // POST /sessions/:id/actions with kind "endTurn" — requires characterId for actor
   endTurn: (sessionId: string, encounterId: string, characterId: string) =>
-    apiFetch<unknown>(`/sessions/${sessionId}/actions`, {
+    apiFetch<ActionResponse>(`/sessions/${sessionId}/actions`, {
       method: "POST",
       body: JSON.stringify({
         kind: "endTurn",
@@ -49,10 +50,26 @@ export const gameServer = {
     }),
 
   submitAction: (sessionId: string, body: Record<string, unknown>) =>
-    apiFetch<unknown>(`/sessions/${sessionId}/combat/action`, {
+    apiFetch<ActionResponse>(`/sessions/${sessionId}/combat/action`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  previewPath: (
+    sessionId: string,
+    encounterId: string,
+    body: {
+      from: { x: number; y: number };
+      to: { x: number; y: number };
+      maxCostFeet?: number;
+      desiredRange?: number;
+      avoidHazards?: boolean;
+    },
+  ) =>
+    apiFetch<PathPreviewResponse>(
+      `/sessions/${sessionId}/combat/${encounterId}/path-preview`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
 
   // POST /encounters/:encounterId/reactions/:pendingActionId/respond
   respondToReaction: (
@@ -64,5 +81,40 @@ export const gameServer = {
     apiFetch<unknown>(
       `/encounters/${encounterId}/reactions/${pendingActionId}/respond`,
       { method: "POST", body: JSON.stringify({ combatantId, opportunityId: pendingActionId, choice }) },
+    ),
+
+  // POST /sessions/:id/characters/generate — auto-generate character sheet
+  generateCharacter: (
+    sessionId: string,
+    body: { name: string; className: string; level: number },
+  ) =>
+    apiFetch<Character>(
+      `/sessions/${sessionId}/characters/generate`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  // POST /sessions/:id/monsters — add monster to session
+  addMonster: (sessionId: string, body: Record<string, unknown>) =>
+    apiFetch<{ id: string }>(
+      `/sessions/${sessionId}/monsters`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  // POST /sessions/:id/combat/start — start combat with combatants
+  startCombat: (
+    sessionId: string,
+    body: {
+      combatants: Array<{
+        combatantType: "Character" | "Monster";
+        characterId?: string;
+        monsterId?: string;
+        hpCurrent: number;
+        hpMax: number;
+      }>;
+    },
+  ) =>
+    apiFetch<{ encounterId: string }>(
+      `/sessions/${sessionId}/combat/start`,
+      { method: "POST", body: JSON.stringify(body) },
     ),
 };

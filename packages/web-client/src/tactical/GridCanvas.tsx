@@ -5,9 +5,21 @@ interface GridCanvasProps {
   onCellTap?: (x: number, y: number) => void;
   onTokenTap?: (combatantId: string) => void;
   attackMode?: boolean;
+  selectedCombatantId?: string | null;
+  movementPath?: Array<{ x: number; y: number }>;
+  movementDestination?: { x: number; y: number } | null;
+  movementBlocked?: boolean;
 }
 
-export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCanvasProps) {
+export function GridCanvas({
+  onCellTap,
+  onTokenTap,
+  attackMode = false,
+  selectedCombatantId = null,
+  movementPath = [],
+  movementDestination = null,
+  movementBlocked = false,
+}: GridCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
@@ -44,6 +56,24 @@ export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCa
       ctx.stroke();
     }
 
+    if (movementPath.length > 0) {
+      ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
+      for (const step of movementPath) {
+        ctx.fillRect(step.x * cellW, step.y * cellH, cellW, cellH);
+      }
+    }
+
+    if (movementDestination) {
+      ctx.strokeStyle = movementBlocked ? "#ef4444" : "#22c55e";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        movementDestination.x * cellW + 2,
+        movementDestination.y * cellH + 2,
+        cellW - 4,
+        cellH - 4,
+      );
+    }
+
     for (const c of combatants) {
       if (!c.position) continue;
       const px = c.position.x * cellW + cellW / 2;
@@ -52,6 +82,7 @@ export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCa
 
       const isPlayer = c.combatantType === "Character";
       const isCurrent = c.id === activeCombatantId;
+      const isSelected = c.id === selectedCombatantId;
       const isDead = c.hp.current <= 0;
       const isAttackTarget = attackMode && !isPlayer && !isDead;
 
@@ -70,6 +101,14 @@ export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCa
         ctx.arc(px, py, r + 4, 0, Math.PI * 2);
         ctx.strokeStyle = "#f59e0b";
         ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(px, py, r + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = "#60a5fa";
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
 
@@ -110,7 +149,17 @@ export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCa
       ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#eab308" : "#ef4444";
       ctx.fillRect(barX, barY, barW * hpPct, barH);
     }
-  }, [combatants, activeCombatantId, cols, rows, attackMode]);
+  }, [
+    combatants,
+    activeCombatantId,
+    cols,
+    rows,
+    attackMode,
+    selectedCombatantId,
+    movementPath,
+    movementDestination,
+    movementBlocked,
+  ]);
 
   useEffect(() => {
     draw();

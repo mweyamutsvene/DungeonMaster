@@ -7,9 +7,26 @@ export interface SessionRecord {
   storyFramework?: unknown;
 }
 
+export interface Character {
+  id: string;
+  name: string;
+  class?: string;
+  className?: string | null;
+  level: number;
+  sessionId: string;
+  sheet?: {
+    maxHp?: number;
+    hp?: number;
+    currentHp?: number;
+    armorClass?: number;
+    abilityScores?: Record<string, number>;
+    [key: string]: unknown;
+  };
+}
+
 export interface SessionResponse {
   session: SessionRecord;
-  characters: { id: string; name: string; class: string; level: number; sessionId: string }[];
+  characters: Character[];
   monsters: { id: string; name: string; sessionId: string }[];
   npcs: unknown[];
 }

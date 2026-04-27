@@ -41,7 +41,7 @@ export function LobbyPage() {
       const data = (await res.json()) as { id: string };
       setPlayerName(name.trim());
       setSession(data.id);
-      navigate(`/session/${data.id}`);
+      navigate(`/session/${data.id}/setup`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create session");
     } finally {
