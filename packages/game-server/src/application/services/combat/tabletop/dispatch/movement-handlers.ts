@@ -5,6 +5,7 @@
  */
 
 import { ValidationError } from "../../../../errors.js";
+import { nanoid } from "nanoid";
 import { calculateDistance, calculateLongJumpDistance, calculateHighJumpDistance, computeJumpLandingPosition } from "../../../../../domain/rules/movement.js";
 import { findPath, findAdjacentPosition } from "../../../../../domain/rules/pathfinding.js";
 import type { CombatMap } from "../../../../../domain/rules/combat-map.js";
@@ -212,6 +213,22 @@ export class MovementHandlers {
         to: destination,
         distance: movedFeet,
       });
+
+      // Emit Move event so SSE clients update the narration log in real time
+      if (this.deps.events) {
+        await this.deps.events.append(sessionId, {
+          id: nanoid(),
+          type: "Move",
+          payload: {
+            encounterId,
+            actorId: actorState.id,
+            actorName,
+            from: currentPos ?? destination,
+            to: destination,
+            distanceMoved: movedFeet ?? 0,
+          },
+        });
+      }
 
       return {
         requiresPlayerInput: false,
