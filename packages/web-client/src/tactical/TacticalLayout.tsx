@@ -16,6 +16,7 @@ export function TacticalLayout() {
   const openCharacterSheet = useAppStore((s) => s.openCharacterSheet);
   const moveCombatant = useAppStore((s) => s.moveCombatant);
   const handleRollResponse = useAppStore((s) => s.handleRollResponse);
+  const addErrorLog = useAppStore((s) => s.addErrorLog);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
@@ -56,6 +57,8 @@ export function TacticalLayout() {
       });
       handleRollResponse(response, myCharacterId);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addErrorLog(`⚠️ Attack failed: ${msg}`);
       console.error("Attack action failed:", err);
     } finally {
       setAttacking(false);
@@ -117,6 +120,8 @@ export function TacticalLayout() {
         moveCombatant(selectedMoverId, { x, y });
         clearMoveState();
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addErrorLog(`⚠️ Move failed: ${msg}`);
         console.error("Move action failed:", err);
       } finally {
         setMoving(false);

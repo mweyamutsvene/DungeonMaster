@@ -13,6 +13,7 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
   const myCharacterId = useAppStore((s) => s.myCharacterId);
   const encounterId = useAppStore((s) => s.encounterId);
   const handleRollResponse = useAppStore((s) => s.handleRollResponse);
+  const addErrorLog = useAppStore((s) => s.addErrorLog);
   const { id: sessionId } = useParams<{ id: string }>();
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
@@ -27,6 +28,8 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
       const response = await gameServer.submitAction(sessionId, { text, actorId: myCharacterId, encounterId });
       handleRollResponse(response, myCharacterId);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addErrorLog(`⚠️ ${text} failed: ${msg}`);
       console.error(`Action "${text}" failed:`, err);
     }
   }
@@ -36,6 +39,8 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
     try {
       await gameServer.endTurn(sessionId, encounterId, myCharacterId);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addErrorLog(`⚠️ End turn failed: ${msg}`);
       console.error("End turn failed:", err);
     }
   }

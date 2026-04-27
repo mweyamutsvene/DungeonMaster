@@ -29,9 +29,17 @@ export function NarrationLog() {
       >
         <span className="text-slate-500 text-xs shrink-0">{expanded ? "▼" : "▲"}</span>
         {latest ? (
-          <span className="text-slate-300 text-xs truncate">{latest.text}</span>
+          <span className={[
+            "text-xs truncate",
+            latest.eventType === "error" ? "text-red-400 font-medium" : "text-slate-300",
+          ].join(" ")}>
+            {latest.text}
+          </span>
         ) : (
           <span className="text-slate-600 text-xs italic">Combat log…</span>
+        )}
+        {latest?.eventType === "error" && !expanded && (
+          <span className="ml-auto shrink-0 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
         )}
       </button>
 
@@ -48,7 +56,9 @@ export function NarrationLog() {
               )}
               <span
                 className={
-                  entry.eventType === "NarrativeText"
+                  entry.eventType === "error"
+                    ? "text-red-400 font-medium"
+                    : entry.eventType === "NarrativeText"
                     ? "text-slate-200 italic"
                     : entry.eventType === "AttackResolved"
                     ? "text-slate-300"

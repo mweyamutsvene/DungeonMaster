@@ -69,6 +69,7 @@ interface AppState {
   dismissReaction(): void;
   setPendingRoll(roll: PendingRoll | null): void;
   handleRollResponse(response: ActionResponse, actorId: string): void;
+  addErrorLog(message: string): void;
 }
 
 let _narrationSeq = 0;
@@ -229,12 +230,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         const text = hit
           ? `${attackerName} attacks ${targetName} — HIT!`
           : `${attackerName} attacks ${targetName} — MISS`;
-        set({
+        // Bump tacticalVersion so action economy refreshes after the attack
+        set((s) => ({
+          tacticalVersion: s.tacticalVersion + 1,
           narrationLog: [
             ...narrationLog.slice(-99),
             { id: narrationId(), text, timestamp: Date.now(), eventType: "AttackResolved" },
           ],
-        });
+        }));
+        break;
+      }
+
+      case "ActionResolved": {
+        // Any resolved action (dodge, dash, help, hide, etc.) spends the action slot
+        set((s) => ({ tacticalVersion: s.tacticalVersion + 1 }));
         break;
       }
 
@@ -244,7 +253,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "ReactionResolved":
         if (get().pendingReaction?.pendingActionId === event.payload.pendingActionId) {
-          set({ pendingReaction: null });
+          // Reaction used/declined — refresh economy so reactionAvailable updates
+          set((s) => ({ pendingReaction: null, tacticalVersion: s.tacticalVersion + 1 }));
         }
         break;
 
@@ -261,6 +271,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   dismissReaction: () => set({ pendingReaction: null }),
 
   setPendingRoll: (roll) => set({ pendingRoll: roll }),
+
+  addErrorLog: (message) =>
+    set((s) => ({
+      narrationLog: [
+        ...s.narrationLog.slice(-99),
+        { id: narrationId(), text: message, timestamp: Date.now(), eventType: "error" },
+      ],
+    })),
 
   handleRollResponse: (response, actorId) => {
     if (response.requiresPlayerInput && response.rollType) {
