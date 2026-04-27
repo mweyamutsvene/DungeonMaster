@@ -21,18 +21,22 @@ function parseDiceNotation(notation: string): ParsedDice {
   };
 }
 
-function rollDice(notation: string): { total: number; breakdown: string } {
+/**
+ * Roll dice from notation and return both the raw die result and modifier separately.
+ * The server always adds the modifier server-side, so the client must submit the RAW die result.
+ * e.g. "1d8+3" → roll 1d8=2, rawRoll=2, modifier=3; submit rawRoll=2; server computes 2+3=5.
+ */
+function rollDice(notation: string): { rawRoll: number; modifier: number; breakdown: string } {
   const { rolls, sides, modifier } = parseDiceNotation(notation);
   const results: number[] = [];
   for (let i = 0; i < rolls; i++) {
     results.push(Math.floor(Math.random() * sides) + 1);
   }
-  const subtotal = results.reduce((a, b) => a + b, 0);
-  const total = subtotal + modifier;
-  const rollsStr = results.length === 1 ? `${results[0]}` : `(${results.join("+")})`;
-  const modStr = modifier > 0 ? ` + ${modifier}` : modifier < 0 ? ` - ${Math.abs(modifier)}` : "";
-  const breakdown = modifier !== 0 ? `${rollsStr}${modStr} = ${total}` : rollsStr;
-  return { total, breakdown };
+  const rawRoll = results.reduce((a, b) => a + b, 0);
+  const rollsStr = results.length === 1 ? `${results[0]}` : `[${results.join("+")}]`;
+  const modStr = modifier > 0 ? ` + ${modifier} = ${rawRoll + modifier}` : modifier < 0 ? ` - ${Math.abs(modifier)} = ${rawRoll + modifier}` : "";
+  const breakdown = modifier !== 0 ? `${rollsStr}${modStr}` : rollsStr;
+  return { rawRoll, modifier, breakdown };
 }
 
 function rollTypeLabel(rollType: string): string {
@@ -65,7 +69,7 @@ export function DiceRollModal() {
   const handleRollResponse = useAppStore((s) => s.handleRollResponse);
   const setPendingRoll = useAppStore((s) => s.setPendingRoll);
 
-  const [rolled, setRolled] = useState<{ total: number; breakdown: string } | null>(null);
+  const [rolled, setRolled] = useState<{ rawRoll: number; modifier: number; breakdown: string } | null>(null);
   const [customValue, setCustomValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +79,8 @@ export function DiceRollModal() {
     const notation = pendingRoll.diceNeeded ?? "d20";
     const result = rollDice(notation);
     setRolled(result);
-    setCustomValue(String(result.total));
+    // Submit raw die result — server adds the modifier server-side
+    setCustomValue(String(result.rawRoll));
     setError(null);
   }, [pendingRoll]);
 
@@ -152,8 +157,14 @@ export function DiceRollModal() {
           {/* Result */}
           {rolled && (
             <div className="text-center py-1">
-              <p className="text-3xl font-black text-amber-300">{rolled.total}</p>
-              {rolled.breakdown !== String(rolled.total) && (
+              <p className="text-3xl font-black text-amber-300">{rolled.rawRoll}</p>
+              {rolled.modifier !== 0 && (
+                <p className="text-slate-500 text-xs">
+                  {rolled.breakdown}
+                  <span className="ml-1 text-slate-600">(server adds modifier)</span>
+                </p>
+              )}
+              {rolled.modifier === 0 && rolled.breakdown !== String(rolled.rawRoll) && (
                 <p className="text-slate-500 text-xs font-mono">{rolled.breakdown}</p>
               )}
             </div>
@@ -170,7 +181,7 @@ export function DiceRollModal() {
                 setCustomValue(e.target.value);
                 setError(null);
               }}
-              placeholder="Enter total..."
+              placeholder="Enter die result..."
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-600 focus:outline-none focus:border-amber-500"
             />
           </div>
