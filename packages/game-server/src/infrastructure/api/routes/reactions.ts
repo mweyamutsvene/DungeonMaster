@@ -54,8 +54,8 @@ export function registerReactionRoutes(
     const { encounterId, pendingActionId } = req.params;
     const { spellName, castAtLevel } = req.body;
 
-    // Get pending action
-    const pendingAction = await deps.pendingActions.getById(pendingActionId);
+    // Get pending action (let — will be refreshed after addReactionResponse to avoid stale read)
+    let pendingAction = await deps.pendingActions.getById(pendingActionId);
 
     if (!pendingAction) {
       throw new NotFoundError(`Pending action not found: ${pendingActionId}`);
@@ -134,7 +134,7 @@ export function registerReactionRoutes(
     };
 
     try {
-      await deps.pendingActions.addReactionResponse(pendingActionId, response);
+      pendingAction = await deps.pendingActions.addReactionResponse(pendingActionId, response);
 
     } catch (err) {
       console.error("[Reactions] Failed to add response:", err);
