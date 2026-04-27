@@ -26,7 +26,11 @@ export function TacticalLayout() {
   const [pathPreview, setPathPreview] = useState<PathPreviewResponse | null>(null);
   const [pathDestination, setPathDestination] = useState<{ x: number; y: number } | null>(null);
   const [moving, setMoving] = useState(false);
+  const [loadingPath, setLoadingPath] = useState(false);
+  const [attacking, setAttacking] = useState(false);
   const gridRef = useRef<GridCanvasHandle>(null);
+
+  const isLoading = moving || loadingPath || attacking;
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
   const myTurn = !!activeCombatant && !!myCharacterId && activeCombatant.characterId === myCharacterId;
@@ -43,6 +47,7 @@ export function TacticalLayout() {
     if (!target || !sessionId || !encounterId || !myCharacterId) return;
     setAttackMode(false);
     clearMoveState();
+    setAttacking(true);
     try {
       const response = await gameServer.submitAction(sessionId, {
         text: `attack ${target.name}`,
@@ -52,6 +57,8 @@ export function TacticalLayout() {
       handleRollResponse(response, myCharacterId);
     } catch (err) {
       console.error("Attack action failed:", err);
+    } finally {
+      setAttacking(false);
     }
   }
 
@@ -118,6 +125,7 @@ export function TacticalLayout() {
     }
 
     try {
+      setLoadingPath(true);
       const preview = await gameServer.previewPath(sessionId, encounterId, {
         from: mover.position,
         to: { x, y },
@@ -129,6 +137,8 @@ export function TacticalLayout() {
       console.error("Path preview failed:", err);
       setPathPreview(null);
       setPathDestination(null);
+    } finally {
+      setLoadingPath(false);
     }
   }
 
@@ -138,6 +148,12 @@ export function TacticalLayout() {
       <InitiativeTracker />
 
       <div className="flex-1 min-h-0 relative">
+        {/* Loading spinner overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 pointer-events-none">
+            <div className="w-8 h-8 rounded-full border-2 border-slate-600 border-t-amber-400 animate-spin" />
+          </div>
+        )}
         {attackMode && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-red-900/80 border border-red-500 rounded-lg px-3 py-1 text-red-200 text-xs font-medium pointer-events-none">
             Tap an enemy to attack

@@ -196,11 +196,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "Move": {
         const { actorId, to } = event.payload;
-        set({
-          combatants: combatants.map((c) =>
+        // Update position immediately for smooth visual feedback,
+        // then bump tacticalVersion so SessionPage re-fetches full action economy
+        set((s) => ({
+          combatants: s.combatants.map((c) =>
             c.id === actorId ? { ...c, position: to } : c
           ),
-        });
+          tacticalVersion: s.tacticalVersion + 1,
+        }));
         break;
       }
 
