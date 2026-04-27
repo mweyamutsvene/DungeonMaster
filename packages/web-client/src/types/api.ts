@@ -87,3 +87,35 @@ export interface StoredCombatant extends TacticalCombatant {
   npcId?: string;
   initiative: number;
 }
+
+export interface ActionResponse {
+  requiresPlayerInput: boolean;
+  actionComplete: boolean;
+  type: string;
+  message: string;
+  rollType?: string;
+  diceNeeded?: string;
+  narration?: string;
+  success?: boolean;
+  movedTo?: { x: number; y: number };
+  pendingActionId?: string;
+}
+
+export interface PathPreviewResponse {
+  blocked: boolean;
+  path: { x: number; y: number }[];
+  cells: { x: number; y: number; terrain: string; stepCostFeet: number; cumulativeCostFeet: number }[];
+  totalCostFeet: number;
+  terrainEncountered: string[];
+  narrationHints: string[];
+  reachablePosition: { x: number; y: number } | null;
+}
+
+export interface CharacterSpellsResponse {
+  classId: string;
+  casterType: string;
+  spellcastingAbility: string;
+  maxPreparedSpells: number;
+  preparedSpells: string[];
+  knownSpells: string[];
+}

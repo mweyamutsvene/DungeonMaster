@@ -1,4 +1,11 @@
-import type { SessionResponse, EncounterState, TacticalViewResponse } from "../types/api";
+import type {
+  SessionResponse,
+  EncounterState,
+  TacticalViewResponse,
+  ActionResponse,
+  PathPreviewResponse,
+  CharacterSpellsResponse,
+} from "../types/api";
 
 const BASE = "/api";
 
