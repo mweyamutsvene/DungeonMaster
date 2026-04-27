@@ -236,9 +236,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
 
-      case "ReactionPrompt":
-        set({ pendingReaction: event.payload });
+      case "ReactionPrompt": {
+        // Only show the dialog to the player whose character can react.
+        // AI-controlled combatants' reactions are handled server-side.
+        const myCharId = get().myCharacterId;
+        const myCombatant = get().combatants.find((c) => c.characterId === myCharId);
+        if (myCombatant && event.payload.combatantId === myCombatant.id) {
+          set({ pendingReaction: event.payload });
+        }
         break;
+      }
 
       case "ReactionResolved":
         if (get().pendingReaction?.pendingActionId === event.payload.pendingActionId) {

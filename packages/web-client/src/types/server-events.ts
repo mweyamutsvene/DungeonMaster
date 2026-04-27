@@ -71,8 +71,11 @@ export interface ReactionPromptPayload {
   combatantId: string;
   combatantName: string;
   reactionOpportunity: {
-    type: string;
-    [key: string]: unknown;
+    reactionType: string;
+    oaType?: "weapon" | "spell";
+    canUse: boolean;
+    reason?: string;
+    context: Record<string, unknown>;
   };
   actor: CombatantRef;
   actorName: string;

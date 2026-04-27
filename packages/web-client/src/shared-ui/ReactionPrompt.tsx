@@ -49,11 +49,20 @@ export function ReactionPrompt() {
 
         <div className="text-sm text-slate-300 space-y-1">
           <p>
-            <span className="text-red-400 font-medium">{actorName}</span> is triggering a
-            reaction opportunity.
+            <span className="text-amber-400 font-medium">{actorName}</span> is moving away —
+            you have a reaction opportunity.
           </p>
           <p className="text-slate-400 text-xs">
-            Type: <span className="text-slate-300">{reactionOpportunity.type}</span>
+            Type:{" "}
+            <span className="text-violet-300 font-medium">
+              {reactionOpportunity.reactionType.replace(/([A-Z])/g, " $1").trim()}
+            </span>
+            {reactionOpportunity.oaType === "spell" && (
+              <span className="ml-1 text-indigo-400">(spell)</span>
+            )}
+            {!reactionOpportunity.canUse && reactionOpportunity.reason && (
+              <span className="block text-red-400 mt-0.5">{reactionOpportunity.reason}</span>
+            )}
           </p>
         </div>
 
