@@ -177,15 +177,6 @@ export const useAppStore = create<AppState>((set, get) => ({
                 ? { ...c, hp: { ...c.hp, current: event.payload.hpCurrent } }
                 : c
             ),
-            narrationLog: [
-              ...s.narrationLog.slice(-99),
-              {
-                id: narrationId(),
-                text: `${match.name} takes ${event.payload.amount} damage. (${event.payload.hpCurrent} HP)`,
-                timestamp: Date.now(),
-                eventType: "DamageApplied",
-              },
-            ],
           };
         });
         break;
@@ -269,19 +260,25 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "NarrativeText": {
         const narrativeText = event.payload.text;
-        const narrativeActor = event.payload.actor?.name;
-        set((s) => ({
-          narrationLog: [
-            ...s.narrationLog.slice(-99),
-            {
-              id: narrationId(),
-              text: narrativeText,
-              actor: narrativeActor,
-              timestamp: Date.now(),
-              eventType: "NarrativeText",
-            },
-          ],
-        }));
+        // Prefer server-embedded actorName; fall back to store lookup via CombatantRef
+        const payloadActorName = event.payload.actorName;
+        const actorRef = event.payload.actor;
+        set((s) => {
+          const actorName = payloadActorName
+            ?? (actorRef ? findByRef(s.combatants, actorRef)?.name : undefined);
+          return {
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text: narrativeText,
+                actor: actorName,
+                timestamp: Date.now(),
+                eventType: "NarrativeText",
+              },
+            ],
+          };
+        });
         break;
       }
 

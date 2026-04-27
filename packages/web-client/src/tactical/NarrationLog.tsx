@@ -62,12 +62,8 @@ export function NarrationLog() {
                     ? "text-slate-200 italic"
                     : entry.eventType === "OpportunityAttack"
                     ? "text-orange-300 font-medium"
-                    : entry.eventType === "DamageApplied"
-                    ? "text-red-300"
                     : entry.eventType === "Move"
                     ? "text-sky-300"
-                    : entry.eventType === "AttackResolved"
-                    ? "text-slate-300"
                     : "text-slate-400"
                 }
               >

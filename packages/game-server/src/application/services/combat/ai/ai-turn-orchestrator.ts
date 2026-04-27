@@ -554,6 +554,7 @@ export class AiTurnOrchestrator {
             payload: {
               encounterId: encounter.id,
               ...(actorRef ? { actor: actorRef } : undefined),
+              actorName: entityName,
               text: intentText,
             },
           });

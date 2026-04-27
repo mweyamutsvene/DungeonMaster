@@ -119,6 +119,7 @@ export class TabletopEventEmitter {
       payload: {
         encounterId,
         actor: attackerRef,
+        actorName: attackerName,
         text: hit
           ? `${attackerName} strikes ${targetName}!`
           : `${attackerName} swings at ${targetName} but misses.`,
@@ -168,6 +169,7 @@ export class TabletopEventEmitter {
       payload: {
         encounterId,
         actor: attackerRef,
+        actorName: attackerName,
         text:
           hpAfter === 0
             ? `${attackerName} deals ${totalDamage} damage to ${targetName}. ${targetName} falls!`

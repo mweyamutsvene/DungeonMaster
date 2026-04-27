@@ -63,6 +63,7 @@ export interface MovePayload {
 export interface NarrativeTextPayload {
   encounterId: string;
   actor?: CombatantRef;
+  actorName?: string;
   text: string;
 }
 

@@ -173,6 +173,7 @@ export interface NarrativeTextPayload {
   encounterId: string;
   /** Optional — not present in AI orchestrator's incapacitated/downed narrations. */
   actor?: CombatantRef;
+  actorName?: string;
   text: string;
 }
 
