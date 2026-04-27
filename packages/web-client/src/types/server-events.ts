@@ -6,7 +6,6 @@ export interface CombatantRef {
   characterId?: string;
   monsterId?: string;
   npcId?: string;
-  name?: string;
 }
 
 export interface Position {

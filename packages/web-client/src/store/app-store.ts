@@ -224,20 +224,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
 
       case "AttackResolved": {
-        const { attacker, target, hit } = event.payload;
-        const attackerName = attacker?.name ?? findByRef(combatants, attacker ?? {})?.name ?? "?";
-        const targetName = target?.name ?? findByRef(combatants, target ?? {})?.name ?? "?";
-        const text = hit
-          ? `${attackerName} attacks ${targetName} — HIT!`
-          : `${attackerName} attacks ${targetName} — MISS`;
-        // Bump tacticalVersion so action economy refreshes after the attack
-        set((s) => ({
-          tacticalVersion: s.tacticalVersion + 1,
-          narrationLog: [
-            ...narrationLog.slice(-99),
-            { id: narrationId(), text, timestamp: Date.now(), eventType: "AttackResolved" },
-          ],
-        }));
+        // NarrativeText events already describe the attack in full prose.
+        // Just bump tacticalVersion so action economy refreshes after the attack.
+        set((s) => ({ tacticalVersion: s.tacticalVersion + 1 }));
         break;
       }
 
