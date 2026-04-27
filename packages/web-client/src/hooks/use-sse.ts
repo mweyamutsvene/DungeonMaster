@@ -35,6 +35,7 @@ export function useSSE(sessionId: string | null) {
         "DamageApplied", "HealingApplied", "AttackResolved",
         "ActionResolved", "Move", "NarrativeText",
         "ReactionPrompt", "ReactionResolved", "DeathSave",
+        "OpportunityAttack",
         "CharacterAdded", "MonsterAdded", "NPCAdded",
         "InventoryChanged", "RestStarted", "RestCompleted",
       ];

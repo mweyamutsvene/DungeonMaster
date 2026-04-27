@@ -92,6 +92,17 @@ export interface ReactionResolvedPayload {
   result?: unknown;
 }
 
+export interface OpportunityAttackPayload {
+  encounterId: string;
+  attackerId: string;
+  attackerName?: string;
+  targetId: string;
+  attackRoll?: number;
+  hit: boolean;
+  critical?: boolean;
+  damage?: number;
+}
+
 export interface DeathSavePayload {
   encounterId: string;
   roll: number;
@@ -116,7 +127,8 @@ export type ServerEvent =
   | { type: "NarrativeText"; payload: NarrativeTextPayload }
   | { type: "ReactionPrompt"; payload: ReactionPromptPayload }
   | { type: "ReactionResolved"; payload: ReactionResolvedPayload }
-  | { type: "DeathSave"; payload: DeathSavePayload };
+  | { type: "DeathSave"; payload: DeathSavePayload }
+  | { type: "OpportunityAttack"; payload: OpportunityAttackPayload };
 
 export type ServerEventType = ServerEvent["type"];
 
