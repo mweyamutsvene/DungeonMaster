@@ -32,7 +32,11 @@ export function ReactionPrompt() {
 
   async function respond(choice: "use" | "decline") {
     try {
-      await gameServer.respondToReaction(encounterId, pendingActionId, combatantId, choice);
+      await gameServer.respondToReaction(encounterId, pendingActionId, {
+        combatantId,
+        opportunityId: reactionOpportunity.id,
+        choice,
+      });
     } catch {
       // server will auto-decline on timeout anyway
     }

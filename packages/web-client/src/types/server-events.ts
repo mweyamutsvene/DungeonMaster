@@ -73,6 +73,7 @@ export interface ReactionPromptPayload {
   combatantId: string;
   combatantName: string;
   reactionOpportunity: {
+    id: string;
     reactionType: string;
     oaType?: "weapon" | "spell";
     canUse: boolean;
