@@ -24,6 +24,14 @@ const SLIDE_MS = 700; // ms for a direct (SSE-triggered) slide
 const easeInOut = (t: number) =>
   t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
+// ── True isometric projection ─────────────────────────────────────
+// Each square cell becomes a 2:1 rhombus (Diablo / BG / Fallout style).
+// Every tile is the same size on screen — depth comes from art + draw order.
+// Standard iso transform around the grid center:
+//   sx = (gx - gy) * (TILE_W/2)
+//   sy = (gx + gy) * (TILE_H/2)   with TILE_H = TILE_W / 2
+// Tile pixel size is derived per-frame from available canvas space.
+
 interface Anim {
   from: { x: number; y: number };
   to: { x: number; y: number };
@@ -93,10 +101,25 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     const { width, height } = canvas;
     const cols = colsRef.current;
     const rows = rowsRef.current;
-    // Always square cells; center the grid in the available canvas space
-    const cellSize = Math.min(width / cols, height / rows);
-    const offsetX = Math.floor((width - cols * cellSize) / 2);
-    const offsetY = Math.floor((height - rows * cellSize) / 2);
+    // The full iso footprint spans (cols+rows) tile half-widths horizontally
+    // and (cols+rows) tile half-heights vertically. Solve for the largest
+    // TILE_W that fits the canvas at a 2:1 ratio.
+    const TILE_W = Math.floor(Math.min(width / (cols + rows), (height * 2) / (cols + rows)));
+    const TILE_H = TILE_W / 2;
+    const HALF_W = TILE_W / 2;
+    const HALF_H = TILE_H / 2;
+    // Bounding box of the projected diamond (top is at gx=0,gy=0 → (-cols*HW, 0) ... )
+    // Simpler: place grid origin so the diamond is centered.
+    const isoW = (cols + rows) * HALF_W;
+    const isoH = (cols + rows) * HALF_H;
+    const originX = Math.floor((width - isoW) / 2 + rows * HALF_W);
+    const originY = Math.floor((height - isoH) / 2);
+    /** Project a grid-cell coord (in cell units) to a screen pixel via 2:1 iso. */
+    const project = (gx: number, gy: number): [number, number] => {
+      return [originX + (gx - gy) * HALF_W, originY + (gx + gy) * HALF_H];
+    };
+    // Approximate "cell size" for token sizing (use tile width).
+    const cellSize = TILE_W;
     const cbs = combatantsRef.current;
     const activeId = activeCombatantIdRef.current;
     const { attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked } =
@@ -136,21 +159,53 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     ctx.fillStyle = "#0f172a";
     ctx.fillRect(0, 0, width, height);
 
-    // Grid lines
+    // Helper: outline a single iso tile (gx,gy in cell units) as a diamond.
+    const tracePoly = (gx: number, gy: number) => {
+      const [x0, y0] = project(gx, gy);
+      const [x1, y1] = project(gx + 1, gy);
+      const [x2, y2] = project(gx + 1, gy + 1);
+      const [x3, y3] = project(gx, gy + 1);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.closePath();
+    };
+
+    // ── Procedural stone-tile fill ────────────────────────────────────
+    // Deterministic per-cell color + checkerboard accent gives a tabletop
+    // "ground" feel without needing tile art assets.
+    for (let gy = 0; gy < rows; gy++) {
+      for (let gx = 0; gx < cols; gx++) {
+        const h = ((gx * 73856093) ^ (gy * 19349663)) & 0xff;
+        const checker = (gx + gy) % 2 === 0;
+        const base = checker ? 64 : 54;
+        const j = (h % 14) - 7;
+        const v = Math.max(34, Math.min(96, base + j));
+        ctx.fillStyle = `rgb(${v + 8}, ${v + 4}, ${v - 4})`; // warm stone
+        tracePoly(gx, gy);
+        ctx.fill();
+      }
+    }
+
+    // ── Isometric grid lines ─────────────────────────────────────────
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
-    const gridW = cols * cellSize;
-    const gridH = rows * cellSize;
     for (let x = 0; x <= cols; x++) {
+      const [sx0, sy0] = project(x, 0);
+      const [sx1, sy1] = project(x, rows);
       ctx.beginPath();
-      ctx.moveTo(offsetX + x * cellSize, offsetY);
-      ctx.lineTo(offsetX + x * cellSize, offsetY + gridH);
+      ctx.moveTo(sx0, sy0);
+      ctx.lineTo(sx1, sy1);
       ctx.stroke();
     }
     for (let y = 0; y <= rows; y++) {
+      const [sx0, sy0] = project(0, y);
+      const [sx1, sy1] = project(cols, y);
       ctx.beginPath();
-      ctx.moveTo(offsetX, offsetY + y * cellSize);
-      ctx.lineTo(offsetX + gridW, offsetY + y * cellSize);
+      ctx.moveTo(sx0, sy0);
+      ctx.lineTo(sx1, sy1);
       ctx.stroke();
     }
 
@@ -158,7 +213,8 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     if (movementPath.length > 0) {
       ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
       for (const step of movementPath) {
-        ctx.fillRect(offsetX + d(step.x) * cellSize, offsetY + d(step.y) * cellSize, cellSize, cellSize);
+        tracePoly(d(step.x), d(step.y));
+        ctx.fill();
       }
     }
 
@@ -166,12 +222,8 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     if (movementDestination) {
       ctx.strokeStyle = movementBlocked ? "#ef4444" : "#22c55e";
       ctx.lineWidth = 2;
-      ctx.strokeRect(
-        offsetX + d(movementDestination.x) * cellSize + 2,
-        offsetY + d(movementDestination.y) * cellSize + 2,
-        cellSize - 4,
-        cellSize - 4,
-      );
+      tracePoly(d(movementDestination.x), d(movementDestination.y));
+      ctx.stroke();
     }
 
     // Tokens (animPos stores display units already; fall back to scaled backend pos)
@@ -180,8 +232,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       const ap = animPos.current.get(c.id);
       const ax = ap ? ap.x : d(c.position.x);
       const ay = ap ? ap.y : d(c.position.y);
-      const px = offsetX + ax * cellSize + cellSize / 2;
-      const py = offsetY + ay * cellSize + cellSize / 2;
+      const [px, py] = project(ax + 0.5, ay + 0.5);
       const r = cellSize * 0.38;
 
       const isPlayer = c.combatantType === "Character";
@@ -380,17 +431,30 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    // Scale mouse coords from CSS pixels → canvas pixels
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const mx = (e.clientX - rect.left) * scaleX;
     const my = (e.clientY - rect.top) * scaleY;
-    // Square cell layout with centering offsets (must match renderFrame)
-    const cellSize = Math.min(canvas.width / cols, canvas.height / rows);
-    const offsetX = Math.floor((canvas.width - cols * cellSize) / 2);
-    const offsetY = Math.floor((canvas.height - rows * cellSize) / 2);
-    const vcx = Math.floor((mx - offsetX) / cellSize);
-    const vcy = Math.floor((my - offsetY) / cellSize);
+    // Recompute iso layout (must match renderFrame)
+    const TILE_W = Math.floor(Math.min(canvas.width / (cols + rows), (canvas.height * 2) / (cols + rows)));
+    const TILE_H = TILE_W / 2;
+    const HALF_W = TILE_W / 2;
+    const HALF_H = TILE_H / 2;
+    const isoW = (cols + rows) * HALF_W;
+    const isoH = (cols + rows) * HALF_H;
+    const originX = Math.floor((canvas.width - isoW) / 2 + rows * HALF_W);
+    const originY = Math.floor((canvas.height - isoH) / 2);
+    // Inverse iso transform: given (sx,sy) relative to origin,
+    //   gx = sx/HALF_W/2 + sy/HALF_H/2 ... actually: solve
+    //     sx = (gx - gy) * HALF_W   → gx - gy = sx / HALF_W
+    //     sy = (gx + gy) * HALF_H   → gx + gy = sy / HALF_H
+    const sx = mx - originX;
+    const sy = my - originY;
+    const gxF = (sx / HALF_W + sy / HALF_H) / 2;
+    const gyF = (sy / HALF_H - sx / HALF_W) / 2;
+    const vcx = Math.floor(gxF);
+    const vcy = Math.floor(gyF);
+    if (vcx < 0 || vcx >= cols || vcy < 0 || vcy >= rows) return;
     // Ignore clicks outside the grid area
     if (vcx < 0 || vcx >= cols || vcy < 0 || vcy >= rows) return;
     // Hit-test: find token whose display cell matches
