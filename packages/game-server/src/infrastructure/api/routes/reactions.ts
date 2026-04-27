@@ -385,10 +385,11 @@ export function registerReactionRoutes(
       }
     }
 
-    // Auto-complete move pending actions after all reactions are resolved
+    // Auto-complete move pending actions after all reactions are resolved.
+    // Also handles "expired" — everyone timed out, treat as all declined.
     // This handles the case where a player DECLINES an opportunity attack —
     // without this, nobody calls completeMove and the AI turn never resumes.
-    if (status === "ready_to_complete" && pendingAction.type === "move") {
+    if ((status === "ready_to_complete" || status === "expired") && pendingAction.type === "move") {
       // Only auto-complete when there are NO player OAs that chose "use" (those need rolls via /combat/move/complete)
       const moveCombatants = await deps.combat.listCombatants(encounterId);
       const playerOAsUsed = pendingAction.resolvedReactions
