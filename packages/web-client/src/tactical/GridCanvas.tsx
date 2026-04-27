@@ -4,9 +4,10 @@ import { useAppStore } from "../store/app-store";
 interface GridCanvasProps {
   onCellTap?: (x: number, y: number) => void;
   onTokenTap?: (combatantId: string) => void;
+  attackMode?: boolean;
 }
 
-export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
+export function GridCanvas({ onCellTap, onTokenTap, attackMode = false }: GridCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
@@ -25,11 +26,9 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
     const cellW = width / cols;
     const cellH = height / rows;
 
-    // Background
     ctx.fillStyle = "#0f172a";
     ctx.fillRect(0, 0, width, height);
 
-    // Grid lines
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
     for (let x = 0; x <= cols; x++) {
@@ -45,7 +44,6 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       ctx.stroke();
     }
 
-    // Combatant tokens
     for (const c of combatants) {
       if (!c.position) continue;
       const px = c.position.x * cellW + cellW / 2;
@@ -55,8 +53,18 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       const isPlayer = c.combatantType === "Character";
       const isCurrent = c.id === activeCombatantId;
       const isDead = c.hp.current <= 0;
+      const isAttackTarget = attackMode && !isPlayer && !isDead;
 
-      // Active turn highlight ring
+      // Pulse ring for valid attack targets
+      if (isAttackTarget) {
+        ctx.beginPath();
+        ctx.arc(px, py, r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = "#f97316";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Active turn ring
       if (isCurrent) {
         ctx.beginPath();
         ctx.arc(px, py, r + 4, 0, Math.PI * 2);
@@ -68,20 +76,30 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       // Token body
       ctx.beginPath();
       ctx.arc(px, py, r, 0, Math.PI * 2);
-      ctx.fillStyle = isDead ? "#374151" : isPlayer ? "#3b82f6" : "#ef4444";
+      ctx.fillStyle = isDead
+        ? "#374151"
+        : isAttackTarget
+          ? "#b91c1c"
+          : isPlayer
+            ? "#3b82f6"
+            : "#ef4444";
       ctx.fill();
-      ctx.strokeStyle = isDead ? "#4b5563" : isPlayer ? "#93c5fd" : "#fca5a5";
+      ctx.strokeStyle = isDead
+        ? "#4b5563"
+        : isAttackTarget
+          ? "#fca5a5"
+          : isPlayer
+            ? "#93c5fd"
+            : "#fca5a5";
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Token initial
       ctx.fillStyle = isDead ? "#6b7280" : "#ffffff";
       ctx.font = `bold ${Math.round(r * 1.1)}px system-ui`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(c.name[0]?.toUpperCase() ?? "?", px, py);
 
-      // HP bar under token
       const barW = cellW * 0.75;
       const barH = 3;
       const barX = px - barW / 2;
@@ -92,7 +110,7 @@ export function GridCanvas({ onCellTap, onTokenTap }: GridCanvasProps) {
       ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#eab308" : "#ef4444";
       ctx.fillRect(barX, barY, barW * hpPct, barH);
     }
-  }, [combatants, activeCombatantId, cols, rows]);
+  }, [combatants, activeCombatantId, cols, rows, attackMode]);
 
   useEffect(() => {
     draw();

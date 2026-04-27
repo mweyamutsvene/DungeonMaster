@@ -27,6 +27,10 @@ interface AppState {
   activeCombatantId: string | null;
   combatants: StoredCombatant[];
 
+  // Incremented when SSE events require a tactical view re-fetch (CombatStarted, TurnAdvanced).
+  // SessionPage watches this and triggers the fetch — keeps async API calls out of the store.
+  tacticalVersion: number;
+
   // Reaction
   pendingReaction: ReactionPromptPayload | null;
 
@@ -76,6 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   round: 1,
   activeCombatantId: null,
   combatants: [],
+  tacticalVersion: 0,
   pendingReaction: null,
   narrationLog: [],
   characterSheetOpen: false,
@@ -88,7 +93,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMode: (mode) => set({ mode }),
 
   hydrateCombat: (encounter, tactical) => {
-    // Merge entity IDs from EncounterState into the richer TacticalCombatant data
     const entityMap = new Map(encounter.combatants.map((c) => [c.id, c]));
     const combatants: StoredCombatant[] = tactical.combatants.map((tc) => {
       const ec = entityMap.get(tc.id);
@@ -115,7 +119,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     switch (event.type) {
       case "CombatStarted":
-        set({ encounterId: event.payload.encounterId, mode: "tactical" });
+        // Bump tacticalVersion so SessionPage re-fetches the full tactical view
+        set((s) => ({
+          encounterId: event.payload.encounterId,
+          mode: "tactical",
+          tacticalVersion: s.tacticalVersion + 1,
+        }));
         break;
 
       case "CombatEnded":
@@ -123,7 +132,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
 
       case "TurnAdvanced":
-        set({ round: event.payload.round });
+        // Bump tacticalVersion so SessionPage re-fetches activeCombatantId + fresh action economy
+        set((s) => ({
+          round: event.payload.round,
+          tacticalVersion: s.tacticalVersion + 1,
+        }));
         break;
 
       case "DamageApplied": {
@@ -156,7 +169,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "Move": {
         const { actorId, to } = event.payload;
-        // actorId is a combatant ID (not entity ID)
         set({
           combatants: combatants.map((c) =>
             c.id === actorId ? { ...c, position: to } : c

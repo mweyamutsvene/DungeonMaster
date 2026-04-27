@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "../store/app-store";
 import { gameServer } from "../hooks/use-game-server";
-import { useParams } from "react-router-dom";
 
 export function ReactionPrompt() {
   const pendingReaction = useAppStore((s) => s.pendingReaction);
   const dismissReaction = useAppStore((s) => s.dismissReaction);
-  const encounterId = useAppStore((s) => s.encounterId);
-  const { id: sessionId } = useParams<{ id: string }>();
 
   const [secondsLeft, setSecondsLeft] = useState<number>(10);
 
@@ -28,18 +25,14 @@ export function ReactionPrompt() {
 
   if (!pendingReaction) return null;
 
-  const { reactionOpportunity, actorName, pendingActionId } = pendingReaction;
+  const { reactionOpportunity, actorName, pendingActionId, encounterId, combatantId } = pendingReaction;
   const expiresAt = new Date(pendingReaction.expiresAt).getTime();
   const totalMs = 10_000;
   const progressPct = Math.max(0, Math.min(1, (expiresAt - Date.now()) / totalMs));
 
   async function respond(choice: "use" | "decline") {
-    if (!sessionId || !encounterId) {
-      dismissReaction();
-      return;
-    }
     try {
-      await gameServer.respondToReaction(sessionId, encounterId, pendingActionId, choice);
+      await gameServer.respondToReaction(encounterId, pendingActionId, combatantId, choice);
     } catch {
       // server will auto-decline on timeout anyway
     }
@@ -49,13 +42,11 @@ export function ReactionPrompt() {
   return (
     <div className="absolute inset-0 bg-slate-950/70 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-800 rounded-2xl border border-violet-700 w-full max-w-xs p-5 space-y-4 shadow-2xl">
-        {/* Header */}
         <div className="flex items-center gap-2">
           <span className="text-xl">⚡</span>
           <h3 className="text-base font-bold text-violet-300">Reaction Available!</h3>
         </div>
 
-        {/* Context */}
         <div className="text-sm text-slate-300 space-y-1">
           <p>
             <span className="text-red-400 font-medium">{actorName}</span> is triggering a
@@ -66,7 +57,6 @@ export function ReactionPrompt() {
           </p>
         </div>
 
-        {/* Timer bar */}
         <div>
           <div className="flex justify-between text-xs text-slate-400 mb-1">
             <span>Auto-decline in</span>
@@ -80,16 +70,15 @@ export function ReactionPrompt() {
           </div>
         </div>
 
-        {/* Buttons */}
         <div className="flex gap-2">
           <button
-            onClick={() => respond("use")}
+            onClick={() => void respond("use")}
             className="flex-1 bg-violet-600 hover:bg-violet-500 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
           >
             Use Reaction
           </button>
           <button
-            onClick={() => respond("decline")}
+            onClick={() => void respond("decline")}
             className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium py-2.5 rounded-xl text-sm transition-colors"
           >
             Decline

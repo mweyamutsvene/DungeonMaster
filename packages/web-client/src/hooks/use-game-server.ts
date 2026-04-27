@@ -30,10 +30,15 @@ export const gameServer = {
   getTacticalView: (sessionId: string, encounterId: string) =>
     apiFetch<TacticalViewResponse>(`/sessions/${sessionId}/combat/${encounterId}/tactical`),
 
-  endTurn: (sessionId: string, encounterId: string) =>
-    apiFetch<unknown>(`/sessions/${sessionId}/combat/next`, {
+  // POST /sessions/:id/actions with kind "endTurn" — requires characterId for actor
+  endTurn: (sessionId: string, encounterId: string, characterId: string) =>
+    apiFetch<unknown>(`/sessions/${sessionId}/actions`, {
       method: "POST",
-      body: JSON.stringify({ encounterId }),
+      body: JSON.stringify({
+        kind: "endTurn",
+        encounterId,
+        actor: { type: "Character", characterId },
+      }),
     }),
 
   submitAction: (sessionId: string, body: Record<string, unknown>) =>
@@ -42,14 +47,15 @@ export const gameServer = {
       body: JSON.stringify(body),
     }),
 
+  // POST /encounters/:encounterId/reactions/:pendingActionId/respond
   respondToReaction: (
-    sessionId: string,
     encounterId: string,
     pendingActionId: string,
+    combatantId: string,
     choice: "use" | "decline",
   ) =>
     apiFetch<unknown>(
-      `/sessions/${sessionId}/combat/${encounterId}/reactions/${pendingActionId}`,
-      { method: "POST", body: JSON.stringify({ choice }) },
+      `/encounters/${encounterId}/reactions/${pendingActionId}/respond`,
+      { method: "POST", body: JSON.stringify({ combatantId, opportunityId: pendingActionId, choice }) },
     ),
 };
