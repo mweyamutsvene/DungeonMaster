@@ -53,6 +53,7 @@ export interface ActionResolvedPayload {
 export interface MovePayload {
   encounterId: string;
   actorId: string;
+  actorName?: string;
   from: Position;
   to: Position;
   distanceMoved: number;
@@ -97,6 +98,7 @@ export interface OpportunityAttackPayload {
   attackerId: string;
   attackerName?: string;
   targetId: string;
+  targetName?: string;
   attackRoll?: number;
   hit: boolean;
   critical?: boolean;

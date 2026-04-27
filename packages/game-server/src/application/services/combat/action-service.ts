@@ -626,12 +626,14 @@ export class ActionService {
 
     // Emit movement event
     if (this.events) {
+      const actorName = await this.combatants.getName(input.actor, actor);
       await this.events.append(sessionId, {
         id: nanoid(),
         type: "Move",
         payload: {
           encounterId: encounter.id,
           actorId: actor.id,
+          actorName,
           from: currentPos,
           to: input.destination,
           distanceMoved: movementResult.distanceMoved,

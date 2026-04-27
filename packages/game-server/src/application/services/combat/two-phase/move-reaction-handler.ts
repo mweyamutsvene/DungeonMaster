@@ -613,12 +613,14 @@ export class MoveReactionHandler {
 
     // Emit movement event
     if (this.events) {
+      const actorName = await this.combatants.getName(pendingAction.actor, actor);
       await this.events.append(sessionId, {
         id: nanoid(),
         type: "Move",
         payload: {
           encounterId: encounter.id,
           actorId: actor.id,
+          actorName,
           from: moveData.from,
           to: finalPosition,
           distanceMoved: calculateDistance(moveData.from, finalPosition),

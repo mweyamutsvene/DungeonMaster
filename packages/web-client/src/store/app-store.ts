@@ -168,40 +168,49 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "DamageApplied": {
-        const match = findByRef(combatants, event.payload.target);
-        if (match) {
-          set({
-            combatants: combatants.map((c) =>
+        set((s) => {
+          const match = findByRef(s.combatants, event.payload.target);
+          if (!match) return {};
+          return {
+            combatants: s.combatants.map((c) =>
               c.id === match.id
                 ? { ...c, hp: { ...c.hp, current: event.payload.hpCurrent } }
                 : c
             ),
-          });
-        }
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text: `${match.name} takes ${event.payload.amount} damage. (${event.payload.hpCurrent} HP)`,
+                timestamp: Date.now(),
+                eventType: "DamageApplied",
+              },
+            ],
+          };
+        });
         break;
       }
 
       case "HealingApplied": {
-        const match = findByRef(combatants, event.payload.target);
-        if (match) {
-          set({
-            combatants: combatants.map((c) =>
+        set((s) => {
+          const match = findByRef(s.combatants, event.payload.target);
+          if (!match) return {};
+          return {
+            combatants: s.combatants.map((c) =>
               c.id === match.id
                 ? { ...c, hp: { ...c.hp, current: event.payload.hpCurrent } }
                 : c
             ),
-          });
-        }
+          };
+        });
         break;
       }
 
       case "Move": {
-        const { actorId, to } = event.payload;
-        // All lookups inside set((s)=>) to avoid stale closure — combatants captured
-        // at handleServerEvent top may be empty if this fires before hydration.
+        const { actorId, to, actorName: payloadActorName } = event.payload;
+        // Use actorName embedded by server — avoids stale-closure lookup during SSE backlog replay
         set((s) => {
-          const mover = s.combatants.find((c) => c.id === actorId);
-          const moverName = mover?.name ?? "A combatant";
+          const moverName = payloadActorName ?? s.combatants.find((c) => c.id === actorId)?.name ?? "A combatant";
           return {
             combatants: s.combatants.map((c) =>
               c.id === actorId ? { ...c, position: to } : c
@@ -225,13 +234,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "OpportunityAttack": {
         const oaPayload = event.payload;
         set((s) => {
-          const oaTarget = s.combatants.find((c) => c.id === oaPayload.targetId);
-          const oaTargetName = oaTarget?.name ?? "a creature";
           const oaAttackerName = oaPayload.attackerName ?? "A creature";
+          // Prefer server-embedded name; fall back to store lookup
+          const oaTargetName = oaPayload.targetName ?? s.combatants.find((c) => c.id === oaPayload.targetId)?.name ?? "their target";
           const critText = oaPayload.critical ? " (critical hit!)" : "";
-          const oaText = oaPayload.damage
-            ? `${oaAttackerName} strikes ${oaTargetName} with an opportunity attack for ${oaPayload.damage} damage${critText}!`
-            : `${oaAttackerName} takes an opportunity attack on ${oaTargetName}!`;
+          const oaText = oaPayload.hit && oaPayload.damage
+            ? `${oaAttackerName} strikes ${oaTargetName} for ${oaPayload.damage} damage${critText}! (OA)`
+            : oaPayload.hit
+            ? `${oaAttackerName} hits ${oaTargetName} with an opportunity attack${critText}!`
+            : `${oaAttackerName} swings at ${oaTargetName} but misses! (OA)`;
           return {
             narrationLog: [
               ...s.narrationLog.slice(-99),
@@ -243,8 +254,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                 eventType: "OpportunityAttack",
               },
             ],
-            // Update HP immediately — Move event will trigger a full re-fetch to correct any drift
-            combatants: oaPayload.damage && oaTarget
+            // Update HP immediately for OA hits — Move event triggers a full re-fetch
+            combatants: oaPayload.hit && oaPayload.damage
               ? s.combatants.map((c) =>
                   c.id === oaPayload.targetId
                     ? { ...c, hp: { ...c.hp, current: Math.max(0, c.hp.current - oaPayload.damage!) } }

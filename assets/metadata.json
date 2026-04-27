@@ -1,0 +1,61 @@
+{
+  "character": {
+    "id": "750bef9c-005e-4cb8-b690-699d3ee70d27",
+    "name": "Sexy latina in pirate clothes and fishnets, as close to photo realistic as possible",
+    "prompt": "Sexy latina in pirate clothes and fishnets, as close to photo realistic as possible",
+    "size": {
+      "width": 92,
+      "height": 92
+    },
+    "template_id": "mannequin",
+    "directions": 4,
+    "view": "high top-down",
+    "created_at": "2026-04-20T06:28:32.760926+00:00"
+  },
+  "frames": {
+    "rotations": {
+      "south": "rotations/south.png",
+      "west": "rotations/west.png",
+      "east": "rotations/east.png",
+      "north": "rotations/north.png"
+    },
+    "animations": {
+      "Running-e8f89918": {
+        "east": [
+          "animations/Running-e8f89918/east/frame_000.png",
+          "animations/Running-e8f89918/east/frame_001.png",
+          "animations/Running-e8f89918/east/frame_002.png",
+          "animations/Running-e8f89918/east/frame_003.png",
+          "animations/Running-e8f89918/east/frame_004.png",
+          "animations/Running-e8f89918/east/frame_005.png"
+        ],
+        "south": [
+          "animations/Running-e8f89918/south/frame_000.png",
+          "animations/Running-e8f89918/south/frame_001.png",
+          "animations/Running-e8f89918/south/frame_002.png",
+          "animations/Running-e8f89918/south/frame_003.png",
+          "animations/Running-e8f89918/south/frame_004.png",
+          "animations/Running-e8f89918/south/frame_005.png"
+        ],
+        "west": [
+          "animations/Running-e8f89918/west/frame_000.png",
+          "animations/Running-e8f89918/west/frame_001.png",
+          "animations/Running-e8f89918/west/frame_002.png",
+          "animations/Running-e8f89918/west/frame_003.png",
+          "animations/Running-e8f89918/west/frame_004.png",
+          "animations/Running-e8f89918/west/frame_005.png"
+        ],
+        "north": [
+          "animations/Running-e8f89918/north/frame_000.png",
+          "animations/Running-e8f89918/north/frame_001.png",
+          "animations/Running-e8f89918/north/frame_002.png",
+          "animations/Running-e8f89918/north/frame_003.png",
+          "animations/Running-e8f89918/north/frame_004.png",
+          "animations/Running-e8f89918/north/frame_005.png"
+        ]
+      }
+    }
+  },
+  "export_version": "2.0",
+  "export_date": "2026-04-27T05:47:32.078092"
+}

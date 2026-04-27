@@ -154,6 +154,7 @@ export interface OpportunityAttackPayload {
 export interface MovePayload {
   encounterId: string;
   actorId: string;
+  actorName?: string;
   from: Position;
   to: Position;
   distanceMoved: number;

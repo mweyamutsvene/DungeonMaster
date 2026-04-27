@@ -398,6 +398,7 @@ export async function resolveOpportunityAttacks(
         { type: "Character", characterId: "" },
         attacker,
       );
+      const targetName = await deps.combatants.getName(pendingAction.actor, actor as any);
 
       executedOAs.push({
         attackerId: attacker.id,
@@ -406,7 +407,7 @@ export async function resolveOpportunityAttacks(
         damage: totalDamage,
       });
 
-      // Emit OA event
+      // Emit OA hit event
       if (deps.events) {
         await deps.events.append(sessionId, {
           id: nanoid(),
@@ -416,6 +417,7 @@ export async function resolveOpportunityAttacks(
             attackerId: attacker.id,
             attackerName,
             targetId: actor.id,
+            targetName,
             attackRoll,
             hit: true,
             critical,
@@ -429,6 +431,29 @@ export async function resolveOpportunityAttacks(
         targetStillAlive = false;
         break; // No more OAs resolve if target is dead
       }
+    } else if (!hit && deps.events) {
+      // Emit OA miss event
+      const missAttackerRef: CombatantRef =
+        attacker.combatantType === "Character" && attacker.characterId ? { type: "Character", characterId: attacker.characterId } :
+        attacker.combatantType === "Monster" && attacker.monsterId ? { type: "Monster", monsterId: attacker.monsterId } :
+        attacker.combatantType === "NPC" && attacker.npcId ? { type: "NPC", npcId: attacker.npcId } :
+        { type: "Character", characterId: "" };
+      const missAttackerName = await deps.combatants.getName(missAttackerRef, attacker);
+      const missTargetName = await deps.combatants.getName(pendingAction.actor, actor as any);
+      await deps.events.append(sessionId, {
+        id: nanoid(),
+        type: "OpportunityAttack",
+        payload: {
+          encounterId: encounter.id,
+          attackerId: attacker.id,
+          attackerName: missAttackerName,
+          targetId: actor.id,
+          targetName: missTargetName,
+          attackRoll,
+          hit: false,
+          critical: false,
+        },
+      });
     }
 
     // Mark reaction as used (and clear readied action if this was a readied reaction)
