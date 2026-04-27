@@ -197,75 +197,82 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "Move": {
         const { actorId, to } = event.payload;
-        const mover = combatants.find((c) => c.id === actorId);
-        const moverName = mover?.name ?? "A combatant";
-        // Update position immediately for smooth visual feedback,
-        // then bump tacticalVersion so SessionPage re-fetches full action economy
-        set((s) => ({
-          combatants: s.combatants.map((c) =>
-            c.id === actorId ? { ...c, position: to } : c
-          ),
-          tacticalVersion: s.tacticalVersion + 1,
-          narrationLog: [
-            ...s.narrationLog.slice(-99),
-            {
-              id: narrationId(),
-              text: `${moverName} moves.`,
-              actor: moverName,
-              timestamp: Date.now(),
-              eventType: "Move",
-            },
-          ],
-        }));
+        // All lookups inside set((s)=>) to avoid stale closure — combatants captured
+        // at handleServerEvent top may be empty if this fires before hydration.
+        set((s) => {
+          const mover = s.combatants.find((c) => c.id === actorId);
+          const moverName = mover?.name ?? "A combatant";
+          return {
+            combatants: s.combatants.map((c) =>
+              c.id === actorId ? { ...c, position: to } : c
+            ),
+            tacticalVersion: s.tacticalVersion + 1,
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text: `${moverName} moves.`,
+                actor: moverName,
+                timestamp: Date.now(),
+                eventType: "Move",
+              },
+            ],
+          };
+        });
         break;
       }
 
       case "OpportunityAttack": {
         const oaPayload = event.payload;
-        const oaTarget = combatants.find((c) => c.id === oaPayload.targetId);
-        const oaTargetName = oaTarget?.name ?? "a creature";
-        const oaAttackerName = oaPayload.attackerName ?? "A creature";
-        const critText = oaPayload.critical ? " (critical hit!)" : "";
-        const oaText = oaPayload.damage
-          ? `${oaAttackerName} strikes ${oaTargetName} with an opportunity attack for ${oaPayload.damage} damage${critText}!`
-          : `${oaAttackerName} takes an opportunity attack on ${oaTargetName}!`;
+        set((s) => {
+          const oaTarget = s.combatants.find((c) => c.id === oaPayload.targetId);
+          const oaTargetName = oaTarget?.name ?? "a creature";
+          const oaAttackerName = oaPayload.attackerName ?? "A creature";
+          const critText = oaPayload.critical ? " (critical hit!)" : "";
+          const oaText = oaPayload.damage
+            ? `${oaAttackerName} strikes ${oaTargetName} with an opportunity attack for ${oaPayload.damage} damage${critText}!`
+            : `${oaAttackerName} takes an opportunity attack on ${oaTargetName}!`;
+          return {
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text: oaText,
+                actor: oaAttackerName,
+                timestamp: Date.now(),
+                eventType: "OpportunityAttack",
+              },
+            ],
+            // Update HP immediately — Move event will trigger a full re-fetch to correct any drift
+            combatants: oaPayload.damage && oaTarget
+              ? s.combatants.map((c) =>
+                  c.id === oaPayload.targetId
+                    ? { ...c, hp: { ...c.hp, current: Math.max(0, c.hp.current - oaPayload.damage!) } }
+                    : c
+                )
+              : s.combatants,
+          };
+        });
+        break;
+      }
+
+      case "NarrativeText": {
+        const narrativeText = event.payload.text;
+        const narrativeActor = event.payload.actor?.name;
         set((s) => ({
           narrationLog: [
             ...s.narrationLog.slice(-99),
             {
               id: narrationId(),
-              text: oaText,
-              actor: oaAttackerName,
-              timestamp: Date.now(),
-              eventType: "OpportunityAttack",
-            },
-          ],
-          // Update HP immediately — Move event will trigger a full re-fetch to correct any drift
-          combatants: oaPayload.damage && oaTarget
-            ? s.combatants.map((c) =>
-                c.id === oaPayload.targetId
-                  ? { ...c, hp: { ...c.hp, current: Math.max(0, c.hp.current - oaPayload.damage!) } }
-                  : c
-              )
-            : s.combatants,
-        }));
-        break;
-      }
-
-      case "NarrativeText":
-        set({
-          narrationLog: [
-            ...narrationLog.slice(-99),
-            {
-              id: narrationId(),
-              text: event.payload.text,
-              actor: event.payload.actor?.name,
+              text: narrativeText,
+              actor: narrativeActor,
               timestamp: Date.now(),
               eventType: "NarrativeText",
             },
           ],
-        });
+        }));
         break;
+      }
 
       case "AttackResolved": {
         // NarrativeText events already describe the attack in full prose.
