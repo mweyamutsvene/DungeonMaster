@@ -83,8 +83,10 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     const { width, height } = canvas;
     const cols = colsRef.current;
     const rows = rowsRef.current;
-    const cellW = width / cols;
-    const cellH = height / rows;
+    // Always square cells; center the grid in the available canvas space
+    const cellSize = Math.min(width / cols, height / rows);
+    const offsetX = Math.floor((width - cols * cellSize) / 2);
+    const offsetY = Math.floor((height - rows * cellSize) / 2);
     const cbs = combatantsRef.current;
     const activeId = activeCombatantIdRef.current;
     const { attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked } =
@@ -126,16 +128,18 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     // Grid lines
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
+    const gridW = cols * cellSize;
+    const gridH = rows * cellSize;
     for (let x = 0; x <= cols; x++) {
       ctx.beginPath();
-      ctx.moveTo(x * cellW, 0);
-      ctx.lineTo(x * cellW, height);
+      ctx.moveTo(offsetX + x * cellSize, offsetY);
+      ctx.lineTo(offsetX + x * cellSize, offsetY + gridH);
       ctx.stroke();
     }
     for (let y = 0; y <= rows; y++) {
       ctx.beginPath();
-      ctx.moveTo(0, y * cellH);
-      ctx.lineTo(width, y * cellH);
+      ctx.moveTo(offsetX, offsetY + y * cellSize);
+      ctx.lineTo(offsetX + gridW, offsetY + y * cellSize);
       ctx.stroke();
     }
 
@@ -143,7 +147,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     if (movementPath.length > 0) {
       ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
       for (const step of movementPath) {
-        ctx.fillRect(d(step.x) * cellW, d(step.y) * cellH, cellW, cellH);
+        ctx.fillRect(offsetX + d(step.x) * cellSize, offsetY + d(step.y) * cellSize, cellSize, cellSize);
       }
     }
 
@@ -152,10 +156,10 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       ctx.strokeStyle = movementBlocked ? "#ef4444" : "#22c55e";
       ctx.lineWidth = 2;
       ctx.strokeRect(
-        d(movementDestination.x) * cellW + 2,
-        d(movementDestination.y) * cellH + 2,
-        cellW - 4,
-        cellH - 4,
+        offsetX + d(movementDestination.x) * cellSize + 2,
+        offsetY + d(movementDestination.y) * cellSize + 2,
+        cellSize - 4,
+        cellSize - 4,
       );
     }
 
@@ -165,9 +169,9 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       const ap = animPos.current.get(c.id);
       const ax = ap ? ap.x : d(c.position.x);
       const ay = ap ? ap.y : d(c.position.y);
-      const px = ax * cellW + cellW / 2;
-      const py = ay * cellH + cellH / 2;
-      const r = Math.min(cellW, cellH) * 0.38;
+      const px = offsetX + ax * cellSize + cellSize / 2;
+      const py = offsetY + ay * cellSize + cellSize / 2;
+      const r = cellSize * 0.38;
 
       const isPlayer = c.combatantType === "Character";
       const isCurrent = c.id === activeId;
@@ -223,7 +227,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       ctx.textBaseline = "middle";
       ctx.fillText(c.name[0]?.toUpperCase() ?? "?", px, py);
 
-      const barW = cellW * 0.75;
+      const barW = cellSize * 0.75;
       const barH = 3;
       const barX = px - barW / 2;
       const barY = py + r + 3;
@@ -337,13 +341,19 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const cellW = canvas.width / cols;
-    const cellH = canvas.height / rows;
-    // Visual cell clicked
-    const vcx = Math.floor(mx / cellW);
-    const vcy = Math.floor(my / cellH);
+    // Scale mouse coords from CSS pixels → canvas pixels
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+    // Square cell layout with centering offsets (must match renderFrame)
+    const cellSize = Math.min(canvas.width / cols, canvas.height / rows);
+    const offsetX = Math.floor((canvas.width - cols * cellSize) / 2);
+    const offsetY = Math.floor((canvas.height - rows * cellSize) / 2);
+    const vcx = Math.floor((mx - offsetX) / cellSize);
+    const vcy = Math.floor((my - offsetY) / cellSize);
+    // Ignore clicks outside the grid area
+    if (vcx < 0 || vcx >= cols || vcy < 0 || vcy >= rows) return;
     // Hit-test: find token whose display cell matches
     const hit = combatants.find(
       (c) => c.position && Math.floor(d(c.position.x)) === vcx && Math.floor(d(c.position.y)) === vcy
