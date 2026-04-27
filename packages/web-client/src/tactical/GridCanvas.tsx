@@ -1,5 +1,11 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useAppStore } from "../store/app-store";
+import {
+  loadHeroSprites,
+  drawHeroSprite,
+  facingFromVector,
+  type Facing,
+} from "./hero-sprite";
 
 export interface GridCanvasHandle {
   /** Animate a combatant along a series of waypoints before its store position updates. */
@@ -13,8 +19,8 @@ const FEET_PER_CELL = 5;
 const d = (n: number) => n / FEET_PER_CELL;
 
 // ── Animation constants ────────────────────────────────────────────────────
-const STEP_MS = 120; // ms per grid cell when following a path
-const SLIDE_MS = 350; // ms for a direct (SSE-triggered) slide
+const STEP_MS = 350; // ms per grid cell when following a path
+const SLIDE_MS = 700; // ms for a direct (SSE-triggered) slide
 const easeInOut = (t: number) =>
   t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
@@ -70,6 +76,10 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
   const pathAnimating = useRef<Set<string>>(new Set());
   // previous grid positions (to detect changes)
   const prevPos = useRef<Map<string, { x: number; y: number }>>(new Map());
+  // current facing per combatant (for sprite rendering)
+  const facing = useRef<Map<string, Facing>>(new Map());
+  // sprite assets loaded flag — triggers redraw once images are ready
+  const spritesReady = useRef(false);
   const rafRef = useRef<number | null>(null);
 
   // ── Stable render function (reads from refs, never recreated) ───────────
@@ -107,6 +117,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         const queue = pathQueues.current.get(id);
         if (queue && queue.length > 0) {
           const next = queue.shift()!;
+          facing.current.set(id, facingFromVector(next.x - pos.x, next.y - pos.y, facing.current.get(id) ?? "south"));
           animations.current.set(id, {
             from: { ...pos },
             to: next,
@@ -227,6 +238,14 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       ctx.textBaseline = "middle";
       ctx.fillText(c.name[0]?.toUpperCase() ?? "?", px, py);
 
+      // Overlay the sprite for player characters once assets are loaded.
+      if (isPlayer && spritesReady.current && !isDead) {
+        const isMoving = animations.current.has(c.id);
+        const dir = facing.current.get(c.id) ?? "south";
+        const spriteSize = cellSize * 1.4;
+        drawHeroSprite(ctx, px, py - cellSize * 0.05, spriteSize, dir, isMoving, now);
+      }
+
       const barW = cellSize * 0.75;
       const barH = 3;
       const barX = px - barW / 2;
@@ -258,6 +277,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       const [first, ...rest] = displayPath;
       pathAnimating.current.add(combatantId);
       if (rest.length > 0) pathQueues.current.set(combatantId, rest);
+      facing.current.set(combatantId, facingFromVector(first.x - from.x, first.y - from.y, facing.current.get(combatantId) ?? "south"));
       animations.current.set(combatantId, {
         from: { ...from },
         to: first,
@@ -298,9 +318,11 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         if (pathAnimating.current.has(c.id)) continue;
         // Fallback: tween to new display position (AI moves, remote players, etc.)
         const from = animPos.current.get(c.id) ?? { x: d(prev.x), y: d(prev.y) };
+        const to = { x: d(c.position.x), y: d(c.position.y) };
+        facing.current.set(c.id, facingFromVector(to.x - from.x, to.y - from.y, facing.current.get(c.id) ?? "south"));
         animations.current.set(c.id, {
           from: { ...from },
-          to: { x: d(c.position.x), y: d(c.position.y) },
+          to,
           startTime: performance.now(),
           durationMs: SLIDE_MS,
         });
@@ -334,6 +356,23 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+    };
+  }, [renderFrame]);
+
+  // ── Preload hero sprite assets once ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    loadHeroSprites()
+      .then(() => {
+        if (cancelled) return;
+        spritesReady.current = true;
+        if (rafRef.current === null) renderFrame();
+      })
+      .catch((err) => {
+        console.warn("Failed to load hero sprites:", err);
+      });
+    return () => {
+      cancelled = true;
     };
   }, [renderFrame]);
 
