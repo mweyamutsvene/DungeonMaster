@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { PartyStatusBar } from "./PartyStatusBar";
 import { InitiativeTracker } from "./InitiativeTracker";
 import { GridCanvas } from "./GridCanvas";
+import type { GridCanvasHandle } from "./GridCanvas";
 import { ActionEconomyBar } from "./ActionEconomyBar";
 import { ActionBar } from "./ActionBar";
 import { NarrationLog } from "./NarrationLog";
@@ -25,6 +26,7 @@ export function TacticalLayout() {
   const [pathPreview, setPathPreview] = useState<PathPreviewResponse | null>(null);
   const [pathDestination, setPathDestination] = useState<{ x: number; y: number } | null>(null);
   const [moving, setMoving] = useState(false);
+  const gridRef = useRef<GridCanvasHandle>(null);
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
   const myTurn = !!activeCombatant && !!myCharacterId && activeCombatant.characterId === myCharacterId;
@@ -101,7 +103,10 @@ export function TacticalLayout() {
           actorId: myCharacterId,
           encounterId,
         });
-        // Optimistic position update — SSE Move event will confirm later
+        // Start path animation then update store position
+        if (pathPreview && gridRef.current) {
+          gridRef.current.moveAlongPath(selectedMoverId, pathPreview.path);
+        }
         moveCombatant(selectedMoverId, { x, y });
         clearMoveState();
       } catch (err) {
@@ -144,6 +149,7 @@ export function TacticalLayout() {
           </div>
         )}
         <GridCanvas
+          ref={gridRef}
           onTokenTap={handleTokenTap}
           onCellTap={handleCellTap}
           attackMode={attackMode}

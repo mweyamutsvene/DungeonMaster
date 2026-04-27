@@ -1,5 +1,29 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useAppStore } from "../store/app-store";
+
+export interface GridCanvasHandle {
+  /** Animate a combatant along a series of waypoints before its store position updates. */
+  moveAlongPath(combatantId: string, path: Array<{ x: number; y: number }>): void;
+}
+
+// ── Grid scale ────────────────────────────────────────────────────────────
+// Backend positions are in 1ft units. D&D grid cells are 5ft.
+const FEET_PER_CELL = 5;
+/** Convert backend 1ft unit → display cell coord */
+const d = (n: number) => n / FEET_PER_CELL;
+
+// ── Animation constants ────────────────────────────────────────────────────
+const STEP_MS = 120; // ms per grid cell when following a path
+const SLIDE_MS = 350; // ms for a direct (SSE-triggered) slide
+const easeInOut = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+interface Anim {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  startTime: number;
+  durationMs: number;
+}
 
 interface GridCanvasProps {
   onCellTap?: (x: number, y: number) => void;
@@ -11,7 +35,7 @@ interface GridCanvasProps {
   movementBlocked?: boolean;
 }
 
-export function GridCanvas({
+export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function GridCanvas({
   onCellTap,
   onTokenTap,
   attackMode = false,
@@ -19,28 +43,87 @@ export function GridCanvas({
   movementPath = [],
   movementDestination = null,
   movementBlocked = false,
-}: GridCanvasProps) {
+}, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
 
   const positioned = combatants.filter((c) => c.position !== null);
-  const cols = Math.max(10, ...positioned.map((c) => (c.position?.x ?? 0) + 2));
-  const rows = Math.max(10, ...positioned.map((c) => (c.position?.y ?? 0) + 2));
+  // Divide backend positions by FEET_PER_CELL to get visual grid dimensions
+  const cols = Math.max(10, ...positioned.map((c) => Math.ceil(d(c.position?.x ?? 0)) + 2));
+  const rows = Math.max(10, ...positioned.map((c) => Math.ceil(d(c.position?.y ?? 0)) + 2));
 
-  const draw = useCallback(() => {
+  // ── Refs shared with the stable RAF loop ────────────────────────────────
+  const combatantsRef = useRef(combatants);
+  const activeCombatantIdRef = useRef(activeCombatantId);
+  const colsRef = useRef(cols);
+  const rowsRef = useRef(rows);
+  const propsRef = useRef({ attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked });
+
+  // animPos: current visual (fractional) grid position per combatant
+  const animPos = useRef<Map<string, { x: number; y: number }>>(new Map());
+  // animations: active tweens
+  const animations = useRef<Map<string, Anim>>(new Map());
+  // path queues: remaining waypoints to walk through
+  const pathQueues = useRef<Map<string, Array<{ x: number; y: number }>>>(new Map());
+  // ids currently being path-animated (skip SSE position-change tween for these)
+  const pathAnimating = useRef<Set<string>>(new Set());
+  // previous grid positions (to detect changes)
+  const prevPos = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const rafRef = useRef<number | null>(null);
+
+  // ── Stable render function (reads from refs, never recreated) ───────────
+  const renderFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const now = performance.now();
     const { width, height } = canvas;
+    const cols = colsRef.current;
+    const rows = rowsRef.current;
     const cellW = width / cols;
     const cellH = height / rows;
+    const cbs = combatantsRef.current;
+    const activeId = activeCombatantIdRef.current;
+    const { attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked } =
+      propsRef.current;
 
+    // Advance active tweens
+    for (const [id, anim] of animations.current) {
+      const t = Math.min((now - anim.startTime) / anim.durationMs, 1);
+      const e = easeInOut(t);
+      const pos = {
+        x: anim.from.x + (anim.to.x - anim.from.x) * e,
+        y: anim.from.y + (anim.to.y - anim.from.y) * e,
+      };
+      animPos.current.set(id, pos);
+      if (t >= 1) {
+        animations.current.delete(id);
+        // Dequeue next waypoint if path-walking
+        const queue = pathQueues.current.get(id);
+        if (queue && queue.length > 0) {
+          const next = queue.shift()!;
+          animations.current.set(id, {
+            from: { ...pos },
+            to: next,
+            startTime: now,
+            durationMs: STEP_MS,
+          });
+          if (queue.length === 0) {
+            pathQueues.current.delete(id);
+            pathAnimating.current.delete(id);
+          }
+        }
+      }
+    }
+
+    // Background
     ctx.fillStyle = "#0f172a";
     ctx.fillRect(0, 0, width, height);
 
+    // Grid lines
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 1;
     for (let x = 0; x <= cols; x++) {
@@ -56,37 +139,42 @@ export function GridCanvas({
       ctx.stroke();
     }
 
+    // Movement path highlight (path coords are in backend 1ft units)
     if (movementPath.length > 0) {
       ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
       for (const step of movementPath) {
-        ctx.fillRect(step.x * cellW, step.y * cellH, cellW, cellH);
+        ctx.fillRect(d(step.x) * cellW, d(step.y) * cellH, cellW, cellH);
       }
     }
 
+    // Destination indicator (also backend units)
     if (movementDestination) {
       ctx.strokeStyle = movementBlocked ? "#ef4444" : "#22c55e";
       ctx.lineWidth = 2;
       ctx.strokeRect(
-        movementDestination.x * cellW + 2,
-        movementDestination.y * cellH + 2,
+        d(movementDestination.x) * cellW + 2,
+        d(movementDestination.y) * cellH + 2,
         cellW - 4,
         cellH - 4,
       );
     }
 
-    for (const c of combatants) {
+    // Tokens (animPos stores display units already; fall back to scaled backend pos)
+    for (const c of cbs) {
       if (!c.position) continue;
-      const px = c.position.x * cellW + cellW / 2;
-      const py = c.position.y * cellH + cellH / 2;
+      const ap = animPos.current.get(c.id);
+      const ax = ap ? ap.x : d(c.position.x);
+      const ay = ap ? ap.y : d(c.position.y);
+      const px = ax * cellW + cellW / 2;
+      const py = ay * cellH + cellH / 2;
       const r = Math.min(cellW, cellH) * 0.38;
 
       const isPlayer = c.combatantType === "Character";
-      const isCurrent = c.id === activeCombatantId;
+      const isCurrent = c.id === activeId;
       const isSelected = c.id === selectedCombatantId;
       const isDead = c.hp.current <= 0;
       const isAttackTarget = attackMode && !isPlayer && !isDead;
 
-      // Pulse ring for valid attack targets
       if (isAttackTarget) {
         ctx.beginPath();
         ctx.arc(px, py, r + 5, 0, Math.PI * 2);
@@ -94,8 +182,6 @@ export function GridCanvas({
         ctx.lineWidth = 2;
         ctx.stroke();
       }
-
-      // Active turn ring
       if (isCurrent) {
         ctx.beginPath();
         ctx.arc(px, py, r + 4, 0, Math.PI * 2);
@@ -103,7 +189,6 @@ export function GridCanvas({
         ctx.lineWidth = 2.5;
         ctx.stroke();
       }
-
       if (isSelected) {
         ctx.beginPath();
         ctx.arc(px, py, r + 8, 0, Math.PI * 2);
@@ -112,7 +197,6 @@ export function GridCanvas({
         ctx.stroke();
       }
 
-      // Token body
       ctx.beginPath();
       ctx.arc(px, py, r, 0, Math.PI * 2);
       ctx.fillStyle = isDead
@@ -149,38 +233,105 @@ export function GridCanvas({
       ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#eab308" : "#ef4444";
       ctx.fillRect(barX, barY, barW * hpPct, barH);
     }
-  }, [
-    combatants,
-    activeCombatantId,
-    cols,
-    rows,
-    attackMode,
-    selectedCombatantId,
-    movementPath,
-    movementDestination,
-    movementBlocked,
-  ]);
 
+    // Keep looping while tweens are active; otherwise go idle
+    if (animations.current.size > 0) {
+      rafRef.current = requestAnimationFrame(renderFrame);
+    } else {
+      rafRef.current = null;
+    }
+  }, []); // stable — all live data read from refs
+
+  // ── Expose path animation API to parent ───────────────────────────────────
+  useImperativeHandle(ref, () => ({
+    moveAlongPath(combatantId: string, path: Array<{ x: number; y: number }>) {
+      if (path.length === 0) return;
+      // Convert backend path to display units
+      const displayPath = path.map((p) => ({ x: d(p.x), y: d(p.y) }));
+      const prevBk = prevPos.current.get(combatantId);
+      const from = animPos.current.get(combatantId) ?? (prevBk ? { x: d(prevBk.x), y: d(prevBk.y) } : null);
+      if (!from) return;
+      const [first, ...rest] = displayPath;
+      pathAnimating.current.add(combatantId);
+      if (rest.length > 0) pathQueues.current.set(combatantId, rest);
+      animations.current.set(combatantId, {
+        from: { ...from },
+        to: first,
+        startTime: performance.now(),
+        durationMs: STEP_MS,
+      });
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(renderFrame);
+    },
+  }), [renderFrame]);
+
+  // ── Sync refs on every render ────────────────────────────────────────────
   useEffect(() => {
-    draw();
-  }, [draw]);
+    colsRef.current = cols;
+    rowsRef.current = rows;
+    activeCombatantIdRef.current = activeCombatantId;
+    propsRef.current = { attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked };
+    // Redraw static state (only if no animation loop is already running)
+    if (rafRef.current === null) renderFrame();
+  }, [cols, rows, activeCombatantId, attackMode, selectedCombatantId, movementPath, movementDestination, movementBlocked, renderFrame]);
 
+  // ── Detect combatant position changes → kick off animations ─────────────
+  useEffect(() => {
+    combatantsRef.current = combatants;
+    let hasNew = false;
+
+    for (const c of combatants) {
+      if (!c.position) continue;
+      const prev = prevPos.current.get(c.id);
+      if (!prev) {
+        // First time seen — place immediately at display coords, no tween
+        animPos.current.set(c.id, { x: d(c.position.x), y: d(c.position.y) });
+        prevPos.current.set(c.id, { ...c.position }); // prevPos in backend units
+        continue;
+      }
+      if (prev.x !== c.position.x || prev.y !== c.position.y) {
+        prevPos.current.set(c.id, { ...c.position });
+        // Skip SSE tween if a path animation is already handling this move
+        if (pathAnimating.current.has(c.id)) continue;
+        // Fallback: tween to new display position (AI moves, remote players, etc.)
+        const from = animPos.current.get(c.id) ?? { x: d(prev.x), y: d(prev.y) };
+        animations.current.set(c.id, {
+          from: { ...from },
+          to: { x: d(c.position.x), y: d(c.position.y) },
+          startTime: performance.now(),
+          durationMs: SLIDE_MS,
+        });
+        hasNew = true;
+      }
+    }
+
+    if (hasNew) {
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(renderFrame);
+    } else if (rafRef.current === null) {
+      renderFrame();
+    }
+  }, [combatants, renderFrame]);
+
+  // ── Canvas resize observer ───────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const observer = new ResizeObserver(() => {
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
-      draw();
+      if (rafRef.current === null) renderFrame();
     });
     observer.observe(canvas);
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
-    draw();
-
-    return () => observer.disconnect();
-  }, [draw]);
+    renderFrame();
+    return () => {
+      observer.disconnect();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [renderFrame]);
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -190,14 +341,18 @@ export function GridCanvas({
     const my = e.clientY - rect.top;
     const cellW = canvas.width / cols;
     const cellH = canvas.height / rows;
-    const gx = Math.floor(mx / cellW);
-    const gy = Math.floor(my / cellH);
-
-    const hit = combatants.find((c) => c.position?.x === gx && c.position?.y === gy);
+    // Visual cell clicked
+    const vcx = Math.floor(mx / cellW);
+    const vcy = Math.floor(my / cellH);
+    // Hit-test: find token whose display cell matches
+    const hit = combatants.find(
+      (c) => c.position && Math.floor(d(c.position.x)) === vcx && Math.floor(d(c.position.y)) === vcy
+    );
     if (hit) {
       onTokenTap?.(hit.id);
     } else {
-      onCellTap?.(gx, gy);
+      // Emit backend coords so TacticalLayout can pass them straight to the server
+      onCellTap?.(vcx * FEET_PER_CELL, vcy * FEET_PER_CELL);
     }
   }
 
@@ -209,4 +364,4 @@ export function GridCanvas({
       style={{ display: "block" }}
     />
   );
-}
+});
