@@ -13,6 +13,7 @@ import type { PathPreviewResponse } from "../types/api";
 export function TacticalLayout() {
   const { id: sessionId } = useParams<{ id: string }>();
   const openCharacterSheet = useAppStore((s) => s.openCharacterSheet);
+  const moveCombatant = useAppStore((s) => s.moveCombatant);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
@@ -98,6 +99,8 @@ export function TacticalLayout() {
           actorId: myCharacterId,
           encounterId,
         });
+        // Optimistic position update — SSE Move event will confirm later
+        moveCombatant(selectedMoverId, { x, y });
         clearMoveState();
       } catch (err) {
         console.error("Move action failed:", err);

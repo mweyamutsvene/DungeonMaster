@@ -48,6 +48,7 @@ interface AppState {
   setMyCharacterId(id: string): void;
   setMode(mode: AppMode): void;
   hydrateCombat(encounter: EncounterState, tactical: TacticalViewResponse): void;
+  moveCombatant(id: string, position: { x: number; y: number }): void;
   handleServerEvent(event: ServerEvent): void;
   openCharacterSheet(combatantId?: string): void;
   closeCharacterSheet(): void;
@@ -91,6 +92,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPlayerName: (playerName) => set({ playerName }),
   setMyCharacterId: (myCharacterId) => set({ myCharacterId }),
   setMode: (mode) => set({ mode }),
+  moveCombatant: (id, position) =>
+    set((s) => ({ combatants: s.combatants.map((c) => (c.id === id ? { ...c, position } : c)) })),
 
   hydrateCombat: (encounter, tactical) => {
     const entityMap = new Map(encounter.combatants.map((c) => [c.id, c]));
