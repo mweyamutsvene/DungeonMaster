@@ -81,6 +81,21 @@ export function facingFromVector(dx: number, dy: number, fallback: Facing = "sou
 }
 
 /**
+ * Derive facing from an isometric grid movement delta (cell units).
+ * In 2:1 iso the grid is rotated 45° so a grid step of (+1, 0) projects to
+ * screen bottom-right ("east") and (+0, +1) projects to screen bottom-left
+ * ("west"). We convert to screen-space before choosing the cardinal sprite.
+ */
+export function facingFromIsoGrid(gdx: number, gdy: number, fallback: Facing = "south"): Facing {
+  if (gdx === 0 && gdy === 0) return fallback;
+  // 2:1 iso projection (ignoring HALF_W/HALF_H scaling — only direction matters).
+  const sdx = gdx - gdy;  // screen-space x: +ve = right = east
+  const sdy = gdx + gdy;  // screen-space y: +ve = down = south
+  if (Math.abs(sdx) > Math.abs(sdy)) return sdx > 0 ? "east" : "west";
+  return sdy > 0 ? "south" : "north";
+}
+
+/**
  * Draw the hero centered at (cx, cy). When `running` is true, animates the
  * running cycle for the facing direction; otherwise draws the idle rotation.
  */

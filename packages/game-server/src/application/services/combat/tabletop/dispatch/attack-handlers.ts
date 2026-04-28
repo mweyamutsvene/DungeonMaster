@@ -90,6 +90,18 @@ export class AttackHandlers {
     const actorPos = actorCombatant ? getPosition(actorCombatant.resources ?? {}) : null;
     const actorRef = inferActorRef(actorId, roster);
 
+    // Fast path: explicit entity ID from programmatic clients (web canvas @id: protocol)
+    if (targetName?.startsWith("@id:")) {
+      const entityId = targetName.slice(4);
+      const charEntry = roster.characters.find((c) => c.id === entityId);
+      if (charEntry) return { type: "Character", characterId: entityId };
+      const monEntry = roster.monsters.find((m) => m.id === entityId);
+      if (monEntry) return { type: "Monster", monsterId: entityId };
+      const npcEntry = roster.npcs.find((n) => n.id === entityId);
+      if (npcEntry) return { type: "NPC", npcId: entityId };
+      throw new ValidationError(`No combatant found with id "${entityId}"`);
+    }
+
     if (targetName) {
       const candidates = findAllCombatantsByName(targetName, roster);
       if (candidates.length === 0) {

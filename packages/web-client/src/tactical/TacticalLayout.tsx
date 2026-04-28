@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { PartyStatusBar } from "./PartyStatusBar";
 import { InitiativeTracker } from "./InitiativeTracker";
@@ -21,6 +21,7 @@ export function TacticalLayout() {
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
   const encounterId = useAppStore((s) => s.encounterId);
+  const combatResult = useAppStore((s) => s.combatResult);
 
   const [attackMode, setAttackMode] = useState(false);
   const [selectedMoverId, setSelectedMoverId] = useState<string | null>(null);
@@ -32,6 +33,15 @@ export function TacticalLayout() {
   const gridRef = useRef<GridCanvasHandle>(null);
 
   const isLoading = moving || loadingPath || attacking;
+
+  // When combat ends, show overlay then transition to theatre after animations finish.
+  useEffect(() => {
+    if (!combatResult) return;
+    const timer = setTimeout(() => {
+      useAppStore.setState({ encounterId: null, mode: "theatre", activeCombatantId: null, combatants: [], combatResult: null });
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [combatResult]);
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
   const myTurn = !!activeCombatant && !!myCharacterId && activeCombatant.characterId === myCharacterId;
@@ -51,7 +61,7 @@ export function TacticalLayout() {
     setAttacking(true);
     try {
       const response = await gameServer.submitAction(sessionId, {
-        text: `attack ${target.name}`,
+        text: `attack @id:${target.id}`,
         actorId: myCharacterId,
         encounterId,
       });
@@ -178,6 +188,20 @@ export function TacticalLayout() {
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/60 pointer-events-none">
             <div className="w-8 h-8 rounded-full border-2 border-slate-600 border-t-amber-400 animate-spin" />
+          </div>
+        )}
+        {/* Combat ended overlay — stays until death animations finish */}
+        {combatResult && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none">
+            <div className="bg-slate-900/80 border border-amber-500/60 rounded-2xl px-10 py-8 flex flex-col items-center gap-3 shadow-2xl">
+              <div className="text-5xl">
+                {combatResult.toLowerCase().includes("victory") || combatResult.toLowerCase().includes("win") ? "⚔️" : "💀"}
+              </div>
+              <div className="text-amber-300 text-3xl font-bold tracking-wider uppercase">
+                {combatResult}
+              </div>
+              <div className="text-slate-400 text-sm mt-1">Returning to session…</div>
+            </div>
           </div>
         )}
         {attackMode && (

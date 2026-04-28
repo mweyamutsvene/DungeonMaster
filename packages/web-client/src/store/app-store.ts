@@ -28,6 +28,9 @@ interface AppState {
   // Mode
   mode: AppMode;
 
+  // Set after CombatEnded — tactical stays visible until animations finish, then clears.
+  combatResult: string | null;
+
   // Combat
   encounterId: string | null;
   round: number;
@@ -97,6 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   round: 1,
   activeCombatantId: null,
   combatants: [],
+  combatResult: null,
   tacticalVersion: 0,
   _lastSeenTurnKey: "",
   pendingReaction: null,
@@ -150,7 +154,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
 
       case "CombatEnded":
-        set({ encounterId: null, mode: "theatre", activeCombatantId: null, combatants: [] });
+        // Keep combatants visible so death animations can finish.
+        // TacticalLayout watches combatResult and transitions to theatre after a delay.
+        set({ combatResult: (event.payload as { result?: string }).result ?? "Victory" });
         break;
 
       case "TurnAdvanced": {

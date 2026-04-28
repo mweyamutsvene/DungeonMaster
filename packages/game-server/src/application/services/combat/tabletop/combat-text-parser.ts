@@ -697,6 +697,13 @@ export interface ParsedAttackText {
  * happens in the dispatcher which has access to combatant positions.
  */
 export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAttackText | null {
+  // Fast path: explicit entity-ID from programmatic clients (e.g. the web canvas).
+  // Accepts "attack @id:<entityId>" — bypasses roster name lookup entirely.
+  const idMatch = input.trim().match(/^(?:attack\s+)?@id:([a-zA-Z0-9_-]+)$/i);
+  if (idMatch) {
+    return { targetName: `@id:${idMatch[1]}`, nearest: false };
+  }
+
   const normalized = input.trim().toLowerCase();
 
   // Skip if it's an offhand/bonus attack
