@@ -59,9 +59,11 @@ export function TacticalLayout() {
     setAttackMode(false);
     clearMoveState();
     setAttacking(true);
+    // Use the entity ID (monsterId/characterId/npcId) — target.id is the combatant state row ID
+    const entityId = target.monsterId ?? target.characterId ?? target.npcId ?? target.id;
     try {
       const response = await gameServer.submitAction(sessionId, {
-        text: `attack @id:${target.id}`,
+        text: `attack @id:${entityId}`,
         actorId: myCharacterId,
         encounterId,
       });
