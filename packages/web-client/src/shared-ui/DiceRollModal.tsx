@@ -74,15 +74,30 @@ export function DiceRollModal() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleRoll = useCallback(() => {
-    if (!pendingRoll) return;
+  const handleRoll = useCallback(async () => {
+    if (!pendingRoll || !sessionId || submitting) return;
     const notation = pendingRoll.diceNeeded ?? "d20";
     const result = rollDice(notation);
     setRolled(result);
-    // Submit raw die result — server adds the modifier server-side
-    setCustomValue(String(result.rawRoll));
     setError(null);
-  }, [pendingRoll]);
+    // Auto-submit immediately — no need for a second "Confirm" click
+    setSubmitting(true);
+    try {
+      const response = await gameServer.submitRoll(sessionId, {
+        text: `I rolled ${result.rawRoll}`,
+        actorId: pendingRoll.actorId,
+      });
+      setRolled(null);
+      setCustomValue("");
+      handleRollResponse(response, pendingRoll.actorId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit roll");
+      // Keep value visible so user can retry via Confirm
+      setCustomValue(String(result.rawRoll));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [pendingRoll, sessionId, submitting, handleRollResponse]);
 
   const handleSubmit = useCallback(async () => {
     if (!sessionId || !pendingRoll || submitting) return;
@@ -147,11 +162,11 @@ export function DiceRollModal() {
 
           {/* Roll button */}
           <button
-            onClick={handleRoll}
+            onClick={() => void handleRoll()}
             disabled={submitting}
             className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-bold text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            🎲 Roll {notation}
+            {submitting ? "Rolling…" : `🎲 Roll ${notation}`}
           </button>
 
           {/* Result */}

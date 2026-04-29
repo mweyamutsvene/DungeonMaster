@@ -352,7 +352,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       });
     } else {
-      set({ pendingRoll: null });
+      // Dismiss roll prompt and bump tacticalVersion so action economy refreshes immediately
+      // (don't wait for the async AttackResolved SSE).
+      set((s) => ({ pendingRoll: null, tacticalVersion: s.tacticalVersion + 1 }));
     }
   },
 }));
