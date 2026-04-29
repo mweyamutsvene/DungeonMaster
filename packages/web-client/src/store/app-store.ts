@@ -303,31 +303,44 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "AttackResolved": {
-        // Store raw refs — names are resolved at render time in NarrationLog.tsx
-        // using live combatants state, so historical events auto-fix after refresh.
+        // Store raw refs — names resolved at render time in NarrationLog.tsx.
+        // Also optimistically mark attacker's actionSpent=true so the UI disables
+        // the attack option immediately, before the tacticalVersion re-fetch arrives.
+        // This prevents the "Actor has already spent their action" 400 race condition.
         const p = event.payload;
-        set((s) => ({
-          tacticalVersion: s.tacticalVersion + 1,
-          narrationLog: [
-            ...s.narrationLog.slice(-99),
-            {
-              id: narrationId(),
-              text: "",
-              timestamp: Date.now(),
-              eventType: "AttackResolved",
-              attackData: {
-                hit: p.hit,
-                critical: p.critical as boolean | undefined,
-                attackTotal: p.attackTotal as number | undefined,
-                attackRoll: p.attackRoll as number | undefined,
-                targetAC: p.targetAC as number | undefined,
-                damageApplied: p.damageApplied as number | undefined,
-                attacker: p.attacker,
-                target: p.target,
+        set((s) => {
+          const attackerMatch = p.attacker ? findByRef(s.combatants, p.attacker) : undefined;
+          const updatedCombatants = attackerMatch
+            ? s.combatants.map((c) =>
+                c.id === attackerMatch.id
+                  ? { ...c, turnFlags: { ...c.turnFlags, actionSpent: true } }
+                  : c
+              )
+            : s.combatants;
+          return {
+            tacticalVersion: s.tacticalVersion + 1,
+            combatants: updatedCombatants,
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text: "",
+                timestamp: Date.now(),
+                eventType: "AttackResolved",
+                attackData: {
+                  hit: p.hit,
+                  critical: p.critical as boolean | undefined,
+                  attackTotal: p.attackTotal as number | undefined,
+                  attackRoll: p.attackRoll as number | undefined,
+                  targetAC: p.targetAC as number | undefined,
+                  damageApplied: p.damageApplied as number | undefined,
+                  attacker: p.attacker,
+                  target: p.target,
+                },
               },
-            },
-          ],
-        }));
+            ],
+          };
+        });
         break;
       }
 
