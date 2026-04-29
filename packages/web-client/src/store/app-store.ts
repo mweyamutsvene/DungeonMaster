@@ -291,33 +291,43 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "AttackResolved": {
         const ar = event.payload;
         set((s) => {
-          // Tabletop (player) attacks emit AttackResolved + NarrativeText — skip here to avoid duplicates.
-          // AI attacks only emit AttackResolved, so we synthesize a log entry for those.
           const attackerRef = ar.attacker as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
-          const isPlayerAttack = attackerRef?.characterId === s.myCharacterId;
-          if (isPlayerAttack) {
-            // NarrativeText will handle the log entry; just refresh action economy.
-            return { tacticalVersion: s.tacticalVersion + 1 };
-          }
-
-          const attackerName = attackerRef
-            ? findByRef(s.combatants, attackerRef)?.name ?? (ar.attackerName as string | undefined)
-            : (ar.attackerName as string | undefined);
+          const attackerName =
+            (attackerRef ? findByRef(s.combatants, attackerRef)?.name : undefined) ??
+            (ar.attackerName as string | undefined) ??
+            "?";
           const targetRef = ar.target as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
-          const targetName = targetRef
-            ? findByRef(s.combatants, targetRef)?.name ?? (ar.targetName as string | undefined)
-            : (ar.targetName as string | undefined);
-          const attackName = ar.attackName as string | undefined;
+          const targetName =
+            (targetRef ? findByRef(s.combatants, targetRef)?.name : undefined) ??
+            (ar.targetName as string | undefined) ??
+            "?";
+
           const damageApplied = ar.damageApplied as number | undefined;
           const critical = ar.critical as boolean | undefined;
+          const attackRoll = ar.attackRoll as number | undefined;
+          const attackTotal = ar.attackTotal as number | undefined;
+          const targetAC = ar.targetAC as number | undefined;
 
+          // Roll stats tag: e.g. "[15 vs AC 14]"
+          const rollDisplay = attackTotal != null ? attackTotal : attackRoll;
+          const statsTag =
+            rollDisplay != null && targetAC != null
+              ? ` [${rollDisplay} vs AC ${targetAC}]`
+              : rollDisplay != null
+                ? ` [roll: ${rollDisplay}]`
+                : "";
+
+          let label: string;
           let text: string;
-          if (ar.hit) {
-            const critTag = critical ? " (CRITICAL HIT!)" : "";
-            const dmgTag = damageApplied ? ` for ${damageApplied} damage` : "";
-            text = `${attackerName ?? "?"} hits ${targetName ?? "?"}${attackName ? ` with ${attackName}` : ""}${dmgTag}${critTag}!`;
+          if (critical) {
+            label = "CRITICAL HIT";
+            text = `${label}:${statsTag} ${targetName} takes ${damageApplied ?? "?"} damage!`;
+          } else if (ar.hit) {
+            label = "HIT";
+            text = `${label}:${statsTag} ${targetName} takes ${damageApplied ?? "?"} damage`;
           } else {
-            text = `${attackerName ?? "?"} misses ${targetName ?? "?"}${attackName ? ` with ${attackName}` : ""}!`;
+            label = "MISS";
+            text = `${label}:${statsTag} ${attackerName} misses ${targetName}`;
           }
 
           return {

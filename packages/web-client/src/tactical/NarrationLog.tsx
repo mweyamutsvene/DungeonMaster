@@ -31,7 +31,13 @@ export function NarrationLog() {
         {latest ? (
           <span className={[
             "text-xs truncate",
-            latest.eventType === "error" ? "text-red-400 font-medium" : "text-slate-300",
+            latest.eventType === "error"
+              ? "text-red-400 font-medium"
+              : latest.eventType === "AttackResolved"
+              ? latest.text.startsWith("CRITICAL") ? "text-red-400 font-bold"
+                : latest.text.startsWith("HIT") ? "text-green-400 font-bold"
+                : "text-yellow-400 font-bold"
+              : "text-slate-300",
           ].join(" ")}>
             {latest.text}
           </span>
@@ -49,28 +55,48 @@ export function NarrationLog() {
           {narrationLog.length === 0 && (
             <p className="text-slate-600 text-xs italic">No events yet.</p>
           )}
-          {narrationLog.map((entry) => (
-            <div key={entry.id} className="text-xs">
-              {entry.actor && (
-                <span className="text-amber-400 font-medium">{entry.actor}: </span>
-              )}
-              <span
-                className={
-                  entry.eventType === "error"
-                    ? "text-red-400 font-medium"
-                    : entry.eventType === "NarrativeText"
-                    ? "text-slate-200 italic"
-                    : entry.eventType === "OpportunityAttack"
-                    ? "text-orange-300 font-medium"
-                    : entry.eventType === "Move"
-                    ? "text-sky-300"
-                    : "text-slate-400"
-                }
-              >
-                {entry.text}
-              </span>
-            </div>
-          ))}
+          {narrationLog.map((entry) => {
+            if (entry.eventType === "AttackResolved") {
+              // Format: "HIT: [15 vs AC 14] Thorin takes 4 damage"
+              const colonIdx = entry.text.indexOf(":");
+              const label = colonIdx !== -1 ? entry.text.slice(0, colonIdx) : entry.text;
+              const body = colonIdx !== -1 ? entry.text.slice(colonIdx + 1).trimStart() : "";
+              const labelClass =
+                label === "CRITICAL HIT"
+                  ? "text-red-400 font-bold"
+                  : label === "HIT"
+                  ? "text-green-400 font-bold"
+                  : "text-yellow-400 font-bold"; // MISS
+              return (
+                <div key={entry.id} className="text-xs flex gap-1.5 items-baseline pl-2 border-l-2 border-slate-700">
+                  <span className={labelClass}>{label}</span>
+                  {body && <span className="text-slate-300">{body}</span>}
+                </div>
+              );
+            }
+            return (
+              <div key={entry.id} className="text-xs">
+                {entry.actor && (
+                  <span className="text-amber-400 font-medium">{entry.actor}: </span>
+                )}
+                <span
+                  className={
+                    entry.eventType === "error"
+                      ? "text-red-400 font-medium"
+                      : entry.eventType === "NarrativeText"
+                      ? "text-slate-200 italic"
+                      : entry.eventType === "OpportunityAttack"
+                      ? "text-orange-300 font-medium"
+                      : entry.eventType === "Move"
+                      ? "text-sky-300"
+                      : "text-slate-400"
+                  }
+                >
+                  {entry.text}
+                </span>
+              </div>
+            );
+          })}
           <div ref={bottomRef} />
         </div>
       )}
