@@ -286,18 +286,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((s) => {
           const actorName = payloadActorName
             ?? (actorRef ? findByRef(s.combatants, actorRef)?.name : undefined);
-          return {
-            narrationLog: [
-              ...s.narrationLog.slice(-99),
-              {
-                id: narrationId(),
-                text: narrativeText,
-                actor: actorName,
-                timestamp: Date.now(),
-                eventType: "NarrativeText",
-              },
-            ],
+          const newEntry: NarrationEntry = {
+            id: narrationId(),
+            text: narrativeText,
+            actor: actorName,
+            timestamp: Date.now(),
+            eventType: "NarrativeText",
           };
+          const trimmed = s.narrationLog.slice(-99);
+          const last = trimmed[trimmed.length - 1];
+          // Player attack path emits AttackResolved THEN NarrativeText.
+          // AI attack path emits NarrativeText THEN AttackResolved.
+          // Swap when needed so prose always precedes the structured outcome line.
+          if (last?.eventType === "AttackResolved") {
+            return { narrationLog: [...trimmed.slice(0, -1), newEntry, last] };
+          }
+          return { narrationLog: [...trimmed, newEntry] };
         });
         break;
       }
