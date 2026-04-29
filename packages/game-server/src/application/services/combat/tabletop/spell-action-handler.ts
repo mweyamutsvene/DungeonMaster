@@ -22,8 +22,9 @@
 import { ValidationError } from "../../../errors.js";
 import { resolveSpell, prepareSpellCast, validateUpcast } from "../helpers/spell-slot-manager.js";
 import { applyKoEffectsIfNeeded } from "../helpers/ko-handler.js";
-import { normalizeResources, getPosition, patchResources } from "../helpers/resource-utils.js";
+import { normalizeResources, getPosition, patchResources, getResourcePools } from "../helpers/resource-utils.js";
 import { findCombatantByEntityId } from "../helpers/combatant-lookup.js";
+import { buildCombatResources } from "../../../../domain/entities/classes/combat-resource-builder.js";
 import { getEntityIdFromRef } from "../helpers/combatant-ref.js";
 import { calculateDistance } from "../../../../domain/rules/movement.js";
 import { getSpellCasterType, isSpellAvailable } from "../../../../domain/rules/spell-preparation.js";
@@ -117,6 +118,38 @@ export class SpellActionHandler {
       eventsRepo: this.deps.events,
     });
     return result;
+  }
+
+  /**
+   * Lazily initialize resource pools for a combatant that entered combat without rolling
+   * initiative (e.g. action taken before initiative or pre-fix session state).
+   * Only writes to DB if `resourcePools` is currently absent.
+   */
+  private async ensureResourcePoolsInitialized(
+    combatantId: string,
+    encounterId: string,
+    character: SessionCharacterRecord | undefined,
+  ): Promise<void> {
+    if (!character) return;
+    const combatants = await this.deps.combatRepo.listCombatants(encounterId);
+    const combatant = combatants.find((c) => c.id === combatantId);
+    if (!combatant) return;
+    const existingPools = getResourcePools(combatant.resources);
+    if (existingPools.length > 0) return; // already initialized
+
+    const sheet = (typeof character.sheet === "object" && character.sheet !== null ? character.sheet : {}) as Record<string, unknown>;
+    const classLevels = Array.isArray((sheet as any).classLevels) ? (sheet as any).classLevels : undefined;
+    const combatRes = buildCombatResources({
+      className: character.className ?? "",
+      level: character.level ?? 1,
+      sheet: sheet as any,
+      classLevels,
+    });
+    if (combatRes.resourcePools.length === 0) return;
+    const normalized = normalizeResources(combatant.resources);
+    await this.deps.combatRepo.updateCombatantState(combatantId, {
+      resources: { ...normalized, resourcePools: combatRes.resourcePools } as import("../../../types.js").JsonValue,
+    });
   }
 
   /** Resolve encounter, combatants, and actor combatant in one call. */
@@ -306,6 +339,7 @@ export class SpellActionHandler {
 
       // Spell slot is consumed on cast attempt (even if counterspelled), same as AI flow.
       if (spellLevel > 0 && actorCombatant) {
+        await this.ensureResourcePoolsInitialized(actorCombatant.id, encounter.id, character);
         await prepareSpellCast(
           actorCombatant.id,
           encounter.id,
@@ -386,6 +420,7 @@ export class SpellActionHandler {
     // (shared with AI path in helpers/spell-slot-manager.ts)
     if (spellLevel > 0) {
       if (actorCombatant) {
+        await this.ensureResourcePoolsInitialized(actorCombatant.id, encounter.id, character);
         await prepareSpellCast(
           actorCombatant.id,
           encounter.id,
