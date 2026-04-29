@@ -11,30 +11,26 @@ export interface PendingRoll {
 
 export type AppMode = "tactical" | "theatre" | null;
 
-export interface AttackResolvedData {
+/** Raw data stored for AttackResolved entries — names resolved at render time via live combatants. */
+export interface AttackLogData {
   hit: boolean | undefined;
   critical?: boolean;
   attackTotal?: number;
   attackRoll?: number;
   targetAC?: number;
   damageApplied?: number;
-  /** Embedded in payload (server >= 2026-04-28) — always use over ref lookup. */
-  attackerName?: string;
-  targetName?: string;
-  /** Ref fallback for live-session lookups when payload names are missing. */
-  attackerRef?: { characterId?: string; monsterId?: string; npcId?: string };
-  targetRef?: { characterId?: string; monsterId?: string; npcId?: string };
+  attacker?: { characterId?: string; monsterId?: string; npcId?: string };
+  target?: { characterId?: string; monsterId?: string; npcId?: string };
 }
 
 export interface NarrationEntry {
   id: string;
-  /** Pre-built display text.  For `AttackResolved` entries use `attackResolved` at render time instead. */
   text: string;
   actor?: string;
   timestamp: number;
   eventType: string;
-  /** Present on AttackResolved entries — names resolved at render time so refresh replay works. */
-  attackResolved?: AttackResolvedData;
+  /** Present only for AttackResolved entries — used for render-time name resolution. */
+  attackData?: AttackLogData;
 }
 
 interface AppState {
@@ -307,43 +303,31 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "AttackResolved": {
-        const ar = event.payload;
-        set((s) => {
-          // Store raw data — names are resolved at render time so they work
-          // both live (combatants loaded) and on refresh (SSE replay before combatants load).
-          const attackerRef = ar.attacker as AttackResolvedData["attackerRef"] | undefined;
-          const targetRef = ar.target as AttackResolvedData["targetRef"] | undefined;
-          const attackResolved: AttackResolvedData = {
-            hit: ar.hit as boolean | undefined,
-            critical: ar.critical as boolean | undefined,
-            attackRoll: ar.attackRoll as number | undefined,
-            attackTotal: ar.attackTotal as number | undefined,
-            targetAC: ar.targetAC as number | undefined,
-            damageApplied: ar.damageApplied as number | undefined,
-            attackerName: ar.attackerName as string | undefined,
-            targetName: ar.targetName as string | undefined,
-            attackerRef,
-            targetRef,
-          };
-          // actor for collapsed header: prefer payload name, fall back to live lookup
-          const actor =
-            (ar.attackerName as string | undefined) ??
-            (attackerRef ? findByRef(s.combatants, attackerRef)?.name : undefined);
-          return {
-            tacticalVersion: s.tacticalVersion + 1,
-            narrationLog: [
-              ...s.narrationLog.slice(-99),
-              {
-                id: narrationId(),
-                text: "", // not used — AttackResolved renders from attackResolved
-                actor,
-                timestamp: Date.now(),
-                eventType: "AttackResolved",
-                attackResolved,
+        // Store raw refs — names are resolved at render time in NarrationLog.tsx
+        // using live combatants state, so historical events auto-fix after refresh.
+        const p = event.payload;
+        set((s) => ({
+          tacticalVersion: s.tacticalVersion + 1,
+          narrationLog: [
+            ...s.narrationLog.slice(-99),
+            {
+              id: narrationId(),
+              text: "",
+              timestamp: Date.now(),
+              eventType: "AttackResolved",
+              attackData: {
+                hit: p.hit,
+                critical: p.critical as boolean | undefined,
+                attackTotal: p.attackTotal as number | undefined,
+                attackRoll: p.attackRoll as number | undefined,
+                targetAC: p.targetAC as number | undefined,
+                damageApplied: p.damageApplied as number | undefined,
+                attacker: p.attacker,
+                target: p.target,
               },
-            ],
-          };
-        });
+            },
+          ],
+        }));
         break;
       }
 
@@ -404,9 +388,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       });
     } else {
-      // Dismiss roll prompt and bump tacticalVersion so action economy refreshes immediately
-      // (don't wait for the async AttackResolved SSE).
-      set((s) => ({ pendingRoll: null, tacticalVersion: s.tacticalVersion + 1 }));
+      set({ pendingRoll: null });
     }
   },
 }));
