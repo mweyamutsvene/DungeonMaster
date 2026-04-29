@@ -289,9 +289,51 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "AttackResolved": {
-        // NarrativeText events already describe the attack in full prose.
-        // Just bump tacticalVersion so action economy refreshes after the attack.
-        set((s) => ({ tacticalVersion: s.tacticalVersion + 1 }));
+        const ar = event.payload;
+        set((s) => {
+          // Tabletop (player) attacks emit AttackResolved + NarrativeText — skip here to avoid duplicates.
+          // AI attacks only emit AttackResolved, so we synthesize a log entry for those.
+          const attackerRef = ar.attacker as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
+          const isPlayerAttack = attackerRef?.characterId === s.myCharacterId;
+          if (isPlayerAttack) {
+            // NarrativeText will handle the log entry; just refresh action economy.
+            return { tacticalVersion: s.tacticalVersion + 1 };
+          }
+
+          const attackerName = attackerRef
+            ? findByRef(s.combatants, attackerRef)?.name ?? (ar.attackerName as string | undefined)
+            : (ar.attackerName as string | undefined);
+          const targetRef = ar.target as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
+          const targetName = targetRef
+            ? findByRef(s.combatants, targetRef)?.name ?? (ar.targetName as string | undefined)
+            : (ar.targetName as string | undefined);
+          const attackName = ar.attackName as string | undefined;
+          const damageApplied = ar.damageApplied as number | undefined;
+          const critical = ar.critical as boolean | undefined;
+
+          let text: string;
+          if (ar.hit) {
+            const critTag = critical ? " (CRITICAL HIT!)" : "";
+            const dmgTag = damageApplied ? ` for ${damageApplied} damage` : "";
+            text = `${attackerName ?? "?"} hits ${targetName ?? "?"}${attackName ? ` with ${attackName}` : ""}${dmgTag}${critTag}!`;
+          } else {
+            text = `${attackerName ?? "?"} misses ${targetName ?? "?"}${attackName ? ` with ${attackName}` : ""}!`;
+          }
+
+          return {
+            tacticalVersion: s.tacticalVersion + 1,
+            narrationLog: [
+              ...s.narrationLog.slice(-99),
+              {
+                id: narrationId(),
+                text,
+                actor: attackerName,
+                timestamp: Date.now(),
+                eventType: "AttackResolved",
+              },
+            ],
+          };
+        });
         break;
       }
 
