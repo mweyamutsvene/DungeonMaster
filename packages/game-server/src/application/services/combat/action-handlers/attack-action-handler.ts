@@ -364,6 +364,8 @@ export class AttackActionHandler {
           encounterId: encounter.id,
           attacker: input.attacker,
           target: input.target,
+          attackerName: attackerStats.name,
+          targetName: targetStats.name,
           attackName: spec.name || attackerEquippedWeapon,
           // Flattened fields for easier consumption
           attackRoll: result.attack.d20,

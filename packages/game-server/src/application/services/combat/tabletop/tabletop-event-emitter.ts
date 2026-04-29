@@ -97,6 +97,8 @@ export class TabletopEventEmitter {
         encounterId,
         attacker: attackerRef,
         target: targetRef,
+        attackerName,
+        targetName,
         attackName: opts?.attackName ?? "Attack",
         attackRoll: rollValue,
         attackBonus: opts?.attackBonus ?? (total - rollValue),

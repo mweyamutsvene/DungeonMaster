@@ -291,15 +291,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "AttackResolved": {
         const ar = event.payload;
         set((s) => {
+          // Names come from payload (server always embeds them now).
+          // Fall back to live combatant lookup (same-session, non-replay events).
           const attackerRef = ar.attacker as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
           const attackerName =
-            (attackerRef ? findByRef(s.combatants, attackerRef)?.name : undefined) ??
             (ar.attackerName as string | undefined) ??
+            (attackerRef ? findByRef(s.combatants, attackerRef)?.name : undefined) ??
             "?";
           const targetRef = ar.target as { characterId?: string; monsterId?: string; npcId?: string } | undefined;
           const targetName =
-            (targetRef ? findByRef(s.combatants, targetRef)?.name : undefined) ??
             (ar.targetName as string | undefined) ??
+            (targetRef ? findByRef(s.combatants, targetRef)?.name : undefined) ??
             "?";
 
           const damageApplied = ar.damageApplied as number | undefined;

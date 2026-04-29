@@ -976,16 +976,22 @@ export class AttackReactionHandler {
           }
         }
 
+        // Resolve names for event payloads (outside individual event blocks so both can share)
+        const hitTargetName = await this.combatants.getName(attackData.target, target).catch(() => undefined);
+        const hitAttackerCombatantState = findCombatantStateByRef(combatants, pendingAction.actor);
+        const hitAttackerName = hitAttackerCombatantState
+          ? await this.combatants.getName(pendingAction.actor as any, hitAttackerCombatantState).catch(() => undefined)
+          : undefined;
+
         // Emit damage event
         if (this.events) {
-          const targetName = await this.combatants.getName(attackData.target, target);
           await this.events.append(sessionId, {
             id: nanoid(),
             type: "DamageApplied",
             payload: {
               encounterId: encounter.id,
               target: attackData.target,
-              targetName,
+              targetName: hitTargetName,
               amount: damageApplied,
               hpCurrent: hpAfter,
             },
@@ -1001,6 +1007,8 @@ export class AttackReactionHandler {
               encounterId: encounter.id,
               attacker: pendingAction.actor,
               target: attackData.target,
+              ...(hitAttackerName != null ? { attackerName: hitAttackerName } : {}),
+              ...(hitTargetName != null ? { targetName: hitTargetName } : {}),
               attackName: attackData.attackName,
               attackRoll: attackData.d20Roll ?? attackData.attackRoll,
               attackBonus: attackData.attackBonus ?? 0,
@@ -1016,6 +1024,14 @@ export class AttackReactionHandler {
     } else if (!hit) {
       // Emit attack miss event
       if (this.events) {
+        const missTargetState = findCombatantStateByRef(combatants, attackData.target);
+        const missTargetName = missTargetState
+          ? await this.combatants.getName(attackData.target, missTargetState).catch(() => undefined)
+          : undefined;
+        const missAttackerState = findCombatantStateByRef(combatants, pendingAction.actor);
+        const missAttackerName = missAttackerState
+          ? await this.combatants.getName(pendingAction.actor as any, missAttackerState).catch(() => undefined)
+          : undefined;
         await this.events.append(sessionId, {
           id: nanoid(),
           type: "AttackResolved",
@@ -1023,6 +1039,8 @@ export class AttackReactionHandler {
             encounterId: encounter.id,
             attacker: pendingAction.actor,
             target: attackData.target,
+            ...(missAttackerName != null ? { attackerName: missAttackerName } : {}),
+            ...(missTargetName != null ? { targetName: missTargetName } : {}),
             attackName: attackData.attackName,
             attackRoll: attackData.d20Roll ?? attackData.attackRoll,
             attackBonus: attackData.attackBonus ?? 0,
