@@ -94,6 +94,11 @@ function narrationId() {
   return `n-${Date.now()}-${++_narrationSeq}`;
 }
 
+// Buffer for player-attack path where AttackResolved fires BEFORE NarrativeText.
+// Held here (not in Zustand state) so it never triggers a re-render by itself.
+// Flushed after the matching NarrativeText, or on TurnAdvanced as a safety valve.
+let _pendingAttackEntry: NarrationEntry | null = null;
+
 function findByRef(
   combatants: StoredCombatant[],
   ref: { characterId?: string; monsterId?: string; npcId?: string; name?: string },
@@ -178,12 +183,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         const key = `${event.payload.round}:${event.payload.turn}`;
         const { _lastSeenTurnKey } = get();
         if (key === _lastSeenTurnKey) break;
-        // Bump tacticalVersion so SessionPage re-fetches activeCombatantId + fresh action economy
-        set((s) => ({
-          round: event.payload.round,
-          _lastSeenTurnKey: key,
-          tacticalVersion: s.tacticalVersion + 1,
-        }));
+        // Flush any pending attack entry that never got a NarrativeText (safety valve).
+        set((s) => {
+          const stalePending = _pendingAttackEntry;
+          _pendingAttackEntry = null;
+          return {
+            round: event.payload.round,
+            _lastSeenTurnKey: key,
+            tacticalVersion: s.tacticalVersion + 1,
+            narrationLog: stalePending
+              ? [...s.narrationLog.slice(-99), stalePending]
+              : s.narrationLog,
+          };
+        });
         break;
       }
 
@@ -280,13 +292,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "NarrativeText": {
         const narrativeText = event.payload.text;
-        // Prefer server-embedded actorName; fall back to store lookup via CombatantRef
         const payloadActorName = event.payload.actorName;
         const actorRef = event.payload.actor;
         set((s) => {
           const actorName = payloadActorName
             ?? (actorRef ? findByRef(s.combatants, actorRef)?.name : undefined);
-          const newEntry: NarrationEntry = {
+          const narrativeEntry: NarrationEntry = {
             id: narrationId(),
             text: narrativeText,
             actor: actorName,
@@ -294,23 +305,22 @@ export const useAppStore = create<AppState>((set, get) => ({
             eventType: "NarrativeText",
           };
           const trimmed = s.narrationLog.slice(-99);
-          const last = trimmed[trimmed.length - 1];
-          // Player attack path emits AttackResolved THEN NarrativeText.
-          // AI attack path emits NarrativeText THEN AttackResolved.
-          // Swap when needed so prose always precedes the structured outcome line.
-          if (last?.eventType === "AttackResolved") {
-            return { narrationLog: [...trimmed.slice(0, -1), newEntry, last] };
+          const pending = _pendingAttackEntry;
+          _pendingAttackEntry = null;
+          if (pending) {
+            // Player path: flush buffered attack outcome AFTER the prose line.
+            return { narrationLog: [...trimmed, narrativeEntry, pending] };
           }
-          return { narrationLog: [...trimmed, newEntry] };
+          return { narrationLog: [...trimmed, narrativeEntry] };
         });
         break;
       }
 
       case "AttackResolved": {
-        // Store raw refs — names resolved at render time in NarrationLog.tsx.
-        // Also optimistically mark attacker's actionSpent=true so the UI disables
-        // the attack option immediately, before the tacticalVersion re-fetch arrives.
-        // This prevents the "Actor has already spent their action" 400 race condition.
+        // Optimistically mark attacker's actionSpent=true (prevents 400 race with re-fetch).
+        // Then decide where to log the structured outcome:
+        //   AI path:     NarrativeText arrives first → last entry IS NarrativeText → append directly.
+        //   Player path: AttackResolved arrives first → buffer it; NarrativeText flushes it after prose.
         const p = event.payload;
         set((s) => {
           const attackerMatch = p.attacker ? findByRef(s.combatants, p.attacker) : undefined;
@@ -321,28 +331,44 @@ export const useAppStore = create<AppState>((set, get) => ({
                   : c
               )
             : s.combatants;
+
+          const attackEntry: NarrationEntry = {
+            id: narrationId(),
+            text: "",
+            timestamp: Date.now(),
+            eventType: "AttackResolved",
+            attackData: {
+              hit: p.hit,
+              critical: p.critical as boolean | undefined,
+              attackTotal: p.attackTotal as number | undefined,
+              attackRoll: p.attackRoll as number | undefined,
+              targetAC: p.targetAC as number | undefined,
+              damageApplied: p.damageApplied as number | undefined,
+              attacker: p.attacker,
+              target: p.target,
+            },
+          };
+
+          const trimmed = s.narrationLog.slice(-99);
+          const lastEntry = trimmed[trimmed.length - 1];
+
+          if (lastEntry?.eventType === "NarrativeText") {
+            // AI path: prose already logged — append outcome immediately.
+            return {
+              tacticalVersion: s.tacticalVersion + 1,
+              combatants: updatedCombatants,
+              narrationLog: [...trimmed, attackEntry],
+            };
+          }
+
+          // Player path: prose not yet logged — buffer the entry.
+          // If there's a stale pending entry (safety), flush it first.
+          const base = _pendingAttackEntry ? [...trimmed, _pendingAttackEntry] : trimmed;
+          _pendingAttackEntry = attackEntry;
           return {
             tacticalVersion: s.tacticalVersion + 1,
             combatants: updatedCombatants,
-            narrationLog: [
-              ...s.narrationLog.slice(-99),
-              {
-                id: narrationId(),
-                text: "",
-                timestamp: Date.now(),
-                eventType: "AttackResolved",
-                attackData: {
-                  hit: p.hit,
-                  critical: p.critical as boolean | undefined,
-                  attackTotal: p.attackTotal as number | undefined,
-                  attackRoll: p.attackRoll as number | undefined,
-                  targetAC: p.targetAC as number | undefined,
-                  damageApplied: p.damageApplied as number | undefined,
-                  attacker: p.attacker,
-                  target: p.target,
-                },
-              },
-            ],
+            narrationLog: base,
           };
         });
         break;
