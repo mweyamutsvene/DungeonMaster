@@ -1,8 +1,47 @@
 import { useRef, useEffect, useState } from "react";
 import { useAppStore } from "../store/app-store";
+import type { AttackResolvedData } from "../store/app-store";
+import type { StoredCombatant } from "../types/api";
+
+function findCombatantName(
+  combatants: StoredCombatant[],
+  ref: AttackResolvedData["attackerRef"],
+): string | undefined {
+  if (!ref) return undefined;
+  return combatants.find(
+    (c) =>
+      (ref.characterId && c.characterId === ref.characterId) ||
+      (ref.monsterId && c.monsterId === ref.monsterId) ||
+      (ref.npcId && c.npcId === ref.npcId),
+  )?.name;
+}
+
+function buildAttackLine(ar: AttackResolvedData, combatants: StoredCombatant[]): { label: string; body: string } {
+  const attackerName =
+    ar.attackerName ?? findCombatantName(combatants, ar.attackerRef) ?? "?";
+  const targetName =
+    ar.targetName ?? findCombatantName(combatants, ar.targetRef) ?? "?";
+
+  const rollDisplay = ar.attackTotal ?? ar.attackRoll;
+  const statsTag =
+    rollDisplay != null && ar.targetAC != null
+      ? `[${rollDisplay} vs AC ${ar.targetAC}] `
+      : rollDisplay != null
+        ? `[roll: ${rollDisplay}] `
+        : "";
+
+  if (ar.critical) {
+    return { label: "CRITICAL HIT", body: `${statsTag}${targetName} takes ${ar.damageApplied ?? "?"} damage!` };
+  }
+  if (ar.hit) {
+    return { label: "HIT", body: `${statsTag}${targetName} takes ${ar.damageApplied ?? "?"} damage` };
+  }
+  return { label: "MISS", body: `${statsTag}${attackerName} misses ${targetName}` };
+}
 
 export function NarrationLog() {
   const narrationLog = useAppStore((s) => s.narrationLog);
+  const combatants = useAppStore((s) => s.combatants);
   const [expanded, setExpanded] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -29,18 +68,24 @@ export function NarrationLog() {
       >
         <span className="text-slate-500 text-xs shrink-0">{expanded ? "▼" : "▲"}</span>
         {latest ? (
-          <span className={[
-            "text-xs truncate",
-            latest.eventType === "error"
-              ? "text-red-400 font-medium"
-              : latest.eventType === "AttackResolved"
-              ? latest.text.startsWith("CRITICAL") ? "text-red-400 font-bold"
-                : latest.text.startsWith("HIT") ? "text-green-400 font-bold"
-                : "text-yellow-400 font-bold"
-              : "text-slate-300",
-          ].join(" ")}>
-            {latest.text}
-          </span>
+          (() => {
+            if (latest.eventType === "AttackResolved" && latest.attackResolved) {
+              const { label } = buildAttackLine(latest.attackResolved, combatants);
+              const labelClass =
+                label === "CRITICAL HIT" ? "text-red-400 font-bold"
+                : label === "HIT" ? "text-green-400 font-bold"
+                : "text-yellow-400 font-bold";
+              return <span className={`text-xs truncate ${labelClass}`}>{label}: {buildAttackLine(latest.attackResolved, combatants).body}</span>;
+            }
+            return (
+              <span className={[
+                "text-xs truncate",
+                latest.eventType === "error" ? "text-red-400 font-medium" : "text-slate-300",
+              ].join(" ")}>
+                {latest.text}
+              </span>
+            );
+          })()
         ) : (
           <span className="text-slate-600 text-xs italic">Combat log…</span>
         )}
@@ -56,11 +101,8 @@ export function NarrationLog() {
             <p className="text-slate-600 text-xs italic">No events yet.</p>
           )}
           {narrationLog.map((entry) => {
-            if (entry.eventType === "AttackResolved") {
-              // Format: "HIT: [15 vs AC 14] Thorin takes 4 damage"
-              const colonIdx = entry.text.indexOf(":");
-              const label = colonIdx !== -1 ? entry.text.slice(0, colonIdx) : entry.text;
-              const body = colonIdx !== -1 ? entry.text.slice(colonIdx + 1).trimStart() : "";
+            if (entry.eventType === "AttackResolved" && entry.attackResolved) {
+              const { label, body } = buildAttackLine(entry.attackResolved, combatants);
               const labelClass =
                 label === "CRITICAL HIT"
                   ? "text-red-400 font-bold"
