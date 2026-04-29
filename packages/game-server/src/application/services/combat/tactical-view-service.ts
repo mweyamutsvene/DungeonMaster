@@ -23,6 +23,9 @@ import {
 } from "./helpers/resource-utils.js";
 import { ClassFeatureResolver } from "../../../domain/entities/classes/class-feature-resolver.js";
 import { readConditionNames } from "../../../domain/entities/combat/conditions.js";
+import { getSpellSlots, getCasterType } from "../../../domain/entities/spells/spell-progression.js";
+import type { CharacterClassId } from "../../../domain/entities/classes/class-definition.js";
+import { isCharacterClassId } from "../../../domain/entities/classes/class-definition.js";
 import { checkFlanking } from "../../../domain/rules/flanking.js";
 
 export interface TacticalCombatant {
@@ -176,7 +179,11 @@ export class TacticalViewService {
 
       const sheetPools =
         c.combatantType === "Character" && c.characterId
-          ? this.deriveResourcePoolsFromSheet(characterById.get(c.characterId)?.sheet)
+          ? this.deriveResourcePoolsFromSheet(
+              characterById.get(c.characterId)?.sheet,
+              characterById.get(c.characterId)?.className ?? undefined,
+              characterById.get(c.characterId)?.level,
+            )
           : [];
       const storedPools = getResourcePools(resourcesRaw);
       const resourcePools = this.mergePools(sheetPools, storedPools);
@@ -520,7 +527,7 @@ export class TacticalViewService {
     return typeof x === "object" && x !== null;
   }
 
-  private deriveResourcePoolsFromSheet(sheet: unknown): Array<{ name: string; current: number; max: number }> {
+  private deriveResourcePoolsFromSheet(sheet: unknown, className?: string, characterLevel?: number): Array<{ name: string; current: number; max: number }> {
     if (!this.isRecord(sheet)) return [];
 
     const out: Array<{ name: string; current: number; max: number }> = [];
@@ -540,6 +547,21 @@ export class TacticalViewService {
         }
         if (this.isRecord(raw) && typeof (raw as any).current === "number" && typeof (raw as any).max === "number") {
           out.push({ name: poolName, current: (raw as any).current, max: (raw as any).max });
+        }
+      }
+    } else if (className && characterLevel) {
+      // Fall back to canonical progression table when the sheet omits spellSlots
+      // (e.g. LLM-generated characters, or legacy sheets from before spell tracking).
+      const classId = className.toLowerCase();
+      if (isCharacterClassId(classId)) {
+        const casterType = getCasterType(classId as CharacterClassId);
+        if (casterType !== "none") {
+          const derived = getSpellSlots(classId as CharacterClassId, characterLevel);
+          for (const [levelKey, count] of Object.entries(derived)) {
+            if (typeof count === "number" && count > 0) {
+              out.push({ name: `spellSlot_${levelKey}`, current: count, max: count });
+            }
+          }
         }
       }
     }

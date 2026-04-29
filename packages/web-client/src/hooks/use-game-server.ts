@@ -5,6 +5,7 @@ import type {
   ActionResponse,
   PathPreviewResponse,
   CharacterSpellsResponse,
+  SpellCatalogEntry,
   Character,
 } from "../types/api";
 
@@ -117,8 +118,7 @@ export const gameServer = {
   startCombat: (
     sessionId: string,
     body: {
-      combatants: Array<{
-        combatantType: "Character" | "Monster";
+      combatants: Array<{        combatantType: "Character" | "Monster";
         characterId?: string;
         monsterId?: string;
         hpCurrent: number;
@@ -130,4 +130,14 @@ export const gameServer = {
       `/sessions/${sessionId}/combat/start`,
       { method: "POST", body: JSON.stringify(body) },
     ),
+
+  // GET /sessions/:id/characters/:characterId/spells
+  getCharacterSpells: (sessionId: string, characterId: string) =>
+    apiFetch<CharacterSpellsResponse>(
+      `/sessions/${sessionId}/characters/${characterId}/spells`,
+    ),
+
+  // GET /spells — full spell catalog with display metadata
+  getSpellCatalog: () =>
+    apiFetch<{ spells: SpellCatalogEntry[] }>("/spells"),
 };

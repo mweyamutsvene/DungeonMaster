@@ -18,6 +18,7 @@ import type { CharacterSheetLike } from "./class-feature-resolver.js";
 import { pactMagicSlotsForLevel } from "./warlock.js";
 import { computeFeatModifiers, FEAT_WAR_CASTER, FEAT_SENTINEL } from "../../rules/feat-modifiers.js";
 import { LUCKY_POINTS_MAX } from "../../rules/lucky.js";
+import { getSpellSlots, getCasterType } from "../spells/spell-progression.js";
 
 // ----- Types -----
 
@@ -128,11 +129,30 @@ export function buildCombatResources(input: CombatResourceBuilderInput): CombatR
   }
 
   // 3. Spell slot pools (cross-class: Wizard, Cleric, Sorcerer, Bard, etc.)
-  if (sheet?.spellSlots && typeof sheet.spellSlots === "object") {
-    for (const [levelStr, count] of Object.entries(sheet.spellSlots)) {
+  //    Prefer sheet.spellSlots (persisted state after rests/spending).
+  //    Fall back to the canonical progression table when the sheet has no
+  //    spellSlots — e.g. LLM-generated characters whose sheets omit them.
+  const hasSheetSlots = sheet?.spellSlots && typeof sheet.spellSlots === "object";
+  if (hasSheetSlots) {
+    for (const [levelStr, count] of Object.entries(sheet.spellSlots!)) {
       const poolName = `spellSlot_${levelStr}`;
       if (!resourcePools.some((p) => p.name === poolName) && typeof count === "number" && count > 0) {
         resourcePools.push({ name: poolName, current: count, max: count });
+      }
+    }
+  } else {
+    // Derive from progression table for every class entry that is a spellcaster.
+    for (const entry of classEntries) {
+      const classId = entry.classId.toLowerCase();
+      if (!isCharacterClassId(classId)) continue;
+      const casterType = getCasterType(classId as CharacterClassId);
+      if (casterType === "none") continue;
+      const derivedSlots = getSpellSlots(classId as CharacterClassId, entry.level);
+      for (const [levelStr, count] of Object.entries(derivedSlots)) {
+        const poolName = `spellSlot_${levelStr}`;
+        if (!resourcePools.some((p) => p.name === poolName) && typeof count === "number" && count > 0) {
+          resourcePools.push({ name: poolName, current: count, max: count });
+        }
       }
     }
   }

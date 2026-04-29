@@ -9,6 +9,12 @@
 
 import type { FastifyInstance } from "fastify";
 import type { PrismaClient } from "@prisma/client";
+import { CANTRIP_CATALOG } from "../../../domain/entities/spells/catalog/cantrips.js";
+import { LEVEL_1_CATALOG } from "../../../domain/entities/spells/catalog/level-1.js";
+import { LEVEL_2_CATALOG } from "../../../domain/entities/spells/catalog/level-2.js";
+import { LEVEL_3_CATALOG } from "../../../domain/entities/spells/catalog/level-3.js";
+import { LEVEL_4_CATALOG } from "../../../domain/entities/spells/catalog/level-4.js";
+import { LEVEL_5_CATALOG } from "../../../domain/entities/spells/catalog/level-5.js";
 
 export interface CatalogRouteDeps {
   prismaClient?: PrismaClient;
@@ -138,5 +144,33 @@ export function registerCatalogRoutes(app: FastifyInstance, deps: CatalogRouteDe
     }));
 
     return { monsters, total };
+  });
+
+  /**
+   * GET /spells
+   * Return all spells from the canonical spell catalog with metadata.
+   * Used by the web client to enrich spell IDs with display info.
+   */
+  app.get("/spells", async () => {
+    const allSpells = [
+      ...CANTRIP_CATALOG,
+      ...LEVEL_1_CATALOG,
+      ...LEVEL_2_CATALOG,
+      ...LEVEL_3_CATALOG,
+      ...LEVEL_4_CATALOG,
+      ...LEVEL_5_CATALOG,
+    ];
+
+    return {
+      spells: allSpells.map((s) => ({
+        id: s.name.toLowerCase(),
+        name: s.name,
+        level: s.level,
+        school: s.school,
+        castingTime: s.castingTime,
+        description: s.description,
+        classLists: [...s.classLists],
+      })),
+    };
   });
 }

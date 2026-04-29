@@ -447,8 +447,18 @@ export function tryParseCastSpellText(input: string): { spellName: string; targe
   const match = cleaned.match(/\bcast\s+(.+?)(?:\s+at\s+level\s+(\d+))?(?:\s+(?:at|on)\s+(.+))?\s*$/i);
   if (!match) return null;
   const spellName = match[1]!.trim();
-  const targetName = match[3]?.trim();
   const castAtLevel = match[2] ? parseInt(match[2], 10) : undefined;
+
+  // Extract targetName from the ORIGINAL (case-preserved) input so @id: entity IDs survive intact.
+  let targetName: string | undefined;
+  if (match[3]) {
+    const originalCleaned = input.trim()
+      .replace(/\s+as\s+(?:a\s+|my\s+)?bonus\s+action\b/i, "")
+      .replace(/\s+using\s+(?:a\s+|my\s+)?bonus\s+action\b/i, "");
+    const originalMatch = originalCleaned.match(/\bcast\s+.+?(?:\s+at\s+level\s+\d+)?(?:\s+(?:at|on)\s+(.+))?\s*$/i);
+    targetName = originalMatch?.[1]?.trim() ?? match[3].trim();
+  }
+
   return { spellName, targetName, castAtLevel, ...(isBonusActionFromText && { isBonusActionFromText }) };
 }
 
@@ -793,8 +803,20 @@ export function tryParseAttackText(input: string, roster: LlmRoster): ParsedAtta
   return { targetName, weaponHint, nearest: nearest || !targetName };
 }
 
-/** Find a combatant in the roster by fuzzy name match. */
+/** Find a combatant in the roster by fuzzy name match or exact @id: protocol. */
 export function findCombatantByName(name: string, roster: LlmRoster): CombatantRef | null {
+  // Fast path: explicit entity ID from programmatic clients (@id:<entityId> protocol)
+  if (name.startsWith("@id:")) {
+    const entityId = name.slice(4);
+    const charEntry = roster.characters.find((c) => c.id === entityId);
+    if (charEntry) return { type: "Character", characterId: entityId };
+    const monEntry = roster.monsters.find((m) => m.id === entityId);
+    if (monEntry) return { type: "Monster", monsterId: entityId };
+    const npcEntry = roster.npcs.find((n) => n.id === entityId);
+    if (npcEntry) return { type: "NPC", npcId: entityId };
+    return null;
+  }
+
   const normalized = name.toLowerCase();
 
   // Check characters

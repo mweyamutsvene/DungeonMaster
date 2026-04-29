@@ -7,6 +7,7 @@ import type { GridCanvasHandle } from "./GridCanvas";
 import { ActionEconomyBar } from "./ActionEconomyBar";
 import { ActionBar } from "./ActionBar";
 import { NarrationLog } from "./NarrationLog";
+import { SpellsPanel } from "../shared-ui/SpellsPanel";
 import { useAppStore } from "../store/app-store";
 import { gameServer } from "../hooks/use-game-server";
 import type { PathPreviewResponse } from "../types/api";
@@ -30,6 +31,9 @@ export function TacticalLayout() {
   const [moving, setMoving] = useState(false);
   const [loadingPath, setLoadingPath] = useState(false);
   const [attacking, setAttacking] = useState(false);
+  const [spellsPanelOpen, setSpellsPanelOpen] = useState(false);
+  /** Spell name waiting for a target — set when player picks a targeted spell from SpellsPanel. */
+  const [pendingSpellName, setPendingSpellName] = useState<string | null>(null);
   const gridRef = useRef<GridCanvasHandle>(null);
 
   const isLoading = moving || loadingPath || attacking;
@@ -42,6 +46,20 @@ export function TacticalLayout() {
     }, 4000);
     return () => clearTimeout(timer);
   }, [combatResult]);
+
+  // Escape key cancels any pending mode (attack, spell targeting, move selection).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setAttackMode(false);
+        setPendingSpellName(null);
+        setSpellsPanelOpen(false);
+        clearMoveState();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
   const myTurn = !!activeCombatant && !!myCharacterId && activeCombatant.characterId === myCharacterId;
@@ -77,9 +95,38 @@ export function TacticalLayout() {
     }
   }
 
+  async function handleSpellToken(combatantId: string, spellName: string) {
+    const target = combatants.find((c) => c.id === combatantId);
+    if (!target || !sessionId || !encounterId || !myCharacterId) return;
+    setPendingSpellName(null);
+    clearMoveState();
+    setAttacking(true);
+    const entityId = target.monsterId ?? target.characterId ?? target.npcId ?? target.id;
+    try {
+      const response = await gameServer.submitAction(sessionId, {
+        text: `cast ${spellName} at @id:${entityId}`,
+        actorId: myCharacterId,
+        encounterId,
+      });
+      handleRollResponse(response, myCharacterId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addErrorLog(`⚠️ Cast ${spellName} failed: ${msg}`);
+      console.error("Spell cast failed:", err);
+    } finally {
+      setAttacking(false);
+    }
+  }
+
   function handleTokenTap(combatantId: string) {
     const target = combatants.find((c) => c.id === combatantId);
     if (!target) return;
+
+    // Spell targeting mode: cast the pending spell at this target
+    if (pendingSpellName && target.combatantType !== "Character") {
+      void handleSpellToken(combatantId, pendingSpellName);
+      return;
+    }
 
     if (attackMode && target && target.combatantType !== "Character") {
       void handleAttackToken(combatantId);
@@ -89,20 +136,26 @@ export function TacticalLayout() {
     const isMyActiveCombatant = myTurn && target.id === activeCombatantId && target.characterId === myCharacterId;
     if (isMyActiveCombatant) {
       setAttackMode(false);
+      setPendingSpellName(null);
       setSelectedMoverId((prev) => (prev === target.id ? null : target.id));
       setPathPreview(null);
       setPathDestination(null);
     } else {
       setAttackMode(false);
+      setPendingSpellName(null);
       clearMoveState();
       openCharacterSheet(combatantId);
     }
   }
 
   async function handleCellTap(x: number, y: number) {
-    // Cancel attack mode when tapping empty cells.
+    // Cancel attack/spell mode when tapping empty cells.
     if (attackMode) {
       setAttackMode(false);
+      return;
+    }
+    if (pendingSpellName) {
+      setPendingSpellName(null);
       return;
     }
 
@@ -211,7 +264,12 @@ export function TacticalLayout() {
             Tap an enemy to attack
           </div>
         )}
-        {!attackMode && selectedMoverId && (
+        {pendingSpellName && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-indigo-900/80 border border-indigo-400 rounded-lg px-3 py-1 text-indigo-100 text-xs font-medium pointer-events-none">
+            Tap a target to cast {pendingSpellName}
+          </div>
+        )}
+        {!attackMode && !pendingSpellName && selectedMoverId && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-blue-900/80 border border-blue-400 rounded-lg px-3 py-1 text-blue-100 text-xs font-medium pointer-events-none">
             Tap destination cell to preview, tap same cell again to move
           </div>
@@ -233,10 +291,29 @@ export function TacticalLayout() {
         attackMode={attackMode}
         onAttackSelect={() => {
           clearMoveState();
+          setPendingSpellName(null);
           setAttackMode(true);
+        }}
+        spellsPanelOpen={spellsPanelOpen}
+        onSpellsOpen={() => {
+          setAttackMode(false);
+          setPendingSpellName(null);
+          clearMoveState();
+          setSpellsPanelOpen(true);
         }}
       />
       <NarrationLog />
+
+      {/* Spells panel — renders as overlay above grid/action bar */}
+      {spellsPanelOpen && (
+        <SpellsPanel
+          onClose={() => setSpellsPanelOpen(false)}
+          onCastTargeted={(spellName) => {
+            setSpellsPanelOpen(false);
+            setPendingSpellName(spellName);
+          }}
+        />
+      )}
     </div>
   );
 }

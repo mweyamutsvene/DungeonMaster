@@ -144,3 +144,13 @@ export interface CharacterSpellsResponse {
   preparedSpells: string[];
   knownSpells: string[];
 }
+
+export interface SpellCatalogEntry {
+  id: string;           // spell.name.toLowerCase()
+  name: string;
+  level: number;        // 0 = cantrip
+  school: string;
+  castingTime: 'action' | 'bonus_action' | 'reaction';
+  description: string;
+  classLists: string[];
+}

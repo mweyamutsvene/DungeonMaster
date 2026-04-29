@@ -5,9 +5,11 @@ import { gameServer } from "../hooks/use-game-server";
 interface ActionBarProps {
   attackMode: boolean;
   onAttackSelect: () => void;
+  spellsPanelOpen: boolean;
+  onSpellsOpen: () => void;
 }
 
-export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
+export function ActionBar({ attackMode, onAttackSelect, spellsPanelOpen, onSpellsOpen }: ActionBarProps) {
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
   const myCharacterId = useAppStore((s) => s.myCharacterId);
@@ -127,14 +129,17 @@ export function ActionBar({ attackMode, onAttackSelect }: ActionBarProps) {
 
         <div className="h-full w-px bg-slate-700 mx-1 shrink-0" />
 
-        {/* Spells — placeholder, not yet wired */}
+        {/* Spells — opens the spell panel */}
         <button
           disabled={!myTurn}
+          onClick={myTurn ? onSpellsOpen : undefined}
           className={[
             "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors min-w-[56px]",
-            !myTurn
-              ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-              : "bg-indigo-900/60 text-indigo-300 hover:bg-indigo-900 active:bg-indigo-800",
+            spellsPanelOpen
+              ? "bg-indigo-600 text-white ring-2 ring-indigo-400"
+              : !myTurn
+                ? "bg-slate-800 text-slate-600 cursor-not-allowed"
+                : "bg-indigo-900/60 text-indigo-300 hover:bg-indigo-900 active:bg-indigo-800",
           ].join(" ")}
         >
           <span className="text-base leading-none">📖</span>
