@@ -430,6 +430,15 @@ export const useAppStore = create<AppState>((set, get) => ({
           actorId,
         },
       });
+    } else if (response.combatStarted === true && response.encounterId) {
+      // Initiative resolved — combat transitioned to Active. Switch to tactical mode
+      // and bump tacticalVersion so SessionPage re-fetches the now-populated encounter.
+      set((s) => ({
+        pendingRoll: null,
+        encounterId: response.encounterId!,
+        mode: "tactical",
+        tacticalVersion: s.tacticalVersion + 1,
+      }));
     } else {
       set({ pendingRoll: null });
     }

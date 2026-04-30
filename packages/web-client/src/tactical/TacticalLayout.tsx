@@ -272,7 +272,17 @@ export function TacticalLayout() {
         {!attackMode && !pendingSpellName && selectedMoverId && (
           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
             <div className="bg-blue-900/80 border border-blue-400 rounded-lg px-3 py-1 text-blue-100 text-xs font-medium">
-              Tap destination to preview, tap again to move
+              {pathPreview && !pathPreview.blocked && pathPreview.totalCostFeet > 0 ? (
+                <>
+                  <span>Path: <span className="font-bold text-cyan-300">{pathPreview.totalCostFeet}ft</span></span>
+                  <span className="mx-1.5 text-blue-400">·</span>
+                  <span>{Math.max(0, movementBudget - pathPreview.totalCostFeet)}ft remaining</span>
+                </>
+              ) : pathPreview?.blocked ? (
+                <span className="text-red-300">Path blocked</span>
+              ) : (
+                "Tap destination to preview, tap again to move"
+              )}
             </div>
             <button
               onClick={clearMoveState}

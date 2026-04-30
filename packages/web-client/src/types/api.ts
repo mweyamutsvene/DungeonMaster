@@ -124,6 +124,10 @@ export interface ActionResponse {
     canAttack: boolean;
     reactionType?: string;
   }>;
+  /** Populated when an initiative roll resolves and combat transitions to Active. */
+  combatStarted?: boolean;
+  encounterId?: string;
+  turnOrder?: Array<{ actorId: string; actorName: string; initiative: number }>;
 }
 
 export interface PathPreviewResponse {

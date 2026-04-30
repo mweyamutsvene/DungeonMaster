@@ -36,13 +36,11 @@ export interface SpriteProfile {
 
 // ── Hero profile (player characters) ─────────────────────────────────────────
 export const HERO_PROFILE: SpriteProfile = {
-  idlePaths: {
-    north: "/sprites/hero/rotations/north.png",
-    south: "/sprites/hero/rotations/south.png",
-    east: "/sprites/hero/rotations/east.png",
-    west: "/sprites/hero/rotations/west.png",
-  },
-  feetAnchorY: 0.82,
+  idlePaths: {},
+  // feetAnchorY = 0.5 means bodyCy = py (tile centre).
+  // Per-direction foot anchors are baked into hero-sprite.ts IDLE_FRAME_MAP
+  // and applied directly in drawHeroSprite, so the profile value is neutral.
+  feetAnchorY: 0.5,
   sizeScale: 1.35,
 };
 

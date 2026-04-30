@@ -1,37 +1,78 @@
 // Hero sprite asset loader.
-// Sprites live in public/sprites/hero/ and are 92x92 top-down frames.
-// Metadata provides idle rotations + a Running animation, both with all four
-// cardinal facings (north / south / east / west).
+// All paths, sheet layout, and per-direction anchors are driven by
+// /sprites/hero/metadata.json — no hardcoded sprite measurements here.
+// When the hero sprite is user-selectable, swap BASE to the chosen sprite
+// folder and the new metadata will carry its own layout + anchor values.
 
-export type Facing = "north" | "south" | "east" | "west";
+export type Facing = "north" | "south" | "east" | "west" | "northeast" | "northwest" | "southeast" | "southwest";
 
-const BASE = "/sprites/hero";
+// ── Metadata types ────────────────────────────────────────────────────────
 
-const IDLE_PATHS: Record<Facing, string> = {
-  north: `${BASE}/rotations/north.png`,
-  south: `${BASE}/rotations/south.png`,
-  east: `${BASE}/rotations/east.png`,
-  west: `${BASE}/rotations/west.png`,
-};
+interface DirectionEntry {
+  name: string;
+  row: number;
+  col: number;
+  hCenterX: number;   // character's horizontal visual center as fraction of frame width
+  feetAnchorY: number; // character's feet row as fraction of frame height
+}
 
-const RUN_FRAME_COUNT = 6;
-const RUN_DIR = `${BASE}/animations/Running-e8f89918`;
-const FACINGS: Facing[] = ["north", "south", "east", "west"];
-const RUN_PATHS: Record<Facing, string[]> = Object.fromEntries(
-  FACINGS.map((f) => [
-    f,
-    Array.from({ length: RUN_FRAME_COUNT }, (_, i) =>
-      `${RUN_DIR}/${f}/frame_${String(i).padStart(3, "0")}.png`,
-    ),
-  ]),
-) as Record<Facing, string[]>;
+interface SheetMeta {
+  path: string;
+  layout: { columns: number; rows: number };
+  directions: DirectionEntry[];
+}
 
-export const RUN_FRAME_MS = 100; // animation cycle speed
+interface RunningDirectionEntry {
+  name: string;
+  row: number;
+  hCenterX: number;
+  feetAnchorY: number;
+}
+
+interface RunSheetMeta {
+  path: string;
+  layout: { columns: number; rows: number };
+  directions: RunningDirectionEntry[];
+}
+
+interface AnimationMeta {
+  [facing: string]: string[];
+}
+
+interface HeroMetadata {
+  frames: {
+    neutral_idle_sheet: SheetMeta;
+    running_sheet?: RunSheetMeta;
+    animations: { [name: string]: AnimationMeta };
+  };
+}
+
+// ── Runtime frame map built from metadata ─────────────────────────────────
+
+type FrameEntry = { row: number; col: number; hCenterX: number; feetAnchorY: number };
+
+// Filled in when metadata is fetched during loadHeroSprites().
+let idleFrameMap: Partial<Record<Facing, FrameEntry>> = {};
+let idleSheetCols = 4;
+let idleSheetRows = 2;
+let idleSheetPath = "/sprites/hero/sheets/neutral-idle-8dir.png";
+
+type RunFrameEntry = { row: number; hCenterX: number; feetAnchorY: number };
+let runFrameMap: Partial<Record<Facing, RunFrameEntry>> = {};
+let runSheetCols = 6;
+let runSheetRows = 8;
+
+const ALL_FACINGS: Facing[] = ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"];
+
+export const RUN_FRAME_MS = 100; // ms per animation frame
 export const HERO_SPRITE_PX = 92;
 
+// ── Asset cache ───────────────────────────────────────────────────────────
+
 interface LoadedSprites {
-  idle: Record<Facing, HTMLImageElement>;
+  idleSheet: HTMLImageElement;
   run: Record<Facing, HTMLImageElement[]>;
+  runSheet: HTMLImageElement | null;
 }
 
 let cache: LoadedSprites | null = null;
@@ -46,23 +87,73 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export function loadHeroSprites(): Promise<LoadedSprites> {
+async function fetchHeroMetadata(base: string): Promise<HeroMetadata> {
+  const res = await fetch(`${base}/metadata.json`);
+  if (!res.ok) throw new Error(`Failed to load hero metadata: ${res.status}`);
+  return res.json() as Promise<HeroMetadata>;
+}
+
+export function loadHeroSprites(base = "/sprites/hero"): Promise<LoadedSprites> {
   if (cache) return Promise.resolve(cache);
   if (pending) return pending;
   pending = (async () => {
-    const [idleN, idleS, idleE, idleW, runN, runS, runE, runW] = await Promise.all([
-      loadImage(IDLE_PATHS.north),
-      loadImage(IDLE_PATHS.south),
-      loadImage(IDLE_PATHS.east),
-      loadImage(IDLE_PATHS.west),
-      Promise.all(RUN_PATHS.north.map(loadImage)),
-      Promise.all(RUN_PATHS.south.map(loadImage)),
-      Promise.all(RUN_PATHS.east.map(loadImage)),
-      Promise.all(RUN_PATHS.west.map(loadImage)),
+    const meta = await fetchHeroMetadata(base);
+
+    // Build idle frame map from metadata.
+    const sheet = meta.frames.neutral_idle_sheet;
+    idleSheetPath = `${base}/${sheet.path}`;
+    idleSheetCols = sheet.layout.columns;
+    idleSheetRows = sheet.layout.rows;
+    idleFrameMap = {};
+    for (const d of sheet.directions) {
+      const facing = d.name as Facing;
+      if (ALL_FACINGS.includes(facing)) {
+        idleFrameMap[facing] = { row: d.row, col: d.col, hCenterX: d.hCenterX, feetAnchorY: d.feetAnchorY };
+      }
+    }
+
+    // Load running sheet if present in metadata.
+    let runSheetImg: HTMLImageElement | null = null;
+    const rsMeta = meta.frames.running_sheet;
+    if (rsMeta) {
+      runSheetCols = rsMeta.layout.columns;
+      runSheetRows = rsMeta.layout.rows;
+      runFrameMap = {};
+      for (const d of rsMeta.directions) {
+        const facing = d.name as Facing;
+        if (ALL_FACINGS.includes(facing)) {
+          runFrameMap[facing] = { row: d.row, hCenterX: d.hCenterX, feetAnchorY: d.feetAnchorY };
+        }
+      }
+      runSheetImg = await loadImage(`${base}/${rsMeta.path}`);
+    }
+
+    // Resolve run animation paths from metadata (fallback for legacy per-frame format).
+    const animEntries = Object.values(meta.frames.animations ?? {});
+    const runFramePaths: Partial<Record<Facing, string[]>> = {};
+    for (const anim of animEntries) {
+      for (const f of ALL_FACINGS) {
+        if (anim[f] && !runFramePaths[f]) {
+          runFramePaths[f] = anim[f].map((p) => `${base}/${p}`);
+        }
+      }
+    }
+
+    const loadFacing = (f: Facing) =>
+      Promise.all((runFramePaths[f] ?? []).map(loadImage));
+
+    const [idleSheetImg, runN, runS, runE, runW] = await Promise.all([
+      loadImage(idleSheetPath),
+      loadFacing("north"),
+      loadFacing("south"),
+      loadFacing("east"),
+      loadFacing("west"),
     ]);
+
     cache = {
-      idle: { north: idleN, south: idleS, east: idleE, west: idleW },
-      run: { north: runN, south: runS, east: runE, west: runW },
+      idleSheet: idleSheetImg,
+      run: { north: runN, south: runS, east: runE, west: runW, northeast: [], northwest: [], southeast: [], southwest: [] },
+      runSheet: runSheetImg,
     };
     return cache;
   })();
@@ -71,6 +162,11 @@ export function loadHeroSprites(): Promise<LoadedSprites> {
 
 export function getHeroSprites(): LoadedSprites | null {
   return cache;
+}
+
+/** Return the pre-loaded idle sprite sheet (or null if not yet loaded). */
+export function getIdleSheet(): HTMLImageElement | null {
+  return cache?.idleSheet ?? null;
 }
 
 /** Derive facing from a movement vector; defaults to fallback if no movement. */
@@ -83,21 +179,32 @@ export function facingFromVector(dx: number, dy: number, fallback: Facing = "sou
 /**
  * Derive facing from an isometric grid movement delta (cell units).
  * In 2:1 iso the grid is rotated 45° so a grid step of (+1, 0) projects to
- * screen bottom-right ("east") and (+0, +1) projects to screen bottom-left
- * ("west"). We convert to screen-space before choosing the cardinal sprite.
+ * screen bottom-right and (+0, +1) projects to screen bottom-left.
+ * Returns all 8 directions including diagonals.
  */
 export function facingFromIsoGrid(gdx: number, gdy: number, fallback: Facing = "south"): Facing {
   if (gdx === 0 && gdy === 0) return fallback;
   // 2:1 iso projection (ignoring HALF_W/HALF_H scaling — only direction matters).
-  const sdx = gdx - gdy;  // screen-space x: +ve = right = east
-  const sdy = gdx + gdy;  // screen-space y: +ve = down = south
-  if (Math.abs(sdx) > Math.abs(sdy)) return sdx > 0 ? "east" : "west";
+  const sdx = gdx - gdy;  // screen-space x: +ve = right
+  const sdy = gdx + gdy;  // screen-space y: +ve = down
+  const ax = Math.abs(sdx);
+  const ay = Math.abs(sdy);
+  // Diagonal threshold: if neither axis dominates strongly, use diagonal facing.
+  const DIAG = 0.45;
+  if (ax > 0 && ay > 0 && ax / (ax + ay) > DIAG && ay / (ax + ay) > DIAG) {
+    if (sdx > 0 && sdy > 0) return "southeast";
+    if (sdx > 0 && sdy < 0) return "northeast";
+    if (sdx < 0 && sdy > 0) return "southwest";
+    return "northwest";
+  }
+  if (ax > ay) return sdx > 0 ? "east" : "west";
   return sdy > 0 ? "south" : "north";
 }
 
 /**
  * Draw the hero centered at (cx, cy). When `running` is true, animates the
- * running cycle for the facing direction; otherwise draws the idle rotation.
+ * running cycle for the facing direction; otherwise slices the correct frame
+ * from the neutral-idle sprite sheet.
  */
 export function drawHeroSprite(
   ctx: CanvasRenderingContext2D,
@@ -111,10 +218,43 @@ export function drawHeroSprite(
   const sprites = cache;
   if (!sprites) return false;
 
-  const img = running
-    ? sprites.run[facing][Math.floor(now / RUN_FRAME_MS) % sprites.run[facing].length]
-    : sprites.idle[facing];
+  if (running) {
+    if (sprites.runSheet && runFrameMap[facing]) {
+      // Sheet-based running animation
+      const frame = runFrameMap[facing]!;
+      const sheet = sprites.runSheet;
+      const fw = Math.floor(sheet.naturalWidth / runSheetCols);
+      const fh = Math.floor(sheet.naturalHeight / runSheetRows);
+      const frameIdx = Math.floor(now / RUN_FRAME_MS) % runSheetCols;
+      const aspect = fw / fh;
+      const dw = aspect >= 1 ? size : size * aspect;
+      const dh = aspect >= 1 ? size / aspect : size;
+      const destX = cx - frame.hCenterX * dw;
+      const destY = cy - frame.feetAnchorY * dh;
+      ctx.drawImage(sheet, frameIdx * fw, frame.row * fh, fw, fh, destX, destY, dw, dh);
+    } else {
+      // Legacy per-frame fallback
+      const frames = sprites.run[facing];
+      if (!frames?.length) return false;
+      const img = frames[Math.floor(now / RUN_FRAME_MS) % frames.length];
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const dw = aspect >= 1 ? size : size * aspect;
+      const dh = aspect >= 1 ? size / aspect : size;
+      ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    }
+  } else {
+    const frame = idleFrameMap[facing];
+    if (!frame) return false;
+    const sheet = sprites.idleSheet;
+    const fw = Math.floor(sheet.naturalWidth / idleSheetCols);
+    const fh = Math.floor(sheet.naturalHeight / idleSheetRows);
+    const aspect = fw / fh;
+    const dw = aspect >= 1 ? size : size * aspect;
+    const dh = aspect >= 1 ? size / aspect : size;
+    const destX = cx - frame.hCenterX * dw;
+    const destY = cy - frame.feetAnchorY * dh;
+    ctx.drawImage(sheet, frame.col * fw, frame.row * fh, fw, fh, destX, destY, dw, dh);
+  }
 
-  ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
   return true;
 }

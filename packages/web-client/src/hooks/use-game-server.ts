@@ -131,6 +131,13 @@ export const gameServer = {
       { method: "POST", body: JSON.stringify(body) },
     ),
 
+  // POST /sessions/:id/combat/initiate — start combat via tabletop flow, requests initiative roll
+  initiateCombat: (sessionId: string, body: { text: string; actorId: string }) =>
+    apiFetch<ActionResponse>(
+      `/sessions/${sessionId}/combat/initiate`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
   // GET /sessions/:id/characters/:characterId/spells
   getCharacterSpells: (sessionId: string, characterId: string) =>
     apiFetch<CharacterSpellsResponse>(

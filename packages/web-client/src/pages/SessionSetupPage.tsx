@@ -41,6 +41,7 @@ export function SessionSetupPage() {
   const { id: sessionId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const setMyCharacterId = useAppStore((s) => s.setMyCharacterId);
+  const setPendingRoll = useAppStore((s) => s.setPendingRoll);
 
   const [characters, setCharacters] = useState<Character[]>([]);
   const [monsters, setMonsters] = useState<Monster[]>([]);
@@ -132,50 +133,38 @@ export function SessionSetupPage() {
     setError(null);
     try {
       // First, add all monsters to the session with basic stat blocks
-      const monsterData: Array<{ id: string; maxHp: number }> = [];
       for (const monster of monsters) {
-        // Create a basic stat block for the monster type
         const statBlock = getBasicMonsterStatBlock(monster.name);
-        const maxHp = (statBlock.maxHp as number) || 7;
         for (let i = 0; i < monster.count; i++) {
-          const res = await gameServer.addMonster(sessionId, {
+          await gameServer.addMonster(sessionId, {
             name: monster.name,
             statBlock,
           });
-          const monsterId = (res as { id: string }).id;
-          monsterData.push({ id: monsterId, maxHp });
         }
       }
 
-      // Build combatant list for combat start with real HP values
-      const combatants = [
-        ...characters.map((c) => {
-          // Extract maxHp from the character sheet
-          const sheet = (c.sheet as Record<string, unknown>) || {};
-          const maxHp = (sheet.maxHp as number) || (sheet.hp as number) || 42;
-          const currentHp = (sheet.currentHp as number) || maxHp;
-          return {
-            combatantType: "Character" as const,
-            characterId: c.id,
-            hpCurrent: currentHp,
-            hpMax: maxHp,
-          };
-        }),
-        ...monsterData.map((m) => ({
-          combatantType: "Monster" as const,
-          monsterId: m.id,
-          hpCurrent: m.maxHp,
-          hpMax: m.maxHp,
-        })),
-      ];
+      // Claim first character as "my character" before navigating
+      const characterId = characters[0]!.id;
+      setMyCharacterId(characterId);
 
-      // Start combat via game server
-      await gameServer.startCombat(sessionId, { combatants });
+      // Initiate combat via the tabletop flow — server creates a Pending encounter
+      // and returns a roll request for initiative. Set pendingRoll BEFORE navigation
+      // so DiceRollModal appears on SessionPage immediately.
+      const initiateResp = await gameServer.initiateCombat(sessionId, {
+        text: "start combat",
+        actorId: characterId,
+      });
 
-      // Claim first character as "my character"
-      setMyCharacterId(characters[0].id);
+      if (initiateResp.requiresPlayerInput && initiateResp.rollType === "initiative") {
+        setPendingRoll({
+          rollType: initiateResp.rollType,
+          diceNeeded: initiateResp.diceNeeded ?? "d20",
+          message: initiateResp.message,
+          actorId: characterId,
+        });
+      }
 
-      // Navigate to session page which will load the active combat
+      // Navigate to session page — DiceRollModal will show if pendingRoll is set
       navigate(`/session/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start combat");
