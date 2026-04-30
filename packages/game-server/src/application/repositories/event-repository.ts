@@ -114,8 +114,6 @@ export interface AttackResolvedPayload {
   encounterId: string;
   attacker?: CombatantRef;
   target?: CombatantRef;
-  attackerName?: string;
-  targetName?: string;
   hit?: boolean;
   [key: string]: unknown;
 }

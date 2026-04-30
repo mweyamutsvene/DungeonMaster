@@ -295,6 +295,7 @@ interface PlayerExplorationState {
 ---
 
 ## Part 2: Tactical Mode (Combat)
+Use the CLI to as reference in what we can build for the web client. The CLI has a full combat loop implemented with the current game-server combat engine, so we can mirror that flow in the web client UI.
 
 ### Theater → Tactical Transition
 

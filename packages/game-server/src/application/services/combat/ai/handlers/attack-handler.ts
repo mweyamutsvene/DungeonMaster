@@ -9,7 +9,6 @@ import { hasReactionAvailable } from "../../../../../domain/rules/opportunity-at
 import { calculateDistance } from "../../../../../domain/rules/movement.js";
 import { AiAttackResolver } from "../ai-attack-resolver.js";
 import type { ActorRef } from "../ai-types.js";
-import { findCombatantStateByRef } from "../../helpers/combatant-ref.js";
 
 export class AttackHandler implements AiActionHandler {
   handles(action: string): boolean {
@@ -129,13 +128,6 @@ export class AttackHandler implements AiActionHandler {
 
       const monsterAttacks = await combatantResolver.getAttacks(actorRef);
 
-      // Resolve names for event payloads so client replay doesn't show '?'
-      const attackerState = findCombatantStateByRef(allCombatants, actorRef as any);
-      const resolvedAttackerName = attackerState
-        ? await combatantResolver.getName(actorRef as any, attackerState).catch(() => undefined)
-        : undefined;
-      const resolvedTargetName = decision.target;
-
       const attackOutcome = await new AiAttackResolver({
         combat,
         twoPhaseActions,
@@ -152,8 +144,6 @@ export class AttackHandler implements AiActionHandler {
         actorRef, targetRef: targetRef as ActorRef,
         attackName: decision.attackName,
         monsterAttacks,
-        attackerName: resolvedAttackerName,
-        targetName: resolvedTargetName,
       });
 
       if (attackOutcome.status !== "not_applicable") {

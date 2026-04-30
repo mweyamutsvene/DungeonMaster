@@ -87,9 +87,6 @@ export interface AiAttackParams {
   attackName: string;
   /** Pre-fetched from combatantResolver.getMonsterAttacks; pass [] for non-monsters. */
   monsterAttacks: unknown[];
-  /** Optional pre-resolved attacker/target display names for event payloads (avoids client-side ref lookups). */
-  attackerName?: string;
-  targetName?: string;
 }
 
 /**
@@ -121,7 +118,7 @@ export class AiAttackResolver {
 
   async resolve(params: AiAttackParams): Promise<AiAttackOutcome> {
     const { combat, twoPhaseActions, pendingActions, combatantResolver, events, diceRoller, aiLog } = this.deps;
-    const { sessionId, encounterId, aiCombatant, targetCombatant, actorRef, targetRef, attackName, monsterAttacks, attackerName: paramAttackerName, targetName: paramTargetName } = params;
+    const { sessionId, encounterId, aiCombatant, targetCombatant, actorRef, targetRef, attackName, monsterAttacks } = params;
 
     // Find the chosen attack in the monster's stat block
     const desiredName = (attackName ?? "").trim().toLowerCase();
@@ -302,8 +299,6 @@ export class AiAttackResolver {
             encounterId,
             attacker: actorRef,
             target: targetRef,
-            ...(paramAttackerName != null ? { attackerName: paramAttackerName } : {}),
-            ...(paramTargetName != null ? { targetName: paramTargetName } : {}),
             attackName,
             attackRoll: d20,
             attackBonus,
@@ -654,8 +649,6 @@ export class AiAttackResolver {
             encounterId,
             attacker: actorRef,
             target: targetRef,
-            ...(paramAttackerName != null ? { attackerName: paramAttackerName } : {}),
-            ...(paramTargetName != null ? { targetName: paramTargetName } : {}),
             attackName,
             attackRoll: d20,
             attackBonus,
