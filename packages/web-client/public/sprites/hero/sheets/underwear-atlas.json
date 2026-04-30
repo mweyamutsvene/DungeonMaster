@@ -1,0 +1,48 @@
+{
+  "atlasWidth": 1776,
+  "atlasHeight": 3701,
+  "sheets": {
+    "female-hero-profile": {
+      "x": 0,
+      "y": 0,
+      "width": 1369,
+      "height": 1149,
+      "file": "female-hero-profile.png"
+    },
+    "neutral-idle-8dir": {
+      "x": 0,
+      "y": 1149,
+      "width": 1776,
+      "height": 888,
+      "file": "neutral-idle-8dir.png"
+    },
+    "running-east-west": {
+      "x": 0,
+      "y": 2037,
+      "width": 1026,
+      "height": 384,
+      "file": "running-east-west.png"
+    },
+    "running-ne-nw": {
+      "x": 0,
+      "y": 2421,
+      "width": 1026,
+      "height": 384,
+      "file": "running-ne-nw.png"
+    },
+    "running-north-south": {
+      "x": 0,
+      "y": 2805,
+      "width": 1020,
+      "height": 512,
+      "file": "running-north-south.png"
+    },
+    "running-se-sw": {
+      "x": 0,
+      "y": 3317,
+      "width": 1026,
+      "height": 384,
+      "file": "running-se-sw.png"
+    }
+  }
+}

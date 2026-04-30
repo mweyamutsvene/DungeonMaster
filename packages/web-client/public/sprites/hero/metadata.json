@@ -13,6 +13,37 @@
     "created_at": "2026-04-20T06:28:32.760926+00:00"
   },
   "frames": {
+    "neutral_idle_sheet": {
+      "path": "sheets/underwear/neutral-idle-8dir.png",
+      "layout": {
+        "columns": 4,
+        "rows": 2
+      },
+      "directions": [
+        { "name": "south",     "row": 0, "col": 0, "hCenterX": 0.498, "feetAnchorY": 0.939 },
+        { "name": "southwest", "row": 0, "col": 1, "hCenterX": 0.494, "feetAnchorY": 0.955 },
+        { "name": "west",      "row": 0, "col": 2, "hCenterX": 0.493, "feetAnchorY": 0.953 },
+        { "name": "northwest", "row": 0, "col": 3, "hCenterX": 0.490, "feetAnchorY": 0.950 },
+        { "name": "north",     "row": 1, "col": 0, "hCenterX": 0.499, "feetAnchorY": 0.903 },
+        { "name": "northeast", "row": 1, "col": 1, "hCenterX": 0.494, "feetAnchorY": 0.923 },
+        { "name": "east",      "row": 1, "col": 2, "hCenterX": 0.493, "feetAnchorY": 0.926 },
+        { "name": "southeast", "row": 1, "col": 3, "hCenterX": 0.490, "feetAnchorY": 0.928 }
+      ]
+    },
+    "running_sheet": {
+      "path": "sheets/running-8dir.png",
+      "layout": { "columns": 6, "rows": 8 },
+      "directions": [
+        { "name": "south",     "row": 0, "hCenterX": 0.659, "feetAnchorY": 0.995 },
+        { "name": "southeast", "row": 1, "hCenterX": 0.645, "feetAnchorY": 0.995 },
+        { "name": "east",      "row": 2, "hCenterX": 0.500, "feetAnchorY": 0.990 },
+        { "name": "northeast", "row": 3, "hCenterX": 0.624, "feetAnchorY": 0.995 },
+        { "name": "north",     "row": 4, "hCenterX": 0.621, "feetAnchorY": 0.995 },
+        { "name": "northwest", "row": 5, "hCenterX": 0.671, "feetAnchorY": 0.990 },
+        { "name": "west",      "row": 6, "hCenterX": 0.500, "feetAnchorY": 0.990 },
+        { "name": "southwest", "row": 7, "hCenterX": 0.604, "feetAnchorY": 0.896 }
+      ]
+    },
     "rotations": {
       "south": "rotations/south.png",
       "west": "rotations/west.png",
@@ -56,6 +87,10 @@
       }
     }
   },
-  "export_version": "2.0",
-  "export_date": "2026-04-27T05:47:32.078092"
+  "export_version": "2.1",
+  "export_date": "2026-04-28T00:00:00.000000",
+  "atlas": {
+    "path": "sheets/underwear-atlas.png",
+    "manifest": "sheets/underwear-atlas.json"
+  }
 }

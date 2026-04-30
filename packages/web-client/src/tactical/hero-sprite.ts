@@ -39,12 +39,27 @@ interface AnimationMeta {
   [facing: string]: string[];
 }
 
+interface AtlasEntry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  file: string;
+}
+
+export interface AtlasManifest {
+  atlasWidth: number;
+  atlasHeight: number;
+  sheets: Record<string, AtlasEntry>;
+}
+
 interface HeroMetadata {
   frames: {
     neutral_idle_sheet: SheetMeta;
     running_sheet?: RunSheetMeta;
     animations: { [name: string]: AnimationMeta };
   };
+  atlas?: { path: string; manifest: string };
 }
 
 // ── Runtime frame map built from metadata ─────────────────────────────────
@@ -67,13 +82,40 @@ const ALL_FACINGS: Facing[] = ["north", "south", "east", "west", "northeast", "n
 export const RUN_FRAME_MS = 100; // ms per animation frame
 export const HERO_SPRITE_PX = 92;
 
+/**
+ * Running frames are cropped tightly around the character (~100% fill) while
+ * idle frames have ~85% fill. Scale running draws down so both appear the
+ * same visual size on screen. Tune this if the difference changes with new art.
+ */
+const RUN_ATLAS_SCALE = 0.82;
+
 // ── Asset cache ───────────────────────────────────────────────────────────
 
 interface LoadedSprites {
-  idleSheet: HTMLImageElement;
+  idleSheet: HTMLImageElement | null;
   run: Record<Facing, HTMLImageElement[]>;
   runSheet: HTMLImageElement | null;
+  /** Loaded when metadata.atlas is present — drives both idle and running. */
+  atlas?: { img: HTMLImageElement; manifest: AtlasManifest };
 }
+
+/**
+ * Maps each facing to the atlas sub-sheet key and row-within-sub-sheet.
+ * Row 0 is always the first direction in the pair; row 1 is the second.
+ * south/north are in running-north-south (south=row0, north=row1).
+ * east/west are in running-east-west    (east=row0,  west=row1).
+ * Diagonal pairs follow the same pattern.
+ */
+const RUNNING_DIR_ATLAS: Record<Facing, { key: string; row: number; cols: number }> = {
+  south:     { key: "running-north-south", row: 0, cols: 6 },
+  north:     { key: "running-north-south", row: 1, cols: 6 },
+  east:      { key: "running-east-west",   row: 0, cols: 6 },
+  west:      { key: "running-east-west",   row: 1, cols: 6 },
+  northeast: { key: "running-ne-nw",       row: 1, cols: 6 },
+  northwest: { key: "running-ne-nw",       row: 0, cols: 6 },
+  southeast: { key: "running-se-sw",       row: 1, cols: 6 },
+  southwest: { key: "running-se-sw",       row: 0, cols: 6 },
+};
 
 let cache: LoadedSprites | null = null;
 let pending: Promise<LoadedSprites> | null = null;
@@ -112,8 +154,7 @@ export function loadHeroSprites(base = "/sprites/hero"): Promise<LoadedSprites> 
       }
     }
 
-    // Load running sheet if present in metadata.
-    let runSheetImg: HTMLImageElement | null = null;
+    // Build run frame map from metadata (for anchor values — atlas row indices override .row).
     const rsMeta = meta.frames.running_sheet;
     if (rsMeta) {
       runSheetCols = rsMeta.layout.columns;
@@ -125,10 +166,32 @@ export function loadHeroSprites(base = "/sprites/hero"): Promise<LoadedSprites> 
           runFrameMap[facing] = { row: d.row, hCenterX: d.hCenterX, feetAnchorY: d.feetAnchorY };
         }
       }
+    }
+
+    // ── Atlas path (preferred) ─────────────────────────────────────────────
+    // If metadata declares an atlas, load the single combined PNG + manifest.
+    // This covers both the idle sheet and all running direction-pair sheets.
+    if (meta.atlas) {
+      const [manifestRes, atlasImg] = await Promise.all([
+        fetch(`${base}/${meta.atlas.manifest}`).then((r) => r.json() as Promise<AtlasManifest>),
+        loadImage(`${base}/${meta.atlas.path}`),
+      ]);
+      cache = {
+        idleSheet: null,
+        run: { north: [], south: [], east: [], west: [], northeast: [], northwest: [], southeast: [], southwest: [] },
+        runSheet: null,
+        atlas: { img: atlasImg, manifest: manifestRes },
+      };
+      return cache;
+    }
+
+    // ── Fallback: load individual sheets / per-frame images ────────────────
+    let runSheetImg: HTMLImageElement | null = null;
+    if (rsMeta) {
       runSheetImg = await loadImage(`${base}/${rsMeta.path}`);
     }
 
-    // Resolve run animation paths from metadata (fallback for legacy per-frame format).
+    // Resolve run animation paths from metadata (legacy per-frame format).
     const animEntries = Object.values(meta.frames.animations ?? {});
     const runFramePaths: Partial<Record<Facing, string[]>> = {};
     for (const anim of animEntries) {
@@ -164,7 +227,7 @@ export function getHeroSprites(): LoadedSprites | null {
   return cache;
 }
 
-/** Return the pre-loaded idle sprite sheet (or null if not yet loaded). */
+/** Return the pre-loaded idle sprite sheet (or null if not yet loaded / using atlas). */
 export function getIdleSheet(): HTMLImageElement | null {
   return cache?.idleSheet ?? null;
 }
@@ -219,8 +282,34 @@ export function drawHeroSprite(
   if (!sprites) return false;
 
   if (running) {
+    // ── Atlas running animation ──────────────────────────────────────────
+    if (sprites.atlas) {
+      const dirInfo = RUNNING_DIR_ATLAS[facing];
+      const entry = sprites.atlas.manifest.sheets[dirInfo.key];
+      if (entry) {
+        const anchor = runFrameMap[facing];
+        const fw = Math.floor(entry.width / dirInfo.cols);
+        const fh = Math.floor(entry.height / 2); // each sub-sheet always has 2 direction rows
+        const frameIdx = Math.floor(now / RUN_FRAME_MS) % dirInfo.cols;
+        const hcx = anchor?.hCenterX ?? 0.5;
+        const fay = anchor?.feetAnchorY ?? 0.99;
+        const aspect = fw / fh;
+        const scaledSize = size * RUN_ATLAS_SCALE;
+        const dw = aspect >= 1 ? scaledSize : scaledSize * aspect;
+        const dh = aspect >= 1 ? scaledSize / aspect : scaledSize;
+        const destX = cx - hcx * dw;
+        const destY = cy - fay * dh;
+        ctx.drawImage(
+          sprites.atlas.img,
+          entry.x + frameIdx * fw, entry.y + dirInfo.row * fh,
+          fw, fh,
+          destX, destY, dw, dh,
+        );
+        return true;
+      }
+    }
+    // ── Single combined run-sheet ────────────────────────────────────────
     if (sprites.runSheet && runFrameMap[facing]) {
-      // Sheet-based running animation
       const frame = runFrameMap[facing]!;
       const sheet = sprites.runSheet;
       const fw = Math.floor(sheet.naturalWidth / runSheetCols);
@@ -245,6 +334,28 @@ export function drawHeroSprite(
   } else {
     const frame = idleFrameMap[facing];
     if (!frame) return false;
+    // ── Atlas idle ───────────────────────────────────────────────────────
+    if (sprites.atlas) {
+      const entry = sprites.atlas.manifest.sheets["neutral-idle-8dir"];
+      if (entry) {
+        const fw = Math.floor(entry.width / idleSheetCols);
+        const fh = Math.floor(entry.height / idleSheetRows);
+        const aspect = fw / fh;
+        const dw = aspect >= 1 ? size : size * aspect;
+        const dh = aspect >= 1 ? size / aspect : size;
+        const destX = cx - frame.hCenterX * dw;
+        const destY = cy - frame.feetAnchorY * dh;
+        ctx.drawImage(
+          sprites.atlas.img,
+          entry.x + frame.col * fw, entry.y + frame.row * fh,
+          fw, fh,
+          destX, destY, dw, dh,
+        );
+        return true;
+      }
+    }
+    // ── Direct idle sheet ────────────────────────────────────────────────
+    if (!sprites.idleSheet) return false;
     const sheet = sprites.idleSheet;
     const fw = Math.floor(sheet.naturalWidth / idleSheetCols);
     const fh = Math.floor(sheet.naturalHeight / idleSheetRows);
