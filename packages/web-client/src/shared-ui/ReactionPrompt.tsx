@@ -53,6 +53,25 @@ export function ReactionPrompt() {
   const progressPct = Math.max(0, Math.min(1, (expiresAt - Date.now()) / totalMs));
   const isOaReaction = reactionOpportunity.reactionType === "opportunity_attack";
 
+  function reactionDescription(reactionType: string, triggerName: string): string {
+    switch (reactionType) {
+      case "opportunity_attack":
+        return `${triggerName} is moving away from you — make an opportunity attack!`;
+      case "shield_spell":
+        return `${triggerName}'s attack is about to hit you — cast Shield to raise your AC by 5!`;
+      case "deflect_missiles":
+        return `${triggerName} hit you with a ranged weapon — use Deflect Missiles to reduce the damage!`;
+      case "uncanny_dodge":
+        return `${triggerName} is attacking you — use Uncanny Dodge to halve the damage!`;
+      case "parry":
+        return `${triggerName} is attacking you — use Parry to reduce the damage!`;
+      default: {
+        const label = reactionType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        return `${triggerName} triggered your ${label} reaction.`;
+      }
+    }
+  }
+
   async function respond(choice: "use" | "decline") {
     try {
       await gameServer.respondToReaction(encounterId, pendingActionId, {
@@ -218,14 +237,11 @@ export function ReactionPrompt() {
         </div>
 
         <div className="text-sm text-slate-300 space-y-1">
-          <p>
-            <span className="text-amber-400 font-medium">{actorName}</span> is moving away —
-            you have a reaction opportunity.
-          </p>
+          <p>{reactionDescription(reactionOpportunity.reactionType, actorName)}</p>
           <p className="text-slate-400 text-xs">
             Type:{" "}
             <span className="text-violet-300 font-medium">
-              {reactionOpportunity.reactionType.replace(/([A-Z])/g, " $1").trim()}
+              {reactionOpportunity.reactionType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
             </span>
             {reactionOpportunity.oaType === "spell" && (
               <span className="ml-1 text-indigo-400">(spell)</span>

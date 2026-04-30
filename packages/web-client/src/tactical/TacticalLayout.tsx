@@ -270,8 +270,16 @@ export function TacticalLayout() {
           </div>
         )}
         {!attackMode && !pendingSpellName && selectedMoverId && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-blue-900/80 border border-blue-400 rounded-lg px-3 py-1 text-blue-100 text-xs font-medium pointer-events-none">
-            Tap destination cell to preview, tap same cell again to move
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+            <div className="bg-blue-900/80 border border-blue-400 rounded-lg px-3 py-1 text-blue-100 text-xs font-medium">
+              Tap destination to preview, tap again to move
+            </div>
+            <button
+              onClick={clearMoveState}
+              className="bg-slate-800/90 border border-slate-600 rounded-lg px-2 py-1 text-slate-300 text-xs font-medium hover:bg-slate-700 active:bg-slate-600"
+            >
+              ✕ Cancel
+            </button>
           </div>
         )}
         <GridCanvas

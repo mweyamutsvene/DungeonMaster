@@ -154,10 +154,27 @@ export function ActionBar({ attackMode, onAttackSelect, spellsPanelOpen, onSpell
         >
           End Turn
         </button>
-      ) : (
-        <div className="text-center text-slate-500 text-xs py-1">
-          {activeCombatant ? `${activeCombatant.name}'s turn…` : "Waiting…"}
+      ) : activeCombatant ? (
+        <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-slate-800/60 border border-slate-700/60">
+          <span className="text-base leading-none">
+            {activeCombatant.combatantType === "Character" ? "🧙" : "👺"}
+          </span>
+          <span className="text-slate-300 text-xs font-medium">
+            {activeCombatant.name}
+          </span>
+          <span className="text-slate-500 text-xs">is acting</span>
+          <span className="flex gap-0.5 ml-0.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="w-1 h-1 rounded-full bg-slate-500 animate-bounce"
+                style={{ animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </span>
         </div>
+      ) : (
+        <div className="text-center text-slate-600 text-xs py-1">Waiting…</div>
       )}
     </div>
   );
