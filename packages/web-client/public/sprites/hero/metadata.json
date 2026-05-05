@@ -14,34 +14,34 @@
   },
   "frames": {
     "neutral_idle_sheet": {
-      "path": "sheets/underwear/neutral-idle-8dir.png",
+      "path": "sheets/barbarian/neutral-idle-8dir.png",
       "layout": {
         "columns": 4,
         "rows": 2
       },
       "directions": [
-        { "name": "south",     "row": 0, "col": 0, "hCenterX": 0.498, "feetAnchorY": 0.939 },
-        { "name": "southwest", "row": 0, "col": 1, "hCenterX": 0.494, "feetAnchorY": 0.955 },
-        { "name": "west",      "row": 0, "col": 2, "hCenterX": 0.493, "feetAnchorY": 0.953 },
-        { "name": "northwest", "row": 0, "col": 3, "hCenterX": 0.490, "feetAnchorY": 0.950 },
-        { "name": "north",     "row": 1, "col": 0, "hCenterX": 0.499, "feetAnchorY": 0.903 },
-        { "name": "northeast", "row": 1, "col": 1, "hCenterX": 0.494, "feetAnchorY": 0.923 },
-        { "name": "east",      "row": 1, "col": 2, "hCenterX": 0.493, "feetAnchorY": 0.926 },
-        { "name": "southeast", "row": 1, "col": 3, "hCenterX": 0.490, "feetAnchorY": 0.928 }
+        { "name": "south",     "row": 0, "col": 0, "hCenterX": 0.5, "feetAnchorY": 0.957 },
+        { "name": "southwest", "row": 0, "col": 1, "hCenterX": 0.5, "feetAnchorY": 0.962 },
+        { "name": "east",      "row": 0, "col": 2, "hCenterX": 0.5, "feetAnchorY": 0.964 },
+        { "name": "northwest", "row": 0, "col": 3, "hCenterX": 0.5, "feetAnchorY": 0.960 },
+        { "name": "north",     "row": 1, "col": 0, "hCenterX": 0.5, "feetAnchorY": 0.951 },
+        { "name": "northeast", "row": 1, "col": 1, "hCenterX": 0.5, "feetAnchorY": 0.962 },
+        { "name": "west",      "row": 1, "col": 2, "hCenterX": 0.5, "feetAnchorY": 0.962 },
+        { "name": "southeast", "row": 1, "col": 3, "hCenterX": 0.5, "feetAnchorY": 0.964 }
       ]
     },
     "running_sheet": {
       "path": "sheets/running-8dir.png",
       "layout": { "columns": 6, "rows": 8 },
       "directions": [
-        { "name": "south",     "row": 0, "hCenterX": 0.659, "feetAnchorY": 0.995 },
-        { "name": "southeast", "row": 1, "hCenterX": 0.645, "feetAnchorY": 0.995 },
-        { "name": "east",      "row": 2, "hCenterX": 0.500, "feetAnchorY": 0.990 },
-        { "name": "northeast", "row": 3, "hCenterX": 0.624, "feetAnchorY": 0.995 },
-        { "name": "north",     "row": 4, "hCenterX": 0.621, "feetAnchorY": 0.995 },
-        { "name": "northwest", "row": 5, "hCenterX": 0.671, "feetAnchorY": 0.990 },
-        { "name": "west",      "row": 6, "hCenterX": 0.500, "feetAnchorY": 0.990 },
-        { "name": "southwest", "row": 7, "hCenterX": 0.604, "feetAnchorY": 0.896 }
+        { "name": "south",     "row": 0, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "southeast", "row": 1, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "east",      "row": 2, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "northeast", "row": 3, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "north",     "row": 4, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "northwest", "row": 5, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "west",      "row": 6, "hCenterX": 0.5, "feetAnchorY": 0.99 },
+        { "name": "southwest", "row": 7, "hCenterX": 0.5, "feetAnchorY": 0.99 }
       ]
     },
     "rotations": {
@@ -90,7 +90,7 @@
   "export_version": "2.1",
   "export_date": "2026-04-28T00:00:00.000000",
   "atlas": {
-    "path": "sheets/underwear-atlas.png",
-    "manifest": "sheets/underwear-atlas.json"
+    "path": "sheets/barbarian/barbarian-atlas.png",
+    "manifest": "sheets/barbarian/barbarian-atlas.json"
   }
 }

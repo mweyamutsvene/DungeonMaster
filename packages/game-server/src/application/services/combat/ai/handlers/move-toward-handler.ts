@@ -136,7 +136,12 @@ export class MoveTowardHandler implements AiActionHandler {
     let pathNarrationHints: string[] | undefined;
 
     if (combatMap) {
-      const dest = findAdjacentPosition(combatMap, targetPos, currentPos, desiredRange);
+      const occupiedPositions = allCombatants
+        .filter((c) => c.id !== aiCombatant.id && c.id !== targetCombatant.id && c.hpCurrent > 0)
+        .map((c) => (c.resources as Record<string, unknown>)?.position as { x: number; y: number })
+        .filter((p): p is { x: number; y: number } => !!p && typeof p.x === "number" && typeof p.y === "number");
+
+      const dest = findAdjacentPosition(combatMap, targetPos, currentPos, desiredRange, occupiedPositions);
       if (!dest) {
         return {
           action: decision.action,
@@ -145,11 +150,6 @@ export class MoveTowardHandler implements AiActionHandler {
           data: { reason: "no_reachable_position" },
         };
       }
-
-      const occupiedPositions = allCombatants
-        .filter((c) => c.id !== aiCombatant.id && c.id !== targetCombatant.id && c.hpCurrent > 0)
-        .map((c) => (c.resources as Record<string, unknown>)?.position as { x: number; y: number })
-        .filter((p): p is { x: number; y: number } => !!p && typeof p.x === "number" && typeof p.y === "number");
 
       const pathResult = findPath(combatMap, currentPos, dest, {
         maxCostFeet: effectiveSpeed,

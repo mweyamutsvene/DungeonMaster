@@ -1,20 +1,20 @@
 {
   "atlasWidth": 1776,
-  "atlasHeight": 3701,
+  "atlasHeight": 3573,
   "sheets": {
-    "female-hero-profile": {
-      "x": 0,
-      "y": 0,
-      "width": 1369,
-      "height": 1149,
-      "file": "female-hero-profile.png"
-    },
     "neutral-idle-8dir": {
       "x": 0,
-      "y": 1149,
+      "y": 0,
       "width": 1776,
       "height": 888,
       "file": "neutral-idle-8dir.png"
+    },
+    "female-hero-profile": {
+      "x": 0,
+      "y": 888,
+      "width": 1369,
+      "height": 1149,
+      "file": "female-hero-profile.png"
     },
     "running-east-west": {
       "x": 0,
@@ -23,6 +23,20 @@
       "height": 384,
       "file": "running-east-west.png"
     },
+    "attack-east": {
+      "x": 1026,
+      "y": 2037,
+      "width": 513,
+      "height": 192,
+      "file": "attack-east.png"
+    },
+    "attack-west": {
+      "x": 1026,
+      "y": 2229,
+      "width": 513,
+      "height": 192,
+      "file": "attack-west.png"
+    },
     "running-ne-nw": {
       "x": 0,
       "y": 2421,
@@ -30,19 +44,61 @@
       "height": 384,
       "file": "running-ne-nw.png"
     },
+    "attack-northeast": {
+      "x": 1026,
+      "y": 2421,
+      "width": 513,
+      "height": 192,
+      "file": "attack-northeast.png"
+    },
+    "attack-northwest": {
+      "x": 1026,
+      "y": 2613,
+      "width": 513,
+      "height": 192,
+      "file": "attack-northwest.png"
+    },
     "running-north-south": {
       "x": 0,
       "y": 2805,
-      "width": 1020,
-      "height": 512,
+      "width": 1026,
+      "height": 384,
       "file": "running-north-south.png"
+    },
+    "attack-north": {
+      "x": 1026,
+      "y": 2805,
+      "width": 513,
+      "height": 192,
+      "file": "attack-north.png"
+    },
+    "attack-south": {
+      "x": 1026,
+      "y": 2997,
+      "width": 513,
+      "height": 192,
+      "file": "attack-south.png"
     },
     "running-se-sw": {
       "x": 0,
-      "y": 3317,
+      "y": 3189,
       "width": 1026,
       "height": 384,
       "file": "running-se-sw.png"
+    },
+    "attack-southeast": {
+      "x": 1026,
+      "y": 3189,
+      "width": 513,
+      "height": 192,
+      "file": "attack-southeast.png"
+    },
+    "attack-southwest": {
+      "x": 1026,
+      "y": 3381,
+      "width": 513,
+      "height": 192,
+      "file": "attack-southwest.png"
     }
   }
 }

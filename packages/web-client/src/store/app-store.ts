@@ -67,6 +67,9 @@ interface AppState {
   // Narration log
   narrationLog: NarrationEntry[];
 
+  /** Latest AttackResolved event (transient — used to trigger sprite attack animations). */
+  lastAttackEvent: { seq: number; attackerId: string | null; targetId: string | null } | null;
+
   // UI
   characterSheetOpen: boolean;
   characterSheetTargetId: string | null;
@@ -84,6 +87,7 @@ interface AppState {
   closeCharacterSheet(): void;
   togglePartyChat(): void;
   dismissReaction(): void;
+  setPendingReaction(payload: ReactionPromptPayload | null): void;
   setPendingRoll(roll: PendingRoll | null): void;
   handleRollResponse(response: ActionResponse, actorId: string): void;
   addErrorLog(message: string): void;
@@ -125,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingReaction: null,
   pendingRoll: null,
   narrationLog: [],
+  lastAttackEvent: null,
   characterSheetOpen: false,
   characterSheetTargetId: null,
   partyChatOpen: false,
@@ -317,19 +322,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "AttackResolved": {
-        // Optimistically mark attacker's actionSpent=true (prevents 400 race with re-fetch).
-        // Then decide where to log the structured outcome:
-        //   AI path:     NarrativeText arrives first → last entry IS NarrativeText → append directly.
-        //   Player path: AttackResolved arrives first → buffer it; NarrativeText flushes it after prose.
+        // Optimistically advance the attacker's economy locally:
+        //   attacksUsed += 1 (and actionAvailable→false when exhausted).
+        // We deliberately do NOT bump tacticalVersion here: the GET /tactical
+        // re-fetch races with the server's mid-attack resource write and
+        // returns stale economy (e.g. attacksUsed=1 after the 2nd Extra
+        // Attack), overwriting the optimistic increment and leaving the UI
+        // saying "Attack 1/2" while the server has already exhausted the
+        // action. TurnAdvanced re-syncs at end of turn.
         const p = event.payload;
         set((s) => {
           const attackerMatch = p.attacker ? findByRef(s.combatants, p.attacker) : undefined;
+          const targetMatch = p.target ? findByRef(s.combatants, p.target) : undefined;
+          const lastSeq = (s.lastAttackEvent?.seq ?? 0) + 1;
           const updatedCombatants = attackerMatch
-            ? s.combatants.map((c) =>
-                c.id === attackerMatch.id
-                  ? { ...c, turnFlags: { ...c.turnFlags, actionSpent: true } }
-                  : c
-              )
+            ? s.combatants.map((c) => {
+                if (c.id !== attackerMatch.id) return c;
+                const ae = c.actionEconomy;
+                const usedNext = (ae?.attacksUsed ?? 0) + 1;
+                const allowed = ae?.attacksAllowed ?? 1;
+                const actionExhausted = usedNext >= allowed;
+                return {
+                  ...c,
+                  turnFlags: actionExhausted
+                    ? { ...c.turnFlags, actionSpent: true }
+                    : c.turnFlags,
+                  actionEconomy: ae
+                    ? {
+                        ...ae,
+                        attacksUsed: usedNext,
+                        actionAvailable: actionExhausted ? false : ae.actionAvailable,
+                      }
+                    : ae,
+                };
+              })
             : s.combatants;
 
           const attackEntry: NarrationEntry = {
@@ -352,12 +378,18 @@ export const useAppStore = create<AppState>((set, get) => ({
           const trimmed = s.narrationLog.slice(-99);
           const lastEntry = trimmed[trimmed.length - 1];
 
+          const lastAttackEvent = {
+            seq: lastSeq,
+            attackerId: attackerMatch?.id ?? null,
+            targetId: targetMatch?.id ?? null,
+          };
+
           if (lastEntry?.eventType === "NarrativeText") {
             // AI path: prose already logged — append outcome immediately.
             return {
-              tacticalVersion: s.tacticalVersion + 1,
               combatants: updatedCombatants,
               narrationLog: [...trimmed, attackEntry],
+              lastAttackEvent,
             };
           }
 
@@ -366,9 +398,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           const base = _pendingAttackEntry ? [...trimmed, _pendingAttackEntry] : trimmed;
           _pendingAttackEntry = attackEntry;
           return {
-            tacticalVersion: s.tacticalVersion + 1,
             combatants: updatedCombatants,
             narrationLog: base,
+            lastAttackEvent,
           };
         });
         break;
@@ -409,6 +441,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ characterSheetOpen: false, characterSheetTargetId: null }),
   togglePartyChat: () => set((s) => ({ partyChatOpen: !s.partyChatOpen })),
   dismissReaction: () => set({ pendingReaction: null }),
+  setPendingReaction: (payload) => set({ pendingReaction: payload }),
 
   setPendingRoll: (roll) => set({ pendingRoll: roll }),
 

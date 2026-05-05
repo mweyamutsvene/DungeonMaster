@@ -21,8 +21,20 @@ export function ActionBar({ attackMode, onAttackSelect, spellsPanelOpen, onSpell
   const activeCombatant = combatants.find((c) => c.id === activeCombatantId);
   const myTurn = !!activeCombatant && !!myCharacterId && activeCombatant.characterId === myCharacterId;
   const ae = activeCombatant?.actionEconomy;
-  const actionAvailable = ae?.actionAvailable ?? false;
+
+  // Mirror player-cli: derive attacksRemaining from attacksUsed/attacksAllowed.
+  // Extra Attack keeps `actionAvailable` true between attacks of the same Attack action,
+  // and only flips to false after the final attack. If a tactical re-fetch races with a
+  // mid-attack write, `actionAvailable` can briefly disagree with the server's
+  // `canMakeAttack` check (which also enforces attacks remaining). Gating the Attack
+  // button on attacksRemaining as well keeps the UI in sync with what the server will
+  // accept and prevents the "UI says I can attack, server says I can't" mismatch.
+  const attacksUsed = ae?.attacksUsed ?? 0;
+  const attacksAllowed = ae?.attacksAllowed ?? 1;
+  const attacksRemaining = Math.max(0, attacksAllowed - attacksUsed);
+  const actionAvailable = (ae?.actionAvailable ?? false) && (attacksAllowed === 0 || attacksRemaining > 0);
   const canAct = myTurn && actionAvailable;
+  const canAttack = canAct && attacksRemaining > 0;
 
   async function doAction(text: string) {
     if (!sessionId || !encounterId || !myCharacterId) return;
@@ -52,19 +64,19 @@ export function ActionBar({ attackMode, onAttackSelect, spellsPanelOpen, onSpell
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
         {/* Attack — enters targeting mode on the canvas */}
         <button
-          disabled={!canAct}
-          onClick={canAct ? onAttackSelect : undefined}
+          disabled={!canAttack}
+          onClick={canAttack ? onAttackSelect : undefined}
           className={[
             "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors min-w-[56px]",
             attackMode
               ? "bg-orange-600 text-white ring-2 ring-orange-400"
-              : !canAct
+              : !canAttack
                 ? "bg-slate-800 text-slate-600 cursor-not-allowed"
                 : "bg-slate-700 text-slate-200 hover:bg-slate-600 active:bg-slate-500",
           ].join(" ")}
         >
           <span className="text-base leading-none">⚔️</span>
-          <span>Attack</span>
+          <span>Attack{attacksAllowed > 1 ? ` ${attacksRemaining}/${attacksAllowed}` : ""}</span>
         </button>
 
         {/* Dodge */}

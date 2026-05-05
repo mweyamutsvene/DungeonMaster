@@ -477,8 +477,10 @@ export function registerReactionRoutes(
 
   /**
    * GET /encounters/:encounterId/reactions
-   * 
-   * List all pending reactions for an encounter.
+   *
+   * List all pending reactions for an encounter, enriched with combatant and
+   * actor display names so clients can rebuild a ReactionPrompt UI on refresh
+   * without needing additional lookups.
    */
   app.get<{
     Params: { encounterId: string };
@@ -486,17 +488,32 @@ export function registerReactionRoutes(
     const { encounterId } = req.params;
 
     const pendingActions = await deps.pendingActions.listByEncounter(encounterId);
+    const combatants = await deps.combat.listCombatants(encounterId);
+    const nameMap = await deps.combatants.getNames(combatants);
+
+    function actorEntityId(ref: { type: string; characterId?: string; monsterId?: string; npcId?: string }): string | undefined {
+      return ref.characterId ?? ref.monsterId ?? ref.npcId;
+    }
 
     return {
-      pendingActions: await Promise.all(pendingActions.map(async pa => ({
-        id: pa.id,
-        type: pa.type,
-        actor: pa.actor,
-        status: await deps.pendingActions.getStatus(pa.id),
-        reactionOpportunities: pa.reactionOpportunities,
-        resolvedReactions: pa.resolvedReactions,
-        expiresAt: pa.expiresAt,
-      }))),
+      pendingActions: await Promise.all(pendingActions.map(async pa => {
+        const actorEntityIdValue = actorEntityId(pa.actor as any);
+        const actorCombatant = actorEntityIdValue ? findCombatantByEntityId(combatants, actorEntityIdValue) : undefined;
+        const actorName = actorCombatant ? (nameMap.get(actorCombatant.id) ?? "The actor") : "The actor";
+        return {
+          id: pa.id,
+          type: pa.type,
+          actor: pa.actor,
+          actorName,
+          status: await deps.pendingActions.getStatus(pa.id),
+          reactionOpportunities: pa.reactionOpportunities.map((opp) => ({
+            ...opp,
+            combatantName: nameMap.get(opp.combatantId) ?? opp.combatantId,
+          })),
+          resolvedReactions: pa.resolvedReactions,
+          expiresAt: pa.expiresAt,
+        };
+      })),
     };
   });
 }

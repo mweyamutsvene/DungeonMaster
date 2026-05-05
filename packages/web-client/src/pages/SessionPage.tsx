@@ -9,6 +9,7 @@ import { CharacterSheetModal } from "../shared-ui/CharacterSheetModal";
 import { ReactionPrompt } from "../shared-ui/ReactionPrompt";
 import { DiceRollModal } from "../shared-ui/DiceRollModal";
 import type { SessionResponse } from "../types/api";
+import type { ReactionPromptPayload } from "../types/server-events";
 
 export function SessionPage() {
   const { id: sessionId } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export function SessionPage() {
   const setMyCharacterId = useAppStore((s) => s.setMyCharacterId);
   const characterSheetOpen = useAppStore((s) => s.characterSheetOpen);
   const pendingReaction = useAppStore((s) => s.pendingReaction);
+  const setPendingReaction = useAppStore((s) => s.setPendingReaction);
   const pendingRoll = useAppStore((s) => s.pendingRoll);
 
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -96,6 +98,59 @@ export function SessionPage() {
       }
     })();
   }, [tacticalVersion, sessionId, encounterId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On (re)connect or encounter change: rebuild any pending reaction the player
+  // owes a response to. Live SSE handles the moment-of-trigger case; this covers
+  // page refresh and SSE reconnects so the modal returns instead of leaving the
+  // AI turn silently wedged.
+  useEffect(() => {
+    if (!encounterId || !myCharacterId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { pendingActions } = await gameServer.getActiveReactions(encounterId);
+        if (cancelled) return;
+        const now = Date.now();
+        for (const pa of pendingActions) {
+          if (pa.status !== "awaiting_reactions" && pa.status !== "ready_to_complete") continue;
+          if (new Date(pa.expiresAt).getTime() <= now) continue;
+          const myCombatant = useAppStore
+            .getState()
+            .combatants.find((c) => c.characterId === myCharacterId);
+          if (!myCombatant) continue;
+          const opp = pa.reactionOpportunities.find(
+            (o) =>
+              o.combatantId === myCombatant.id &&
+              !pa.resolvedReactions.some((r) => r.opportunityId === o.id),
+          );
+          if (!opp) continue;
+          setPendingReaction({
+            encounterId,
+            pendingActionId: pa.id,
+            combatantId: opp.combatantId,
+            combatantName: opp.combatantName,
+            reactionOpportunity: {
+              id: opp.id,
+              reactionType: opp.reactionType,
+              oaType: opp.oaType,
+              canUse: opp.canUse,
+              reason: opp.reason,
+              context: opp.context,
+            },
+            actor: pa.actor as ReactionPromptPayload["actor"],
+            actorName: pa.actorName,
+            expiresAt: pa.expiresAt,
+          });
+          break; // surface one at a time
+        }
+      } catch {
+        // Non-fatal — SSE will deliver future prompts.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [encounterId, myCharacterId, setPendingReaction]);
 
   if (loadError) {
     return (

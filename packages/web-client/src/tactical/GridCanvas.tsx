@@ -3,8 +3,10 @@ import { useAppStore } from "../store/app-store";
 import {
   loadHeroSprites,
   drawHeroSprite,
+  drawHeroAttack,
   facingFromVector,
   facingFromIsoGrid,
+  ATTACK_DURATION_MS,
   type Facing,
 } from "./hero-sprite";
 import { loadIsoTiles, getGrassTile, getAnyGrassTile, grassVariantIndex } from "./iso-tiles";
@@ -65,6 +67,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const combatants = useAppStore((s) => s.combatants);
   const activeCombatantId = useAppStore((s) => s.activeCombatantId);
+  const lastAttackEvent = useAppStore((s) => s.lastAttackEvent);
 
   const positioned = combatants.filter((c) => c.position !== null);
   // Compute the maximum occupied cell on either axis, then use ONE square
@@ -103,6 +106,10 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
   const monsterSpriteLoaded = useRef(new Set<string>());
   // Death animations: combatant id → performance.now() when death started.
   const dyingAnimations = useRef<Map<string, number>>(new Map());
+  // Attack animations: combatant id → { startTime, facing }
+  const attackAnimations = useRef<Map<string, { startTime: number; facing: Facing }>>(new Map());
+  // Last narration entry id processed for attack-animation triggering.
+  const lastAttackTriggerId = useRef<string | null>(null);
   // Previous HP per combatant — used to detect the alive→dead transition.
   const prevHp = useRef<Map<string, number>>(new Map());
   const rafRef = useRef<number | null>(null);
@@ -263,6 +270,8 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
 
     // Tokens (animPos stores display units already; fall back to scaled backend pos)
     // Sort back-to-front so closer tokens occlude farther ones (iso depth = gx + gy).
+    // Tiebreaker: dead/corpse tokens render before alive tokens so a live combatant
+    // standing on a corpse draws on top instead of being hidden behind it.
     const tokensSorted = [...cbs]
       .filter((c) => c.position)
       .map((c) => {
@@ -271,7 +280,13 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
         const ay = ap ? ap.y : d(c.position!.y);
         return { c, ax, ay };
       })
-      .sort((a, b) => a.ax + a.ay - (b.ax + b.ay));
+      .sort((a, b) => {
+        const depth = a.ax + a.ay - (b.ax + b.ay);
+        if (depth !== 0) return depth;
+        const aDead = a.c.hp.current <= 0 ? 0 : 1;
+        const bDead = b.c.hp.current <= 0 ? 0 : 1;
+        return aDead - bDead;
+      });
 
     let anyDeathActive = false;
     for (const { c, ax, ay } of tokensSorted) {
@@ -289,9 +304,12 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
 
       // ── Cell-occupancy highlight: draw the iso diamond the token stands on
       // so it's clear which tile they actually occupy. Use faction colors.
+      // Anchor on the sprite's *centre* (ax + 0.5, ay + 0.5) so the highlight
+      // tracks the visible body during running animation instead of jumping
+      // ahead to the destination tile.
       if (!isDead) {
-        const cellGx = Math.floor(ax);
-        const cellGy = Math.floor(ay);
+        const cellGx = Math.floor(ax + 0.5);
+        const cellGy = Math.floor(ay + 0.5);
         const fillRgba = isPlayer
           ? "rgba(59, 130, 246, 0.28)"  // blue
           : "rgba(239, 68, 68, 0.28)";  // red
@@ -388,9 +406,35 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       // Draw sprite art when available.
       if (showSpriteOverlay) {
         const isMoving = animations.current.has(c.id);
-        const dir = facing.current.get(c.id) ?? "south";
+        const attackAnim = attackAnimations.current.get(c.id);
+        const attackProgress = attackAnim ? (now - attackAnim.startTime) / ATTACK_DURATION_MS : null;
+        const isAttacking = attackProgress !== null && attackProgress >= 0 && attackProgress < 1;
+        if (attackProgress !== null && attackProgress >= 1) {
+          attackAnimations.current.delete(c.id);
+        }
+        const dir = isAttacking && attackAnim ? attackAnim.facing : (facing.current.get(c.id) ?? "south");
+        // Soft contact shadow under the feet — drawn before the sprite so the
+        // body occludes the upper edge. Skipped for prone/dead sprites.
+        if (!isDead) {
+          const shadowRx = spriteSize * 0.20;
+          const shadowRy = shadowRx * 0.42;
+          const shadowCy = py - spriteSize * 0.04;
+          ctx.save();
+          ctx.beginPath();
+          ctx.ellipse(px, shadowCy, shadowRx, shadowRy, 0, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+          ctx.filter = "blur(2px)";
+          ctx.fill();
+          ctx.restore();
+        }
         if (isPlayer) {
-          drawHeroSprite(ctx, bodyCx, bodyCy, spriteSize, dir, isMoving, now);
+          if (isAttacking && attackProgress !== null) {
+            if (!drawHeroAttack(ctx, bodyCx, bodyCy, spriteSize, dir, attackProgress)) {
+              drawHeroSprite(ctx, bodyCx, bodyCy, spriteSize, dir, isMoving, now);
+            }
+          } else {
+            drawHeroSprite(ctx, bodyCx, bodyCy, spriteSize, dir, isMoving, now);
+          }
         } else if (monsterProfile) {
           drawMonsterSprite(ctx, bodyCx, bodyCy, spriteSize, dir, monsterProfile, {
             running: isMoving && !isDead,
@@ -415,7 +459,7 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     }
 
     // Keep looping while tweens or death animations are active; otherwise go idle
-    if (animations.current.size > 0 || anyDeathActive) {
+    if (animations.current.size > 0 || anyDeathActive || attackAnimations.current.size > 0) {
       rafRef.current = requestAnimationFrame(renderFrame);
     } else {
       rafRef.current = null;
@@ -505,6 +549,37 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
       renderFrame();
     }
   }, [combatants, renderFrame]);
+
+  // ── Attack animation trigger (player heroes only) ────────────────────────
+  useEffect(() => {
+    if (!lastAttackEvent) return;
+    const seqKey = `attack-${lastAttackEvent.seq}`;
+    if (lastAttackTriggerId.current === seqKey) return;
+    lastAttackTriggerId.current = seqKey;
+
+    const { attackerId, targetId } = lastAttackEvent;
+    if (!attackerId) return;
+    const attacker = combatantsRef.current.find((c) => c.id === attackerId);
+    if (!attacker || attacker.combatantType !== "Character") return; // hero attack frames only
+
+    // Compute facing toward target if known, else keep current facing.
+    let attackFacing = facing.current.get(attackerId) ?? "south";
+    if (targetId) {
+      const target = combatantsRef.current.find((c) => c.id === targetId);
+      const aPos = animPos.current.get(attackerId)
+        ?? (attacker.position ? { x: d(attacker.position.x), y: d(attacker.position.y) } : null);
+      const tPos = target?.position ? { x: d(target.position.x), y: d(target.position.y) } : null;
+      if (aPos && tPos) {
+        attackFacing = facingFromIsoGrid(tPos.x - aPos.x, tPos.y - aPos.y, attackFacing);
+        facing.current.set(attackerId, attackFacing);
+      }
+    }
+    attackAnimations.current.set(attackerId, {
+      startTime: performance.now(),
+      facing: attackFacing,
+    });
+    if (rafRef.current === null) rafRef.current = requestAnimationFrame(renderFrame);
+  }, [lastAttackEvent, renderFrame]);
 
   // ── Canvas resize observer + non-passive wheel zoom ────────────────────
   useEffect(() => {
@@ -619,11 +694,30 @@ export const GridCanvas = forwardRef<GridCanvasHandle, GridCanvasProps>(function
     const cell = mouseToCell(e);
     if (!cell) return;
     const { vcx, vcy } = cell;
-    const hit = combatants.find(
+    // Hit-test: collect every combatant in this cell, then pick the most
+    // relevant one. Bare `find()` would return whatever is first in the array,
+    // which is often a corpse a live goblin walked onto — clicking it then
+    // sends `attack @id:<dead>` and the server rejects.
+    //
+    // Priority:
+    //   1. In attack mode: alive non-player tokens only (corpses & allies
+    //      are not valid attack targets).
+    //   2. Otherwise: alive tokens before dead ones (sheet > corpse).
+    //   3. Within alive, prefer the active combatant (the click was for them).
+    const hits = combatants.filter(
       (c) => c.position && Math.floor(d(c.position.x)) === vcx && Math.floor(d(c.position.y)) === vcy,
     );
-    if (hit) {
-      onTokenTap?.(hit.id);
+    let pick: typeof hits[number] | undefined;
+    if (propsRef.current.attackMode) {
+      pick = hits.find((c) => c.hp.current > 0 && c.combatantType !== "Character");
+    }
+    if (!pick) {
+      pick = hits.find((c) => c.hp.current > 0 && c.id === activeCombatantIdRef.current)
+        ?? hits.find((c) => c.hp.current > 0)
+        ?? hits[0];
+    }
+    if (pick) {
+      onTokenTap?.(pick.id);
     } else {
       onCellTap?.(vcx * FEET_PER_CELL, vcy * FEET_PER_CELL);
     }

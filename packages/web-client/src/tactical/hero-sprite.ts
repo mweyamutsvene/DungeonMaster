@@ -82,6 +82,10 @@ const ALL_FACINGS: Facing[] = ["north", "south", "east", "west", "northeast", "n
 export const RUN_FRAME_MS = 100; // ms per animation frame
 export const HERO_SPRITE_PX = 92;
 
+/** Total duration of the unarmed-attack animation (3 frames). */
+export const ATTACK_DURATION_MS = 360;
+const ATTACK_COLS = 3;
+
 /**
  * Running frames are cropped tightly around the character (~100% fill) while
  * idle frames have ~85% fill. Scale running draws down so both appear the
@@ -115,6 +119,18 @@ const RUNNING_DIR_ATLAS: Record<Facing, { key: string; row: number; cols: number
   northwest: { key: "running-ne-nw",       row: 0, cols: 6 },
   southeast: { key: "running-se-sw",       row: 1, cols: 6 },
   southwest: { key: "running-se-sw",       row: 0, cols: 6 },
+};
+
+/** Atlas key for each facing's attack strip (3 frames, single row per sheet). */
+const ATTACK_DIR_ATLAS: Record<Facing, string> = {
+  north:     "attack-north",
+  south:     "attack-south",
+  east:      "attack-east",
+  west:      "attack-west",
+  northeast: "attack-northeast",
+  northwest: "attack-northwest",
+  southeast: "attack-southeast",
+  southwest: "attack-southwest",
 };
 
 let cache: LoadedSprites | null = null;
@@ -367,5 +383,45 @@ export function drawHeroSprite(
     ctx.drawImage(sheet, frame.col * fw, frame.row * fh, fw, fh, destX, destY, dw, dh);
   }
 
+  return true;
+}
+
+/**
+ * Draw the unarmed-attack animation frame for `facing` at progress 0..1
+ * (0 = first frame, 1 = past last frame). Returns false when the atlas /
+ * facing entry is unavailable so callers can fall back to the idle sprite.
+ */
+export function drawHeroAttack(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  facing: Facing,
+  progress: number,
+): boolean {
+  const sprites = cache;
+  if (!sprites?.atlas) return false;
+  const key = ATTACK_DIR_ATLAS[facing];
+  const entry = sprites.atlas.manifest.sheets[key];
+  if (!entry) return false;
+  const fw = Math.floor(entry.width / ATTACK_COLS);
+  const fh = entry.height;
+  const frameIdx = Math.min(ATTACK_COLS - 1, Math.max(0, Math.floor(progress * ATTACK_COLS)));
+  // Use the running atlas scale + feet anchor so attack sprites match running size.
+  const anchor = runFrameMap[facing];
+  const hcx = anchor?.hCenterX ?? 0.5;
+  const fay = anchor?.feetAnchorY ?? 0.99;
+  const aspect = fw / fh;
+  const scaledSize = size * RUN_ATLAS_SCALE;
+  const dw = aspect >= 1 ? scaledSize : scaledSize * aspect;
+  const dh = aspect >= 1 ? scaledSize / aspect : scaledSize;
+  const destX = cx - hcx * dw;
+  const destY = cy - fay * dh;
+  ctx.drawImage(
+    sprites.atlas.img,
+    entry.x + frameIdx * fw, entry.y,
+    fw, fh,
+    destX, destY, dw, dh,
+  );
   return true;
 }

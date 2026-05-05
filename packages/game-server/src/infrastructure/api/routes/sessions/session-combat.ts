@@ -102,6 +102,12 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
   /**
    * GET /sessions/:id/combat
    * Get the current encounter state.
+   *
+   * Side-effect: if the active combatant is AI-controlled (Monster/NPC) and no
+   * AI turn is in flight for this encounter, kick off `processAllMonsterTurns`.
+   * This auto-resumes combat after a server restart that left an encounter
+   * mid-AI-turn — the orchestrator's `_inFlight` guard makes concurrent calls
+   * no-ops, so polling clients won't cause double-processing.
    */
   app.get<{
     Params: { id: string };
@@ -109,7 +115,24 @@ export function registerSessionCombatRoutes(app: FastifyInstance, deps: SessionR
   }>("/sessions/:id/combat", async (req) => {
     const sessionId = req.params.id;
     const input = { encounterId: req.query.encounterId };
-    return deps.combat.getEncounterState(sessionId, input);
+    const state = await deps.combat.getEncounterState(sessionId, input);
+
+    if (
+      deps.aiOrchestrator &&
+      state.encounter.status === "Active" &&
+      state.activeCombatant
+    ) {
+      const ac = state.activeCombatant as { combatantType?: string };
+      if (ac.combatantType === "Monster" || ac.combatantType === "NPC") {
+        void deps.aiOrchestrator
+          .processAllMonsterTurns(sessionId, state.encounter.id)
+          .catch((err: Error) => {
+            console.error("[GET /sessions/:id/combat] AI resume failed:", err);
+          });
+      }
+    }
+
+    return state;
   });
 
   /**

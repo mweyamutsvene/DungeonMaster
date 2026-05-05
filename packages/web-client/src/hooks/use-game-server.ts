@@ -81,6 +81,30 @@ export const gameServer = {
       body: JSON.stringify(body),
     }),
 
+  // GET /encounters/:encounterId/reactions — list all pending reactions (for refresh hydration)
+  getActiveReactions: (encounterId: string) =>
+    apiFetch<{
+      pendingActions: Array<{
+        id: string;
+        type: string;
+        actor: { type: string; characterId?: string; monsterId?: string; npcId?: string };
+        actorName: string;
+        status: "awaiting_reactions" | "ready_to_complete" | "completed" | "cancelled" | "expired";
+        reactionOpportunities: Array<{
+          id: string;
+          combatantId: string;
+          combatantName: string;
+          reactionType: string;
+          oaType?: "weapon" | "spell";
+          canUse: boolean;
+          reason?: string;
+          context: Record<string, unknown>;
+        }>;
+        resolvedReactions: Array<{ opportunityId: string; combatantId: string; choice: "use" | "decline" }>;
+        expiresAt: string;
+      }>;
+    }>(`/encounters/${encounterId}/reactions`),
+
   previewPath: (
     sessionId: string,
     encounterId: string,

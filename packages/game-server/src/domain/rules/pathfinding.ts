@@ -417,6 +417,9 @@ export function findPath(
  * Find the best passable cell to stop at within `desiredRange` feet of `targetPos`,
  * choosing the cell closest to `approachFrom` (i.e. least backtracking).
  *
+ * Cells in `occupiedPositions` are excluded so two creatures cannot pick the
+ * same destination tile. The approach origin itself is never excluded.
+ *
  * Returns null if no passable cell is in range.
  */
 export function findAdjacentPosition(
@@ -424,10 +427,21 @@ export function findAdjacentPosition(
   targetPos: Position,
   approachFrom: Position,
   desiredRange: number = 5,
+  occupiedPositions?: readonly Position[],
 ): Position | null {
   const gridSize = map.gridSize || 5;
   const target = snapToGrid(targetPos, gridSize);
   const origin = snapToGrid(approachFrom, gridSize);
+
+  const occupiedSet = new Set<string>();
+  if (occupiedPositions) {
+    for (const op of occupiedPositions) {
+      occupiedSet.add(posKey(snapToGrid(op, gridSize)));
+    }
+  }
+  // The approach origin is the moving creature's own cell — don't treat it
+  // as occupied (otherwise an in-range creature can never "stay put").
+  occupiedSet.delete(posKey(origin));
 
   // Simple case: if approach position is already within range, return it
   if (calculateDistance(origin, target) <= desiredRange) {
@@ -447,6 +461,7 @@ export function findAdjacentPosition(
       if (!isOnMap(map, pos)) continue;
       if (!isPositionPassable(map, pos)) continue;
       if (pos.x === target.x && pos.y === target.y) continue; // Don't stand on the target
+      if (occupiedSet.has(posKey(pos))) continue; // Skip cells held by other live combatants
 
       const distToTarget = calculateDistance(pos, target);
       if (distToTarget <= desiredRange) {

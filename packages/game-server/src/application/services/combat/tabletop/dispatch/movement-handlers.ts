@@ -322,7 +322,7 @@ export class MovementHandlers {
       .map(c => getPosition(c.resources ?? {})!)
       .filter(Boolean);
 
-    const destination = findAdjacentPosition(map, targetPos, actorPos, range);
+    const destination = findAdjacentPosition(map, targetPos, actorPos, range, occupiedPositions);
     if (!destination) {
       throw new ValidationError(`Cannot find a passable position within ${range}ft of the target.`);
     }

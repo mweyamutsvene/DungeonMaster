@@ -1,0 +1,104 @@
+{
+  "atlasWidth": 3552,
+  "atlasHeight": 7146,
+  "sheets": {
+    "neutral-idle-8dir": {
+      "x": 0,
+      "y": 0,
+      "width": 3552,
+      "height": 1776,
+      "file": "neutral-idle-8dir.png"
+    },
+    "female-hero-profile": {
+      "x": 0,
+      "y": 1776,
+      "width": 2738,
+      "height": 2298,
+      "file": "female-hero-profile.png"
+    },
+    "running-east-west": {
+      "x": 0,
+      "y": 4074,
+      "width": 2052,
+      "height": 768,
+      "file": "running-east-west.png"
+    },
+    "attack-east": {
+      "x": 2052,
+      "y": 4074,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-east.png"
+    },
+    "attack-west": {
+      "x": 2052,
+      "y": 4458,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-west.png"
+    },
+    "running-ne-nw": {
+      "x": 0,
+      "y": 4842,
+      "width": 2052,
+      "height": 768,
+      "file": "running-ne-nw.png"
+    },
+    "attack-northeast": {
+      "x": 2052,
+      "y": 4842,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-northeast.png"
+    },
+    "attack-northwest": {
+      "x": 2052,
+      "y": 5226,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-northwest.png"
+    },
+    "running-north-south": {
+      "x": 0,
+      "y": 5610,
+      "width": 2052,
+      "height": 768,
+      "file": "running-north-south.png"
+    },
+    "attack-north": {
+      "x": 2052,
+      "y": 5610,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-north.png"
+    },
+    "attack-south": {
+      "x": 2052,
+      "y": 5994,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-south.png"
+    },
+    "running-se-sw": {
+      "x": 0,
+      "y": 6378,
+      "width": 2052,
+      "height": 768,
+      "file": "running-se-sw.png"
+    },
+    "attack-southeast": {
+      "x": 2052,
+      "y": 6378,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-southeast.png"
+    },
+    "attack-southwest": {
+      "x": 2052,
+      "y": 6762,
+      "width": 1026,
+      "height": 384,
+      "file": "attack-southwest.png"
+    }
+  }
+}
